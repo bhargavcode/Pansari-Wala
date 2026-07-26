@@ -4,5 +4,9 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Pansari Wala needs the microphone to add order items with Hindi voice commands.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Pansari Wala uses speech recognition to understand Hindi order commands like "1 kilo chini".</string>
 </dict>
 </plist>
