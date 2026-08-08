@@ -1,0 +1,29 @@
+---
+description: Hard token budget for Pansari Wala — keep context small every turn
+alwaysApply: true
+---
+
+# Token budget (always)
+
+Goal: cut context ~50%. Prefer precision over breadth.
+
+## Do
+- Read ≤2 files first; use `offset`/`limit` for large files.
+- Prefer `Grep`/`Glob` with a narrow path over repo-wide search.
+- Reuse paths from the project-map rule; do not re-explore structure.
+- Edit with surgical patches; do not rewrite whole files.
+- Reply in ≤8 short bullets / short paragraphs unless asked for detail.
+- Cite code with `start:end:path` only for changed or critical lines.
+
+## Do not
+- Do not dump full files, long logs, or Gradle trees into chat.
+- Do not restate Phase 1/2/3 architecture each turn.
+- Do not create README/docs unless explicitly asked.
+- Do not run broad `find`/`ls -R` or open `build/` / `.gradle/` outputs.
+- Do not spawn explore subagents for needle lookups (path known).
+- Do not parallel-read "everything related"; open only what you will edit.
+
+## Build
+- Android verify: `./gradlew :androidApp:assembleDebug`
+- Shared iOS: `./gradlew :shared:compileKotlinIosSimulatorArm64`
+- Show only last ~40 lines of build output on failure.

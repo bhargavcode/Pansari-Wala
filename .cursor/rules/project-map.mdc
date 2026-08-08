@@ -1,0 +1,33 @@
+---
+description: Pansari Wala path map — avoid rediscovering the codebase
+alwaysApply: true
+---
+
+# Project map
+
+KMP + Compose Multiplatform, package `org.bhargav.pansariwala`.
+
+| Area | Path |
+|------|------|
+| App root | `shared/.../App.kt` |
+| Nav3 | `shared/.../navigation/` |
+| DI (Koin) | `shared/.../di/AppModule.kt` |
+| Theme | `shared/.../theme/` |
+| Login/Splash | `shared/.../feature/login/`, `feature/splash/` |
+| Dashboard | `shared/.../feature/dashboard/` |
+| Orders + voice UI | `shared/.../feature/order/` |
+| Inventory | `shared/.../feature/inventory/` |
+| Voice STT/parser | `shared/.../voice/` + `androidMain|iosMain|jsMain|wasmJsMain/.../voice/` |
+| Room DB | `shared/src/nonWebMain/.../data/db/` |
+| Seed | `shared/.../data/seed/SeedData.kt` |
+| Domain models | `shared/.../domain/` |
+| Android app | `androidApp/` |
+| iOS app | `iosApp/` |
+| Versions | `gradle/libs.versions.toml` |
+
+## Facts (do not re-derive)
+- DB: Room on Android/iOS (`nonWebMain`); in-memory on js/wasm.
+- Auth: local seeded users (`owner`/`cashier`, password `1234`).
+- Nav: Splash → Login → Dashboard (+ inventory/order routes).
+- Voice: mic on order search; continuous STT; cart add on stable phrase.
+- Demo shop id: `shop_1`.

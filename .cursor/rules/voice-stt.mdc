@@ -1,0 +1,18 @@
+---
+description: Hindi voice order STT rules — only when editing voice/order files
+globs: shared/**/voice/**/*.kt,shared/**/feature/order/**/*.kt
+alwaysApply: false
+---
+
+# Voice STT
+
+- Parse both orders: `1 kilo chini` and `chini 1 kilo`; support `adha`/`आधा`.
+- Commit cart on stable complete phrase (~700ms); do not wait for cancel.
+- Clear transcript UI after successful cart add.
+- iOS: never restart SFSpeechRecognizer synchronously in the recognition callback (error 216). Defer restart.
+- Android: emit `Started` once per mic session; soft-retry busy/network; commit last partial on NO_MATCH.
+- Do not surface raw platform STT errors in order UI while listening.
+- Match products via `ProductFuzzyMatcher` on `name` / `nameHi` / `voiceAlias`.
+- Out of stock / unknown → `{name} stock me nahi hai`.
+
+Before deep edits, read skill `pansari-voice-stt` if present.

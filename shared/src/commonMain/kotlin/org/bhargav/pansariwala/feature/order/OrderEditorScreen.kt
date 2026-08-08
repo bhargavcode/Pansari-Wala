@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.bhargav.pansariwala.designsystem.AdaptivePane
+import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.bhargav.pansariwala.voice.RequestMicrophonePermission
@@ -46,7 +48,128 @@ fun OrderEditorScreen(
         onConsumed = viewModel::consumeMicPermissionRequest,
         onResult = viewModel::onMicPermissionResult,
     )
+    AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
+        if (widthClass == WindowWidthClass.Expanded) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (state.isEditing) "Edit order" else "Create order",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        TextButton(onClick = onBack) { Text("Back") }
+                    }
+                    OutlinedTextField(
+                        value = state.customerName,
+                        onValueChange = viewModel::onCustomerNameChange,
+                        label = { Text("Customer name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
+                    Text(
+                        text = "Cart (${state.itemCount})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                    )
+                    if (state.cart.isEmpty()) {
+                        Text(
+                            text = "Add products by search or voice mic below.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Column {
+                            state.cart.forEach { line ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            line.product.name,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = "${line.product.sellingPrice.asMoney()} · ${line.lineTotal.asMoney()}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    TextButton(onClick = {
+                                        viewModel.changeQuantity(
+                                            line.product.id,
+                                            -1.0
+                                        )
+                                    }) { Text("−") }
+                                    Text(
+                                        text = "${line.quantity.asQuantity()} ${line.product.unit.label}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    TextButton(onClick = {
+                                        viewModel.changeQuantity(
+                                            line.product.id,
+                                            1.0
+                                        )
+                                    }) { Text("+") }
+                                    TextButton(onClick = { viewModel.removeLine(line.product.id) }) {
+                                        Text(
+                                            "Remove"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    state.error?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Total: ${state.total.asMoney()}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Button(onClick = viewModel::save) {
+                            Text(if (state.isEditing) "Update order" else "Save order")
+                        }
+                    }
+                    HorizontalDivider()
+                }
+                SearchOrSuggestedItems(state, onBack, viewModel)
+            }
+        } else {
+            SearchOrSuggestedItems(state, onBack, viewModel)
+        }
+    }
+}
+
+@Composable
+private fun SearchOrSuggestedItems(
+    state: OrderEditorUiState,
+    onBack: () -> Unit,
+    viewModel: OrderEditorViewModel
+) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
@@ -60,7 +183,6 @@ fun OrderEditorScreen(
             )
             TextButton(onClick = onBack) { Text("Back") }
         }
-
         OutlinedTextField(
             value = state.customerName,
             onValueChange = viewModel::onCustomerNameChange,
@@ -89,20 +211,37 @@ fun OrderEditorScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(line.product.name, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                line.product.name,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                             Text(
                                 text = "${line.product.sellingPrice.asMoney()} · ${line.lineTotal.asMoney()}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        TextButton(onClick = { viewModel.changeQuantity(line.product.id, -1.0) }) { Text("−") }
+                        TextButton(onClick = {
+                            viewModel.changeQuantity(
+                                line.product.id,
+                                -1.0
+                            )
+                        }) { Text("−") }
                         Text(
                             text = "${line.quantity.asQuantity()} ${line.product.unit.label}",
                             style = MaterialTheme.typography.bodyMedium,
                         )
-                        TextButton(onClick = { viewModel.changeQuantity(line.product.id, 1.0) }) { Text("+") }
-                        TextButton(onClick = { viewModel.removeLine(line.product.id) }) { Text("Remove") }
+                        TextButton(onClick = {
+                            viewModel.changeQuantity(
+                                line.product.id,
+                                1.0
+                            )
+                        }) { Text("+") }
+                        TextButton(onClick = { viewModel.removeLine(line.product.id) }) {
+                            Text(
+                                "Remove"
+                            )
+                        }
                     }
                 }
             }

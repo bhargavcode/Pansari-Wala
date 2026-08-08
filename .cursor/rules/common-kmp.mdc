@@ -1,0 +1,10 @@
+---
+description: "Shared KMP architectural patterns"
+globs: ["**/commonMain/**", "shared/**"]
+---
+# Common Module Guidelines
+
+- Use Coroutines/Flow for asynchronous operations and state streams (`StateFlow`/`SharedFlow`).
+- Utilize Ktor for networking and Kotlinx.serialization for JSON.
+- For local storage, use Decompose, SQLDelight, or Room KMP.
+- Keep UI-agnostic models clean from platform dependencies.

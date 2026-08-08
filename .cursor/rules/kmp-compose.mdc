@@ -1,0 +1,15 @@
+---
+description: KMP Compose conventions — load only for Kotlin/Compose edits
+globs: shared/**/*.kt,androidApp/**/*.kt,iosApp/**/*
+alwaysApply: false
+---
+
+# KMP / Compose
+
+- Shared UI/logic in `commonMain`; platform code via `expect`/`actual`.
+- Room only in `nonWebMain` (+ android/ios builders). Never add Room to js/wasm.
+- DI: register new repos/VMs in `di/AppModule.kt`.
+- Nav: typed `AppRoute` + polymorphic serializers in `AppNavGraph`.
+- UI: Material 3 + `PansariTheme`; responsive via `AdaptivePane` / width class.
+- Keep ViewModels thin: state in `StateFlow`, side effects via events/jobs.
+- Prefer existing designsystem helpers over new card/layout systems.

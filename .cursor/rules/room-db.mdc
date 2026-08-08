@@ -1,0 +1,16 @@
+---
+description: Room KMP DB conventions — only when editing DB/seed files
+globs: shared/**/data/db/**/*.kt,shared/**/data/seed/**/*.kt,shared/build.gradle.kts
+alwaysApply: false
+---
+
+# Room DB
+
+- Entities/DAOs/DB in `nonWebMain`; builders in androidMain/iosMain.
+- `ShopRepository` is the shared façade; web uses `InMemoryShopRepository`.
+- Seed via `SeedData`; `ensureSeeded` inserts users once and upserts missing products only.
+- Keep indexes on shopId/barcode/category/createdAt for dashboard queries.
+- Schema export under `shared/schemas/`; bump `version` on breaking entity changes.
+- KSP: `kspAndroid`, `kspIosArm64`, `kspIosSimulatorArm64`.
+
+Before schema work, read skill `pansari-room-db` if present.

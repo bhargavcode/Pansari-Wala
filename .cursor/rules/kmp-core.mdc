@@ -1,0 +1,14 @@
+---
+description: "Core architecture and output rules for KMP project"
+globs: ["**/*"]
+---
+# KMP Core Rules
+
+## Code Strategy
+- Default to business logic, viewmodels, and state in `commonMain`.
+- Use expect/actual pattern ONLY when platform APIs (iOS/Android native) are strictly required.
+- Do not duplicate common logic into platform-specific modules (`androidMain` or `iosMain`).
+
+## Token & Output Efficiency
+- Output ONLY modified functions, concise diffs, or code snippets—never rewrite entire multi-line files.
+- Omit conversational filler, explanations of basic Kotlin/Swift syntax, and redundant comments.

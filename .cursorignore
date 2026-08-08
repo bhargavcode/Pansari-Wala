@@ -1,0 +1,21 @@
+# Gradle & Kotlin Build Outputs
+.gradle/
+**/build/
+.kotlin/
+*.klib
+
+# Android Generated Files
+androidApp/build/
+**/build/generated/
+
+# iOS Build Artifacts & Dependencies
+iosApp/*.xcodeproj/project.xcworkspace/
+iosApp/Pods/
+iosApp/DerivedData/
+.swiftpm/
+*.framework/
+
+# IDE & OS Noise
+.idea/
+.DS_Store
+*.xcworkspace

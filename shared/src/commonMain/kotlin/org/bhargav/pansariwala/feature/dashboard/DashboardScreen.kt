@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.StatTile
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
@@ -61,7 +62,7 @@ fun DashboardScreen(
         return
     }
 
-    org.bhargav.pansariwala.designsystem.AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
+    AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
