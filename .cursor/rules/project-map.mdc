@@ -21,8 +21,11 @@ KMP + Compose Multiplatform, package `org.bhargav.pansariwala`.
 | Room DB | `shared/src/nonWebMain/.../data/db/` |
 | Seed | `shared/.../data/seed/SeedData.kt` |
 | Domain models | `shared/.../domain/` |
-| Android app | `androidApp/` |
-| iOS app | `iosApp/` |
+| Android app | `androidApp/` (flavors: `pos`, `user`, `delivery`) |
+| iOS app | `iosApp/` (`PansariProduct` in Info.plist) |
+| Ktor server | `server/` |
+| Constants | `shared/.../util/AppConstants.kt` |
+| Strings (en) | `shared/.../composeResources/values/strings.xml` |
 | Versions | `gradle/libs.versions.toml` |
 
 ## Facts (do not re-derive)

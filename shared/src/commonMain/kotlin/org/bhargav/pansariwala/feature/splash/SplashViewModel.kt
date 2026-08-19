@@ -18,6 +18,7 @@ sealed interface SplashDestination {
 class SplashViewModel(
     private val observeSession: ObserveSessionUseCase,
     private val shopRepository: ShopRepository,
+    private val preferences: org.bhargav.pansariwala.data.local.AppPreferences,
 ) : ViewModel() {
 
     private val _destination = MutableStateFlow<SplashDestination?>(null)
@@ -27,12 +28,25 @@ class SplashViewModel(
         viewModelScope.launch {
             shopRepository.ensureSeeded()
             delay(SPLASH_DURATION_MS)
-            val hasSession = observeSession.hasSession()
-            _destination.value = if (hasSession) {
-                SplashDestination.Home
-            } else {
-                SplashDestination.Login
+            val product = org.bhargav.pansariwala.product.currentAppProduct()
+            val token = preferences.getAccessToken()
+            if (product == org.bhargav.pansariwala.product.AppProduct.POS &&
+                !token.isNullOrBlank() &&
+                !token.startsWith(org.bhargav.pansariwala.util.AppConstants.JWT_PREFIX)
+            ) {
+                preferences.clearSession()
             }
+            val hasSession = observeSession.hasSession()
+            val role = preferences.getRole()
+            val home = when (product) {
+                org.bhargav.pansariwala.product.AppProduct.POS ->
+                    hasSession
+                org.bhargav.pansariwala.product.AppProduct.USER ->
+                    hasSession && role == org.bhargav.pansariwala.util.AppConstants.Roles.CUSTOMER
+                org.bhargav.pansariwala.product.AppProduct.DELIVERY ->
+                    hasSession && role == org.bhargav.pansariwala.util.AppConstants.Roles.PARTNER
+            }
+            _destination.value = if (home) SplashDestination.Home else SplashDestination.Login
         }
     }
 

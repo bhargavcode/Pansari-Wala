@@ -10,6 +10,6 @@ fun initKoin(
 ) {
     startKoin {
         appDeclaration()
-        modules(listOf(appModule) + platformModules)
+        modules(listOf(appModule, platformModule) + platformModules)
     }
 }

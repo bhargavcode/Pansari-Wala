@@ -11,12 +11,18 @@ import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
 import org.bhargav.pansariwala.domain.auth.LoginCredentials
 import org.bhargav.pansariwala.domain.auth.LoginUseCase
+import org.bhargav.pansariwala.i18n.UiText
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_forgot_password_later
+import pansariwala.shared.generated.resources.error_invalid_credentials
+import pansariwala.shared.generated.resources.error_login_failed
+import pansariwala.shared.generated.resources.error_login_validation
 
 data class LoginUiState(
     val identifier: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
+    val errorMessage: UiText? = null,
     val isPasswordVisible: Boolean = false,
 )
 
@@ -55,7 +61,7 @@ class LoginViewModel(
             ),
         )
         _uiState.update {
-            it.copy(errorMessage = "Forgot password will be available in a later phase.")
+            it.copy(errorMessage = UiText.res(Res.string.error_forgot_password_later))
         }
     }
 
@@ -91,7 +97,7 @@ class LoginViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = error.message ?: "Login failed",
+                            errorMessage = mapLoginError(error),
                         )
                     }
                 },
@@ -101,5 +107,12 @@ class LoginViewModel(
 
     fun consumeEvent() {
         _events.value = null
+    }
+
+    private fun mapLoginError(error: Throwable): UiText = when (error.message) {
+        "Invalid username or password." -> UiText.res(Res.string.error_invalid_credentials)
+        "Enter a valid phone/email and password (min 4 chars)." ->
+            UiText.res(Res.string.error_login_validation)
+        else -> error.message?.let { UiText.Plain(it) } ?: UiText.res(Res.string.error_login_failed)
     }
 }

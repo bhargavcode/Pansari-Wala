@@ -31,6 +31,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.stringResource
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.cancel_listening
+import pansariwala.shared.generated.resources.voice_idle_prompt
+import pansariwala.shared.generated.resources.voice_listening
 
 @Composable
 fun VoiceSearchControls(
@@ -58,7 +63,11 @@ fun VoiceSearchControls(
                     .padding(start = if (showMicButton) 12.dp else 0.dp),
             ) {
                 Text(
-                    text = if (isListening) "Sun raha hoon…" else "Voice se order add karein",
+                    text = if (isListening) {
+                        stringResource(Res.string.voice_listening)
+                    } else {
+                        stringResource(Res.string.voice_idle_prompt)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isListening) {
                         MaterialTheme.colorScheme.primary
@@ -76,7 +85,7 @@ fun VoiceSearchControls(
             }
             if (isListening) {
                 TextButton(onClick = onCancel) {
-                    Text("Cancel listening")
+                    Text(stringResource(Res.string.cancel_listening))
                 }
             }
         }

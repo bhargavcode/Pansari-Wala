@@ -20,7 +20,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.domain.model.CategoryStock
+import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.util.asMoney
+import org.jetbrains.compose.resources.stringResource
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.category_items_summary
+import pansariwala.shared.generated.resources.no_inventory_yet
 
 private val barColors = listOf(
     Color(0xFF2E7D32),
@@ -37,7 +42,7 @@ fun CategoryBarChart(
 ) {
     if (data.isEmpty()) {
         Text(
-            text = "No inventory yet.",
+            text = stringResource(Res.string.no_inventory_yet),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -54,12 +59,18 @@ fun CategoryBarChart(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = item.category.displayName,
+                        text = item.category.localizedName(),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                        maxLines = 1,
                     )
                     Text(
-                        text = "${item.itemCount} items · ${item.stockValue.asMoney()}",
+                        text = stringResource(
+                            Res.string.category_items_summary,
+                            item.itemCount,
+                            item.stockValue.asMoney(),
+                        ),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

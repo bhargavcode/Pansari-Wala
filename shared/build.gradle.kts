@@ -113,6 +113,9 @@ kotlin {
             implementation(libs.koin.android)
             implementation(libs.datastore.preferences.core)
             implementation(libs.androidx.activity.compose)
+            implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.auth)
+            implementation(libs.razorpay.checkout)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

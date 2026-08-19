@@ -5,11 +5,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import platform.AVFAudio.AVAudioEngine
+import platform.AVFAudio.AVAudioFormat
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryOptionDefaultToSpeaker
 import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
 import platform.AVFAudio.AVAudioSessionModeMeasurement
 import platform.AVFAudio.setActive
+import platform.AVFAudio.setPreferredSampleRate
 import platform.Foundation.NSError
 import platform.Foundation.NSLocale
 import platform.Speech.SFSpeechAudioBufferRecognitionRequest
@@ -35,7 +37,7 @@ private class IosSpeechToText : SpeechToText {
     private val _events = MutableSharedFlow<SpeechEvent>(extraBufferCapacity = 64)
     override val events: SharedFlow<SpeechEvent> = _events.asSharedFlow()
 
-    private val audioEngine = AVAudioEngine()
+    private var audioEngine = AVAudioEngine()
     private val recognizer: SFSpeechRecognizer =
         SFSpeechRecognizer(locale = NSLocale(localeIdentifier = "hi-IN"))
     private var request: SFSpeechAudioBufferRecognitionRequest? = null
@@ -45,6 +47,7 @@ private class IosSpeechToText : SpeechToText {
     private var lastPartial: String = ""
     private var committedThisUtterance = false
     private var intentionalStop = false
+    private var tapInstalled = false
 
     override fun isAvailable(): Boolean = recognizer.isAvailable()
 
@@ -78,7 +81,7 @@ private class IosSpeechToText : SpeechToText {
 
         teardownEngine()
 
-        runCatching {
+        val sessionReady = runCatching {
             val session = AVAudioSession.sharedInstance()
             session.setCategory(
                 AVAudioSessionCategoryPlayAndRecord,
@@ -86,8 +89,18 @@ private class IosSpeechToText : SpeechToText {
                 error = null,
             )
             session.setMode(AVAudioSessionModeMeasurement, error = null)
+            // Prefer a known-valid rate so inputNode format is not 0/0 after restart.
+            session.setPreferredSampleRate(44_100.0, error = null)
             session.setActive(true, error = null)
+            true
+        }.getOrDefault(false)
+        if (!sessionReady) {
+            scheduleRestart(delayMs = 500)
+            return
         }
+
+        // Fresh engine avoids stale zero sample-rate format after rapid teardown/restart.
+        audioEngine = AVAudioEngine()
 
         val recognitionRequest = SFSpeechAudioBufferRecognitionRequest().also {
             it.shouldReportPartialResults = true
@@ -99,10 +112,17 @@ private class IosSpeechToText : SpeechToText {
         committedThisUtterance = false
 
         val inputNode = audioEngine.inputNode
-        val format = inputNode.outputFormatForBus(0u)
-        // Guard against invalid format (0 channels) which crashes installTap.
-        if (format.channelCount.toInt() == 0) {
-            scheduleRestart(delayMs = 400)
+        // Prefer hardware input format; fall back to output bus format.
+        val inputFormat = inputNode.inputFormatForBus(0u)
+        val outputFormat = inputNode.outputFormatForBus(0u)
+        val format = when {
+            isValidAudioFormat(inputFormat) -> inputFormat
+            isValidAudioFormat(outputFormat) -> outputFormat
+            else -> null
+        }
+        // installTap asserts IsFormatSampleRateAndChannelCountValid — never call with 0 rate/channels.
+        if (format == null) {
+            scheduleRestart(delayMs = 500)
             return
         }
 
@@ -111,6 +131,7 @@ private class IosSpeechToText : SpeechToText {
                 recognitionRequest.appendAudioPCMBuffer(buffer)
             }
         }
+        tapInstalled = true
 
         audioEngine.prepare()
         val ok = audioEngine.startAndReturnError(null)
@@ -225,12 +246,18 @@ private class IosSpeechToText : SpeechToText {
             if (audioEngine.running) {
                 audioEngine.stop()
             }
-            audioEngine.inputNode.removeTapOnBus(0u)
+            if (tapInstalled) {
+                audioEngine.inputNode.removeTapOnBus(0u)
+                tapInstalled = false
+            }
         }
         runCatching { request?.endAudio() }
         request = null
         task = null
     }
+
+    private fun isValidAudioFormat(format: AVAudioFormat): Boolean =
+        format.sampleRate > 0.0 && format.channelCount.toInt() > 0
 }
 
 actual fun createSpeechToText(): SpeechToText = IosSpeechToText()

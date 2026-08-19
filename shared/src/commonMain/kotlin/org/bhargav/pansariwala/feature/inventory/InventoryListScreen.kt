@@ -12,6 +12,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import org.bhargav.pansariwala.designsystem.PansariTopBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -20,9 +21,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.i18n.localizedLabel
+import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.action_edit
+import pansariwala.shared.generated.resources.all_inventory
+import pansariwala.shared.generated.resources.category_price
+import pansariwala.shared.generated.resources.low_stock_items
+import pansariwala.shared.generated.resources.products_count
 
 @Composable
 fun InventoryListScreen(
@@ -35,20 +45,13 @@ fun InventoryListScreen(
     val products = if (lowStockOnly) state.products.filter { it.isLowStock } else state.products
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = if (lowStockOnly) "Low-stock items" else "All inventory",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            TextButton(onClick = onBack) { Text("Back") }
-        }
+        PansariTopBar(
+            title = stringResource(if (lowStockOnly) Res.string.low_stock_items else Res.string.all_inventory),
+            onBack = onBack,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
         Text(
-            text = "${products.size} products",
+            text = stringResource(Res.string.products_count, products.size),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp),
@@ -75,19 +78,25 @@ private fun InventoryRow(product: Product, onEditProduct: (String) -> Unit) {
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = "${product.category.displayName} · ${product.sellingPrice.asMoney()}",
+                text = stringResource(
+                    Res.string.category_price,
+                    product.category.localizedName(),
+                    product.sellingPrice.asMoney(),
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = "${product.stockQty.asQuantity()} ${product.unit.label}",
+                text = "${product.stockQty.asQuantity()} ${product.unit.localizedLabel()}",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = if (product.isLowStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
             )
-            TextButton(onClick = { onEditProduct(product.id) }) { Text("Edit") }
+            TextButton(onClick = { onEditProduct(product.id) }) {
+                Text(stringResource(Res.string.action_edit))
+            }
         }
     }
 }

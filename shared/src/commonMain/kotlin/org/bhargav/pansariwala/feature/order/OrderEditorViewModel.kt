@@ -21,10 +21,20 @@ import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.generateId
+import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.i18n.WALK_IN_CUSTOMER_KEY
+import org.bhargav.pansariwala.notification.ShopNotifier
 import org.bhargav.pansariwala.voice.ProductFuzzyMatcher
 import org.bhargav.pansariwala.voice.SpeechEvent
 import org.bhargav.pansariwala.voice.SpeechToText
 import org.bhargav.pansariwala.voice.VoiceIntentParser
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_mic_permission
+import pansariwala.shared.generated.resources.error_order_empty
+import pansariwala.shared.generated.resources.error_speech_unavailable
+import pansariwala.shared.generated.resources.voice_not_understood
+import pansariwala.shared.generated.resources.voice_out_of_stock
+import pansariwala.shared.generated.resources.voice_partial_stock
 
 data class CartLine(
     val product: Product,
@@ -41,8 +51,8 @@ data class OrderEditorUiState(
     val catalog: List<Product> = emptyList(),
     val cart: List<CartLine> = emptyList(),
     val saved: Boolean = false,
-    val error: String? = null,
-    val voiceMessages: List<String> = emptyList(),
+    val error: UiText? = null,
+    val voiceMessages: List<UiText> = emptyList(),
     val isListening: Boolean = false,
     val partialTranscript: String = "",
     val requestMicPermission: Boolean = false,
@@ -67,6 +77,7 @@ class OrderEditorViewModel(
     private val preferences: AppPreferences,
     private val analytics: Analytics,
     private val speechToText: SpeechToText,
+    private val shopNotifier: ShopNotifier,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrderEditorUiState())
@@ -109,7 +120,7 @@ class OrderEditorViewModel(
                                 it.copy(
                                     isListening = false,
                                     requestMicPermission = true,
-                                    error = event.message,
+                                    error = UiText.res(Res.string.error_mic_permission),
                                 )
                             }
                         } else {
@@ -117,7 +128,12 @@ class OrderEditorViewModel(
                             // kAFAssistantErrorDomain 216) into the order screen.
                             // Soft failures are recovered by continuous restart.
                             if (!_uiState.value.isListening) {
-                                _uiState.update { it.copy(error = event.message) }
+                                _uiState.update {
+                                    it.copy(
+                                        error = event.message.takeIf { msg -> msg.isNotBlank() }
+                                            ?.let { UiText.Plain(it) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -244,7 +260,7 @@ class OrderEditorViewModel(
         }
         if (!speechToText.isAvailable()) {
             _uiState.update {
-                it.copy(error = "Speech recognition is not available on this device.")
+                it.copy(error = UiText.res(Res.string.error_speech_unavailable))
             }
             return
         }
@@ -261,7 +277,7 @@ class OrderEditorViewModel(
         _uiState.update { it.copy(requestMicPermission = false) }
         if (!granted) {
             _uiState.update {
-                it.copy(error = "Microphone permission is required for voice orders.")
+                it.copy(error = UiText.res(Res.string.error_mic_permission))
             }
             return
         }
@@ -310,7 +326,7 @@ class OrderEditorViewModel(
     fun save() {
         val state = _uiState.value
         if (state.cart.isEmpty()) {
-            _uiState.update { it.copy(error = "Add at least one item to the order.") }
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_order_empty)) }
             return
         }
         analytics.log(
@@ -323,8 +339,13 @@ class OrderEditorViewModel(
             id = editingOrderId ?: generateId("order"),
             shopId = shopId,
             createdAtEpochMs = createdAt,
-            status = OrderStatus.COMPLETED,
-            customerName = state.customerName.trim().ifBlank { "Walk-in" },
+            status = if (state.isEditing) {
+                // Keep existing status when editing; default received for brand-new.
+                OrderStatus.RECEIVED
+            } else {
+                OrderStatus.RECEIVED
+            },
+            customerName = state.customerName.trim().ifBlank { WALK_IN_CUSTOMER_KEY },
             items = state.cart.map { line ->
                 OrderItem(
                     productId = line.product.id,
@@ -337,7 +358,17 @@ class OrderEditorViewModel(
         )
         viewModelScope.launch {
             if (_uiState.value.isListening) speechToText.cancel()
-            shopRepository.saveOrder(order)
+            val existing = editingOrderId?.let { shopRepository.getOrder(it) }
+            val toSave = if (existing != null) {
+                order.copy(status = existing.status, cancelReason = existing.cancelReason)
+            } else {
+                order
+            }
+            shopRepository.saveOrder(toSave)
+            val catalogAfter = shopRepository.observeProducts(shopId).first()
+            if (existing == null) {
+                shopNotifier.onOrderSaved(toSave, catalogAfter)
+            }
             _uiState.update { it.copy(saved = true, error = null, isListening = false) }
         }
     }
@@ -353,10 +384,11 @@ class OrderEditorViewModel(
 
         val lines = VoiceIntentParser.parse(textToParse)
         if (lines.isEmpty()) {
+            val msg = UiText.res(Res.string.voice_not_understood, normalized)
             _uiState.update {
                 it.copy(
-                    voiceMessages = it.voiceMessages + "Samajh nahi aaya: \"$normalized\"",
-                    error = "Samajh nahi aaya: \"$normalized\"",
+                    voiceMessages = it.voiceMessages + msg,
+                    error = msg,
                 )
             }
             return
@@ -366,12 +398,12 @@ class OrderEditorViewModel(
         partialCommitJob?.cancel()
 
         val catalog = _uiState.value.catalog
-        val messages = mutableListOf<String>()
+        val messages = mutableListOf<UiText>()
         var addedAny = false
         for (line in lines) {
             val match = ProductFuzzyMatcher.findBest(line.productQuery, catalog)
             if (match == null) {
-                messages += "${line.productQuery} stock me nahi hai"
+                messages += UiText.res(Res.string.voice_out_of_stock, line.productQuery)
                 continue
             }
             val product = match.product
@@ -383,14 +415,15 @@ class OrderEditorViewModel(
             val available = product.stockQty - alreadyInCart
             if (available <= 0.0) {
                 val label = product.nameHi.ifBlank { product.name }
-                messages += "$label stock me nahi hai"
+                messages += UiText.res(Res.string.voice_out_of_stock, label)
                 continue
             }
             val addQty = qty.coerceAtMost(available)
             addToCart(product, addQty)
             addedAny = true
             if (addQty < qty) {
-                messages += "${product.nameHi.ifBlank { product.name }} me sirf ${available.toInt()} bacha hai"
+                val label = product.nameHi.ifBlank { product.name }
+                messages += UiText.res(Res.string.voice_partial_stock, label, available.toInt())
             }
         }
 

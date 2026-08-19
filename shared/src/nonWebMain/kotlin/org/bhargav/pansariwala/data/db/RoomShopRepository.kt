@@ -89,11 +89,14 @@ class RoomShopRepository(
     }
 
     override suspend fun saveOrder(order: Order) {
-        // Restore stock for the previous version (edits), then deduct for the new one.
+        // Restore stock for the previous version (edits), then deduct for the new one
+        // unless the order is cancelled (stock already restored / should not deduct).
         val previousItems = orderDao.getItems(order.id)
         previousItems.forEach { productDao.adjustStock(it.productId, it.quantity) }
         orderDao.replaceOrder(order.toEntity(), order.items.map { it.toEntity(order.id) })
-        order.items.forEach { productDao.adjustStock(it.productId, -it.quantity) }
+        if (order.status != OrderStatus.CANCELLED) {
+            order.items.forEach { productDao.adjustStock(it.productId, -it.quantity) }
+        }
     }
 }
 
@@ -142,6 +145,7 @@ private fun Order.toEntity() = OrderEntity(
     customerName = customerName,
     totalValue = totalValue,
     itemCount = itemCount,
+    cancelReason = cancelReason,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -170,6 +174,7 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
     createdAtEpochMs = createdAt,
     status = OrderStatus.fromName(status),
     customerName = customerName,
+    cancelReason = cancelReason,
     items = items.map {
         OrderItem(
             productId = it.productId,

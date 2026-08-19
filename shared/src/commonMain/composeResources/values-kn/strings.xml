@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ಪಂಸಾರಿ ವಾಲಾ</string>
+    <string name="app_tagline">ಪಾಯಿಂಟ್ ಆಫ್ ಸೇಲ್</string>
+    <string name="app_tagline_login">ಅಂಗಡಿ ಮತ್ತು ಟ್ಯಾಬ್ಲೆಟ್‌ಗಾಗಿ ಕಿರಾಣಿ POS</string>
+
+    <string name="action_back">ಹಿಂದೆ</string>
+    <string name="action_edit">ಸಂಪಾದಿಸಿ</string>
+    <string name="action_add">ಸೇರಿಸಿ</string>
+    <string name="action_remove">ತೆಗೆದುಹಾಕಿ</string>
+    <string name="action_find">ಹುಡುಕಿ</string>
+    <string name="action_logout">ಲಾಗ್ ಔಟ್</string>
+    <string name="action_show">ತೋರಿಸಿ</string>
+    <string name="action_hide">ಮರೆಮಾಡಿ</string>
+    <string name="walk_in">ವಾಕ್-ಇನ್</string>
+    <string name="shopkeeper_fallback">ಅಂಗಡಿಯವರು</string>
+
+    <string name="login_welcome">ಮತ್ತೆ ಸ್ವಾಗತ</string>
+    <string name="login_subtitle">ನಿಮ್ಮ ಅಂಗಡಿ ಮುಂದುವರಿಸಲು ಸೈನ್ ಇನ್ ಮಾಡಿ</string>
+    <string name="login_username">ಬಳಕೆದಾರ ಹೆಸರು</string>
+    <string name="login_password">ಪಾಸ್‌ವರ್ಡ್</string>
+    <string name="login_forgot_password">ಪಾಸ್‌ವರ್ಡ್ ಮರೆತಿರಾ?</string>
+    <string name="login_sign_in">ಸೈನ್ ಇನ್</string>
+    <string name="login_demo_hint">ಡೆಮೊ ಲಾಗಿನ್: owner / 1234  (ಅಥವಾ cashier / 1234)</string>
+    <string name="error_forgot_password_later">ಪಾಸ್‌ವರ್ಡ್ ಮರೆತಿರುವ ವೈಶಿಷ್ಟ್ಯ ನಂತರ ಲಭ್ಯವಾಗುತ್ತದೆ.</string>
+    <string name="error_login_failed">ಲಾಗಿನ್ ವಿಫಲವಾಗಿದೆ</string>
+    <string name="error_invalid_credentials">ಅಮಾನ್ಯ ಬಳಕೆದಾರ ಹೆಸರು ಅಥವಾ ಪಾಸ್‌ವರ್ಡ್.</string>
+    <string name="error_login_validation">ಮಾನ್ಯ ಫೋನ್/ಇಮೇಲ್ ಮತ್ತು ಪಾಸ್‌ವರ್ಡ್ ನಮೂದಿಸಿ (ಕನಿಷ್ಠ 4 ಅಕ್ಷರಗಳು).</string>
+
+    <string name="dashboard_greeting">ನಮಸ್ಕಾರ, %1$s</string>
+    <string name="dashboard_subtitle">ಇಂದು ನಿಮ್ಮ ಅಂಗಡಿ</string>
+    <string name="sales_title">ಇಂದಿನ ಮಾರಾಟ</string>
+    <string name="sales_subtitle">ಮಧ್ಯರಾತ್ರಿಯ ನಂತರ ಪೂರ್ಣಗೊಂಡ ಆರ್ಡರ್‌ಗಳು</string>
+    <string name="sales_orders">ಆರ್ಡರ್‌ಗಳು</string>
+    <string name="sales_revenue">ಆದಾಯ</string>
+    <string name="recent_orders_title">ಇತ್ತೀಚಿನ ಆರ್ಡರ್‌ಗಳು</string>
+    <string name="recent_orders_subtitle">ಕೊನೆಯ %1$d ಆರ್ಡರ್‌ಗಳು</string>
+    <string name="create_order">ಆರ್ಡರ್ ರಚಿಸಿ</string>
+    <string name="no_orders_yet">ಇನ್ನೂ ಆರ್ಡರ್‌ಗಳಿಲ್ಲ. ಮೊದಲ ಆರ್ಡರ್ ರಚಿಸಿ.</string>
+    <string name="order_items_summary">%1$s ವಸ್ತುಗಳು · %2$s</string>
+    <string name="inventory_title">ಇನ್ವೆಂಟರಿ</string>
+    <string name="inventory_subtitle">%1$d ಉತ್ಪನ್ನಗಳು · ವೆಚ್ಚದಲ್ಲಿ %2$s</string>
+    <string name="add_update_inventory">ಸೇರಿಸಿ / ನವೀಕರಿಸಿ</string>
+    <string name="stock_by_category">ವರ್ಗದ ಪ್ರಕಾರ ಸ್ಟಾಕ್ ಮೌಲ್ಯ</string>
+    <string name="no_inventory_yet">ಇನ್ನೂ ಇನ್ವೆಂಟರಿ ಇಲ್ಲ.</string>
+    <string name="category_items_summary">%1$d ವಸ್ತುಗಳು · %2$s</string>
+    <string name="low_stock_count">ಕಡಿಮೆ ಸ್ಟಾಕ್ (%1$d)</string>
+    <string name="all_inventory">ಎಲ್ಲಾ ಇನ್ವೆಂಟರಿ</string>
+    <string name="all_well_stocked">ಎಲ್ಲಾ ವಸ್ತುಗಳು ಸಾಕಷ್ಟು ಸ್ಟಾಕ್‌ನಲ್ಲಿವೆ.</string>
+    <string name="show_full_low_stock">ಪೂರ್ಣ ಕಡಿಮೆ-ಸ್ಟಾಕ್ ಪಟ್ಟಿ ತೋರಿಸಿ</string>
+    <string name="stock_left">%1$s %2$s ಉಳಿದಿದೆ</string>
+
+    <string name="low_stock_items">ಕಡಿಮೆ-ಸ್ಟಾಕ್ ವಸ್ತುಗಳು</string>
+    <string name="products_count">%1$d ಉತ್ಪನ್ನಗಳು</string>
+    <string name="category_price">%1$s · %2$s</string>
+
+    <string name="add_product">ಉತ್ಪನ್ನ ಸೇರಿಸಿ</string>
+    <string name="update_product">ಉತ್ಪನ್ನ ನವೀಕರಿಸಿ</string>
+    <string name="inventory_lookup_hint">ಸಂಪಾದಿಸಲು ID ಅಥವಾ ಬಾರ್‌ಕೋಡ್‌ನಿಂದ ಹುಡುಕಿ, ಅಥವಾ ಹೊಸ ಉತ್ಪನ್ನ ಸೇರಿಸಲು ಫಾರ್ಮ್ ಭರ್ತಿ ಮಾಡಿ.</string>
+    <string name="product_id_or_barcode">ಉತ್ಪನ್ನ ID ಅಥವಾ ಬಾರ್‌ಕೋಡ್</string>
+    <string name="field_name">ಹೆಸರು</string>
+    <string name="field_name_hi">ಹೆಸರು (ಹಿಂದಿ)</string>
+    <string name="field_category">ವರ್ಗ</string>
+    <string name="field_unit">ಘಟಕ</string>
+    <string name="field_barcode">ಬಾರ್‌ಕೋಡ್</string>
+    <string name="field_selling_price">ಮಾರಾಟ ಬೆಲೆ</string>
+    <string name="field_cost_price">ವೆಚ್ಚ ಬೆಲೆ</string>
+    <string name="field_stock_qty">ಸ್ಟಾಕ್ ಪ್ರಮಾಣ</string>
+    <string name="field_low_stock_at">ಕಡಿಮೆ-ಸ್ಟಾಕ್ ಮಿತಿ</string>
+    <string name="field_voice_alias">ಧ್ವನಿ ಅಲಿಯಾಸ್ (ಹಿಂದಿ ಆಜ್ಞೆಗಳಿಗೆ)</string>
+    <string name="msg_loaded_product">%1$s ಲೋಡ್ ಆಯಿತು</string>
+    <string name="msg_saved_product">%1$s ಉಳಿಸಲಾಗಿದೆ</string>
+    <string name="error_product_not_found">"%1$s" ಗೆ ಉತ್ಪನ್ನ ಸಿಗಲಿಲ್ಲ. ಸೇರಿಸಲು ಫಾರ್ಮ್ ಭರ್ತಿ ಮಾಡಿ.</string>
+    <string name="error_product_name_required">ಉತ್ಪನ್ನದ ಹೆಸರು ಅಗತ್ಯ.</string>
+
+    <string name="edit_order">ಆರ್ಡರ್ ಸಂಪಾದಿಸಿ</string>
+    <string name="save_order">ಆರ್ಡರ್ ಉಳಿಸಿ</string>
+    <string name="update_order">ಆರ್ಡರ್ ನವೀಕರಿಸಿ</string>
+    <string name="customer_name">ಗ್ರಾಹಕರ ಹೆಸರು</string>
+    <string name="cart_count">ಕಾರ್ಟ್ (%1$d)</string>
+    <string name="cart_empty_hint">ಹುಡುಕಾಟ ಅಥವಾ ಧ್ವನಿ ಮೈಕ್‌ನಿಂದ ಉತ್ಪನ್ನಗಳನ್ನು ಸೇರಿಸಿ.</string>
+    <string name="total_label">ಒಟ್ಟು: %1$s</string>
+    <string name="search_products">ಉತ್ಪನ್ನಗಳನ್ನು ಹುಡುಕಿ</string>
+    <string name="voice_hint_example">ಮೈಕ್‌ನಲ್ಲಿ ಹೇಳಿ: "1 ಕೆಜಿ ಸಕ್ಕರೆ, 2 ಕೆಜಿ ತೊವರೆ ಬೇಳೆ"</string>
+    <string name="in_stock">%1$s · ಸ್ಟಾಕ್‌ನಲ್ಲಿ %2$s %3$s</string>
+    <string name="error_speech_unavailable">ಈ ಸಾಧನದಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಲಭ್ಯವಿಲ್ಲ.</string>
+    <string name="error_mic_permission">ಧ್ವನಿ ಆರ್ಡರ್‌ಗೆ ಮೈಕ್ರೋಫೋನ್ ಅನುಮತಿ ಅಗತ್ಯ.</string>
+    <string name="error_order_empty">ಆರ್ಡರ್‌ಗೆ ಕನಿಷ್ಠ ಒಂದು ವಸ್ತು ಸೇರಿಸಿ.</string>
+    <string name="voice_not_understood">ಅರ್ಥವಾಗಲಿಲ್ಲ: "%1$s"</string>
+    <string name="voice_out_of_stock">%1$s ಸ್ಟಾಕ್‌ನಲ್ಲಿ ಇಲ್ಲ</string>
+    <string name="voice_partial_stock">%1$s ನಲ್ಲಿ ಕೇವಲ %2$d ಉಳಿದಿದೆ</string>
+
+    <string name="voice_listening">ಕೇಳುತ್ತಿದ್ದೇನೆ…</string>
+    <string name="voice_idle_prompt">ಧ್ವನಿಯಿಂದ ಆರ್ಡರ್ ಸೇರಿಸಿ</string>
+    <string name="cancel_listening">ಕೇಳುವುದನ್ನು ರದ್ದುಮಾಡಿ</string>
+
+    <!-- Settings -->
+    <string name="action_settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_notifications">Notification preferences</string>
+    <string name="settings_notify_low_stock">Low / out of stock after order</string>
+    <string name="settings_notify_low_stock_desc">Alert when an order leaves an item low or out of stock</string>
+    <string name="settings_notify_orders">Order received / cancelled</string>
+    <string name="settings_notify_orders_desc">Alert when orders are received or cancelled. Tap to open order details.</string>
+    <string name="settings_language">Language preferences</string>
+    <string name="settings_theme">Theme preferences</string>
+    <string name="settings_theme_mode">Appearance</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="settings_custom_theme">Custom theme</string>
+    <string name="theme_default">Default (Olive)</string>
+    <string name="theme_saffron">Saffron</string>
+    <string name="theme_teal">Teal</string>
+    <string name="theme_rose">Rose</string>
+
+    <!-- Orders workspace -->
+    <string name="orders_workspace_title">Orders</string>
+    <string name="tab_dashboard">Dashboard</string>
+    <string name="tab_orders">Orders</string>
+    <string name="tab_order_details">Details</string>
+    <string name="order_details_title">Order details</string>
+    <string name="order_status_label">Status: %1$s</string>
+    <string name="status_received">Received</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_cancelled">Cancelled</string>
+    <string name="status_draft">Draft</string>
+    <string name="action_process_order">Process order</string>
+    <string name="action_cancel_order">Cancel order</string>
+    <string name="cancel_order_title">Cancel this order?</string>
+    <string name="cancel_order_message">Do you really want to cancel this order?</string>
+    <string name="cancel_reason_label">Reason</string>
+    <string name="cancel_reason_customer_request">Customer request</string>
+    <string name="cancel_reason_out_of_stock">Out of stock</string>
+    <string name="cancel_reason_payment_issue">Payment issue</string>
+    <string name="cancel_reason_duplicate">Duplicate order</string>
+    <string name="cancel_reason_other">Other</string>
+    <string name="cancel_reason_custom_hint">Custom reason</string>
+    <string name="action_yes">Yes</string>
+    <string name="action_no">No</string>
+    <string name="select_order_hint">Select an order to view details</string>
+    <string name="notif_low_stock_title">Low stock alert</string>
+    <string name="notif_low_stock_body">%1$s is low or out of stock</string>
+    <string name="notif_order_received_title">Order received</string>
+    <string name="notif_order_received_body">New order %1$s · %2$s</string>
+    <string name="notif_order_cancelled_title">Order cancelled</string>
+    <string name="notif_order_cancelled_body">Order %1$s was cancelled</string>
+
+    <string name="category_fortune_branded">ಫಾರ್ಚ್ಯೂನ್ / ಬ್ರಾಂಡೆಡ್</string>
+    <string name="category_general_grocery">ಸಾಮಾನ್ಯ ಕಿರಾಣಿ</string>
+    <string name="category_puja_samagri">ಪೂಜಾ ಸಾಮಗ್ರಿ</string>
+    <string name="category_standard_spices">ಮಸಾಲೆಗಳು</string>
+    <string name="category_high_value_spices">ವಿಶೇಷ ಮಸಾಲೆಗಳು</string>
+
+    <string name="unit_kg">ಕೆಜಿ</string>
+    <string name="unit_ltr">ಲೀ</string>
+    <string name="unit_g">ಗ್ರಾಂ</string>
+    <string name="unit_packet">ಪ್ಯಾಕೆಟ್</string>
+    <string name="unit_pcs">ಪೀಸ್</string>
+</resources>

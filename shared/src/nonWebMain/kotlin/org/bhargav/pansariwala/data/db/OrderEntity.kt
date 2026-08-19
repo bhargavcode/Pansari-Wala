@@ -19,6 +19,7 @@ data class OrderEntity(
     val customerName: String?,
     val totalValue: Double,
     val itemCount: Int,
+    val cancelReason: String? = null,
 )
 
 @Entity(

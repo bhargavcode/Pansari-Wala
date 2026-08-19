@@ -36,7 +36,21 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
+import org.bhargav.pansariwala.i18n.asString
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.action_hide
+import pansariwala.shared.generated.resources.action_show
+import pansariwala.shared.generated.resources.app_name
+import pansariwala.shared.generated.resources.app_tagline_login
+import pansariwala.shared.generated.resources.login_demo_hint
+import pansariwala.shared.generated.resources.login_forgot_password
+import pansariwala.shared.generated.resources.login_password
+import pansariwala.shared.generated.resources.login_sign_in
+import pansariwala.shared.generated.resources.login_subtitle
+import pansariwala.shared.generated.resources.login_username
+import pansariwala.shared.generated.resources.login_welcome
 
 @Composable
 fun LoginScreen(
@@ -103,13 +117,13 @@ private fun BrandPane(paneModifier: Modifier) {
             modifier = Modifier.padding(32.dp),
         ) {
             Text(
-                text = "Pansari Wala",
+                text = stringResource(Res.string.app_name),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Text(
-                text = "Grocery POS for shop & tablet",
+                text = stringResource(Res.string.app_tagline_login),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                 modifier = Modifier.padding(top = 12.dp),
@@ -135,12 +149,12 @@ private fun LoginFormColumn(
                 .fillMaxWidth(),
         ) {
             Text(
-                text = "Welcome back",
+                text = stringResource(Res.string.login_welcome),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Sign in to continue to your shop",
+                text = stringResource(Res.string.login_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp, bottom = 28.dp),
@@ -149,7 +163,7 @@ private fun LoginFormColumn(
             OutlinedTextField(
                 value = uiState.identifier,
                 onValueChange = viewModel::onIdentifierChange,
-                label = { Text("Username") },
+                label = { Text(stringResource(Res.string.login_username)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(
@@ -161,7 +175,7 @@ private fun LoginFormColumn(
             OutlinedTextField(
                 value = uiState.password,
                 onValueChange = viewModel::onPasswordChange,
-                label = { Text("Password") },
+                label = { Text(stringResource(Res.string.login_password)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (uiState.isPasswordVisible) {
@@ -171,7 +185,12 @@ private fun LoginFormColumn(
                 },
                 trailingIcon = {
                     TextButton(onClick = viewModel::onTogglePasswordVisibility) {
-                        Text(if (uiState.isPasswordVisible) "Hide" else "Show")
+                        Text(
+                            stringResource(
+                                if (uiState.isPasswordVisible) Res.string.action_hide
+                                else Res.string.action_show,
+                            ),
+                        )
                     }
                 },
                 keyboardOptions = KeyboardOptions(
@@ -187,12 +206,12 @@ private fun LoginFormColumn(
                 onClick = viewModel::onForgotPasswordClick,
                 modifier = Modifier.align(Alignment.End),
             ) {
-                Text("Forgot password?")
+                Text(stringResource(Res.string.login_forgot_password))
             }
 
             uiState.errorMessage?.let { message ->
                 Text(
-                    text = message,
+                    text = message.asString(),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(bottom = 12.dp),
@@ -213,12 +232,12 @@ private fun LoginFormColumn(
                         modifier = Modifier.size(22.dp),
                     )
                 } else {
-                    Text("Sign in")
+                    Text(stringResource(Res.string.login_sign_in))
                 }
             }
 
             Text(
-                text = "Demo login: owner / 1234  (or cashier / 1234)",
+                text = stringResource(Res.string.login_demo_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp),

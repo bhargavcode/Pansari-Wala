@@ -22,4 +22,5 @@ private fun documentDirectory(): String {
 actual fun shopDatabaseBuilder(): RoomDatabase.Builder<ShopDatabase> {
     val dbFilePath = documentDirectory() + "/" + SHOP_DB_FILE
     return Room.databaseBuilder<ShopDatabase>(name = dbFilePath)
+        .fallbackToDestructiveMigration(dropAllTables = true)
 }

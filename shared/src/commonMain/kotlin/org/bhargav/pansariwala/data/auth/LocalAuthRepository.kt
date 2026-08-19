@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.data.auth
 
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.crash.CrashReporter
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
@@ -19,6 +20,7 @@ class LocalAuthRepository(
     private val preferences: AppPreferences,
     private val analytics: Analytics,
     private val crashReporter: CrashReporter,
+    private val api: PansariApi,
 ) : AuthRepository {
 
     override suspend fun hasSession(): Boolean = preferences.hasSession()
@@ -28,20 +30,35 @@ class LocalAuthRepository(
             shopRepository.ensureSeeded()
             val user = shopRepository.authenticate(credentials.identifier, credentials.password)
                 ?: throw IllegalStateException("Invalid username or password.")
-            val session = Session(
-                accessToken = generateId("session"),
-                refreshToken = null,
-                userId = user.id,
-                shopId = user.shopId,
-                displayName = user.displayName,
-            )
-            preferences.saveSession(
-                accessToken = session.accessToken,
-                refreshToken = session.refreshToken,
-                userId = session.userId,
-                shopId = session.shopId,
-                displayName = session.displayName,
-            )
+            val remote = runCatching {
+                api.shopLogin(credentials.identifier, credentials.password)
+            }.getOrNull()
+            val session = if (remote != null) {
+                preferences.saveToken(remote)
+                Session(
+                    accessToken = remote.accessToken,
+                    refreshToken = remote.refreshToken,
+                    userId = remote.userId,
+                    shopId = remote.shopId,
+                    displayName = remote.displayName ?: user.displayName,
+                )
+            } else {
+                val local = Session(
+                    accessToken = generateId("session"),
+                    refreshToken = null,
+                    userId = user.id,
+                    shopId = user.shopId,
+                    displayName = user.displayName,
+                )
+                preferences.saveSession(
+                    accessToken = local.accessToken,
+                    refreshToken = local.refreshToken,
+                    userId = local.userId,
+                    shopId = local.shopId,
+                    displayName = local.displayName,
+                )
+                local
+            }
             session
         }.onFailure { error ->
             analytics.log(

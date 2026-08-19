@@ -1,8 +1,11 @@
 package org.bhargav.pansariwala
 
 import android.app.Application
+import org.bhargav.pansariwala.api.ApiRuntime
 import org.bhargav.pansariwala.di.initKoin
 import org.bhargav.pansariwala.notification.NotificationGateway
+import org.bhargav.pansariwala.product.AppProduct
+import org.bhargav.pansariwala.product.AppProductHolder
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.component.KoinComponent
@@ -14,6 +17,8 @@ class PansariApplication : Application(), KoinComponent {
 
     override fun onCreate() {
         super.onCreate()
+        AppProductHolder.current = AppProduct.fromName(BuildConfig.APP_PRODUCT)
+        ApiRuntime.baseUrl = BuildConfig.API_BASE_URL
         initKoin {
             androidLogger(Level.ERROR)
             androidContext(this@PansariApplication)

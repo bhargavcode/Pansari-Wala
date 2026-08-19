@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1047763190940",
+    "project_id": "pansariwala-5f4b4",
+    "storage_bucket": "pansariwala-5f4b4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1047763190940:android:afecc2df11f55105a21959",
+        "android_client_info": {
+          "package_name": "org.bhargav.pansariwala.user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuh8VVFsquRigomZodOTBb9G-e1TIUZSo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

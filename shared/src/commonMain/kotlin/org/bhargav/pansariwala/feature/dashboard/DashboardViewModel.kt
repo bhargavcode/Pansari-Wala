@@ -41,7 +41,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             shopRepository.ensureSeeded()
             val shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID
-            val name = preferences.getDisplayName() ?: "Shopkeeper"
+            val name = preferences.getDisplayName().orEmpty()
             _uiState.update { it.copy(userName = name) }
 
             combine(

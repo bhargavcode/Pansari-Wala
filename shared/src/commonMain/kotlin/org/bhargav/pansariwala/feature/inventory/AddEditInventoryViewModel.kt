@@ -15,7 +15,13 @@ import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.generateId
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_product_name_required
+import pansariwala.shared.generated.resources.error_product_not_found
+import pansariwala.shared.generated.resources.msg_loaded_product
+import pansariwala.shared.generated.resources.msg_saved_product
 
 data class AddEditInventoryUiState(
     val loading: Boolean = false,
@@ -32,8 +38,8 @@ data class AddEditInventoryUiState(
     val stockQty: String = "",
     val lowStockThreshold: String = "",
     val voiceAlias: String = "",
-    val message: String? = null,
-    val error: String? = null,
+    val message: UiText? = null,
+    val error: UiText? = null,
     val saved: Boolean = false,
 )
 
@@ -79,12 +85,17 @@ class AddEditInventoryViewModel(
             val product = shopRepository.findProduct(query)
             if (product != null) {
                 fillFrom(product)
-                _uiState.update { it.copy(message = "Loaded ${product.name}", error = null) }
+                _uiState.update {
+                    it.copy(
+                        message = UiText.res(Res.string.msg_loaded_product, product.name),
+                        error = null,
+                    )
+                }
             } else {
                 _uiState.update {
                     it.copy(
                         message = null,
-                        error = "No product found for \"$query\". Fill the form to add it.",
+                        error = UiText.res(Res.string.error_product_not_found, query),
                     )
                 }
             }
@@ -96,7 +107,7 @@ class AddEditInventoryViewModel(
         val state = _uiState.value
         val name = state.name.trim()
         if (name.isBlank()) {
-            _uiState.update { it.copy(error = "Product name is required.") }
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_product_name_required)) }
             return
         }
         val product = Product(
@@ -115,7 +126,13 @@ class AddEditInventoryViewModel(
         )
         viewModelScope.launch {
             shopRepository.upsertProduct(product)
-            _uiState.update { it.copy(saved = true, message = "Saved ${product.name}", error = null) }
+            _uiState.update {
+                it.copy(
+                    saved = true,
+                    message = UiText.res(Res.string.msg_saved_product, product.name),
+                    error = null,
+                )
+            }
         }
     }
 

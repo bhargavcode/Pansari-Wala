@@ -18,6 +18,9 @@ sealed interface AppRoute : NavKey {
     data object Dashboard : AppRoute
 
     @Serializable
+    data object Settings : AppRoute
+
+    @Serializable
     data class AddEditInventory(val productId: String? = null) : AppRoute
 
     @Serializable
@@ -25,13 +28,22 @@ sealed interface AppRoute : NavKey {
 
     @Serializable
     data class OrderEditor(val orderId: String? = null) : AppRoute
+
+    @Serializable
+    data class OrdersWorkspace(val orderId: String? = null) : AppRoute
+
+    @Serializable
+    data object OnlineOrders : AppRoute
 }
 
 fun AppRoute.screenName(): String = when (this) {
     AppRoute.Splash -> "splash"
     AppRoute.Login -> "login"
     AppRoute.Dashboard -> "dashboard"
+    AppRoute.Settings -> "settings"
     is AppRoute.AddEditInventory -> "add_edit_inventory"
     is AppRoute.InventoryList -> "inventory_list"
     is AppRoute.OrderEditor -> "order_editor"
+    is AppRoute.OrdersWorkspace -> "orders_workspace"
+    AppRoute.OnlineOrders -> "online_orders"
 }

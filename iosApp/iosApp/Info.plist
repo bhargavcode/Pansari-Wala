@@ -4,9 +4,28 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>PansariProduct</key>
+	<string>USER</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Pansari Wala uses your location to show nearby shops and delivery distance.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Pansari Wala uses the camera for vehicle and pickup photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Pansari Wala uses your photo library for vehicle and pickup photos.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Pansari Wala needs the microphone to add order items with Hindi voice commands.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Pansari Wala uses speech recognition to understand Hindi order commands like "1 kilo chini".</string>
+	<string>Pansari Wala uses speech recognition to understand Hindi order commands like &quot;1 kilo chini&quot;.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>app-1-1047763190940-ios-5985b87c9a266e2ea21959</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -16,7 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.app_name
+import pansariwala.shared.generated.resources.app_tagline
 
 @Composable
 fun SplashScreen(
@@ -42,13 +46,13 @@ fun SplashScreen(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Pansari Wala",
+                text = stringResource(Res.string.app_name),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Text(
-                text = "Point of Sale",
+                text = stringResource(Res.string.app_tagline),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                 modifier = Modifier.padding(top = 8.dp, bottom = 32.dp),

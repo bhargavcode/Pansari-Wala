@@ -2,7 +2,16 @@ package org.bhargav.pansariwala.domain.model
 
 enum class OrderStatus {
     DRAFT,
+    RECEIVED,
+    ACCEPTED,
+    PACKING,
+    LOOKING_FOR_PARTNER,
+    PARTNER_ACCEPTED,
+    ON_THE_WAY,
+    DELIVERED,
     COMPLETED,
+    REJECTED,
+    CANCELLED,
     ;
 
     companion object {
@@ -37,7 +46,28 @@ data class Order(
     val status: OrderStatus,
     val customerName: String?,
     val items: List<OrderItem>,
+    val cancelReason: String? = null,
+    val channel: OrderChannel = OrderChannel.POS,
+    val customerId: String? = null,
+    val deliveryAddress: String? = null,
+    val deliveryOtp: String? = null,
+    val pickupPhotoUrls: List<String> = emptyList(),
+    val partnerId: String? = null,
+    val partnerName: String? = null,
+    val partnerPhone: String? = null,
+    val partnerVehicleReg: String? = null,
+    val rating: OrderRating? = null,
+    val quote: CheckoutQuote? = null,
+    val paymentId: String? = null,
+    val shopName: String? = null,
 ) {
-    val totalValue: Double get() = items.sumOf { it.lineTotal }
+    val totalValue: Double get() = quote?.payable ?: items.sumOf { it.lineTotal }
     val itemCount: Int get() = items.size
+    val hasAssignedPartner: Boolean
+        get() = !partnerName.isNullOrBlank() || !partnerPhone.isNullOrBlank()
+    val canCancel: Boolean
+        get() = status != OrderStatus.DELIVERED &&
+            status != OrderStatus.COMPLETED &&
+            status != OrderStatus.CANCELLED &&
+            status != OrderStatus.REJECTED
 }

@@ -1,0 +1,18 @@
+---
+description: "No hardcoded UI strings; use AppConstants for shared constants"
+alwaysApply: true
+---
+
+# Strings & constants
+
+## UI strings
+- Never hardcode user-facing strings in Kotlin (screens, VMs, snackbars, notifications, dialogs).
+- Add every new string to `shared/src/commonMain/composeResources/values/strings.xml` (default **en**).
+- Do **not** auto-translate other locales (`values-hi`, `values-bn`, etc.) unless the user asks — leave translations for manual follow-up.
+- Reference strings via Compose Resources / `UiText` / existing i18n helpers, not raw `"..."`.
+
+## Constants
+- Never scatter magic strings/numbers for prefs keys, shop ids, language codes, notification channels, delays, etc.
+- Put shared app-wide constants in `shared/.../util/AppConstants.kt` (`object AppConstants`).
+- Create or extend `AppConstants` when a new shared constant is needed; prefer reusing existing entries over duplicating.
+- Feature-private constants may stay as `private const` in that feature/file when they are not reused.

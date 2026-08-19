@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">पंसारी वाला</string>
+    <string name="app_tagline">पॉइंट ऑफ सेल</string>
+    <string name="app_tagline_login">दुकान और टैबलेट के लिए किराना POS</string>
+
+    <string name="action_back">वापस</string>
+    <string name="action_edit">संपादित करें</string>
+    <string name="action_add">जोड़ें</string>
+    <string name="action_remove">हटाएँ</string>
+    <string name="action_find">खोजें</string>
+    <string name="action_logout">लॉग आउट</string>
+    <string name="action_show">दिखाएँ</string>
+    <string name="action_hide">छिपाएँ</string>
+    <string name="walk_in">वॉक-इन</string>
+    <string name="shopkeeper_fallback">दुकानदार</string>
+
+    <string name="login_welcome">वापसी पर स्वागत है</string>
+    <string name="login_subtitle">अपनी दुकान जारी रखने के लिए साइन इन करें</string>
+    <string name="login_username">उपयोगकर्ता नाम</string>
+    <string name="login_password">पासवर्ड</string>
+    <string name="login_forgot_password">पासवर्ड भूल गए?</string>
+    <string name="login_sign_in">साइन इन</string>
+    <string name="login_demo_hint">डेमो लॉगिन: owner / 1234  (या cashier / 1234)</string>
+    <string name="error_forgot_password_later">पासवर्ड भूलने की सुविधा बाद में उपलब्ध होगी।</string>
+    <string name="error_login_failed">लॉगिन असफल</string>
+    <string name="error_invalid_credentials">अमान्य उपयोगकर्ता नाम या पासवर्ड।</string>
+    <string name="error_login_validation">मान्य फ़ोन/ईमेल और पासवर्ड दर्ज करें (न्यूनतम 4 अक्षर)।</string>
+
+    <string name="dashboard_greeting">नमस्ते, %1$s</string>
+    <string name="dashboard_subtitle">आज आपकी दुकान का हाल</string>
+    <string name="sales_title">आज की बिक्री</string>
+    <string name="sales_subtitle">आधी रात के बाद पूरे हुए ऑर्डर</string>
+    <string name="sales_orders">ऑर्डर</string>
+    <string name="sales_revenue">राजस्व</string>
+    <string name="recent_orders_title">हाल के ऑर्डर</string>
+    <string name="recent_orders_subtitle">पिछले %1$d ऑर्डर</string>
+    <string name="create_order">ऑर्डर बनाएँ</string>
+    <string name="no_orders_yet">अभी कोई ऑर्डर नहीं। पहला ऑर्डर बनाएँ।</string>
+    <string name="order_items_summary">%1$s आइटम · %2$s</string>
+    <string name="inventory_title">इन्वेंटरी</string>
+    <string name="inventory_subtitle">%1$d उत्पाद · लागत पर %2$s</string>
+    <string name="add_update_inventory">जोड़ें / अपडेट</string>
+    <string name="stock_by_category">श्रेणी अनुसार स्टॉक मूल्य</string>
+    <string name="no_inventory_yet">अभी कोई इन्वेंटरी नहीं।</string>
+    <string name="category_items_summary">%1$d आइटम · %2$s</string>
+    <string name="low_stock_count">कम स्टॉक (%1$d)</string>
+    <string name="all_inventory">पूरी इन्वेंटरी</string>
+    <string name="all_well_stocked">सभी आइटम पर्याप्त स्टॉक में हैं।</string>
+    <string name="show_full_low_stock">पूरी कम-स्टॉक सूची दिखाएँ</string>
+    <string name="stock_left">%1$s %2$s शेष</string>
+
+    <string name="low_stock_items">कम-स्टॉक आइटम</string>
+    <string name="products_count">%1$d उत्पाद</string>
+    <string name="category_price">%1$s · %2$s</string>
+
+    <string name="add_product">उत्पाद जोड़ें</string>
+    <string name="update_product">उत्पाद अपडेट करें</string>
+    <string name="inventory_lookup_hint">संपादन के लिए ID या बारकोड से खोजें, या नया उत्पाद जोड़ने के लिए फ़ॉर्म भरें।</string>
+    <string name="product_id_or_barcode">उत्पाद ID या बारकोड</string>
+    <string name="field_name">नाम</string>
+    <string name="field_name_hi">नाम (हिंदी)</string>
+    <string name="field_category">श्रेणी</string>
+    <string name="field_unit">इकाई</string>
+    <string name="field_barcode">बारकोड</string>
+    <string name="field_selling_price">बिक्री मूल्य</string>
+    <string name="field_cost_price">लागत मूल्य</string>
+    <string name="field_stock_qty">स्टॉक मात्रा</string>
+    <string name="field_low_stock_at">कम-स्टॉक सीमा</string>
+    <string name="field_voice_alias">वॉइस उपनाम (हिंदी कमांड के लिए)</string>
+    <string name="msg_loaded_product">%1$s लोड हुआ</string>
+    <string name="msg_saved_product">%1$s सहेजा गया</string>
+    <string name="error_product_not_found">"%1$s" के लिए कोई उत्पाद नहीं मिला। जोड़ने के लिए फ़ॉर्म भरें।</string>
+    <string name="error_product_name_required">उत्पाद का नाम आवश्यक है।</string>
+
+    <string name="edit_order">ऑर्डर संपादित करें</string>
+    <string name="save_order">ऑर्डर सहेजें</string>
+    <string name="update_order">ऑर्डर अपडेट करें</string>
+    <string name="customer_name">ग्राहक का नाम</string>
+    <string name="cart_count">कार्ट (%1$d)</string>
+    <string name="cart_empty_hint">खोज या वॉइस माइक से उत्पाद जोड़ें।</string>
+    <string name="total_label">कुल: %1$s</string>
+    <string name="search_products">उत्पाद खोजें</string>
+    <string name="voice_hint_example">माइक में बोलें: "1 किलो चीनी, 2 किलो तूर दाल"</string>
+    <string name="in_stock">%1$s · स्टॉक में %2$s %3$s</string>
+    <string name="error_speech_unavailable">इस डिवाइस पर स्पीच पहचान उपलब्ध नहीं है।</string>
+    <string name="error_mic_permission">वॉइस ऑर्डर के लिए माइक्रोफ़ोन अनुमति आवश्यक है।</string>
+    <string name="error_order_empty">ऑर्डर में कम से कम एक आइटम जोड़ें।</string>
+    <string name="voice_not_understood">समझ नहीं आया: "%1$s"</string>
+    <string name="voice_out_of_stock">%1$s स्टॉक में नहीं है</string>
+    <string name="voice_partial_stock">%1$s में सिर्फ %2$d बचा है</string>
+
+    <string name="voice_listening">सुन रहा हूँ…</string>
+    <string name="voice_idle_prompt">वॉइस से ऑर्डर जोड़ें</string>
+    <string name="cancel_listening">सुनना रद्द करें</string>
+
+    <!-- Settings -->
+    <string name="action_settings">सेटिंग्स</string>
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="settings_notifications">सूचना प्राथमिकताएँ</string>
+    <string name="settings_notify_low_stock">ऑर्डर के बाद कम / खत्म स्टॉक</string>
+    <string name="settings_notify_low_stock_desc">जब ऑर्डर से कोई वस्तु कम या खत्म हो जाए तो अलर्ट</string>
+    <string name="settings_notify_orders">ऑर्डर प्राप्त / रद्द</string>
+    <string name="settings_notify_orders_desc">ऑर्डर प्राप्त या रद्द होने पर अलर्ट। टैप करके विवरण खोलें।</string>
+    <string name="settings_language">भाषा प्राथमिकताएँ</string>
+    <string name="settings_theme">थीम प्राथमिकताएँ</string>
+    <string name="settings_theme_mode">दिखावट</string>
+    <string name="theme_system">सिस्टम</string>
+    <string name="theme_light">लाइट</string>
+    <string name="theme_dark">डार्क</string>
+    <string name="settings_custom_theme">कस्टम थीम</string>
+    <string name="theme_default">डिफ़ॉल्ट (जैतूनी)</string>
+    <string name="theme_saffron">केसरिया</string>
+    <string name="theme_teal">टील</string>
+    <string name="theme_rose">गुलाबी</string>
+
+    <!-- Orders workspace -->
+    <string name="orders_workspace_title">ऑर्डर</string>
+    <string name="tab_dashboard">डैशबोर्ड</string>
+    <string name="tab_orders">ऑर्डर</string>
+    <string name="tab_order_details">विवरण</string>
+    <string name="order_details_title">ऑर्डर विवरण</string>
+    <string name="order_status_label">स्थिति: %1$s</string>
+    <string name="status_received">प्राप्त</string>
+    <string name="status_completed">पूर्ण</string>
+    <string name="status_cancelled">रद्द</string>
+    <string name="status_draft">ड्राफ्ट</string>
+    <string name="action_process_order">ऑर्डर प्रोसेस करें</string>
+    <string name="action_cancel_order">ऑर्डर रद्द करें</string>
+    <string name="cancel_order_title">यह ऑर्डर रद्द करें?</string>
+    <string name="cancel_order_message">क्या आप वाकई यह ऑर्डर रद्द करना चाहते हैं?</string>
+    <string name="cancel_reason_label">कारण</string>
+    <string name="cancel_reason_customer_request">ग्राहक अनुरोध</string>
+    <string name="cancel_reason_out_of_stock">स्टॉक समाप्त</string>
+    <string name="cancel_reason_payment_issue">भुगतान समस्या</string>
+    <string name="cancel_reason_duplicate">डुप्लिकेट ऑर्डर</string>
+    <string name="cancel_reason_other">अन्य</string>
+    <string name="cancel_reason_custom_hint">कस्टम कारण</string>
+    <string name="action_yes">हाँ</string>
+    <string name="action_no">नहीं</string>
+    <string name="select_order_hint">विवरण देखने के लिए ऑर्डर चुनें</string>
+    <string name="notif_low_stock_title">कम स्टॉक अलर्ट</string>
+    <string name="notif_low_stock_body">%1$s कम या समाप्त है</string>
+    <string name="notif_order_received_title">ऑर्डर प्राप्त</string>
+    <string name="notif_order_received_body">नया ऑर्डर %1$s · %2$s</string>
+    <string name="notif_order_cancelled_title">ऑर्डर रद्द</string>
+    <string name="notif_order_cancelled_body">ऑर्डर %1$s रद्द किया गया</string>
+
+    <string name="category_fortune_branded">फॉर्च्यून / ब्रांडेड</string>
+    <string name="category_general_grocery">किराना</string>
+    <string name="category_puja_samagri">पूजा सामग्री</string>
+    <string name="category_standard_spices">मसाले</string>
+    <string name="category_high_value_spices">विशेष मसाले</string>
+
+    <string name="unit_kg">किग्रा</string>
+    <string name="unit_ltr">लीटर</string>
+    <string name="unit_g">ग्राम</string>
+    <string name="unit_packet">पैकेट</string>
+    <string name="unit_pcs">पीस</string>
+</resources>
