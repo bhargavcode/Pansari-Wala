@@ -1,9 +1,10 @@
 package org.bhargav.pansariwala.platform
 
 import org.bhargav.pansariwala.api.PansariApi
-import org.bhargav.pansariwala.product.AppProduct
-import org.bhargav.pansariwala.product.AppProductHolder
 
+/**
+ * Uses server OTP when the API reports [devAuth] (AUTH_DEV_MODE); otherwise Firebase phone auth.
+ */
 class IosPhoneAuthGateway(
     private val api: PansariApi,
 ) : PhoneAuthGateway {
@@ -15,12 +16,6 @@ class IosPhoneAuthGateway(
 
     private suspend fun useServerOtp(): Boolean {
         preferServerOtp?.let { return it }
-        if (AppProductHolder.current == AppProduct.USER ||
-            AppProductHolder.current == AppProduct.DELIVERY
-        ) {
-            preferServerOtp = true
-            return true
-        }
         val devAuth = runCatching { api.publicConfig().devAuth }.getOrNull()
         val useServer = devAuth ?: true
         preferServerOtp = useServer
