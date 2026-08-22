@@ -43,8 +43,10 @@ object AppConstants {
     const val DEV_OTP: String = "123456"
     const val JWT_PREFIX: String = "eyJ"
     const val DEFAULT_API_PORT: Int = 8080
-    const val DEFAULT_API_BASE_URL: String = "http://10.0.2.2:8080"
-    const val IOS_API_BASE_URL: String = "http://127.0.0.1:8080"
+    /** Shared API URL for debug/release and all platforms (override via Android `API_BASE_URL` env in CI). */
+    const val API_BASE_URL: String = "http://35.172.232.196:8080"
+    const val DEFAULT_API_BASE_URL: String = API_BASE_URL
+    const val IOS_API_BASE_URL: String = API_BASE_URL
     const val HTTP_CONNECT_TIMEOUT_MS: Long = 15_000L
     const val HTTP_REQUEST_TIMEOUT_MS: Long = 45_000L
     const val HTTP_SOCKET_TIMEOUT_MS: Long = 45_000L

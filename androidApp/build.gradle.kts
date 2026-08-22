@@ -65,11 +65,10 @@ android {
             buildConfigField("String", "APP_PRODUCT", "\"DELIVERY\"")
         }
     }
-    val debugApiBaseUrl = "http://10.0.2.2:8080"
-    val releaseApiBaseUrl =
+    val apiBaseUrl =
         System.getenv("API_BASE_URL")
             ?: (project.findProperty("API_BASE_URL") as String?)
-            ?: debugApiBaseUrl
+            ?: "http://35.172.232.196:8080"
     val keystorePath = System.getenv("ANDROID_KEYSTORE_FILE")
     val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
     val keyAlias = System.getenv("ANDROID_KEY_ALIAS")
@@ -79,8 +78,8 @@ android {
             !keystorePassword.isNullOrBlank() &&
             !keyAlias.isNullOrBlank() &&
             !keyPassword.isNullOrBlank()
-    if (hasReleaseSigning) {
-        signingConfigs {
+    signingConfigs {
+        if (hasReleaseSigning) {
             create("release") {
                 storeFile = file(keystorePath!!)
                 storePassword = keystorePassword
@@ -90,8 +89,10 @@ android {
         }
     }
     buildTypes {
-        getByName("debug") {
-            buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
+        debug {
+            // Always use the default Android debug keystore — never the production keystore.
+            signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
         release {
             isMinifyEnabled = false
@@ -99,9 +100,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
-            if (hasReleaseSigning) {
-                signingConfig = signingConfigs.getByName("release")
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                null
             }
         }
     }

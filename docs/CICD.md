@@ -21,11 +21,11 @@ GitHub Actions workflow: [`.github/workflows/ci-cd.yml`](../.github/workflows/ci
 
 | Setting | Value |
 |---|---|
-| EC2 host | `ec2-16-170-98-76.eu-north-1.compute.amazonaws.com` |
+| EC2 host | `35.172.232.196` (use Elastic IP to avoid changes on stop/start) |
 | EC2 user | `ec2-user` |
 | Deploy path | `/opt/pansari` |
 | Service | `pansari-server` |
-| API (release APKs) | `http://16.170.98.76:8080` — confirm port below |
+| API (release APKs) | `http://35.172.232.196:8080` |
 
 Bootstrap on the instance (Amazon Linux):
 
@@ -44,19 +44,40 @@ Repo → **Settings → Secrets and variables → Actions**
 
 | Secret | Value |
 |---|---|
-| `API_BASE_URL` | Full URL incl. scheme + port, e.g. `http://16.170.98.76:8080` (**release** BuildConfig) |
+| `API_BASE_URL` | `http://35.172.232.196:8080` (**release** BuildConfig) |
 | `ANDROID_KEYSTORE_BASE64` | `base64 -i your.keystore \| pbcopy` (macOS) |
 | `ANDROID_KEYSTORE_PASSWORD` | keystore password |
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key password |
 
-Without keystore secrets, release APKs still build (unsigned / default debug signing).
+Without keystore secrets, **release** builds are unsigned locally; CI requires `ANDROID_KEYSTORE_BASE64`.
+
+### Signing behavior
+
+| Build type | Keystore | API URL |
+|---|---|---|
+| **debug** | Android default debug keystore | Same as release (`API_BASE_URL`) |
+| **release** | `pansariwala.jks` (production) | Same as debug (`API_BASE_URL`) |
+
+CI keeps the **latest 5** artifact sets per type (`android-apks-*`, `web-js-dist-*`, `pansari-server-jar-*`); older runs are deleted automatically.
+
+### Download builds after a successful run
+
+1. Open [GitHub Actions](https://github.com/bhargavcode/Pansari-Wala/actions/workflows/ci-cd.yml)
+2. Click the green **CI/CD** run for your commit
+3. Scroll to **Artifacts** at the bottom of the run page
+4. Download:
+   - `android-apks-<run_id>` — all 6 APKs (pos/user/delivery × debug/release)
+   - `web-js-dist-<run_id>` — web JS bundle
+   - `pansari-server-jar-<run_id>` — server fat JAR
+
+Direct path pattern: **Actions → CI/CD run → Artifacts → Download zip**
 
 ### EC2 deploy (required for auto-upload)
 
 | Secret | Value |
 |---|---|
-| `EC2_HOST` | `ec2-16-170-98-76.eu-north-1.compute.amazonaws.com` |
+| `EC2_HOST` | `35.172.232.196` |
 | `EC2_USER` | `ec2-user` |
 | `EC2_SSH_KEY` | Full private key PEM contents |
 | `EC2_DEPLOY_PATH` | `/opt/pansari` |

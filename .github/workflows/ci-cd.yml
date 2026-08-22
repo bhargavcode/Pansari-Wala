@@ -18,6 +18,10 @@ concurrency:
   group: cicd-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   android:
     name: Android (all flavors × debug/release)
@@ -34,14 +38,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Decode Android keystore (optional)
+      - name: Require production keystore for release APKs
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "No ANDROID_KEYSTORE_BASE64 — release APKs built without custom signing"
-            exit 0
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is required for signed release builds"
+            exit 1
           fi
+
+      - name: Decode Android release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "${RUNNER_TEMP}/release.keystore"
           echo "ANDROID_KEYSTORE_FILE=${RUNNER_TEMP}/release.keystore" >> "$GITHUB_ENV"
 
@@ -64,10 +73,10 @@ jobs:
       - name: Upload Android APKs
         uses: actions/upload-artifact@v4
         with:
-          name: android-apks
+          name: android-apks-${{ github.run_id }}
           path: androidApp/build/outputs/apk/**/*.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   web:
     name: Web (JS distribution)
@@ -90,12 +99,12 @@ jobs:
       - name: Upload web dist
         uses: actions/upload-artifact@v4
         with:
-          name: web-js-dist
+          name: web-js-dist-${{ github.run_id }}
           path: |
             webApp/build/dist/js/productionExecutable
             webApp/build/kotlin-webpack
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 90
 
   server:
     name: Server (fat JAR)
@@ -118,10 +127,10 @@ jobs:
       - name: Upload server JAR
         uses: actions/upload-artifact@v4
         with:
-          name: pansari-server-jar
+          name: pansari-server-jar-${{ github.run_id }}
           path: server/build/libs/pansari-server-all.jar
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
   deploy-server:
     name: Deploy server → EC2
@@ -136,7 +145,7 @@ jobs:
       - name: Download server JAR
         uses: actions/download-artifact@v4
         with:
-          name: pansari-server-jar
+          name: pansari-server-jar-${{ github.run_id }}
           path: server/build/libs
 
       - name: Check EC2 secrets
@@ -170,6 +179,51 @@ jobs:
           export EC2_SERVICE_NAME="${EC2_SERVICE_NAME:-pansari-server}"
           chmod +x scripts/deploy-server.sh
           ./scripts/deploy-server.sh
+
+  prune-artifacts:
+    name: Prune artifacts (keep latest 5 per type)
+    needs: [android, web, server]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete artifacts older than the latest 5 builds
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const keep = 5;
+            const prefixes = ['android-apks-', 'web-js-dist-', 'pansari-server-jar-'];
+            const legacyNames = ['android-apks', 'web-js-dist', 'pansari-server-jar'];
+            const all = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const pruneGroup = (matches) => {
+              const sorted = matches.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+              return sorted.slice(keep);
+            };
+            for (const prefix of prefixes) {
+              const stale = pruneGroup(all.filter((a) => a.name.startsWith(prefix)));
+              for (const artifact of stale) {
+                core.info(`Deleting ${artifact.name} (${artifact.id})`);
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id,
+                });
+              }
+            }
+            for (const legacyName of legacyNames) {
+              const stale = pruneGroup(all.filter((a) => a.name === legacyName));
+              for (const artifact of stale) {
+                core.info(`Deleting legacy ${artifact.name} (${artifact.id})`);
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id,
+                });
+              }
+            }
 
   ios:
     name: iOS (placeholder — manual only)

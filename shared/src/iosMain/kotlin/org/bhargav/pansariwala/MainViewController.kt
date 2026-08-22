@@ -9,7 +9,7 @@ private var koinStarted = false
 
 fun MainViewController() = ComposeUIViewController {
     if (!koinStarted) {
-        ApiRuntime.baseUrl = AppConstants.IOS_API_BASE_URL
+        ApiRuntime.baseUrl = AppConstants.API_BASE_URL
         initKoin()
         koinStarted = true
     }
