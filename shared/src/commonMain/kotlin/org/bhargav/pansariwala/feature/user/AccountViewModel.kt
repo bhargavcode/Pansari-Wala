@@ -53,6 +53,7 @@ class UserSettingsViewModel(
     fun setRadius(km: Double) { viewModelScope.launch { preferences.setSearchRadiusKm(km) } }
     fun setNotifyOffers(value: Boolean) { viewModelScope.launch { preferences.setNotifyOffers(value) } }
     fun setNotifyDelivery(value: Boolean) { viewModelScope.launch { preferences.setNotifyDelivery(value) } }
+    fun setNotifyOrderEvents(value: Boolean) { viewModelScope.launch { preferences.setNotifyOrderEvents(value) } }
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {
             preferences.clearSession()

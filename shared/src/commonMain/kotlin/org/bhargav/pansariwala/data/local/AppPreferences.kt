@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import org.bhargav.pansariwala.i18n.AppLanguage
+import org.bhargav.pansariwala.platform.stopPartnerLocationTracking
 import org.bhargav.pansariwala.settings.AppUserSettings
 import org.bhargav.pansariwala.settings.CustomTheme
 import org.bhargav.pansariwala.settings.ThemeMode
@@ -27,6 +28,7 @@ class AppPreferences(
         const val role = "pref_auth_role"
         const val notifyOffers = "pref_notify_offers"
         const val notifyDelivery = "pref_notify_delivery"
+        const val partnerOnlineDuty = "pref_partner_online_duty"
     }
 
     val accessToken: Flow<String?> = store.observeString(Keys.accessToken)
@@ -122,6 +124,13 @@ class AppPreferences(
         store.putStrings(mapOf(Keys.notifyDelivery to enabled.toString()))
     }
 
+    suspend fun getPartnerOnlineDuty(): Boolean =
+        store.getString(Keys.partnerOnlineDuty).toBooleanPref(default = false)
+
+    suspend fun setPartnerOnlineDuty(online: Boolean) {
+        store.putStrings(mapOf(Keys.partnerOnlineDuty to online.toString()))
+    }
+
     suspend fun saveSession(
         accessToken: String,
         refreshToken: String?,
@@ -143,6 +152,7 @@ class AppPreferences(
     }
 
     suspend fun clearSession() {
+        stopPartnerLocationTracking()
         store.remove(
             setOf(
                 Keys.accessToken,
@@ -151,6 +161,7 @@ class AppPreferences(
                 Keys.shopId,
                 Keys.userDisplayName,
                 Keys.role,
+                Keys.partnerOnlineDuty,
             ),
         )
     }

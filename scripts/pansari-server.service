@@ -1,0 +1,16 @@
+[Unit]
+Description=Pansari Wala API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/pansari
+EnvironmentFile=/opt/pansari/env
+ExecStart=/usr/bin/java -jar /opt/pansari/pansari-server-all.jar
+Restart=on-failure
+RestartSec=5
+# Change User to your EC2 SSH user (ec2-user / ubuntu)
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target

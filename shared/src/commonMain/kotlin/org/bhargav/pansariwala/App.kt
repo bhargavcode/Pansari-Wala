@@ -14,6 +14,7 @@ import org.bhargav.pansariwala.navigation.DeliveryNavGraph
 import org.bhargav.pansariwala.navigation.UserNavGraph
 import org.bhargav.pansariwala.notification.LiveAlerts
 import org.bhargav.pansariwala.notification.NotificationGateway
+import org.bhargav.pansariwala.platform.PartnerLocationTracker
 import org.bhargav.pansariwala.product.AppProduct
 import org.bhargav.pansariwala.product.currentAppProduct
 import org.bhargav.pansariwala.settings.AppUserSettings
@@ -27,6 +28,7 @@ fun App(
     preferences: AppPreferences = koinInject(),
     alerts: LiveAlerts = koinInject(),
     notifications: NotificationGateway = koinInject(),
+    locationTracker: PartnerLocationTracker = koinInject(),
 ) {
     val settings by preferences.userSettings.collectAsStateWithLifecycle(
         initialValue = AppUserSettings(),
@@ -41,6 +43,9 @@ fun App(
     LaunchedEffect(product) {
         notifications.ensureChannels()
         notifications.requestPermissionIfNeeded()
+        if (product == AppProduct.DELIVERY) {
+            locationTracker.restore()
+        }
         alerts.run(product)
     }
 

@@ -16,27 +16,40 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.bhargav.pansariwala.designsystem.SectionCard
+import androidx.lifecycle.repeatOnLifecycle
 import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.domain.model.OrderStatus
+import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
@@ -45,17 +58,22 @@ import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.account_all_orders
 import pansariwala.shared.generated.resources.account_transactions
-import pansariwala.shared.generated.resources.action_add_to_cart
-import pansariwala.shared.generated.resources.action_checkout
+import pansariwala.shared.generated.resources.action_add_address
+import pansariwala.shared.generated.resources.action_complete_profile
 import pansariwala.shared.generated.resources.action_place_order
+import pansariwala.shared.generated.resources.checkout_confirm_address
+import pansariwala.shared.generated.resources.action_proceed_payment
 import pansariwala.shared.generated.resources.action_save_rating
 import pansariwala.shared.generated.resources.action_update_rating
-import pansariwala.shared.generated.resources.catalog_title
+import pansariwala.shared.generated.resources.cart_title
+import pansariwala.shared.generated.resources.catalog_shop_rating
 import pansariwala.shared.generated.resources.checkout_delivery
 import pansariwala.shared.generated.resources.checkout_discount
-import pansariwala.shared.generated.resources.checkout_offers
+import pansariwala.shared.generated.resources.checkout_discount_applied
+import pansariwala.shared.generated.resources.checkout_offers_expand
 import pansariwala.shared.generated.resources.checkout_payable
 import pansariwala.shared.generated.resources.checkout_platform_fee
+import pansariwala.shared.generated.resources.checkout_razorpay_hint
 import pansariwala.shared.generated.resources.checkout_subtotal
 import pansariwala.shared.generated.resources.checkout_title
 import pansariwala.shared.generated.resources.delivery_partner_name
@@ -64,6 +82,7 @@ import pansariwala.shared.generated.resources.delivery_partner_title
 import pansariwala.shared.generated.resources.delivery_partner_vehicle
 import pansariwala.shared.generated.resources.order_cancelled_banner
 import pansariwala.shared.generated.resources.order_items_title
+import pansariwala.shared.generated.resources.order_number_label
 import pansariwala.shared.generated.resources.order_otp_label
 import pansariwala.shared.generated.resources.order_otp_share_hint
 import pansariwala.shared.generated.resources.order_progress_title
@@ -79,79 +98,269 @@ import pansariwala.shared.generated.resources.status_cancelled
 import pansariwala.shared.generated.resources.status_rejected
 import pansariwala.shared.generated.resources.thank_you_body
 import pansariwala.shared.generated.resources.thank_you_title
+import pansariwala.shared.generated.resources.user_cart_items
 
 @Composable
 fun ShopCatalogScreen(
     shopId: String,
-    onCheckout: () -> Unit,
+    onOpenCart: () -> Unit,
     onBack: () -> Unit,
     viewModel: ShopCatalogViewModel = koinViewModel(),
 ) {
     LaunchedEffect(shopId) { viewModel.load(shopId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PansariTopBar(
-            title = stringResource(Res.string.catalog_title),
-            onBack = onBack,
-        )
-        state.products.forEach { product ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text(product.name, fontWeight = FontWeight.SemiBold)
-                    Text("₹${product.sellingPrice}")
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.weight(1f).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            PansariTopBar(title = state.shop?.name ?: "…", onBack = onBack)
+            state.shop?.let { shop ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(shop.name.take(1), fontWeight = FontWeight.Bold)
+                    }
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text(shop.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(Res.string.catalog_shop_rating, shop.rating.toString()))
+                    }
                 }
-                Button(onClick = { viewModel.add(product) }) { Text(stringResource(Res.string.action_add_to_cart)) }
             }
+            if (state.loading) CircularProgressIndicator()
+            state.products.groupBy { it.category }.forEach { (category, products) ->
+                Text(
+                    category.displayName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                products.forEach { product ->
+                    CatalogProductRow(
+                        name = product.name,
+                        price = product.sellingPrice.asMoney(),
+                        quantity = viewModel.quantityOf(product.id),
+                        onIncrement = {
+                            if (viewModel.quantityOf(product.id) == 0) viewModel.add(product)
+                            else viewModel.increment(product.id)
+                        },
+                        onDecrement = { viewModel.decrement(product.id) },
+                        onAdd = { viewModel.add(product) },
+                    )
+                }
+            }
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
-        Button(onClick = onCheckout, enabled = state.cartCount > 0, modifier = Modifier.fillMaxWidth()) {
-            Text("${stringResource(Res.string.action_checkout)} (${state.cartCount})")
+        if (state.cartCount > 0) {
+            UserPrimaryButton(
+                text = stringResource(Res.string.user_cart_items, state.cartCount),
+                onClick = onOpenCart,
+                modifier = Modifier.padding(16.dp),
+            )
         }
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
 
 @Composable
+private fun CatalogProductRow(
+    name: String,
+    price: String,
+    quantity: Int,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    onAdd: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(name, fontWeight = FontWeight.Medium)
+            Text(price, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+        }
+        if (quantity > 0) {
+            QuantityStepper(quantity = quantity, onIncrement = onIncrement, onDecrement = onDecrement)
+        } else {
+            TextButton(onClick = onAdd) { Text("+") }
+        }
+    }
+}
+
+@Composable
+fun CartScreen(
+    shopId: String,
+    onCheckout: () -> Unit,
+    onBack: () -> Unit,
+    viewModel: CartViewModel = koinViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        PansariTopBar(title = stringResource(Res.string.cart_title), onBack = onBack)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            state.lines.forEach { line ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(line.product.name, fontWeight = FontWeight.Medium)
+                        Text(
+                            "${line.quantity.asQuantity()} × ${line.product.sellingPrice.asMoney()}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    QuantityStepper(
+                        quantity = line.quantity.toInt(),
+                        onIncrement = { viewModel.increment(line.product.id) },
+                        onDecrement = { viewModel.decrement(line.product.id) },
+                    )
+                }
+                HorizontalDivider()
+            }
+        }
+        UserPrimaryButton(
+            text = stringResource(Res.string.action_proceed_payment, state.subtotal.asMoney()),
+            onClick = onCheckout,
+            enabled = state.lines.isNotEmpty(),
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Text(
+            stringResource(Res.string.checkout_razorpay_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun CheckoutScreen(
     shopId: String,
     onPlaced: (String) -> Unit,
+    onCompleteProfile: () -> Unit,
+    onAddAddress: () -> Unit,
     onBack: () -> Unit,
     viewModel: CheckoutViewModel = koinViewModel(),
 ) {
-    LaunchedEffect(shopId) { viewModel.load(shopId) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(shopId, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.load(shopId)
+        }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarText = state.snackbar?.asString()
+    LaunchedEffect(snackbarText) {
+        if (snackbarText != null) {
+            snackbarHostState.showSnackbar(snackbarText)
+            viewModel.consumeSnackbar()
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PansariTopBar(
-            title = stringResource(Res.string.checkout_title),
-            onBack = onBack,
-        )
+        PansariTopBar(title = stringResource(Res.string.checkout_title), onBack = onBack)
         val quote = state.quote
+        var addressMenuOpen by remember { mutableStateOf(false) }
+        val selected = state.addresses.firstOrNull { it.id == state.selectedAddressId }
+        val selectedLabel = selected?.let { listOf(it.line, it.locality).filter { part -> part.isNotBlank() }.joinToString(", ") }
+            ?: stringResource(Res.string.checkout_confirm_address)
+        ExposedDropdownMenuBox(
+            expanded = addressMenuOpen,
+            onExpandedChange = { addressMenuOpen = it },
+        ) {
+            OutlinedTextField(
+                value = selectedLabel,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(Res.string.checkout_confirm_address)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = addressMenuOpen) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+            )
+            DropdownMenu(expanded = addressMenuOpen, onDismissRequest = { addressMenuOpen = false }) {
+                state.addresses.forEach { address ->
+                    DropdownMenuItem(
+                        text = { Text(listOf(address.line, address.locality).filter { it.isNotBlank() }.joinToString(", ")) },
+                        onClick = {
+                            addressMenuOpen = false
+                            viewModel.selectAddress(shopId, address.id)
+                        },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_add_address)) },
+                    onClick = {
+                        addressMenuOpen = false
+                        onAddAddress()
+                    },
+                )
+            }
+        }
         if (quote != null) {
             SectionCard(
-                title = stringResource(Res.string.checkout_offers, state.offers.size),
+                title = stringResource(Res.string.checkout_offers_expand),
                 modifier = Modifier.clickable(enabled = !state.placing, onClick = viewModel::toggleOffers),
             ) {
                 if (state.offersExpanded) {
-                    state.offers.forEach { Text("${it.title} · ${it.discountPercent}%") }
+                    state.offers.forEach { offer ->
+                        Text("${offer.title} · ${offer.discountPercent}%")
+                    }
+                }
+                if (quote.discount > 0) {
+                    Text(
+                        stringResource(Res.string.checkout_discount_applied, quote.discount.asMoney()),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
-            Text("${stringResource(Res.string.checkout_subtotal)}  ₹${quote.itemsSubtotal}")
-            Text("${stringResource(Res.string.checkout_discount)}  ₹${quote.discount}")
-            Text("${stringResource(Res.string.checkout_platform_fee)}  ₹${quote.platformFee}")
-            Text("${stringResource(Res.string.checkout_delivery)}  ₹${quote.deliveryCharge}")
-            Text("${stringResource(Res.string.checkout_payable)}  ₹${quote.payable}", fontWeight = FontWeight.Bold)
+            CheckoutLine(stringResource(Res.string.checkout_subtotal), quote.itemsSubtotal.asMoney())
+            if (quote.discount > 0) CheckoutLine(stringResource(Res.string.checkout_discount), "-${quote.discount.asMoney()}")
+            CheckoutLine(stringResource(Res.string.checkout_platform_fee), quote.platformFee.asMoney())
+            CheckoutLine(stringResource(Res.string.checkout_delivery), quote.deliveryCharge.asMoney())
+            HorizontalDivider()
+            CheckoutLine(stringResource(Res.string.checkout_payable), quote.payable.asMoney(), bold = true)
         }
-        Button(
+        UserPrimaryButton(
+            text = stringResource(Res.string.action_place_order),
             onClick = { viewModel.place(shopId, onPlaced) },
             enabled = !state.placing && quote != null,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (state.placing) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Text(stringResource(Res.string.action_place_order))
-            }
+        )
+        if (state.needsProfile) {
+            UserPrimaryButton(
+                text = stringResource(Res.string.action_complete_profile),
+                onClick = onCompleteProfile,
+                enabled = !state.placing,
+            )
+        } else {
+            Text(
+                stringResource(Res.string.checkout_razorpay_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
         }
+        if (state.placing) CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
         state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
+    }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun CheckoutLine(label: String, value: String, bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
+        Text(value, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
     }
 }
 
@@ -161,9 +370,9 @@ fun ThankYouScreen(
     viewModel: ThankYouViewModel = koinViewModel(),
 ) {
     LaunchedEffect(Unit) { viewModel.goNext(onContinue) }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(Res.string.thank_you_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(stringResource(Res.string.thank_you_body))
+        Text(stringResource(Res.string.thank_you_body), modifier = Modifier.padding(top = 8.dp))
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
     }
 }
@@ -182,13 +391,9 @@ fun OrderDetailsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (order != null) {
-            PansariTopBar(
-                title = order.shopName ?: order.shopId,
-                onBack = onBack,
-            )
-
+            PansariTopBar(title = order.shopName ?: order.shopId, onBack = onBack)
             Text(
-                order.id,
+                stringResource(Res.string.order_number_label, order.id.takeLast(6)),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary,
@@ -196,11 +401,9 @@ fun OrderDetailsScreen(
             Text(
                 stringResource(Res.string.order_total_label, order.totalValue.asMoney()),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
             )
             val isCancelled = order.status == OrderStatus.CANCELLED
             val isRejected = order.status == OrderStatus.REJECTED
-
             if (!isCancelled && !isRejected) {
                 order.deliveryOtp?.let {
                     SectionCard(title = stringResource(Res.string.order_otp_label, it)) {
@@ -210,16 +413,10 @@ fun OrderDetailsScreen(
             }
             if (isCancelled || isRejected) {
                 SectionCard(
-                    title = stringResource(
-                        if (isCancelled) Res.string.status_cancelled
-                        else Res.string.status_rejected,
-                    ),
+                    title = stringResource(if (isCancelled) Res.string.status_cancelled else Res.string.status_rejected),
                 ) {
                     Text(
-                        stringResource(
-                            if (isCancelled) Res.string.order_cancelled_banner
-                            else Res.string.order_rejected_banner,
-                        ),
+                        stringResource(if (isCancelled) Res.string.order_cancelled_banner else Res.string.order_rejected_banner),
                         color = MaterialTheme.colorScheme.error,
                     )
                     order.cancelReason?.takeIf { it.isNotBlank() }?.let {
@@ -234,50 +431,52 @@ fun OrderDetailsScreen(
             }
             SectionCard(title = stringResource(Res.string.order_items_title)) {
                 order.items.forEach { item ->
+                    Text(item.productName, fontWeight = FontWeight.SemiBold)
                     Text(
-                        text = "${item.productName}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",
+                        "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp),
                     )
+                }
+                order.quote?.let { q ->
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    CheckoutLine(stringResource(Res.string.checkout_subtotal), q.itemsSubtotal.asMoney())
+                    CheckoutLine(stringResource(Res.string.checkout_platform_fee), q.platformFee.asMoney())
+                    CheckoutLine(stringResource(Res.string.checkout_delivery), q.deliveryCharge.asMoney())
+                    CheckoutLine(stringResource(Res.string.checkout_payable), q.payable.asMoney(), bold = true)
                 }
             }
             if (order.hasAssignedPartner) {
                 SectionCard(title = stringResource(Res.string.delivery_partner_title)) {
-                    order.partnerName?.takeIf { it.isNotBlank() }?.let {
-                        Text(stringResource(Res.string.delivery_partner_name, it))
-                    }
-                    order.partnerPhone?.takeIf { it.isNotBlank() }?.let {
-                        Text(stringResource(Res.string.delivery_partner_phone, it))
-                    }
-                    order.partnerVehicleReg?.takeIf { it.isNotBlank() }?.let {
-                        Text(stringResource(Res.string.delivery_partner_vehicle, it))
-                    }
+                    order.partnerName?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_name, it)) }
+                    order.partnerPhone?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_phone, it)) }
+                    order.partnerVehicleReg?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_vehicle, it)) }
                 }
             }
             val delivered = order.status == OrderStatus.DELIVERED || order.status == OrderStatus.COMPLETED
             if (delivered) {
                 SectionCard(title = stringResource(Res.string.rate_order_title)) {
-                    Text("${state.stars} / 5")
-                    Slider(
-                        value = state.stars.toFloat(),
-                        onValueChange = { viewModel.setStars(it.toInt()) },
-                        valueRange = 0f..5f,
-                        steps = 4,
+                    InteractiveStarRating(
+                        stars = state.stars,
+                        onStarsChange = viewModel::setStars,
                         enabled = state.editingRating,
                     )
-                    OutlinedTextField(state.comment, viewModel::setComment, enabled = state.editingRating, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = state.comment,
+                        onValueChange = viewModel::setComment,
+                        enabled = state.editingRating,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                     if (state.editingRating) {
-                        Button(onClick = viewModel::saveRating, enabled = viewModel.canSaveRating()) {
-                            Text(stringResource(if (order.rating == null) Res.string.action_save_rating else Res.string.action_update_rating))
-                        }
+                        UserPrimaryButton(
+                            text = stringResource(if (order.rating == null) Res.string.action_save_rating else Res.string.action_update_rating),
+                            onClick = viewModel::saveRating,
+                            enabled = viewModel.canSaveRating(),
+                        )
                     } else {
-                        TextButton(onClick = viewModel::startEdit) { Text(stringResource(Res.string.action_update_rating)) }
+                        TextButton(onClick = viewModel::startEdit) {
+                            Text(stringResource(Res.string.action_update_rating))
+                        }
                     }
                 }
             }
@@ -294,10 +493,9 @@ private fun OrderProgressStepper(current: FulfillmentStep) {
         FulfillmentStep.ON_THE_WAY to Res.string.order_step_on_the_way,
         FulfillmentStep.DELIVERED to Res.string.order_step_delivered,
     )
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+    Column {
         steps.forEachIndexed { index, (step, labelRes) ->
-            val completed = step.ordinal < current.ordinal ||
-                (current == FulfillmentStep.DELIVERED && step.ordinal <= current.ordinal)
+            val completed = step.ordinal < current.ordinal || (current == FulfillmentStep.DELIVERED && step.ordinal <= current.ordinal)
             val isCurrent = step == current && current != FulfillmentStep.DELIVERED
             val circleColor = when {
                 completed -> MaterialTheme.colorScheme.primary
@@ -306,32 +504,17 @@ private fun OrderProgressStepper(current: FulfillmentStep) {
             }
             Row(verticalAlignment = Alignment.Top) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier.size(28.dp).clip(CircleShape).background(circleColor),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (completed) {
-                            Text("✓", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                        }
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(circleColor), contentAlignment = Alignment.Center) {
+                        if (completed) Text("✓", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                     if (index != steps.lastIndex) {
-                        Box(
-                            Modifier.width(2.dp).height(28.dp).background(
-                                if (completed) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outlineVariant,
-                            ),
-                        )
+                        Box(Modifier.width(2.dp).height(28.dp).background(if (completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant))
                     }
                 }
                 Text(
                     stringResource(labelRes),
                     modifier = Modifier.padding(start = 12.dp, top = 4.dp),
                     fontWeight = if (completed || isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (completed || isCurrent) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
                 )
             }
         }
@@ -346,11 +529,11 @@ fun OrdersListScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        PansariTopBar(
-            title = stringResource(Res.string.account_all_orders),
-            onBack = onBack,
-        )
-        state.orders.forEach { OrderRow(it, onClick = { onOpen(it.id) }) }
+        PansariTopBar(title = stringResource(Res.string.account_all_orders), onBack = onBack)
+        state.orders.forEach { order ->
+            OrderAccountTile(order = order, onClick = { onOpen(order.id) })
+            HorizontalDivider()
+        }
     }
 }
 
@@ -361,10 +544,7 @@ fun TransactionsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        PansariTopBar(
-            title = stringResource(Res.string.account_transactions),
-            onBack = onBack,
-        )
-        state.txns.forEach { Text("${it.title}  ₹${it.amount}") }
+        PansariTopBar(title = stringResource(Res.string.account_transactions), onBack = onBack)
+        state.txns.forEach { Text("${it.title}  ${it.amount.asMoney()}") }
     }
 }

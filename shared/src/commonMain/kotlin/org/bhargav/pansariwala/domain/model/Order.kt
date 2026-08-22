@@ -26,6 +26,7 @@ data class OrderItem(
     val unit: ProductUnit,
     val quantity: Double,
     val unitPrice: Double,
+    val imageUrl: String? = null,
 ) {
     val lineTotal: Double get() = quantity * unitPrice
 }
@@ -50,6 +51,7 @@ data class Order(
     val channel: OrderChannel = OrderChannel.POS,
     val customerId: String? = null,
     val deliveryAddress: String? = null,
+    val dropoffInstructions: String? = null,
     val deliveryOtp: String? = null,
     val pickupPhotoUrls: List<String> = emptyList(),
     val partnerId: String? = null,
@@ -59,7 +61,17 @@ data class Order(
     val rating: OrderRating? = null,
     val quote: CheckoutQuote? = null,
     val paymentId: String? = null,
+    val paymentMethod: String = "ONLINE",
+    val customerPhone: String? = null,
     val shopName: String? = null,
+    val shopAddress: String? = null,
+    val shopLat: Double? = null,
+    val shopLng: Double? = null,
+    val customerLat: Double? = null,
+    val customerLng: Double? = null,
+    val totalDistanceKm: Double? = null,
+    val deliveryDurationMin: Int? = null,
+    val partnerPayoutInr: Double? = null,
 ) {
     val totalValue: Double get() = quote?.payable ?: items.sumOf { it.lineTotal }
     val itemCount: Int get() = items.size
@@ -70,4 +82,6 @@ data class Order(
             status != OrderStatus.COMPLETED &&
             status != OrderStatus.CANCELLED &&
             status != OrderStatus.REJECTED
+    val isActiveDelivery: Boolean
+        get() = status == OrderStatus.PARTNER_ACCEPTED || status == OrderStatus.ON_THE_WAY
 }

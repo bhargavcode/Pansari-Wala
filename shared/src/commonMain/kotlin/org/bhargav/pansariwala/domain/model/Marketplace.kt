@@ -39,6 +39,7 @@ data class MarketplaceShop(
     val location: GeoPoint,
     val offerCount: Int = 0,
     val discountPercent: Double = 0.0,
+    val deliveryRadiusKm: Double = 20.0,
 )
 
 data class ShopOffer(
@@ -48,12 +49,22 @@ data class ShopOffer(
     val discountPercent: Double,
 )
 
+data class SavedAddress(
+    val id: String,
+    val line: String,
+    val locality: String,
+    val location: GeoPoint,
+    val isDefault: Boolean,
+)
+
 data class CustomerProfile(
     val id: String,
     val phone: String,
     val name: String,
     val address: String,
+    val locality: String = "",
     val location: GeoPoint?,
+    val addresses: List<SavedAddress> = emptyList(),
 )
 
 data class CheckoutQuote(

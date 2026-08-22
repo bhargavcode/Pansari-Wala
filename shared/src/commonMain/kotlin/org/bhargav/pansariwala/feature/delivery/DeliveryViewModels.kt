@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,8 +15,15 @@ import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.DeliveryOfferStatus
 import org.bhargav.pansariwala.domain.model.Order
-import org.bhargav.pansariwala.domain.model.PartnerDashboard
+import org.bhargav.pansariwala.domain.model.OrderStatus
+import org.bhargav.pansariwala.domain.model.PartnerEarnings
+import org.bhargav.pansariwala.domain.model.PartnerProfile
+import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.domain.model.GeoPoint
 import org.bhargav.pansariwala.platform.DeviceLocation
+import org.bhargav.pansariwala.platform.PartnerLocationTracker
+import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
+import org.bhargav.pansariwala.platform.LocationUnavailableException
 import org.bhargav.pansariwala.platform.FormatPlateOcr
 import org.bhargav.pansariwala.platform.ImagePicker
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
@@ -23,17 +31,31 @@ import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.digitsPhone
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
 import org.bhargav.pansariwala.platform.normalizeVehicleReg
-import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_address_required
+import pansariwala.shared.generated.resources.error_email_invalid
 import pansariwala.shared.generated.resources.error_generic
+import pansariwala.shared.generated.resources.partner_job_load_failed
+import pansariwala.shared.generated.resources.partner_job_unavailable
+import pansariwala.shared.generated.resources.error_phone_invalid
+import pansariwala.shared.generated.resources.error_vehicle_reg_invalid
+import pansariwala.shared.generated.resources.error_name_required
 import pansariwala.shared.generated.resources.error_not_a_partner
+import pansariwala.shared.generated.resources.error_phone_required
 import pansariwala.shared.generated.resources.error_photo_pick_failed
+import pansariwala.shared.generated.resources.error_photos_required
+import pansariwala.shared.generated.resources.error_plate_mismatch
+import pansariwala.shared.generated.resources.location_unavailable
 import pansariwala.shared.generated.resources.otp_sent_partner
 import pansariwala.shared.generated.resources.otp_sent_partner_login
 
+private val VEHICLE_REG_PATTERN = Regex("^[A-Z]{2}\\d{1,2}[A-Z]{0,3}\\d{4}$")
+
 data class PartnerLoginUiState(
     val phone: String = "",
+    val email: String = "",
     val otp: String = "",
     val step: Int = 0,
     val loading: Boolean = false,
@@ -51,6 +73,7 @@ class PartnerLoginViewModel(
     private var session: PhoneOtpSession? = null
 
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
+    fun setEmail(value: String) { _state.update { it.copy(email = value, error = null) } }
     fun setOtp(value: String) { _state.update { it.copy(otp = value, error = null) } }
 
     fun sendOtp() {
@@ -60,11 +83,7 @@ class PartnerLoginViewModel(
                 .onSuccess { next ->
                     session = next
                     _state.update {
-                        it.copy(
-                            loading = false,
-                            step = 1,
-                            hint = UiText.res(Res.string.otp_sent_partner_login),
-                        )
+                        it.copy(loading = false, step = 1, hint = UiText.res(Res.string.otp_sent_partner_login))
                     }
                 }
                 .onFailure { error ->
@@ -105,7 +124,9 @@ data class RegisterUiState(
     val address: String = "",
     val phone: String = "",
     val vehicleReg: String = "",
-    val platePhoto: String = "",
+    val profilePhoto: String = "",
+    val dlPhoto: String = "",
+    val idPhoto: String = "",
     val vehiclePhoto: String = "",
     val otp: String = "",
     val step: Int = 0,
@@ -133,38 +154,75 @@ class PartnerRegisterViewModel(
     fun setPhone(v: String) { _state.update { it.copy(phone = v) } }
     fun setVehicleReg(v: String) { _state.update { it.copy(vehicleReg = v) } }
     fun setOtp(v: String) { _state.update { it.copy(otp = v) } }
-    fun clearPlate() { _state.update { it.copy(platePhoto = "", error = null) } }
-    fun clearVehicle() { _state.update { it.copy(vehiclePhoto = "", error = null) } }
 
-    fun attachPlate() {
+    private fun attach(field: (RegisterUiState, String) -> RegisterUiState) {
         viewModelScope.launch {
             val picked = imagePicker.pickImage() ?: return@launch
             if (picked.base64.isBlank()) {
                 _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
                 return@launch
             }
-            _state.update { it.copy(platePhoto = picked.base64, error = null) }
+            _state.update { field(it, picked.base64).copy(error = null) }
         }
     }
 
-    fun attachVehicle() {
-        viewModelScope.launch {
-            val picked = imagePicker.pickImage() ?: return@launch
-            if (picked.base64.isBlank()) {
-                _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
-                return@launch
-            }
-            _state.update { it.copy(vehiclePhoto = picked.base64, error = null) }
-        }
-    }
+    fun attachProfile() = attach { s, v -> s.copy(profilePhoto = v) }
+    fun attachDl() = attach { s, v -> s.copy(dlPhoto = v) }
+    fun attachId() = attach { s, v -> s.copy(idPhoto = v) }
+    fun attachVehicle() = attach { s, v -> s.copy(vehiclePhoto = v) }
 
     fun save() {
         viewModelScope.launch {
+            val s = _state.value
+            when {
+                s.name.isBlank() -> {
+                    _state.update { it.copy(error = UiText.res(Res.string.error_name_required)) }
+                    return@launch
+                }
+                !s.email.contains("@") -> {
+                    _state.update { it.copy(error = UiText.res(Res.string.error_email_invalid)) }
+                    return@launch
+                }
+                s.address.isBlank() -> {
+                    _state.update { it.copy(error = UiText.res(Res.string.error_address_required)) }
+                    return@launch
+                }
+                s.phone.length < 10 -> {
+                    _state.update { it.copy(error = UiText.res(Res.string.error_phone_required)) }
+                    return@launch
+                }
+                s.dlPhoto.isBlank() || s.vehiclePhoto.isBlank() || s.idPhoto.isBlank() -> {
+                    _state.update { it.copy(error = UiText.res(Res.string.error_photos_required)) }
+                    return@launch
+                }
+            }
             _state.update { it.copy(loading = true, error = null) }
+            val phoneDigits = _state.value.phone.filter { it.isDigit() }
+            if (phoneDigits.length != AppConstants.PHONE_LOCAL_DIGITS) {
+                _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_phone_invalid)) }
+                return@launch
+            }
+            val entered = normalizeVehicleReg(_state.value.vehicleReg)
+            if (!VEHICLE_REG_PATTERN.matches(entered)) {
+                _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_vehicle_reg_invalid)) }
+                return@launch
+            }
+            val photoBytes = runCatching {
+                @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+                kotlin.io.encoding.Base64.decode(_state.value.vehiclePhoto)
+            }.getOrNull() ?: ByteArray(0)
+            val ocrResult = ocr.readRegistration(photoBytes)
+            val plateFromPhoto = ocrResult.getOrNull()?.let { normalizeVehicleReg(it) }.orEmpty()
+            if (plateFromPhoto.isNotEmpty() && plateFromPhoto != entered) {
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        error = UiText.res(Res.string.error_plate_mismatch, plateFromPhoto, entered),
+                    )
+                }
+                return@launch
+            }
             runCatching {
-                ocr.readRegistration(_state.value.platePhoto.encodeToByteArray()).getOrThrow()
-                val entered = normalizeVehicleReg(_state.value.vehicleReg)
-                require(entered.length >= 8) { "Invalid vehicle registration" }
                 if (!registered) {
                     val geo = location.currentOrDefault()
                     api.registerPartner(
@@ -174,8 +232,10 @@ class PartnerRegisterViewModel(
                             address = _state.value.address,
                             phone = digitsPhone(_state.value.phone),
                             vehicleReg = entered,
-                            platePhotoBase64 = _state.value.platePhoto,
                             vehiclePhotoBase64 = _state.value.vehiclePhoto,
+                            profilePhotoBase64 = _state.value.profilePhoto,
+                            dlPhotoBase64 = _state.value.dlPhoto,
+                            idPhotoBase64 = _state.value.idPhoto,
                             lat = geo.lat,
                             lng = geo.lng,
                         ),
@@ -185,13 +245,7 @@ class PartnerRegisterViewModel(
                 phoneAuth.sendOtp(_state.value.phone).getOrThrow()
             }.onSuccess { otpSession ->
                 session = otpSession
-                _state.update {
-                    it.copy(
-                        loading = false,
-                        step = 1,
-                        hint = UiText.res(Res.string.otp_sent_partner),
-                    )
-                }
+                _state.update { it.copy(loading = false, step = 1, hint = UiText.res(Res.string.otp_sent_partner)) }
             }.onFailure { error ->
                 _state.update { s -> s.copy(loading = false, error = mapPhoneAuthError(error, verifying = false)) }
             }
@@ -221,56 +275,272 @@ class PartnerRegisterViewModel(
     }
 }
 
-data class PartnerDashUiState(
-    val dash: PartnerDashboard? = null,
+data class PartnerHomeUiState(
+    val profile: PartnerProfile? = null,
+    val online: Boolean = false,
+    val incomingOffer: DeliveryOffer? = null,
+    val availableOffers: List<DeliveryOffer> = emptyList(),
+    val offerSecondsLeft: Int = 0,
+    val acceptedJobs: List<Order> = emptyList(),
     val loading: Boolean = true,
-    val from: Long = 0,
-    val to: Long = 0,
-    val error: String? = null,
+    val refreshing: Boolean = false,
+    val showOfferTakenSheet: Boolean = false,
+    val error: UiText? = null,
+    val lat: Double = AppConstants.DEFAULT_MAP_LAT,
+    val lng: Double = AppConstants.DEFAULT_MAP_LNG,
+    val fetchingLocation: Boolean = false,
+    val requestLocationPermission: Boolean = false,
+    val showLocationDeniedDialog: Boolean = false,
+    val locationPermissionGranted: Boolean = false,
 )
 
-class PartnerDashboardViewModel(
+class PartnerHomeViewModel(
     private val api: PansariApi,
+    private val location: DeviceLocation,
+    private val locationTracker: PartnerLocationTracker,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(PartnerDashUiState())
-    val state: StateFlow<PartnerDashUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(PartnerHomeUiState())
+    val state: StateFlow<PartnerHomeUiState> = _state.asStateFlow()
+    private var pollJob: Job? = null
+    private var timerJob: Job? = null
+    /** Offers already shown in the accept flash — stay listable, do not re-popup. */
+    private val flashedOfferIds = mutableSetOf<String>()
 
-    init { loadToday() }
-
-    fun loadToday() {
-        val start = org.bhargav.pansariwala.util.AppClock.startOfTodayMillis()
-        load(start, start + org.bhargav.pansariwala.util.MILLIS_PER_DAY)
+    init {
+        refresh()
+        requestLocationAccessOnLanding()
     }
 
-    fun load(from: Long, to: Long) {
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, from = from, to = to) }
-            runCatching { api.partnerDashboard(from, to) }
-                .onSuccess { dash -> _state.update { it.copy(loading = false, dash = dash) } }
-                .onFailure { _state.update { s -> s.copy(loading = false, error = it.message) } }
+    fun requestLocationAccessOnLanding() {
+        if (_state.value.locationPermissionGranted) {
+            refreshCurrentLocation()
+            return
+        }
+        _state.update { it.copy(requestLocationPermission = true) }
+    }
+
+    fun consumeLocationPermissionRequest() {
+        _state.update { it.copy(requestLocationPermission = false) }
+    }
+
+    fun onLocationPermissionResult(granted: Boolean) {
+        _state.update {
+            it.copy(
+                locationPermissionGranted = granted,
+                showLocationDeniedDialog = !granted,
+            )
+        }
+        if (granted) {
+            refreshCurrentLocation()
+            if (_state.value.online) {
+                viewModelScope.launch { locationTracker.setOnlineDuty(true) }
+            }
         }
     }
-}
 
-class OfferViewModel(
-    private val api: PansariApi,
-) : ViewModel() {
-    private val _offer = MutableStateFlow<DeliveryOffer?>(null)
-    val offer: StateFlow<DeliveryOffer?> = _offer.asStateFlow()
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
-    private var pollJob: kotlinx.coroutines.Job? = null
+    fun retryLocationPermission() {
+        _state.update { it.copy(showLocationDeniedDialog = false, requestLocationPermission = true) }
+    }
 
-    fun load(offerId: String?) {
+    fun dismissLocationDeniedDialog() {
+        _state.update { it.copy(showLocationDeniedDialog = false) }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            runCatching {
+                val profile = api.partnerProfile()
+                val accepted = api.acceptedJobs().filter { it.isActiveDelivery }
+                profile to accepted
+            }.onSuccess { (profile, accepted) ->
+                _state.update {
+                    it.copy(loading = false, profile = profile, online = profile.online, acceptedJobs = accepted)
+                }
+                syncLocationDuty(profile.online)
+                if (profile.online) {
+                    refreshAvailableOffers()
+                    startPolling()
+                }
+            }.onFailure { e ->
+                _state.update { it.copy(loading = false, error = UiText.Plain(e.message.orEmpty())) }
+            }
+        }
+    }
+
+    fun pullRefresh() {
+        if (_state.value.refreshing) return
+        viewModelScope.launch {
+            _state.update { it.copy(refreshing = true, error = null) }
+            runCatching {
+                val profile = api.partnerProfile()
+                val accepted = api.acceptedJobs().filter { it.isActiveDelivery }
+                val offers = if (profile.online) {
+                    runCatching { api.availableOffers() }.getOrDefault(emptyList())
+                } else {
+                    emptyList()
+                }
+                Triple(profile, accepted, offers)
+            }.onSuccess { (profile, accepted, offers) ->
+                _state.update {
+                    it.copy(
+                        refreshing = false,
+                        profile = profile,
+                        online = profile.online,
+                        acceptedJobs = accepted,
+                        availableOffers = offers,
+                    )
+                }
+                syncLocationDuty(profile.online)
+                if (profile.online) {
+                    if (_state.value.locationPermissionGranted) pushLocation()
+                    startPolling()
+                } else {
+                    pollJob?.cancel()
+                    timerJob?.cancel()
+                }
+            }.onFailure { e ->
+                _state.update {
+                    it.copy(refreshing = false, error = UiText.Plain(e.message.orEmpty()))
+                }
+            }
+        }
+    }
+
+    fun offerSecondsRemaining(offer: DeliveryOffer): Int =
+        ((offer.expiresAtEpochMs - AppClock.nowMillis()) / 1000).toInt().coerceAtLeast(0)
+
+    fun setOnline(online: Boolean) {
+        viewModelScope.launch {
+            runCatching { api.setPartnerOnline(online) }
+                .onSuccess {
+                    _state.update { it.copy(online = online) }
+                    syncLocationDuty(online)
+                    if (online) {
+                        if (_state.value.locationPermissionGranted) {
+                            pushLocation()
+                        } else {
+                            requestLocationAccessOnLanding()
+                        }
+                        startPolling()
+                    } else {
+                        pollJob?.cancel()
+                        timerJob?.cancel()
+                        flashedOfferIds.clear()
+                        _state.update { it.copy(incomingOffer = null, availableOffers = emptyList()) }
+                    }
+                }
+        }
+    }
+
+    fun refreshCurrentLocation() {
+        if (!_state.value.locationPermissionGranted) {
+            _state.update { it.copy(requestLocationPermission = true) }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(fetchingLocation = true, error = null) }
+            runCatching { fetchAndPushLocation() }
+                .onSuccess { geo ->
+                    _state.update { it.copy(lat = geo.lat, lng = geo.lng, fetchingLocation = false) }
+                }
+                .onFailure { e ->
+                    val denied = e is LocationPermissionDeniedException
+                    val unavailable = e is LocationUnavailableException
+                    _state.update {
+                        it.copy(
+                            fetchingLocation = false,
+                            error = when {
+                                denied -> null
+                                unavailable -> UiText.res(Res.string.location_unavailable)
+                                else -> UiText.Plain(e.message.orEmpty())
+                            },
+                            locationPermissionGranted = !denied,
+                            showLocationDeniedDialog = denied,
+                            requestLocationPermission = denied,
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun syncLocationDuty(online: Boolean) {
+        viewModelScope.launch { locationTracker.setOnlineDuty(online) }
+    }
+
+    private fun pushLocation() {
+        if (!_state.value.locationPermissionGranted) return
+        viewModelScope.launch {
+            runCatching { fetchAndPushLocation() }
+                .onSuccess { geo -> _state.update { it.copy(lat = geo.lat, lng = geo.lng, error = null) } }
+                .onFailure { e ->
+                    when (e) {
+                        is LocationPermissionDeniedException -> {
+                            _state.update {
+                                it.copy(
+                                    locationPermissionGranted = false,
+                                    showLocationDeniedDialog = true,
+                                )
+                            }
+                        }
+                        is LocationUnavailableException -> {
+                            _state.update { it.copy(error = UiText.res(Res.string.location_unavailable)) }
+                        }
+                        else -> {
+                            // Background location sync retries; don't spam the home screen with socket errors.
+                            if (!e.isTransientNetworkFailure()) {
+                                _state.update { it.copy(error = UiText.Plain(e.message.orEmpty())) }
+                            }
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun Throwable.isTransientNetworkFailure(): Boolean {
+        val message = message.orEmpty().lowercase()
+        return message.contains("timeout") ||
+            message.contains("connection") ||
+            message.contains("unable to resolve") ||
+            message.contains("failed to connect")
+    }
+
+    private suspend fun fetchAndPushLocation(): GeoPoint {
+        val geo = location.currentOrDefault()
+        api.updatePartnerLocation(geo.lat, geo.lng)
+        return geo
+    }
+
+    private fun startPolling() {
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
             while (true) {
-                runCatching {
-                    val incoming = api.incomingOffer()
-                    _offer.value = incoming
+                runCatching { api.acceptedJobs() }.onSuccess { jobs ->
+                    _state.update { it.copy(acceptedJobs = jobs.filter { job -> job.isActiveDelivery }) }
+                }
+                runCatching { api.availableOffers() }.onSuccess { offers ->
+                    val incomingId = _state.value.incomingOffer?.id
+                    _state.update {
+                        it.copy(
+                            availableOffers = if (incomingId == null) {
+                                offers
+                            } else {
+                                offers.filterNot { offer -> offer.id == incomingId }
+                            },
+                        )
+                    }
+                }
+                runCatching { api.incomingOffer() }.onSuccess { offer ->
+                    val currentId = _state.value.incomingOffer?.id
                     when {
-                        incoming != null -> _message.value = null
-                        offerId != null -> _message.value = "taken"
+                        offer == null -> Unit
+                        offer.id == currentId -> Unit
+                        offer.id in flashedOfferIds -> Unit
+                        else -> {
+                            flashedOfferIds.add(offer.id)
+                            _state.update { it.copy(incomingOffer = offer) }
+                            startOfferTimer(offer)
+                        }
                     }
                 }
                 delay(AppConstants.LIVE_ALERT_POLL_MS)
@@ -278,49 +548,261 @@ class OfferViewModel(
         }
     }
 
-    fun accept(onDone: () -> Unit) {
-        val id = _offer.value?.id ?: return
-        viewModelScope.launch {
-            runCatching { api.acceptOffer(id) }
-                .onSuccess {
-                    if (it.status == DeliveryOfferStatus.TAKEN_BY_OTHER) _message.value = "taken"
-                    else onDone()
+    private fun startOfferTimer(offer: DeliveryOffer) {
+        timerJob?.cancel()
+        val acceptDeadlineMs = minOf(
+            AppClock.nowMillis() + AppConstants.PARTNER_OFFER_ACCEPT_MS,
+            offer.expiresAtEpochMs,
+        )
+        timerJob = viewModelScope.launch {
+            while (true) {
+                val left = ((acceptDeadlineMs - AppClock.nowMillis()) / 1000).toInt().coerceAtLeast(0)
+                _state.update { it.copy(offerSecondsLeft = left) }
+                if (left <= 0) {
+                    _state.update { it.copy(incomingOffer = null) }
+                    refreshAvailableOffers()
+                    break
                 }
-                .onFailure { _message.value = it.message }
+                delay(1_000L)
+            }
         }
     }
 
-    fun reject() {
-        val id = _offer.value?.id ?: return
-        viewModelScope.launch { runCatching { api.rejectOffer(id) } }
+    fun acceptOffer(onAccepted: (String) -> Unit) {
+        val offer = _state.value.incomingOffer ?: return
+        acceptOfferById(offer.id, onAccepted)
+    }
+
+    fun acceptOfferById(offerId: String, onAccepted: (String) -> Unit) {
+        viewModelScope.launch {
+            runCatching { api.acceptOffer(offerId) }
+                .onSuccess { result ->
+                    when (result.status) {
+                        DeliveryOfferStatus.TAKEN_BY_OTHER -> {
+                            _state.update { s ->
+                                s.copy(
+                                    incomingOffer = null,
+                                    showOfferTakenSheet = true,
+                                    availableOffers = s.availableOffers.filterNot { it.id == offerId },
+                                )
+                            }
+                            timerJob?.cancel()
+                        }
+                        else -> {
+                            _state.update { s ->
+                                s.copy(
+                                    incomingOffer = null,
+                                    availableOffers = s.availableOffers.filterNot { it.id == offerId },
+                                )
+                            }
+                            timerJob?.cancel()
+                            onAccepted(result.orderId)
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(error = UiText.Plain(e.message.orEmpty())) }
+                }
+        }
+    }
+
+    fun dismissOfferTakenSheet() {
+        _state.update { it.copy(showOfferTakenSheet = false) }
+        refreshAvailableOffers()
+    }
+
+    fun rejectOffer() {
+        val offer = _state.value.incomingOffer ?: return
+        rejectOfferById(offer.id)
+    }
+
+    fun rejectOfferById(offerId: String) {
+        viewModelScope.launch {
+            runCatching { api.rejectOffer(offerId) }
+            _state.update {
+                it.copy(
+                    incomingOffer = null,
+                    availableOffers = it.availableOffers.filterNot { offer -> offer.id == offerId },
+                )
+            }
+            timerJob?.cancel()
+            refreshAvailableOffers()
+        }
+    }
+
+    private fun refreshAvailableOffers() {
+        viewModelScope.launch {
+            runCatching { api.availableOffers() }.onSuccess { offers ->
+                val incomingId = _state.value.incomingOffer?.id
+                _state.update {
+                    it.copy(
+                        availableOffers = if (incomingId == null) {
+                            offers
+                        } else {
+                            offers.filterNot { offer -> offer.id == incomingId }
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissOffer() {
+        _state.update { it.copy(incomingOffer = null) }
+        timerJob?.cancel()
+        refreshAvailableOffers()
     }
 }
 
-class JobsViewModel(
-    private val api: PansariApi,
-) : ViewModel() {
-    private val _jobs = MutableStateFlow<List<Order>>(emptyList())
-    val jobs: StateFlow<List<Order>> = _jobs.asStateFlow()
-    private val _error = MutableStateFlow<UiText?>(null)
-    val error: StateFlow<UiText?> = _error.asStateFlow()
+data class PartnerJobUiState(
+    val order: Order? = null,
+    val photoOne: String = "",
+    val photoTwo: String = "",
+    val captureStep: Int = 0,
+    val loading: Boolean = true,
+    val submitting: Boolean = false,
+    val error: UiText? = null,
+)
 
-    fun loadAccepted() { viewModelScope.launch { _jobs.value = runCatching { api.acceptedJobs() }.getOrDefault(emptyList()) } }
-    fun loadDelivered(from: Long, to: Long) {
-        viewModelScope.launch { _jobs.value = runCatching { api.deliveredJobs(from, to) }.getOrDefault(emptyList()) }
-    }
-    fun cancel(orderId: String) { viewModelScope.launch { runCatching { api.cancelPickup(orderId) }; loadAccepted() } }
-    fun pickup(orderId: String, one: String, two: String, onDone: () -> Unit) {
+class PartnerJobViewModel(
+    private val api: PansariApi,
+    private val imagePicker: ImagePicker,
+) : ViewModel() {
+    private val _state = MutableStateFlow(PartnerJobUiState())
+    val state: StateFlow<PartnerJobUiState> = _state.asStateFlow()
+
+    fun load(orderId: String) {
+        if (orderId.isBlank()) {
+            _state.update {
+                it.copy(loading = false, order = null, error = UiText.res(Res.string.partner_job_unavailable))
+            }
+            return
+        }
         viewModelScope.launch {
-            runCatching { api.submitPickup(orderId, one, two) }
-                .onSuccess { onDone() }
-                .onFailure { _error.value = UiText.res(Res.string.error_generic) }
+            _state.update { it.copy(loading = true, error = null, order = null, submitting = false) }
+            runCatching { api.partnerJob(orderId) }
+                .onSuccess { order ->
+                    _state.update { it.copy(loading = false, order = order, error = null) }
+                }
+                .onFailure { e ->
+                    val message = when {
+                        e.message?.contains("not found", ignoreCase = true) == true ->
+                            UiText.res(Res.string.partner_job_unavailable)
+                        e.message?.contains("Forbidden", ignoreCase = true) == true ->
+                            UiText.res(Res.string.partner_job_unavailable)
+                        else -> UiText.res(Res.string.partner_job_load_failed)
+                    }
+                    _state.update { s -> s.copy(loading = false, order = null, error = message) }
+                }
         }
     }
-    fun deliver(orderId: String, otp: String, onDone: () -> Unit) {
+
+    fun attachPhoto(slot: Int) {
         viewModelScope.launch {
+            val picked = imagePicker.pickImage() ?: return@launch
+            if (picked.base64.isBlank()) {
+                _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
+                return@launch
+            }
+            _state.update {
+                when (slot) {
+                    1 -> it.copy(photoOne = picked.base64, error = null)
+                    else -> it.copy(photoTwo = picked.base64, error = null)
+                }
+            }
+        }
+    }
+
+    fun setCaptureStep(step: Int) { _state.update { it.copy(captureStep = step) } }
+
+    fun arrivedAtStore(onDone: () -> Unit) {
+        val orderId = _state.value.order?.id ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(submitting = true, error = null) }
+            runCatching { api.arrivedAtStore(orderId) }
+                .onSuccess {
+                    _state.update { it.copy(submitting = false) }
+                    onDone()
+                }
+                .onFailure {
+                    _state.update { s -> s.copy(submitting = false, error = UiText.res(Res.string.error_generic)) }
+                }
+        }
+    }
+
+    fun submitPickup(onDone: () -> Unit) {
+        val orderId = _state.value.order?.id ?: return
+        val one = _state.value.photoOne
+        val two = _state.value.photoTwo
+        if (one.isBlank() || two.isBlank()) return
+        viewModelScope.launch {
+            _state.update { it.copy(submitting = true) }
+            runCatching { api.submitPickup(orderId, one, two) }
+                .onSuccess { order ->
+                    _state.update { it.copy(submitting = false, order = order) }
+                    onDone()
+                }
+                .onFailure {
+                    _state.update { s -> s.copy(submitting = false, error = UiText.res(Res.string.error_generic)) }
+                }
+        }
+    }
+
+    fun arrivedAtCustomer(onDone: () -> Unit) {
+        val orderId = _state.value.order?.id ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(submitting = true, error = null) }
+            runCatching { api.arrivedAtCustomer(orderId) }
+                .onSuccess {
+                    _state.update { it.copy(submitting = false) }
+                    onDone()
+                }
+                .onFailure {
+                    _state.update { s -> s.copy(submitting = false, error = UiText.res(Res.string.error_generic)) }
+                }
+        }
+    }
+
+    fun completeDelivery(otp: String, onDone: () -> Unit) {
+        val orderId = _state.value.order?.id ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(submitting = true) }
             runCatching { api.deliverOrder(orderId, otp) }
-                .onSuccess { onDone(); loadAccepted() }
-                .onFailure { _error.value = UiText.res(Res.string.error_generic) }
+                .onSuccess { order ->
+                    _state.update { it.copy(submitting = false, order = order) }
+                    onDone()
+                }
+                .onFailure {
+                    _state.update { s -> s.copy(submitting = false, error = UiText.res(Res.string.error_generic)) }
+                }
+        }
+    }
+}
+
+data class PartnerEarningsUiState(
+    val profile: PartnerProfile? = null,
+    val earnings: PartnerEarnings? = null,
+    val loading: Boolean = true,
+)
+
+class PartnerEarningsViewModel(
+    private val api: PansariApi,
+) : ViewModel() {
+    private val _state = MutableStateFlow(PartnerEarningsUiState())
+    val state: StateFlow<PartnerEarningsUiState> = _state.asStateFlow()
+
+    init { load() }
+
+    fun load() {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true) }
+            runCatching {
+                api.partnerProfile() to api.partnerEarnings()
+            }.onSuccess { (profile, earnings) ->
+                _state.update { it.copy(loading = false, profile = profile, earnings = earnings) }
+            }.onFailure {
+                _state.update { s -> s.copy(loading = false) }
+            }
         }
     }
 }

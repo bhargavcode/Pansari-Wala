@@ -15,6 +15,9 @@ import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.OrderRating
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.PartnerDashboard
+import org.bhargav.pansariwala.domain.model.PartnerDailyEarning
+import org.bhargav.pansariwala.domain.model.PartnerEarnings
+import org.bhargav.pansariwala.domain.model.PartnerProfile
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
@@ -54,7 +57,34 @@ data class OtpRequest(val phone: String)
 data class OtpVerifyRequest(val phone: String, val otp: String, val sessionId: String? = null)
 
 @Serializable
-data class UpdateProfileRequest(val name: String, val address: String, val lat: Double? = null, val lng: Double? = null)
+data class UpdateProfileRequest(
+    val name: String,
+    val address: String,
+    val locality: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+)
+
+@Serializable
+data class SaveAddressRequest(
+    val line: String,
+    val locality: String,
+    val lat: Double,
+    val lng: Double,
+)
+
+@Serializable
+data class CustomerLocationRequest(val lat: Double, val lng: Double)
+
+@Serializable
+data class SavedAddressDto(
+    val id: String,
+    val line: String,
+    val locality: String = "",
+    val lat: Double,
+    val lng: Double,
+    val isDefault: Boolean = false,
+)
 
 @Serializable
 data class CustomerDto(
@@ -62,8 +92,10 @@ data class CustomerDto(
     val phone: String,
     val name: String,
     val address: String,
+    val locality: String = "",
     val lat: Double? = null,
     val lng: Double? = null,
+    val addresses: List<SavedAddressDto> = emptyList(),
 )
 
 @Serializable
@@ -83,6 +115,7 @@ data class ShopDto(
     val offerCount: Int = 0,
     val discountPercent: Double = 0.0,
     val upiId: String = "",
+    val deliveryRadiusKm: Double = 20.0,
 )
 
 @Serializable
@@ -119,6 +152,9 @@ data class PlaceOrderRequest(
     val razorpayPaymentId: String? = null,
     val razorpayOrderId: String? = null,
     val razorpaySignature: String? = null,
+    val addressId: String? = null,
+    val userLat: Double? = null,
+    val userLng: Double? = null,
 )
 
 @Serializable
@@ -180,6 +216,7 @@ data class OrderDto(
     val customerId: String? = null,
     val channel: String = OrderChannel.ONLINE.name,
     val deliveryAddress: String? = null,
+    val dropoffInstructions: String? = null,
     val deliveryOtp: String? = null,
     val pickupPhotoUrls: List<String> = emptyList(),
     val partnerId: String? = null,
@@ -187,6 +224,16 @@ data class OrderDto(
     val partnerPhone: String? = null,
     val partnerVehicleReg: String? = null,
     val paymentId: String? = null,
+    val paymentMethod: String = "ONLINE",
+    val customerPhone: String? = null,
+    val shopAddress: String? = null,
+    val shopLat: Double? = null,
+    val shopLng: Double? = null,
+    val customerLat: Double? = null,
+    val customerLng: Double? = null,
+    val totalDistanceKm: Double? = null,
+    val deliveryDurationMin: Int? = null,
+    val partnerPayoutInr: Double? = null,
     val items: List<OrderItemDto> = emptyList(),
     val quote: QuoteDto? = null,
     val ratingStars: Int? = null,
@@ -201,6 +248,7 @@ data class OrderItemDto(
     val unit: String,
     val quantity: Double,
     val unitPrice: Double,
+    val imageUrl: String? = null,
 )
 
 @Serializable
@@ -216,9 +264,11 @@ data class DeliveryOfferDto(
     val shopId: String,
     val shopName: String,
     val shopImageUrl: String? = null,
+    val shopAddress: String? = null,
     val shopDistanceKm: Double,
     val dropAddress: String,
     val dropDistanceKm: Double,
+    val totalDistanceKm: Double = 0.0,
     val payoutInr: Double,
     val expiresAtEpochMs: Long,
     val status: String,
@@ -226,6 +276,8 @@ data class DeliveryOfferDto(
     val shopLat: Double,
     val shopLng: Double,
     val shopRating: Double = 0.0,
+    val customerName: String? = null,
+    val estimatedMinutes: Int = 0,
 )
 
 @Serializable
@@ -235,10 +287,47 @@ data class PartnerRegisterRequest(
     val address: String,
     val phone: String,
     val vehicleReg: String,
-    val platePhotoBase64: String,
     val vehiclePhotoBase64: String,
+    val profilePhotoBase64: String = "",
+    val dlPhotoBase64: String = "",
+    val idPhotoBase64: String = "",
     val lat: Double? = null,
     val lng: Double? = null,
+)
+
+@Serializable
+data class PartnerOnlineRequest(val online: Boolean)
+
+@Serializable
+data class PartnerLocationRequest(val lat: Double, val lng: Double)
+
+@Serializable
+data class PartnerProfileDto(
+    val id: String,
+    val name: String,
+    val email: String,
+    val phone: String,
+    val address: String,
+    val vehicleReg: String,
+    val verified: Boolean,
+    val online: Boolean,
+    val joinedAtEpochMs: Long,
+    val todayEarnings: Double,
+    val totalEarnings: Double,
+    val deliveredCount: Int,
+    val profilePhoto: String = "",
+)
+
+@Serializable
+data class PartnerDailyEarningDto(val dayLabel: String, val amount: Double)
+
+@Serializable
+data class PartnerEarningsDto(
+    val todayEarnings: Double,
+    val totalEarnings: Double,
+    val deliveredCount: Int,
+    val acceptanceRatePercent: Int,
+    val weeklyEarnings: List<PartnerDailyEarningDto>,
 )
 
 @Serializable
@@ -305,6 +394,15 @@ fun ShopDto.toModel() = MarketplaceShop(
     location = GeoPoint(lat, lng),
     offerCount = offerCount,
     discountPercent = discountPercent,
+    deliveryRadiusKm = deliveryRadiusKm,
+)
+
+fun SavedAddressDto.toModel() = org.bhargav.pansariwala.domain.model.SavedAddress(
+    id = id,
+    line = line,
+    locality = locality,
+    location = GeoPoint(lat, lng),
+    isDefault = isDefault,
 )
 
 fun CustomerDto.toModel() = CustomerProfile(
@@ -312,7 +410,9 @@ fun CustomerDto.toModel() = CustomerProfile(
     phone = phone,
     name = name,
     address = address,
+    locality = locality,
     location = if (lat != null && lng != null) GeoPoint(lat, lng) else null,
+    addresses = addresses.map { it.toModel() },
 )
 
 fun QuoteDto.toModel() = CheckoutQuote(
@@ -376,12 +476,14 @@ fun OrderDto.toModel() = Order(
             unit = ProductUnit.fromName(it.unit),
             quantity = it.quantity,
             unitPrice = it.unitPrice,
+            imageUrl = it.imageUrl,
         )
     },
     cancelReason = cancelReason,
     channel = runCatching { OrderChannel.valueOf(channel) }.getOrDefault(OrderChannel.ONLINE),
     customerId = customerId,
     deliveryAddress = deliveryAddress,
+    dropoffInstructions = dropoffInstructions,
     deliveryOtp = deliveryOtp,
     pickupPhotoUrls = pickupPhotoUrls,
     partnerId = partnerId,
@@ -391,7 +493,17 @@ fun OrderDto.toModel() = Order(
     rating = ratingStars?.let { OrderRating(it, ratingComment, createdAtEpochMs) },
     quote = quote?.toModel(),
     paymentId = paymentId,
+    paymentMethod = paymentMethod,
+    customerPhone = customerPhone,
     shopName = shopName,
+    shopAddress = shopAddress,
+    shopLat = shopLat,
+    shopLng = shopLng,
+    customerLat = customerLat,
+    customerLng = customerLng,
+    totalDistanceKm = totalDistanceKm,
+    deliveryDurationMin = deliveryDurationMin,
+    partnerPayoutInr = partnerPayoutInr,
 )
 
 fun OfferDto.toModel() = ShopOffer(id, title, description, discountPercent)
@@ -409,13 +521,17 @@ fun DeliveryOfferDto.toModel() = DeliveryOffer(
         isOpen = true,
         location = GeoPoint(shopLat, shopLng),
     ),
+    shopAddress = shopAddress,
     dropAddress = dropAddress,
     dropDistanceKm = dropDistanceKm,
     shopDistanceKm = shopDistanceKm,
+    totalDistanceKm = totalDistanceKm,
     payoutInr = payoutInr,
     expiresAtEpochMs = expiresAtEpochMs,
     status = DeliveryOfferStatus.fromName(status),
     acceptedByPartnerId = acceptedByPartnerId,
+    customerName = customerName,
+    estimatedMinutes = estimatedMinutes,
 )
 
 fun PartnerDashboardDto.toModel() = PartnerDashboard(
@@ -424,6 +540,30 @@ fun PartnerDashboardDto.toModel() = PartnerDashboard(
     earnings = earnings,
     fromEpochMs = fromEpochMs,
     toEpochMs = toEpochMs,
+)
+
+fun PartnerProfileDto.toModel() = PartnerProfile(
+    id = id,
+    name = name,
+    email = email,
+    phone = phone,
+    address = address,
+    vehicleReg = vehicleReg,
+    verified = verified,
+    online = online,
+    joinedAtEpochMs = joinedAtEpochMs,
+    todayEarnings = todayEarnings,
+    totalEarnings = totalEarnings,
+    deliveredCount = deliveredCount,
+    profilePhoto = profilePhoto,
+)
+
+fun PartnerEarningsDto.toModel() = PartnerEarnings(
+    todayEarnings = todayEarnings,
+    totalEarnings = totalEarnings,
+    deliveredCount = deliveredCount,
+    acceptanceRatePercent = acceptanceRatePercent,
+    weeklyEarnings = weeklyEarnings.map { PartnerDailyEarning(it.dayLabel, it.amount) },
 )
 
 fun TxnDto.toModel() = MoneyTxn(id, orderId, amount, title, createdAtEpochMs)

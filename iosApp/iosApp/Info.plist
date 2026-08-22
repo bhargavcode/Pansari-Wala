@@ -6,8 +6,18 @@
 	<true/>
 	<key>PansariProduct</key>
 	<string>USER</string>
+	<key>GMSApiKey</key>
+	<string>AIzaSyCd8M0FflE0xOkx_Yy3LwHAHR6CyY0JpRI</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Pansari Wala uses your location to show nearby shops and delivery distance.</string>
+	<string>Pansari Wala uses your location to show nearby shops, match delivery jobs, and keep your position updated while you are online.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Pansari Wala needs Always location so delivery partners can receive nearby jobs even when the app is in the background.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Pansari Wala needs Always location so delivery partners can receive nearby jobs even when the app is in the background.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Pansari Wala uses the camera for vehicle and pickup photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.server.service
 
 import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.eq
+import com.mongodb.client.model.Filters.gte
 import com.mongodb.client.model.Filters.`in`
 import com.mongodb.client.model.ReplaceOptions
 import com.mongodb.client.model.Updates.combine
@@ -13,6 +14,7 @@ import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.db.AdminUserDoc
 import org.bhargav.pansariwala.server.db.CategoryDoc
+import org.bhargav.pansariwala.server.db.CustomerAddressDoc
 import org.bhargav.pansariwala.server.db.CustomerDoc
 import org.bhargav.pansariwala.server.db.DeliveryOfferDoc
 import org.bhargav.pansariwala.server.db.MasterProductDoc
@@ -33,13 +35,19 @@ import org.bhargav.pansariwala.server.dto.MasterProductDto
 import org.bhargav.pansariwala.server.dto.OfferDto
 import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
+import org.bhargav.pansariwala.server.dto.PartnerDailyEarningDto
 import org.bhargav.pansariwala.server.dto.PartnerDashboardDto
+import org.bhargav.pansariwala.server.dto.PartnerEarningsDto
+import org.bhargav.pansariwala.server.dto.PartnerProfileDto
 import org.bhargav.pansariwala.server.dto.PartnerRegisterRequest
+import org.bhargav.pansariwala.server.dto.PlaceOrderItemDto
 import org.bhargav.pansariwala.server.dto.PlaceOrderRequest
 import org.bhargav.pansariwala.server.dto.ProductDto
 import org.bhargav.pansariwala.server.dto.QuoteDto
 import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RazorpayOrderDto
+import org.bhargav.pansariwala.server.dto.SavedAddressDto
+import org.bhargav.pansariwala.server.dto.SaveAddressRequest
 import org.bhargav.pansariwala.server.dto.ShopDto
 import org.bhargav.pansariwala.server.dto.SyncPullResponse
 import org.bhargav.pansariwala.server.dto.SyncPushRequest
@@ -55,9 +63,17 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 private const val PARTNER_RING_KM = 8.0
+/** How long an unpicked job stays listable for partners in range (not the 15s accept UI flash). */
 private const val OFFER_TTL_MS = 15 * 60_000L
+private const val DELIVERY_BASE_PER_KM = 8.0
 private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
+
+private fun PartnerDoc.hasGpsFix(): Boolean {
+    val latitude = lat ?: return false
+    val longitude = lng ?: return false
+    return latitude != 0.0 || longitude != 0.0
+}
 
 class AppStore(
     private val config: ServerConfig,
@@ -134,7 +150,7 @@ class AppStore(
         if (row.expiresAt < now) error("OTP expired")
         if (row.codeHash != security.sha256(otp)) error("Invalid OTP")
         otpCol.deleteOne(eq("_id", row.sessionId))
-        val partner = partnerCol.find().toList().firstOrNull { Security.normalizePhone(it.phone) == normalized }
+        val partner = partnerCol.find(eq("phone", normalized)).firstOrNull()
         if (partner != null) {
             partnerCol.updateOne(eq("_id", partner.id), set("verified", true))
             val token = security.issueJwt(partner.id, "PARTNER", displayName = partner.name)
@@ -144,6 +160,8 @@ class AppStore(
     }
 
     private fun upsertCustomerToken(phone: String): TokenResponse {
+        val existingPartner = partnerCol.find(eq("phone", phone)).firstOrNull()
+        require(existingPartner == null) { "Phone registered as delivery partner, use partner login" }
         val existing = customerCol.find(eq("phone", phone)).firstOrNull()
         val id = existing?.id ?: security.randomId("cust")
         if (existing == null) {
@@ -157,13 +175,82 @@ class AppStore(
 
     fun me(userId: String): CustomerDto {
         val row = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
-        return CustomerDto(row.id, row.phone, row.name, row.address, row.lat, row.lng)
+        return row.toCustomerDto()
     }
 
-    fun updateProfile(userId: String, name: String, address: String, lat: Double?, lng: Double?): CustomerDto {
+    fun updateProfile(
+        userId: String,
+        name: String,
+        address: String,
+        locality: String?,
+        lat: Double?,
+        lng: Double?,
+    ): CustomerDto {
         val current = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
-        customerCol.replaceOne(eq("_id", userId), current.copy(name = name, address = address, lat = lat, lng = lng))
+        val loc = locality.orEmpty()
+        val addresses = upsertDefaultAddress(current.addresses, address, loc, lat, lng)
+        customerCol.replaceOne(
+            eq("_id", userId),
+            current.copy(
+                name = name,
+                address = address,
+                locality = loc,
+                lat = lat ?: current.lat,
+                lng = lng ?: current.lng,
+                addresses = addresses,
+            ),
+        )
         return me(userId)
+    }
+
+    fun saveAddress(userId: String, request: SaveAddressRequest): CustomerDto {
+        require(request.line.isNotBlank() && request.locality.isNotBlank()) { "Address is required" }
+        val current = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
+        val id = security.randomId("addr")
+        val next = CustomerAddressDoc(
+            id = id,
+            line = request.line,
+            locality = request.locality,
+            lat = request.lat,
+            lng = request.lng,
+            isDefault = true,
+        )
+        val addresses = current.addresses.map { it.copy(isDefault = false) } + next
+        customerCol.replaceOne(
+            eq("_id", userId),
+            current.copy(
+                address = request.line,
+                locality = request.locality,
+                lat = request.lat,
+                lng = request.lng,
+                addresses = addresses,
+            ),
+        )
+        return me(userId)
+    }
+
+    fun selectAddress(userId: String, addressId: String): CustomerDto {
+        val current = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
+        val chosen = current.addresses.firstOrNull { it.id == addressId } ?: error("Address not found")
+        val addresses = current.addresses.map { it.copy(isDefault = it.id == addressId) }
+        customerCol.replaceOne(
+            eq("_id", userId),
+            current.copy(
+                address = chosen.line,
+                locality = chosen.locality,
+                lat = chosen.lat,
+                lng = chosen.lng,
+                addresses = addresses,
+            ),
+        )
+        return me(userId)
+    }
+
+    fun updateCustomerLocation(userId: String, lat: Double, lng: Double) {
+        customerCol.updateOne(
+            eq("_id", userId),
+            combine(set("lat", lat), set("lng", lng)),
+        )
     }
 
     fun nearbyShops(lat: Double, lng: Double, radiusKm: Double, query: String): List<ShopDto> {
@@ -183,8 +270,9 @@ class AppStore(
                 offerCount = offerCounts[row.id] ?: 0,
                 discountPercent = row.discountPercent,
                 upiId = row.upiId.ifBlank { config.defaultShopUpi },
+                deliveryRadiusKm = row.deliveryRadiusKm,
             )
-        }.filter { it.distanceKm <= radiusKm }
+        }.filter { it.distanceKm <= radiusKm && it.distanceKm <= it.deliveryRadiusKm }
             .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
             .sortedBy { it.distanceKm }
     }
@@ -209,6 +297,23 @@ class AppStore(
         val delivery = base + base * 0.30
         val fee = 10.0
         return QuoteDto(subtotal, discount, fee, delivery, (subtotal - discount + fee + delivery).coerceAtLeast(0.0), dist)
+    }
+
+    /** Non-payment checks (profile, cart, stock, delivery radius). Call before creating a Razorpay order. */
+    fun validateCheckout(userId: String, request: PlaceOrderRequest): CustomerDto {
+        require(request.items.isNotEmpty()) { "Cart is empty" }
+        val customer = me(userId)
+        require(customer.name.isNotBlank() && customer.address.isNotBlank()) { "Complete your profile" }
+        val shop = shopById(request.shopId)
+        val drop = resolveDrop(customer, request)
+        val dist = haversine(drop.lat, drop.lng, shop.lat, shop.lng)
+        require(dist <= shop.deliveryRadiusKm) { "Out of shop delivery range" }
+        val catalog = catalog(request.shopId).associateBy { it.id }
+        request.items.forEach { line ->
+            val product = catalog[line.productId] ?: error("Unknown product")
+            require(product.stockQty >= line.quantity) { "${product.name} is out of stock" }
+        }
+        return customer
     }
 
     suspend fun createRazorpay(userId: String, request: CreateRazorpayRequest): RazorpayOrderDto {
@@ -239,22 +344,20 @@ class AppStore(
         } else if (!config.devAuth) {
             error("Payments are not configured")
         }
-        val customer = me(userId)
-        require(customer.name.isNotBlank() && customer.address.isNotBlank()) { "Complete your profile" }
-        val lat = customer.lat ?: 28.6139
-        val lng = customer.lng ?: 77.2090
+        val customer = validateCheckout(userId, request)
+        val drop = resolveDrop(customer, request)
         val shop = shopById(request.shopId)
         val shopUpi = shop.upiId.ifBlank { config.defaultShopUpi }
-        val q = quote(userId, QuoteRequest(request.shopId, request.items, lat, lng))
+        val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng))
         val catalog = catalog(request.shopId).associateBy { it.id }
         val items = request.items.map { line ->
-            val product = catalog[line.productId] ?: error("Unknown product")
-            require(product.stockQty >= line.quantity) { "${product.name} is out of stock" }
+            val product = catalog[line.productId]!!
             OrderItemDto(product.id, product.name, product.unit, line.quantity, product.sellingPrice)
         }
         val id = security.randomId("ord")
         val otp = security.deliveryOtp()
         val now = System.currentTimeMillis()
+        val paymentMethod = if (request.razorpayPaymentId.isNullOrBlank()) "COD" else "ONLINE"
         request.items.forEach { line ->
             val left = (catalog[line.productId]!!.stockQty - line.quantity).coerceAtLeast(0.0)
             productCol.updateOne(eq("_id", line.productId), set("stockQty", left))
@@ -267,9 +370,14 @@ class AppStore(
                 status = "RECEIVED",
                 channel = "ONLINE",
                 customerName = customer.name,
-                deliveryAddress = customer.address,
+                customerPhone = customer.phone,
+                customerLat = drop.lat,
+                customerLng = drop.lng,
+                deliveryAddress = drop.formatted,
+                dropoffInstructions = "Drop at doorstep unless customer says otherwise",
                 deliveryOtp = otp,
                 paymentId = request.razorpayPaymentId ?: "pay_dev",
+                paymentMethod = paymentMethod,
                 razorpayOrderId = request.razorpayOrderId,
                 shopUpi = shopUpi,
                 createdAt = now,
@@ -312,10 +420,21 @@ class AppStore(
         return getOrder(orderId)
     }
 
-    fun shopOrders(shopId: String): List<OrderDto> =
-        orderCol.find(and(eq("shopId", shopId), eq("channel", "ONLINE"))).toList()
+    fun shopOrders(shopId: String): List<OrderDto> {
+        val rows = orderCol.find(and(eq("shopId", shopId), eq("channel", "ONLINE"))).toList()
             .sortedByDescending { it.createdAt }
-            .map { it.toDto() }
+        if (rows.isEmpty()) return emptyList()
+        val shop = shopCol.find(eq("_id", shopId)).firstOrNull()
+        val partnerIds = rows.mapNotNull { it.partnerId }.distinct()
+        val partners = if (partnerIds.isEmpty()) {
+            emptyMap()
+        } else {
+            partnerCol.find(`in`("_id", partnerIds)).toList().associateBy { it.id }
+        }
+        return rows.map { row ->
+            row.toDto(shop = shop, partner = row.partnerId?.let(partners::get))
+        }
+    }
 
     suspend fun acceptShopOrder(shopId: String, orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
@@ -414,14 +533,20 @@ class AppStore(
         }
         val expires = now + OFFER_TTL_MS
         val offerId = security.randomId("offr")
+        val customerLat = order.customerLat ?: shop.lat
+        val customerLng = order.customerLng ?: shop.lng
+        // Stored drop = shop→customer. Partner→shop is computed per partner in toOfferDto.
+        val dropKm = haversine(shop.lat, shop.lng, customerLat, customerLng)
+        val totalKm = (dropKm * 2).coerceAtLeast(0.5)
+        val payout = (DELIVERY_BASE_PER_KM * totalKm).let { kotlin.math.round(it * 100) / 100.0 }
         val offer = DeliveryOfferDoc(
             id = offerId,
             orderId = orderId,
             shopId = shopId,
             status = "RINGING",
-            payout = 0.0,
+            payout = payout,
             shopDistanceKm = 0.0,
-            dropDistanceKm = 0.0,
+            dropDistanceKm = dropKm,
             expiresAt = expires,
             dropAddress = order.deliveryAddress.orEmpty(),
         )
@@ -431,18 +556,31 @@ class AppStore(
         return toOfferDto(offer, dummyPartner())
     }
 
-    fun incomingForPartner(partnerId: String): DeliveryOfferDto? {
-        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: return null
-        if (!partner.verified) return null
+    fun incomingForPartner(partnerId: String): DeliveryOfferDto? =
+        availableOffersForPartner(partnerId).minByOrNull { it.shopDistanceKm }
+
+    fun availableOffersForPartner(partnerId: String): List<DeliveryOfferDto> {
+        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: return emptyList()
+        if (!partner.verified || !partner.online || !partner.hasGpsFix()) return emptyList()
         val now = System.currentTimeMillis()
-        return deliveryOfferCol.find(eq("status", "RINGING")).toList()
-            .filter { it.expiresAt >= now }
-            .filter { partnerId !in it.rejectedBy }
-            .map { offer -> toOfferDto(offer, partner) }
-            .let { offers ->
-                val nearby = offers.filter { it.shopDistanceKm <= PARTNER_RING_KM }
-                (nearby.ifEmpty { offers }).minByOrNull { it.shopDistanceKm }
+        val ringing = deliveryOfferCol.find(
+            and(eq("status", "RINGING"), gte("expiresAt", now)),
+        ).toList()
+            .filter { it.acceptedBy == null && partnerId !in it.rejectedBy }
+        if (ringing.isEmpty()) return emptyList()
+        val shops = shopCol.find(`in`("_id", ringing.map { it.shopId }.distinct()))
+            .toList()
+            .associateBy { it.id }
+        val orders = orderCol.find(`in`("_id", ringing.map { it.orderId }.distinct()))
+            .toList()
+            .associateBy { it.id }
+        return ringing
+            .mapNotNull { offer ->
+                val shop = shops[offer.shopId] ?: return@mapNotNull null
+                toOfferDto(offer, partner, shop, orders[offer.orderId])
             }
+            .filter { it.shopDistanceKm <= PARTNER_RING_KM }
+            .sortedBy { it.shopDistanceKm }
     }
 
     fun offerById(offerId: String, partnerId: String): DeliveryOfferDto {
@@ -461,17 +599,25 @@ class AppStore(
         val lock = acceptLocks.getOrPut(offerId) { Any() }
         synchronized(lock) {
             val offer = deliveryOfferCol.find(eq("_id", offerId)).firstOrNull() ?: error("Offer not found")
+            val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: error("Partner not found")
             val now = System.currentTimeMillis()
             if (offer.status != "RINGING" || offer.expiresAt < now) {
                 error("ALREADY_TAKEN")
             }
+            val dto = toOfferDto(offer, partner)
+            require(dto.shopDistanceKm <= PARTNER_RING_KM) { "Outside serving area" }
             deliveryOfferCol.updateOne(
                 eq("_id", offerId),
                 combine(set("status", "ACCEPTED"), set("acceptedBy", partnerId)),
             )
             orderCol.updateOne(
                 eq("_id", offer.orderId),
-                combine(set("status", "PARTNER_ACCEPTED"), set("partnerId", partnerId)),
+                combine(
+                    set("status", "PARTNER_ACCEPTED"),
+                    set("partnerId", partnerId),
+                    set("partnerPayoutInr", dto.payoutInr),
+                    set("totalDistanceKm", dto.totalDistanceKm),
+                ),
             )
         }
         return offerById(offerId, partnerId)
@@ -489,10 +635,13 @@ class AppStore(
     fun registerPartner(request: PartnerRegisterRequest): String {
         val reg = Security.normalizeReg(request.vehicleReg)
         require(Security.vehicleRegRegex.matches(reg)) { "Invalid vehicle registration" }
-        require(request.platePhotoBase64.length > 64 && request.vehiclePhotoBase64.length > 64) { "Vehicle photos required" }
+        require(request.vehiclePhotoBase64.length > 64) { "Vehicle photo required" }
         require(request.name.isNotBlank() && request.email.contains("@") && request.address.isNotBlank()) { "Incomplete profile" }
         val phone = Security.normalizePhone(request.phone)
+        require(partnerCol.find(eq("phone", phone)).firstOrNull() == null) { "Phone already registered as partner" }
+        customerCol.deleteMany(eq("phone", phone))
         val id = security.randomId("ptr")
+        val now = System.currentTimeMillis()
         partnerCol.insertOne(
             PartnerDoc(
                 id = id,
@@ -501,14 +650,115 @@ class AppStore(
                 email = request.email,
                 address = request.address,
                 vehicleReg = reg,
-                platePhoto = request.platePhotoBase64.take(400_000),
+                platePhoto = request.platePhotoBase64.take(400_000).ifEmpty { "" },
                 vehiclePhoto = request.vehiclePhotoBase64.take(400_000),
+                profilePhoto = request.profilePhotoBase64.take(400_000),
+                dlPhoto = request.dlPhotoBase64.take(400_000),
+                idPhoto = request.idPhotoBase64.take(400_000),
                 lat = request.lat,
                 lng = request.lng,
                 verified = false,
+                joinedAt = now,
             ),
         )
         return requestOtp(phone)
+    }
+
+    fun partnerProfile(partnerId: String): PartnerProfileDto {
+        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: error("Partner not found")
+        val start = startOfToday()
+        val end = start + 86_400_000
+        val dash = partnerDashboard(partnerId, start, end)
+        val totalDelivered = orderCol.find(
+            and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))),
+        ).toList()
+        val totalEarnings = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
+            .filter { offer -> totalDelivered.any { it.id == offer.orderId } }
+            .sumOf { it.payout }
+        return PartnerProfileDto(
+            id = partner.id,
+            name = partner.name,
+            email = partner.email,
+            phone = partner.phone,
+            address = partner.address,
+            vehicleReg = partner.vehicleReg,
+            verified = partner.verified,
+            online = partner.online,
+            joinedAtEpochMs = partner.joinedAt,
+            todayEarnings = dash.earnings,
+            totalEarnings = totalEarnings,
+            deliveredCount = totalDelivered.size,
+            profilePhoto = partner.profilePhoto,
+        )
+    }
+
+    fun setPartnerOnline(partnerId: String, online: Boolean) {
+        partnerCol.updateOne(eq("_id", partnerId), set("online", online))
+    }
+
+    fun updatePartnerLocation(partnerId: String, lat: Double, lng: Double) {
+        if (lat == 0.0 && lng == 0.0) return
+        if (lat !in -90.0..90.0 || lng !in -180.0..180.0) return
+        partnerCol.updateOne(
+            eq("_id", partnerId),
+            combine(set("lat", lat), set("lng", lng)),
+        )
+    }
+
+    fun partnerEarnings(partnerId: String): PartnerEarningsDto {
+        val start = startOfToday()
+        val dash = partnerDashboard(partnerId, start, start + 86_400_000)
+        val delivered = orderCol.find(
+            and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))),
+        ).toList()
+        val deliveredIds = delivered.map { it.id }.toSet()
+        val totalEarnings = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
+            .filter { it.orderId in deliveredIds }
+            .sumOf { it.payout }
+        val offersSeen = deliveryOfferCol.find().toList()
+            .count { partnerId in it.rejectedBy || it.acceptedBy == partnerId }
+        val accepted = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList().size
+        val acceptanceRate = if (offersSeen == 0) 100 else ((accepted * 100) / offersSeen).coerceIn(0, 100)
+        val weekly = (6 downTo 0).map { daysAgo ->
+            val dayStart = start - daysAgo * 86_400_000L
+            val dayEnd = dayStart + 86_400_000L
+            val dayDelivered = delivered.filter { it.createdAt in dayStart until dayEnd }
+            val dayIds = dayDelivered.map { it.id }.toSet()
+            val amount = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
+                .filter { it.orderId in dayIds }
+                .sumOf { it.payout }
+            val label = java.time.Instant.ofEpochMilli(dayStart)
+                .atZone(java.time.ZoneId.systemDefault())
+                .dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }
+            PartnerDailyEarningDto(label, amount)
+        }
+        return PartnerEarningsDto(
+            todayEarnings = dash.earnings,
+            totalEarnings = totalEarnings,
+            deliveredCount = delivered.size,
+            acceptanceRatePercent = acceptanceRate,
+            weeklyEarnings = weekly,
+        )
+    }
+
+    fun partnerJob(partnerId: String, orderId: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.partnerId == partnerId) { "Forbidden" }
+        return row.toDto()
+    }
+
+    fun arrivedAtStore(partnerId: String, orderId: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.partnerId == partnerId) { "Forbidden" }
+        require(row.status == "PARTNER_ACCEPTED") { "Invalid status" }
+        return getOrder(orderId)
+    }
+
+    fun arrivedAtCustomer(partnerId: String, orderId: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.partnerId == partnerId) { "Forbidden" }
+        require(row.status == "ON_THE_WAY") { "Invalid status" }
+        return getOrder(orderId)
     }
 
     fun partnerDashboard(partnerId: String, from: Long, to: Long): PartnerDashboardDto {
@@ -551,7 +801,10 @@ class AppStore(
         require(row.partnerId == partnerId) { "Forbidden" }
         orderCol.updateOne(
             eq("_id", orderId),
-            combine(set("status", "ON_THE_WAY"), set("pickupPhotos", listOf("pickup_1", "pickup_2"))),
+            combine(
+                set("status", "ON_THE_WAY"),
+                set("pickupPhotos", listOf("bag_photo_1", "bag_photo_2")),
+            ),
         )
         return getOrder(orderId)
     }
@@ -559,8 +812,26 @@ class AppStore(
     fun deliver(partnerId: String, orderId: String, otp: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
-        require(row.deliveryOtp == otp) { "Invalid delivery OTP" }
-        orderCol.updateOne(eq("_id", orderId), set("status", "DELIVERED"))
+        val isOnline = row.paymentMethod == "ONLINE" || !row.paymentId.isNullOrBlank()
+        if (!isOnline) require(row.deliveryOtp == otp) { "Invalid delivery OTP" }
+        val offer = deliveryOfferCol.find(and(eq("orderId", orderId), eq("acceptedBy", partnerId))).firstOrNull()
+        val totalKm = row.totalDistanceKm
+            ?: offer?.let { stored ->
+                val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull()
+                if (partner != null) toOfferDto(stored, partner).totalDistanceKm
+                else stored.dropDistanceKm
+            }
+            ?: 0.0
+        val durationMin = ((System.currentTimeMillis() - row.createdAt) / 60_000).toInt().coerceAtLeast(1)
+        orderCol.updateOne(
+            eq("_id", orderId),
+            combine(
+                set("status", "DELIVERED"),
+                set("totalDistanceKm", totalKm),
+                set("deliveryDurationMin", durationMin),
+                set("partnerPayoutInr", offer?.payout ?: row.partnerPayoutInr),
+            ),
+        )
         return getOrder(orderId)
     }
 
@@ -603,11 +874,11 @@ class AppStore(
 
     @Suppress("UNUSED_PARAMETER")
     private suspend fun broadcastOffer(offer: DeliveryOfferDoc, shop: ShopDoc, dropAddress: String) {
-        val partners = partnerCol.find(eq("verified", true)).toList()
+        val partners = partnerCol.find(and(eq("verified", true), eq("online", true))).toList()
         val nearby = partners.filter { partner ->
-            toOfferDto(offer, partner).shopDistanceKm <= PARTNER_RING_KM
+            partner.hasGpsFix() && toOfferDto(offer, partner).shopDistanceKm <= PARTNER_RING_KM
         }
-        (nearby.ifEmpty { partners }).forEach { partner ->
+        nearby.forEach { partner ->
             val dto = toOfferDto(offer, partner).copy(dropAddress = dropAddress.ifBlank { offer.dropAddress })
             sockets[partner.id]?.let { session ->
                 runCatching { session.send(Frame.Text(json.encodeToString(dto))) }
@@ -629,27 +900,45 @@ class AppStore(
         verified = true,
     )
 
-    private fun toOfferDto(offer: DeliveryOfferDoc, partner: PartnerDoc): DeliveryOfferDto {
-        val shop = shopById(offer.shopId)
+    private fun toOfferDto(
+        offer: DeliveryOfferDoc,
+        partner: PartnerDoc,
+        shop: ShopDoc = shopById(offer.shopId),
+        order: OrderDoc? = orderCol.find(eq("_id", offer.orderId)).firstOrNull(),
+    ): DeliveryOfferDto {
         val plat = partner.lat ?: DEFAULT_MAP_LAT
         val plng = partner.lng ?: DEFAULT_MAP_LNG
+        // Always partner→shop; never reuse stored shop→customer as serving-area distance.
         val shopDist = haversine(plat, plng, shop.lat, shop.lng)
+        val dropDist = when {
+            offer.dropDistanceKm > 0 -> offer.dropDistanceKm
+            order?.customerLat != null && order.customerLng != null ->
+                haversine(shop.lat, shop.lng, order.customerLat, order.customerLng)
+            else -> shopDist
+        }
+        val totalKm = shopDist + dropDist
+        val payout = if (offer.payout > 0) offer.payout else DELIVERY_BASE_PER_KM * totalKm
+        val etaMin = ((shopDist / 20.0) * 60).toInt().coerceAtLeast(3)
         return DeliveryOfferDto(
             id = offer.id,
             orderId = offer.orderId,
             shopId = offer.shopId,
             shopName = shop.name,
             shopImageUrl = shop.imageUrl,
+            shopAddress = shop.address,
             shopDistanceKm = shopDist,
             dropAddress = offer.dropAddress,
-            dropDistanceKm = shopDist,
-            payoutInr = 8.0 * shopDist,
+            dropDistanceKm = dropDist,
+            totalDistanceKm = totalKm,
+            payoutInr = payout,
             expiresAtEpochMs = offer.expiresAt,
             status = offer.status,
             acceptedByPartnerId = offer.acceptedBy,
             shopLat = shop.lat,
             shopLng = shop.lng,
             shopRating = shop.rating,
+            customerName = order?.customerName,
+            estimatedMinutes = etaMin,
         )
     }
 
@@ -672,19 +961,21 @@ class AppStore(
         return ((items + delivery) * 100.0).toLong().coerceAtLeast(0L)
     }
 
-    private fun OrderDoc.toDto(): OrderDto {
-        val shopName = shopCol.find(eq("_id", shopId)).firstOrNull()?.name
-        val partner = partnerId?.let { partnerCol.find(eq("_id", it)).firstOrNull() }
+    private fun OrderDoc.toDto(
+        shop: ShopDoc? = shopCol.find(eq("_id", shopId)).firstOrNull(),
+        partner: PartnerDoc? = partnerId?.let { partnerCol.find(eq("_id", it)).firstOrNull() },
+    ): OrderDto {
         return OrderDto(
             id = id,
             shopId = shopId,
-            shopName = shopName,
+            shopName = shop?.name,
             createdAtEpochMs = createdAt,
             status = status,
             customerName = customerName,
             customerId = customerId,
             channel = channel,
             deliveryAddress = deliveryAddress,
+            dropoffInstructions = dropoffInstructions,
             deliveryOtp = deliveryOtp,
             pickupPhotoUrls = pickupPhotos,
             partnerId = partnerId,
@@ -692,6 +983,16 @@ class AppStore(
             partnerPhone = partner?.phone,
             partnerVehicleReg = partner?.vehicleReg,
             paymentId = paymentId,
+            paymentMethod = paymentMethod,
+            customerPhone = customerPhone,
+            shopAddress = shop?.address?.takeIf { it.isNotBlank() } ?: shop?.name,
+            shopLat = shop?.lat,
+            shopLng = shop?.lng,
+            customerLat = customerLat,
+            customerLng = customerLng,
+            totalDistanceKm = totalDistanceKm,
+            deliveryDurationMin = deliveryDurationMin,
+            partnerPayoutInr = partnerPayoutInr,
             items = items,
             quote = quote,
             ratingStars = ratingStars,
@@ -707,4 +1008,64 @@ class AppStore(
         val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLng / 2).pow(2)
         return 2 * earth * asin(min(1.0, sqrt(a)))
     }
+
+    private fun startOfToday(): Long {
+        val now = java.time.LocalDate.now()
+        return now.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+
+    private data class DropPoint(val lat: Double, val lng: Double, val formatted: String)
+
+    private fun resolveDrop(customer: CustomerDto, request: PlaceOrderRequest): DropPoint {
+        val chosen = request.addressId?.let { id -> customer.addresses.firstOrNull { it.id == id } }
+            ?: customer.addresses.firstOrNull { it.isDefault }
+            ?: customer.addresses.firstOrNull()
+        val lat = chosen?.lat ?: request.userLat ?: customer.lat ?: DEFAULT_MAP_LAT
+        val lng = chosen?.lng ?: request.userLng ?: customer.lng ?: DEFAULT_MAP_LNG
+        val formatted = listOfNotNull(
+            chosen?.line ?: customer.address.takeIf { it.isNotBlank() },
+            (chosen?.locality ?: customer.locality).takeIf { it.isNotBlank() },
+        ).joinToString(", ").ifBlank { customer.address }
+        return DropPoint(lat, lng, formatted)
+    }
+
+    private fun upsertDefaultAddress(
+        existing: List<CustomerAddressDoc>,
+        line: String,
+        locality: String,
+        lat: Double?,
+        lng: Double?,
+    ): List<CustomerAddressDoc> {
+        if (line.isBlank() || lat == null || lng == null) return existing
+        val currentDefault = existing.firstOrNull { it.isDefault }
+        val updated = if (currentDefault != null) {
+            existing.map {
+                if (it.id == currentDefault.id) it.copy(line = line, locality = locality, lat = lat, lng = lng)
+                else it
+            }
+        } else {
+            existing.map { it.copy(isDefault = false) } + CustomerAddressDoc(
+                id = security.randomId("addr"),
+                line = line,
+                locality = locality,
+                lat = lat,
+                lng = lng,
+                isDefault = true,
+            )
+        }
+        return updated
+    }
+
+    private fun CustomerDoc.toCustomerDto() = CustomerDto(
+        id = id,
+        phone = phone,
+        name = name,
+        address = address,
+        locality = locality,
+        lat = lat,
+        lng = lng,
+        addresses = addresses.map {
+            SavedAddressDto(it.id, it.line, it.locality, it.lat, it.lng, it.isDefault)
+        },
+    )
 }

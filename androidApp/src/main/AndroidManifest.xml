@@ -23,6 +23,9 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyCd8M0FflE0xOkx_Yy3LwHAHR6CyY0JpRI" />
         <activity
             android:exported="true"
             android:name=".MainActivity"

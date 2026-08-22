@@ -14,10 +14,13 @@ import org.bhargav.pansariwala.api.PlaceOrderItemDto
 import org.bhargav.pansariwala.api.PlaceOrderRequest
 import org.bhargav.pansariwala.api.QuoteDto
 import org.bhargav.pansariwala.api.VerifyPaymentRequest
+import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
+import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.domain.model.SavedAddress
 import org.bhargav.pansariwala.domain.model.ShopOffer
 import org.bhargav.pansariwala.domain.model.toFulfillmentStep
 import org.bhargav.pansariwala.platform.DeviceLocation
@@ -25,12 +28,18 @@ import org.bhargav.pansariwala.platform.RazorpayCheckout
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_checkout_address_required
+import pansariwala.shared.generated.resources.error_checkout_empty_cart
+import pansariwala.shared.generated.resources.error_checkout_out_of_range
+import pansariwala.shared.generated.resources.error_checkout_profile_incomplete
+import pansariwala.shared.generated.resources.error_checkout_quote_missing
 import pansariwala.shared.generated.resources.error_generic
 import pansariwala.shared.generated.resources.error_razorpay_cancelled
 import pansariwala.shared.generated.resources.error_razorpay_failed
 import pansariwala.shared.generated.resources.error_razorpay_unavailable
 
 data class CatalogUiState(
+    val shop: org.bhargav.pansariwala.domain.model.MarketplaceShop? = null,
     val products: List<Product> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null,
@@ -40,6 +49,7 @@ data class CatalogUiState(
 class ShopCatalogViewModel(
     private val api: PansariApi,
     private val cart: CartStore,
+    private val location: org.bhargav.pansariwala.platform.DeviceLocation,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CatalogUiState())
     val state: StateFlow<CatalogUiState> = _state.asStateFlow()
@@ -47,16 +57,53 @@ class ShopCatalogViewModel(
     fun load(shopId: String) {
         cart.bindShop(shopId)
         viewModelScope.launch {
-            runCatching { api.shopCatalog(shopId) }
-                .onSuccess { products -> _state.update { it.copy(loading = false, products = products) } }
-                .onFailure { err -> _state.update { it.copy(loading = false, error = err.message) } }
             cart.lines.collect { lines ->
                 _state.update { it.copy(cartCount = lines.sumOf { line -> line.quantity.toInt() }) }
+            }
+        }
+        viewModelScope.launch {
+            runCatching {
+                val geo = location.currentOrDefault()
+                val shop = api.nearbyShops(geo.lat, geo.lng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
+                    .firstOrNull { it.id == shopId }
+                shop?.let { cart.bindShop(shopId, it.name) }
+                val products = api.shopCatalog(shopId)
+                shop to products
+            }.onSuccess { (shop, products) ->
+                _state.update { it.copy(loading = false, shop = shop, products = products) }
+            }.onFailure { err ->
+                _state.update { it.copy(loading = false, error = err.message) }
             }
         }
     }
 
     fun add(product: Product) { cart.add(product) }
+    fun increment(productId: String) { cart.increment(productId) }
+    fun decrement(productId: String) { cart.decrement(productId) }
+    fun quantityOf(productId: String): Int = cart.quantityOf(productId)
+}
+
+data class CartUiState(
+    val lines: List<CartStore.Line> = emptyList(),
+    val subtotal: Double = 0.0,
+)
+
+class CartViewModel(
+    private val cart: CartStore,
+) : ViewModel() {
+    private val _state = MutableStateFlow(CartUiState())
+    val state: StateFlow<CartUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            cart.lines.collect { lines ->
+                _state.update { CartUiState(lines = lines, subtotal = cart.subtotal) }
+            }
+        }
+    }
+
+    fun increment(productId: String) { cart.increment(productId) }
+    fun decrement(productId: String) { cart.decrement(productId) }
 }
 
 data class CheckoutUiState(
@@ -64,6 +111,11 @@ data class CheckoutUiState(
     val offers: List<ShopOffer> = emptyList(),
     val offersExpanded: Boolean = false,
     val placing: Boolean = false,
+    val needsProfile: Boolean = false,
+    val addresses: List<SavedAddress> = emptyList(),
+    val selectedAddressId: String? = null,
+    val shop: MarketplaceShop? = null,
+    val snackbar: UiText? = null,
     val error: UiText? = null,
 )
 
@@ -72,6 +124,7 @@ class CheckoutViewModel(
     private val cart: CartStore,
     private val location: DeviceLocation,
     private val razorpay: RazorpayCheckout,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CheckoutUiState())
     val state: StateFlow<CheckoutUiState> = _state.asStateFlow()
@@ -79,32 +132,82 @@ class CheckoutViewModel(
     fun load(shopId: String) {
         viewModelScope.launch {
             val geo = location.currentOrDefault()
+            val profile = runCatching { api.me() }.getOrNull()
+            val addresses = profile?.addresses.orEmpty()
+            val selected = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
+            val dropLat = selected?.location?.lat ?: profile?.location?.lat ?: geo.lat
+            val dropLng = selected?.location?.lng ?: profile?.location?.lng ?: geo.lng
             val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity) }
             val quote = runCatching {
                 api.quote(
-                    org.bhargav.pansariwala.api.QuoteRequest(shopId, items, geo.lat, geo.lng),
+                    org.bhargav.pansariwala.api.QuoteRequest(shopId, items, dropLat, dropLng),
                 )
             }.getOrNull()
             val offers = runCatching { api.shopOffers(shopId) }.getOrDefault(emptyList())
-            _state.update { it.copy(quote = quote, offers = offers) }
+            val shop = runCatching {
+                api.nearbyShops(dropLat, dropLng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
+                    .firstOrNull { it.id == shopId }
+            }.getOrNull()
+            _state.update {
+                it.copy(
+                    quote = quote,
+                    offers = offers,
+                    addresses = addresses,
+                    selectedAddressId = selected?.id,
+                    shop = shop,
+                    needsProfile = profile == null || profile.name.isBlank() || addresses.isEmpty(),
+                )
+            }
         }
     }
 
     fun toggleOffers() { _state.update { it.copy(offersExpanded = !it.offersExpanded) } }
 
+    fun consumeSnackbar() { _state.update { it.copy(snackbar = null) } }
+
+    fun selectAddress(shopId: String, addressId: String) {
+        viewModelScope.launch {
+            runCatching { api.selectAddress(addressId) }
+            _state.update { it.copy(selectedAddressId = addressId) }
+            load(shopId)
+        }
+    }
+
     fun place(shopId: String, onPlaced: (String) -> Unit) {
         viewModelScope.launch {
-            _state.update { it.copy(placing = true, error = null) }
+            _state.update { it.copy(placing = true, error = null, needsProfile = false, snackbar = null) }
             runCatching {
-                val quote = _state.value.quote ?: error("Missing quote")
+                val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity) }
+                require(items.isNotEmpty()) { AppConstants.Checkout.ERROR_EMPTY_CART }
+                val quote = _state.value.quote ?: error(AppConstants.Checkout.ERROR_MISSING_QUOTE)
+                val selectedId = _state.value.selectedAddressId
+                require(!selectedId.isNullOrBlank()) { AppConstants.Checkout.ERROR_ADDRESS_REQUIRED }
+
+                val userRadius = preferences.getSearchRadiusKm()
+                val shopRadius = _state.value.shop?.deliveryRadiusKm
+                    ?: AppConstants.DEFAULT_SHOP_DELIVERY_RADIUS_KM
+                if (quote.deliveryDistanceKm > userRadius || quote.deliveryDistanceKm > shopRadius) {
+                    error(AppConstants.Checkout.ERROR_OUT_OF_RANGE)
+                }
+
+                val request = PlaceOrderRequest(
+                    shopId = shopId,
+                    items = items,
+                    addressId = selectedId,
+                    userLat = _state.value.addresses.firstOrNull { it.id == selectedId }?.location?.lat,
+                    userLng = _state.value.addresses.firstOrNull { it.id == selectedId }?.location?.lng,
+                )
+                api.validateOrder(request)
+                val profile = api.me()
+
                 val amountPaise = (quote.payable * 100).toLong()
                 val rzp = api.createRazorpayOrder(shopId, amountPaise)
                 val paid = razorpay.pay(
                     keyId = rzp.keyId,
                     orderId = rzp.orderId,
                     amountPaise = rzp.amountPaise,
-                    customerName = "Customer",
-                    customerPhone = "",
+                    customerName = profile.name,
+                    customerPhone = profile.phone,
                     description = "Pansari order",
                 ).getOrThrow()
                 val verified = api.verifyPayment(
@@ -112,9 +215,7 @@ class CheckoutViewModel(
                 )
                 require(verified) { "Payment could not be verified" }
                 val order = api.placeOrder(
-                    PlaceOrderRequest(
-                        shopId = shopId,
-                        items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity) },
+                    request.copy(
                         razorpayPaymentId = paid.paymentId,
                         razorpayOrderId = paid.orderId,
                         razorpaySignature = paid.signature,
@@ -123,16 +224,51 @@ class CheckoutViewModel(
                 cart.clear()
                 order.id
             }.onSuccess(onPlaced)
-                .onFailure { _state.update { s -> s.copy(placing = false, error = checkoutError(it)) } }
+                .onFailure { err ->
+                    val msg = checkoutErrorMessage(err)
+                    val outOfRange = msg.contains(AppConstants.Checkout.ERROR_OUT_OF_RANGE)
+                    _state.update { s ->
+                        s.copy(
+                            placing = false,
+                            needsProfile = msg.contains(AppConstants.Checkout.ERROR_PROFILE) ||
+                                msg.contains(AppConstants.Checkout.ERROR_ADDRESS_REQUIRED),
+                            snackbar = if (outOfRange) UiText.res(Res.string.error_checkout_out_of_range) else null,
+                            error = if (outOfRange) null else checkoutError(err, msg),
+                        )
+                    }
+                }
         }
     }
 }
 
-private fun checkoutError(err: Throwable): UiText = when (err.message) {
-    AppConstants.Razorpay.ERROR_CANCELLED -> UiText.res(Res.string.error_razorpay_cancelled)
-    AppConstants.Razorpay.ERROR_UNAVAILABLE -> UiText.res(Res.string.error_razorpay_unavailable)
-    AppConstants.Razorpay.ERROR_FAILED -> UiText.res(Res.string.error_razorpay_failed)
-    else -> err.message?.let { UiText.Plain(it) } ?: UiText.res(Res.string.error_generic)
+private fun checkoutErrorMessage(err: Throwable): String {
+    val raw = err.message.orEmpty()
+    return Regex("\"error\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.getOrNull(1) ?: raw
+}
+
+private fun checkoutError(err: Throwable, message: String = checkoutErrorMessage(err)): UiText = when {
+    message == AppConstants.Razorpay.ERROR_CANCELLED ||
+        err.message == AppConstants.Razorpay.ERROR_CANCELLED ->
+        UiText.res(Res.string.error_razorpay_cancelled)
+    message == AppConstants.Razorpay.ERROR_UNAVAILABLE ||
+        err.message == AppConstants.Razorpay.ERROR_UNAVAILABLE ->
+        UiText.res(Res.string.error_razorpay_unavailable)
+    message == AppConstants.Razorpay.ERROR_FAILED ||
+        err.message == AppConstants.Razorpay.ERROR_FAILED ->
+        UiText.res(Res.string.error_razorpay_failed)
+    message.contains(AppConstants.Checkout.ERROR_OUT_OF_RANGE) ->
+        UiText.res(Res.string.error_checkout_out_of_range)
+    message.contains(AppConstants.Checkout.ERROR_ADDRESS_REQUIRED) ->
+        UiText.res(Res.string.error_checkout_address_required)
+    message.contains(AppConstants.Checkout.ERROR_PROFILE) ->
+        UiText.res(Res.string.error_checkout_profile_incomplete)
+    message.contains(AppConstants.Checkout.ERROR_EMPTY_CART) ->
+        UiText.res(Res.string.error_checkout_empty_cart)
+    message.contains(AppConstants.Checkout.ERROR_MISSING_QUOTE) ->
+        UiText.res(Res.string.error_checkout_quote_missing)
+    else -> message.takeIf { it.isNotBlank() && !it.startsWith("Client request") }
+        ?.let { UiText.Plain(it) }
+        ?: UiText.res(Res.string.error_generic)
 }
 
 class ThankYouViewModel : ViewModel() {

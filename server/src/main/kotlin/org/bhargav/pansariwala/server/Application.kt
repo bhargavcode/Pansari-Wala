@@ -36,7 +36,7 @@ fun main() {
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
         install(CallLogging) { level = Level.INFO }
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = false })
+            json(Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = false; isLenient = true })
         }
         install(CORS) {
             allowMethod(HttpMethod.Options)
@@ -49,6 +49,9 @@ fun main() {
         }
         install(WebSockets)
         install(StatusPages) {
+            exception<io.ktor.server.plugins.BadRequestException> { call, cause ->
+                call.respond(HttpStatusCode.BadRequest, ApiErrorBody(cause.message ?: "Invalid request body"))
+            }
             exception<IllegalStateException> { call, cause ->
                 call.respond(HttpStatusCode.BadRequest, ApiErrorBody(cause.message ?: "Bad request"))
             }
@@ -73,6 +76,9 @@ fun main() {
                 validate { credential ->
                     if (credential.payload.getClaim("role").asString().isNullOrBlank()) null
                     else io.ktor.server.auth.jwt.JWTPrincipal(credential.payload)
+                }
+                challenge { _, _ ->
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorBody("Token missing or invalid"))
                 }
             }
         }

@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		FC32DCFA3015FC41005A4110 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FC32DCF93015FC41005A4110 /* UIKit.framework */; };
+		FC32DCFB3015FC41005A4111 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FC32DCFC3015FC41005A4111 /* CoreLocation.framework */; };
+		FC32DCFD3015FC41005A4112 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FC32DCFE3015FC41005A4112 /* MapKit.framework */; };
 		FC8C588D303326B500AE7875 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A0002 /* FirebaseAuth */; };
 		FC8C588E303326B500AE7875 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A0003 /* FirebaseCore */; };
 /* End PBXBuildFile section */
@@ -15,6 +17,8 @@
 /* Begin PBXFileReference section */
 		41AA27EFDF1608AED237045C /* Pansari Wala.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pansari Wala.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC32DCF93015FC41005A4110 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		FC32DCFC3015FC41005A4111 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
+		FC32DCFE3015FC41005A4112 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -51,6 +55,8 @@
 				FC8C588E303326B500AE7875 /* FirebaseCore in Frameworks */,
 				FC8C588D303326B500AE7875 /* FirebaseAuth in Frameworks */,
 				FC32DCFA3015FC41005A4110 /* UIKit.framework in Frameworks */,
+				FC32DCFB3015FC41005A4111 /* CoreLocation.framework in Frameworks */,
+				FC32DCFD3015FC41005A4112 /* MapKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +85,8 @@
 			isa = PBXGroup;
 			children = (
 				FC32DCF93015FC41005A4110 /* UIKit.framework */,
+				FC32DCFC3015FC41005A4111 /* CoreLocation.framework */,
+				FC32DCFE3015FC41005A4112 /* MapKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Upload pansari-server fat JAR to EC2 and restart the systemd service.
+# Required env: EC2_HOST, EC2_USER, EC2_SSH_KEY_PATH, EC2_DEPLOY_PATH
+# Optional: EC2_SERVICE_NAME (default: pansari-server), JAR_PATH
+set -euo pipefail
+
+: "${EC2_HOST:?EC2_HOST is required}"
+: "${EC2_USER:?EC2_USER is required}"
+: "${EC2_SSH_KEY_PATH:?EC2_SSH_KEY_PATH is required}"
+: "${EC2_DEPLOY_PATH:?EC2_DEPLOY_PATH is required}"
+
+EC2_SERVICE_NAME="${EC2_SERVICE_NAME:-pansari-server}"
+JAR_PATH="${JAR_PATH:-server/build/libs/pansari-server-all.jar}"
+REMOTE_JAR="${EC2_DEPLOY_PATH%/}/pansari-server-all.jar"
+KNOWN_HOSTS="${RUNNER_TEMP:-/tmp}/ec2_known_hosts"
+SSH_OPTS=(-i "$EC2_SSH_KEY_PATH" -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS" -o IdentitiesOnly=yes)
+
+if [[ ! -f "$JAR_PATH" ]]; then
+  echo "JAR not found: $JAR_PATH" >&2
+  exit 1
+fi
+
+echo "Trusting host key for ${EC2_HOST}"
+ssh-keyscan -H "$EC2_HOST" >> "$KNOWN_HOSTS" 2>/dev/null
+
+echo "Uploading $JAR_PATH -> ${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}"
+scp "${SSH_OPTS[@]}" "$JAR_PATH" "${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}.tmp"
+ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" \
+  "mv '${REMOTE_JAR}.tmp' '${REMOTE_JAR}' && sudo systemctl restart '${EC2_SERVICE_NAME}' && sudo systemctl is-active '${EC2_SERVICE_NAME}'"
+echo "Deploy complete."

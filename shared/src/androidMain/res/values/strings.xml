@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="partner_location_service_title">Online for deliveries</string>
+    <string name="partner_location_service_body">Updating your location every 2 minutes</string>
+</resources>

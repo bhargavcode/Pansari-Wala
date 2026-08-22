@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.shadow)
     application
 }
 
@@ -20,6 +21,20 @@ application {
     applicationDefaultJvmArgs = listOf(
         "-Djdk.tls.client.protocols=TLSv1.2",
     )
+}
+
+tasks.shadowJar {
+    archiveBaseName.set("pansari-server")
+    archiveClassifier.set("all")
+    archiveVersion.set("")
+    mergeServiceFiles()
+    manifest {
+        attributes["Main-Class"] = "org.bhargav.pansariwala.server.ApplicationKt"
+    }
+}
+
+tasks.named("build") {
+    dependsOn(tasks.shadowJar)
 }
 
 dependencies {

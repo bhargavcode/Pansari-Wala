@@ -2,6 +2,8 @@ package org.bhargav.pansariwala.feature.user
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +16,10 @@ import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.digitsPhone
+import org.bhargav.pansariwala.platform.fetchPlaceDetails
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
+import org.bhargav.pansariwala.platform.searchPlaces
+import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.otp_sent_customer
 
@@ -83,28 +88,75 @@ class PhoneAuthViewModel(
     }
 }
 
-data class ProfileUiState(
+data class AddressUiState(
     val name: String = "",
+    val placeQuery: String = "",
+    val predictions: List<org.bhargav.pansariwala.platform.PlacePrediction> = emptyList(),
     val address: String = "",
+    val locality: String = "",
+    val lat: Double? = null,
+    val lng: Double? = null,
     val loading: Boolean = false,
     val error: String? = null,
 )
 
-class ProfileSetupViewModel(
+class AddressViewModel(
     private val api: PansariApi,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(ProfileUiState())
-    val state: StateFlow<ProfileUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(AddressUiState())
+    val state: StateFlow<AddressUiState> = _state.asStateFlow()
+    private var searchJob: Job? = null
 
     fun setName(value: String) { _state.update { it.copy(name = value) } }
     fun setAddress(value: String) { _state.update { it.copy(address = value) } }
+    fun setLocality(value: String) { _state.update { it.copy(locality = value) } }
 
-    fun save(onDone: () -> Unit) {
+    fun setPlaceQuery(value: String) {
+        _state.update { it.copy(placeQuery = value) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(AppConstants.PLACE_SEARCH_DEBOUNCE_MS)
+            val results = searchPlaces(value)
+            _state.update { it.copy(predictions = results) }
+        }
+    }
+
+    fun selectPlace(placeId: String) {
+        viewModelScope.launch {
+            val details = fetchPlaceDetails(placeId) ?: return@launch
+            _state.update {
+                it.copy(
+                    placeQuery = details.formattedAddress,
+                    predictions = emptyList(),
+                    address = details.formattedAddress,
+                    locality = details.locality.ifBlank { it.locality },
+                    lat = details.lat,
+                    lng = details.lng,
+                )
+            }
+        }
+    }
+
+    fun save(requireName: Boolean, onDone: () -> Unit) {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            runCatching { api.updateProfile(_state.value.name, _state.value.address, null, null) }
-                .onSuccess { onDone() }
-                .onFailure { _state.update { s -> s.copy(error = it.message) } }
+            val s = _state.value
+            if (requireName && s.name.isBlank()) {
+                _state.update { it.copy(loading = false, error = AppConstants.Checkout.ERROR_PROFILE) }
+                return@launch
+            }
+            if (s.address.isBlank() || s.locality.isBlank() || s.lat == null || s.lng == null) {
+                _state.update { it.copy(loading = false, error = AppConstants.Checkout.ERROR_ADDRESS_REQUIRED) }
+                return@launch
+            }
+            runCatching {
+                if (requireName) {
+                    api.updateProfile(s.name, s.address, s.locality, s.lat, s.lng)
+                } else {
+                    api.saveAddress(s.address, s.locality, s.lat, s.lng)
+                }
+            }.onSuccess { onDone() }
+                .onFailure { _state.update { st -> st.copy(error = it.message) } }
             _state.update { it.copy(loading = false) }
         }
     }

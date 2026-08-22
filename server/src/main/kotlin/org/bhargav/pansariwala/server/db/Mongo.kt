@@ -36,6 +36,8 @@ data class ShopDoc(
     val paymentsEnabled: Boolean,
     val discountPercent: Double,
     val upiId: String = "success@razorpay",
+    val address: String = "",
+    val deliveryRadiusKm: Double = 20.0,
 )
 
 @Serializable
@@ -54,8 +56,20 @@ data class CustomerDoc(
     val phone: String,
     val name: String,
     val address: String,
+    val locality: String = "",
     val lat: Double? = null,
     val lng: Double? = null,
+    val addresses: List<CustomerAddressDoc> = emptyList(),
+)
+
+@Serializable
+data class CustomerAddressDoc(
+    val id: String,
+    val line: String,
+    val locality: String = "",
+    val lat: Double,
+    val lng: Double,
+    val isDefault: Boolean = false,
 )
 
 @Serializable
@@ -68,9 +82,14 @@ data class PartnerDoc(
     val vehicleReg: String,
     val platePhoto: String,
     val vehiclePhoto: String,
+    val profilePhoto: String = "",
+    val dlPhoto: String = "",
+    val idPhoto: String = "",
     val lat: Double? = null,
     val lng: Double? = null,
     val verified: Boolean = false,
+    val online: Boolean = false,
+    val joinedAt: Long = System.currentTimeMillis(),
 )
 
 @Serializable
@@ -124,10 +143,15 @@ data class OrderDoc(
     val status: String,
     val channel: String,
     val customerName: String? = null,
+    val customerPhone: String? = null,
+    val customerLat: Double? = null,
+    val customerLng: Double? = null,
     val deliveryAddress: String? = null,
+    val dropoffInstructions: String? = null,
     val deliveryOtp: String? = null,
     val pickupPhotos: List<String> = emptyList(),
     val paymentId: String? = null,
+    val paymentMethod: String = "ONLINE",
     val razorpayOrderId: String? = null,
     val shopUpi: String? = null,
     val createdAt: Long,
@@ -137,6 +161,9 @@ data class OrderDoc(
     val ratingComment: String? = null,
     val cancelReason: String? = null,
     val refundId: String? = null,
+    val totalDistanceKm: Double? = null,
+    val deliveryDurationMin: Int? = null,
+    val partnerPayoutInr: Double? = null,
 )
 
 @Serializable

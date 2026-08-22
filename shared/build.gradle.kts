@@ -24,6 +24,9 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64()
     ).forEach { iosTarget ->
+        iosTarget.binaries.all {
+            linkerOpts("-framework", "CoreLocation", "-framework", "MapKit")
+        }
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
@@ -116,6 +119,9 @@ kotlin {
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.auth)
             implementation(libs.razorpay.checkout)
+            implementation(libs.maps.compose)
+            implementation(libs.play.services.maps)
+            implementation(libs.play.services.location)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

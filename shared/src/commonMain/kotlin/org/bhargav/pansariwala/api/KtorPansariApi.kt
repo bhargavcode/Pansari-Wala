@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.api
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
@@ -25,6 +26,8 @@ import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.MoneyTxn
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.PartnerDashboard
+import org.bhargav.pansariwala.domain.model.PartnerEarnings
+import org.bhargav.pansariwala.domain.model.PartnerProfile
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ShopOffer
 import org.bhargav.pansariwala.util.AppConstants
@@ -43,6 +46,11 @@ class KtorPansariApi(
 
     private val client = engineClient.config {
         expectSuccess = true
+        install(HttpTimeout) {
+            connectTimeoutMillis = AppConstants.HTTP_CONNECT_TIMEOUT_MS
+            requestTimeoutMillis = AppConstants.HTTP_REQUEST_TIMEOUT_MS
+            socketTimeoutMillis = AppConstants.HTTP_SOCKET_TIMEOUT_MS
+        }
         install(ContentNegotiation) { json(json) }
         install(Logging) { level = LogLevel.INFO }
         install(Auth) {
@@ -88,8 +96,28 @@ class KtorPansariApi(
     override suspend fun verifyOtp(phone: String, otp: String, sessionId: String?): TokenResponse =
         client.post("auth/otp/verify") { setBody(OtpVerifyRequest(phone, otp, sessionId)) }.body()
 
-    override suspend fun updateProfile(name: String, address: String, lat: Double?, lng: Double?): CustomerProfile =
-        client.put("me/profile") { setBody(UpdateProfileRequest(name, address, lat, lng)) }.body<CustomerDto>().toModel()
+    override suspend fun updateProfile(
+        name: String,
+        address: String,
+        locality: String?,
+        lat: Double?,
+        lng: Double?,
+    ): CustomerProfile =
+        client.put("me/profile") {
+            setBody(UpdateProfileRequest(name, address, locality, lat, lng))
+        }.body<CustomerDto>().toModel()
+
+    override suspend fun saveAddress(line: String, locality: String, lat: Double, lng: Double): CustomerProfile =
+        client.post("me/addresses") {
+            setBody(SaveAddressRequest(line, locality, lat, lng))
+        }.body<CustomerDto>().toModel()
+
+    override suspend fun selectAddress(addressId: String): CustomerProfile =
+        client.post("me/addresses/$addressId/select").body<CustomerDto>().toModel()
+
+    override suspend fun updateCustomerLocation(lat: Double, lng: Double) {
+        client.post("me/location") { setBody(CustomerLocationRequest(lat, lng)) }
+    }
 
     override suspend fun me(): CustomerProfile =
         client.get("me").body<CustomerDto>().toModel()
@@ -110,6 +138,10 @@ class KtorPansariApi(
 
     override suspend fun quote(request: QuoteRequest): QuoteDto =
         client.post("orders/quote") { setBody(request) }.body()
+
+    override suspend fun validateOrder(request: PlaceOrderRequest) {
+        client.post("orders/validate") { setBody(request) }.body<OkResponse>()
+    }
 
     override suspend fun createRazorpayOrder(shopId: String, amountPaise: Long): RazorpayOrderDto =
         client.post("payments/razorpay/order") {
@@ -163,20 +195,40 @@ class KtorPansariApi(
     override suspend fun registerPartner(request: PartnerRegisterRequest): String =
         client.post("partners/register") { setBody(request) }.body<OtpSessionResponse>().sessionId
 
+    override suspend fun partnerProfile(): PartnerProfile =
+        client.get("partners/profile").body<PartnerProfileDto>().toModel()
+
     override suspend fun partnerDashboard(fromEpochMs: Long, toEpochMs: Long): PartnerDashboard =
         client.get("partners/dashboard") {
             parameter("from", fromEpochMs)
             parameter("to", toEpochMs)
         }.body<PartnerDashboardDto>().toModel()
 
+    override suspend fun partnerEarnings(): PartnerEarnings =
+        client.get("partners/earnings").body<PartnerEarningsDto>().toModel()
+
+    override suspend fun setPartnerOnline(online: Boolean) {
+        client.post("partners/online") { setBody(PartnerOnlineRequest(online)) }
+    }
+
+    override suspend fun updatePartnerLocation(lat: Double, lng: Double) {
+        client.post("partners/location") { setBody(PartnerLocationRequest(lat, lng)) }
+    }
+
     override suspend fun incomingOffer(): DeliveryOffer? =
         client.get("partners/offers/incoming").body<IncomingOfferResponse>().offer?.toModel()
+
+    override suspend fun availableOffers(): List<DeliveryOffer> =
+        client.get("partners/offers/available").body<List<DeliveryOfferDto>>().map { it.toModel() }
 
     override suspend fun acceptOffer(offerId: String): DeliveryOffer =
         client.post("partners/offers/$offerId/accept").body<DeliveryOfferDto>().toModel()
 
     override suspend fun rejectOffer(offerId: String): DeliveryOffer =
         client.post("partners/offers/$offerId/reject").body<DeliveryOfferDto>().toModel()
+
+    override suspend fun partnerJob(orderId: String): Order =
+        client.get("partners/jobs/$orderId").body<OrderDto>().toModel()
 
     override suspend fun acceptedJobs(): List<Order> =
         client.get("partners/jobs/accepted").body<List<OrderDto>>().map { it.toModel() }
@@ -190,10 +242,16 @@ class KtorPansariApi(
     override suspend fun cancelPickup(orderId: String): Order =
         client.post("partners/jobs/$orderId/cancel").body<OrderDto>().toModel()
 
+    override suspend fun arrivedAtStore(orderId: String): Order =
+        client.post("partners/jobs/$orderId/arrived-store").body<OrderDto>().toModel()
+
     override suspend fun submitPickup(orderId: String, photoOne: String, photoTwo: String): Order =
         client.post("partners/jobs/$orderId/pickup") {
             setBody(PickupRequest(photoOne, photoTwo))
         }.body<OrderDto>().toModel()
+
+    override suspend fun arrivedAtCustomer(orderId: String): Order =
+        client.post("partners/jobs/$orderId/arrived-customer").body<OrderDto>().toModel()
 
     override suspend fun deliverOrder(orderId: String, otp: String): Order =
         client.post("partners/jobs/$orderId/deliver") {

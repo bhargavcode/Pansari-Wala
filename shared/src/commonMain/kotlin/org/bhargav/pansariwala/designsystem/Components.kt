@@ -16,6 +16,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -30,6 +31,15 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 
+object PansariElevation {
+    val toolbar = 4.dp
+    val card = 3.dp
+    val raisedCard = 6.dp
+    val button = 2.dp
+    val chip = 1.dp
+    val fab = 6.dp
+}
+
 @Composable
 fun SectionCard(
     title: String,
@@ -40,7 +50,7 @@ fun SectionCard(
 ) {
     Card(
         modifier = modifier,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.card),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -94,12 +104,13 @@ fun StatTile(
     container: Color = MaterialTheme.colorScheme.primaryContainer,
     onContainer: Color = MaterialTheme.colorScheme.onPrimaryContainer,
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(container)
-            .padding(16.dp),
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = container,
+        shadowElevation = PansariElevation.card,
     ) {
+        Column(modifier = Modifier.padding(16.dp)) {
         Text(
             text = value,
             style = MaterialTheme.typography.headlineSmall,
@@ -111,6 +122,7 @@ fun StatTile(
             style = MaterialTheme.typography.bodySmall,
             color = onContainer.copy(alpha = 0.8f),
         )
+        }
     }
 }
 
@@ -121,33 +133,39 @@ fun PansariTopBar(
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    // SmallTopAppBar gives consistent spacing across phones/tablets without hardcoding insets.
-    TopAppBar(
-        modifier = modifier,
-        title = {
-            Text(
-                text = title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            )
-        },
-        navigationIcon = {
-            if (onBack != null) {
-                IconButton(onClick = onBack) {
-                    Text(
-                        text = "\u2190",
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shadowElevation = PansariElevation.toolbar,
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        TopAppBar(
+            title = {
+                Text(
+                    text = title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                )
+            },
+            navigationIcon = {
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Text(
+                            text = "\u2190",
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
-            }
-        },
-        actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-    )
+            },
+            actions = actions,
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        )
+    }
 }
 
 @Composable

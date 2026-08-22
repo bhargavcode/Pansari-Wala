@@ -25,22 +25,25 @@ import org.bhargav.pansariwala.api.ApiRuntime
 import org.bhargav.pansariwala.api.KtorPansariApi
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.createPlatformHttpClient
-import org.bhargav.pansariwala.feature.delivery.JobsViewModel
-import org.bhargav.pansariwala.feature.delivery.OfferViewModel
-import org.bhargav.pansariwala.feature.delivery.PartnerDashboardViewModel
+import org.bhargav.pansariwala.feature.delivery.PartnerEarningsViewModel
+import org.bhargav.pansariwala.feature.delivery.PartnerHomeViewModel
+import org.bhargav.pansariwala.feature.delivery.PartnerJobViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerLoginViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterViewModel
 import org.bhargav.pansariwala.feature.order.OnlineOrdersViewModel
 import org.bhargav.pansariwala.feature.user.AccountViewModel
 import org.bhargav.pansariwala.feature.user.CartStore
+import org.bhargav.pansariwala.feature.user.CartViewModel
 import org.bhargav.pansariwala.feature.user.CheckoutViewModel
 import org.bhargav.pansariwala.feature.user.MarketViewModel
 import org.bhargav.pansariwala.feature.user.OrderDetailsViewModel
 import org.bhargav.pansariwala.feature.user.PhoneAuthViewModel
-import org.bhargav.pansariwala.feature.user.ProfileSetupViewModel
+import org.bhargav.pansariwala.feature.user.AddressViewModel
+import org.bhargav.pansariwala.feature.user.UserLocationAccessViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogViewModel
 import org.bhargav.pansariwala.feature.user.ThankYouViewModel
 import org.bhargav.pansariwala.feature.user.UserSettingsViewModel
+import org.bhargav.pansariwala.platform.PartnerLocationTracker
 import org.bhargav.pansariwala.notification.LiveAlerts
 import org.bhargav.pansariwala.notification.NotificationGateway
 import org.bhargav.pansariwala.notification.ShopNotifier
@@ -59,6 +62,7 @@ val appModule = module {
     single<NotificationGateway> { createNotificationGateway() }
     singleOf(::ShopNotifier)
     singleOf(::LiveAlerts)
+    singleOf(::PartnerLocationTracker)
     single<SpeechToText> { createSpeechToText() }
 
     single<SessionStore> { createSessionStore() }
@@ -81,18 +85,20 @@ val appModule = module {
     viewModelOf(::OrdersWorkspaceViewModel)
     viewModelOf(::SettingsViewModel)
     viewModelOf(::PhoneAuthViewModel)
-    viewModelOf(::ProfileSetupViewModel)
+    viewModelOf(::AddressViewModel)
+    viewModelOf(::UserLocationAccessViewModel)
     viewModelOf(::MarketViewModel)
     viewModelOf(::AccountViewModel)
     viewModelOf(::UserSettingsViewModel)
     viewModelOf(::ShopCatalogViewModel)
+    viewModelOf(::CartViewModel)
     viewModelOf(::CheckoutViewModel)
     viewModelOf(::ThankYouViewModel)
     viewModelOf(::OrderDetailsViewModel)
     viewModelOf(::PartnerLoginViewModel)
     viewModelOf(::PartnerRegisterViewModel)
-    viewModelOf(::PartnerDashboardViewModel)
-    viewModelOf(::OfferViewModel)
-    viewModelOf(::JobsViewModel)
+    viewModelOf(::PartnerHomeViewModel)
+    viewModelOf(::PartnerJobViewModel)
+    viewModelOf(::PartnerEarningsViewModel)
     viewModelOf(::OnlineOrdersViewModel)
 }
