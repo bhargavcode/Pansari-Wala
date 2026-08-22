@@ -61,6 +61,7 @@ import pansariwala.shared.generated.resources.account_transactions
 import pansariwala.shared.generated.resources.action_add_address
 import pansariwala.shared.generated.resources.action_complete_profile
 import pansariwala.shared.generated.resources.action_place_order
+import pansariwala.shared.generated.resources.action_retry
 import pansariwala.shared.generated.resources.checkout_confirm_address
 import pansariwala.shared.generated.resources.action_proceed_payment
 import pansariwala.shared.generated.resources.action_save_rating
@@ -81,6 +82,8 @@ import pansariwala.shared.generated.resources.delivery_partner_phone
 import pansariwala.shared.generated.resources.delivery_partner_title
 import pansariwala.shared.generated.resources.delivery_partner_vehicle
 import pansariwala.shared.generated.resources.order_cancelled_banner
+import pansariwala.shared.generated.resources.order_details_title
+import pansariwala.shared.generated.resources.error_order_load_failed
 import pansariwala.shared.generated.resources.order_items_title
 import pansariwala.shared.generated.resources.order_number_label
 import pansariwala.shared.generated.resources.order_otp_label
@@ -386,100 +389,128 @@ fun OrderDetailsScreen(
     LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val order = state.order
-    Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (order != null) {
-            PansariTopBar(title = order.shopName ?: order.shopId, onBack = onBack)
-            Text(
-                stringResource(Res.string.order_number_label, order.id.takeLast(6)),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                stringResource(Res.string.order_total_label, order.totalValue.asMoney()),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            val isCancelled = order.status == OrderStatus.CANCELLED
-            val isRejected = order.status == OrderStatus.REJECTED
-            if (!isCancelled && !isRejected) {
-                order.deliveryOtp?.let {
-                    SectionCard(title = stringResource(Res.string.order_otp_label, it)) {
-                        Text(stringResource(Res.string.order_otp_share_hint))
-                    }
-                }
-            }
-            if (isCancelled || isRejected) {
-                SectionCard(
-                    title = stringResource(if (isCancelled) Res.string.status_cancelled else Res.string.status_rejected),
-                ) {
+    Column(Modifier.fillMaxSize()) {
+        // Keep back outside scroll so clicks/gestures are not eaten by NestedScroll.
+        PansariTopBar(
+            title = order?.shopName?.takeIf { it.isNotBlank() }
+                ?: order?.shopId
+                ?: stringResource(Res.string.order_details_title),
+            onBack = onBack,
+        )
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Spacer(Modifier.height(4.dp))
+            when {
+                order == null && state.error != null -> {
                     Text(
-                        stringResource(if (isCancelled) Res.string.order_cancelled_banner else Res.string.order_rejected_banner),
+                        state.error!!.takeUnless { it == "load_failed" }
+                            ?: stringResource(Res.string.error_order_load_failed),
                         color = MaterialTheme.colorScheme.error,
                     )
-                    order.cancelReason?.takeIf { it.isNotBlank() }?.let {
-                        Spacer(Modifier.height(4.dp))
-                        Text(it, style = MaterialTheme.typography.bodySmall)
-                    }
+                    UserPrimaryButton(
+                        text = stringResource(Res.string.action_retry),
+                        onClick = { viewModel.load(orderId) },
+                    )
                 }
-            } else {
-                SectionCard(title = stringResource(Res.string.order_progress_title)) {
-                    OrderProgressStepper(current = state.step)
-                }
-            }
-            SectionCard(title = stringResource(Res.string.order_items_title)) {
-                order.items.forEach { item ->
-                    Text(item.productName, fontWeight = FontWeight.SemiBold)
+                order == null -> CircularProgressIndicator(modifier = Modifier.padding(24.dp))
+                else -> {
                     Text(
-                        "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        stringResource(Res.string.order_number_label, order.id.takeLast(6)),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                }
-                order.quote?.let { q ->
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    CheckoutLine(stringResource(Res.string.checkout_subtotal), q.itemsSubtotal.asMoney())
-                    CheckoutLine(stringResource(Res.string.checkout_platform_fee), q.platformFee.asMoney())
-                    CheckoutLine(stringResource(Res.string.checkout_delivery), q.deliveryCharge.asMoney())
-                    CheckoutLine(stringResource(Res.string.checkout_payable), q.payable.asMoney(), bold = true)
-                }
-            }
-            if (order.hasAssignedPartner) {
-                SectionCard(title = stringResource(Res.string.delivery_partner_title)) {
-                    order.partnerName?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_name, it)) }
-                    order.partnerPhone?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_phone, it)) }
-                    order.partnerVehicleReg?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_vehicle, it)) }
-                }
-            }
-            val delivered = order.status == OrderStatus.DELIVERED || order.status == OrderStatus.COMPLETED
-            if (delivered) {
-                SectionCard(title = stringResource(Res.string.rate_order_title)) {
-                    InteractiveStarRating(
-                        stars = state.stars,
-                        onStarsChange = viewModel::setStars,
-                        enabled = state.editingRating,
+                    Text(
+                        stringResource(Res.string.order_total_label, order.totalValue.asMoney()),
+                        style = MaterialTheme.typography.titleMedium,
                     )
-                    OutlinedTextField(
-                        value = state.comment,
-                        onValueChange = viewModel::setComment,
-                        enabled = state.editingRating,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (state.editingRating) {
-                        UserPrimaryButton(
-                            text = stringResource(if (order.rating == null) Res.string.action_save_rating else Res.string.action_update_rating),
-                            onClick = viewModel::saveRating,
-                            enabled = viewModel.canSaveRating(),
-                        )
+                    val isCancelled = order.status == OrderStatus.CANCELLED
+                    val isRejected = order.status == OrderStatus.REJECTED
+                    if (!isCancelled && !isRejected) {
+                        order.deliveryOtp?.let {
+                            SectionCard(title = stringResource(Res.string.order_otp_label, it)) {
+                                Text(stringResource(Res.string.order_otp_share_hint))
+                            }
+                        }
+                    }
+                    if (isCancelled || isRejected) {
+                        SectionCard(
+                            title = stringResource(if (isCancelled) Res.string.status_cancelled else Res.string.status_rejected),
+                        ) {
+                            Text(
+                                stringResource(if (isCancelled) Res.string.order_cancelled_banner else Res.string.order_rejected_banner),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            order.cancelReason?.takeIf { it.isNotBlank() }?.let {
+                                Spacer(Modifier.height(4.dp))
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                     } else {
-                        TextButton(onClick = viewModel::startEdit) {
-                            Text(stringResource(Res.string.action_update_rating))
+                        SectionCard(title = stringResource(Res.string.order_progress_title)) {
+                            OrderProgressStepper(current = state.step)
+                        }
+                    }
+                    SectionCard(title = stringResource(Res.string.order_items_title)) {
+                        order.items.forEach { item ->
+                            Text(item.productName, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                        }
+                        order.quote?.let { q ->
+                            HorizontalDivider(Modifier = Modifier.padding(vertical = 8.dp))
+                            CheckoutLine(stringResource(Res.string.checkout_subtotal), q.itemsSubtotal.asMoney())
+                            CheckoutLine(stringResource(Res.string.checkout_platform_fee), q.platformFee.asMoney())
+                            CheckoutLine(stringResource(Res.string.checkout_delivery), q.deliveryCharge.asMoney())
+                            CheckoutLine(stringResource(Res.string.checkout_payable), q.payable.asMoney(), bold = true)
+                        }
+                    }
+                    if (order.hasAssignedPartner) {
+                        SectionCard(title = stringResource(Res.string.delivery_partner_title)) {
+                            order.partnerName?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_name, it)) }
+                            order.partnerPhone?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_phone, it)) }
+                            order.partnerVehicleReg?.takeIf { it.isNotBlank() }?.let { Text(stringResource(Res.string.delivery_partner_vehicle, it)) }
+                        }
+                    }
+                    val delivered = order.status == OrderStatus.DELIVERED || order.status == OrderStatus.COMPLETED
+                    if (delivered) {
+                        SectionCard(title = stringResource(Res.string.rate_order_title)) {
+                            InteractiveStarRating(
+                                stars = state.stars,
+                                onStarsChange = viewModel::setStars,
+                                enabled = state.editingRating,
+                            )
+                            OutlinedTextField(
+                                value = state.comment,
+                                onValueChange = viewModel::setComment,
+                                enabled = state.editingRating,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            if (state.editingRating) {
+                                UserPrimaryButton(
+                                    text = stringResource(if (order.rating == null) Res.string.action_save_rating else Res.string.action_update_rating),
+                                    onClick = viewModel::saveRating,
+                                    enabled = viewModel.canSaveRating(),
+                                )
+                            } else {
+                                TextButton(onClick = viewModel::startEdit) {
+                                    Text(stringResource(Res.string.action_update_rating))
+                                }
+                            }
                         }
                     }
                 }
             }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

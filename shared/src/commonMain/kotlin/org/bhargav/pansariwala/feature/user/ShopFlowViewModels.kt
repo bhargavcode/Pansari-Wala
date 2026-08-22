@@ -309,7 +309,13 @@ class OrderDetailsViewModel(
                                 stars = if (it.editingRating && it.order != null) it.stars else order.rating?.stars ?: 0,
                                 comment = if (it.editingRating && it.order != null) it.comment else order.rating?.comment.orEmpty(),
                                 editingRating = if (it.order == null) order.rating == null else it.editingRating,
+                                error = null,
                             )
+                        }
+                    }
+                    .onFailure { err ->
+                        if (_state.value.order == null) {
+                            _state.update { it.copy(error = err.message?.takeIf { m -> m.isNotBlank() } ?: "load_failed") }
                         }
                     }
                 delay(AppConstants.LIVE_ALERT_POLL_MS)

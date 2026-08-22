@@ -96,6 +96,9 @@ fun UserNavGraph() {
     fun replaceAll(route: UserRoute) { backStack.clear(); backStack.add(route) }
     fun push(route: UserRoute) { backStack.add(route) }
     fun pop() { if (backStack.size > 1) backStack.removeLastOrNull() }
+    fun popOr(fallback: UserRoute) {
+        if (backStack.size > 1) backStack.removeLastOrNull() else replaceAll(fallback)
+    }
 
     LaunchedEffect(Unit) {
         NotificationRouter.events.collect { notification ->
@@ -113,7 +116,12 @@ fun UserNavGraph() {
     Box(Modifier.fillMaxSize().safeDrawingPadding().animateContentSize()) {
         NavDisplay(
             backStack = backStack,
-            onBack = { pop() },
+            onBack = {
+                when (backStack.lastOrNull()) {
+                    is UserRoute.OrderDetails -> popOr(UserRoute.Shell)
+                    else -> pop()
+                }
+            },
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator(),
@@ -182,10 +190,17 @@ fun UserNavGraph() {
                         )
                     }
                     is UserRoute.ThankYou -> NavEntry(route) {
-                        ThankYouScreen(onContinue = { replaceAll(UserRoute.OrderDetails(route.orderId)) })
+                        ThankYouScreen(onContinue = {
+                            // Keep Shell under OrderDetails so back always works after checkout.
+                            replaceAll(UserRoute.Shell)
+                            push(UserRoute.OrderDetails(route.orderId))
+                        })
                     }
                     is UserRoute.OrderDetails -> NavEntry(route) {
-                        OrderDetailsScreen(route.orderId, onBack = { pop() })
+                        OrderDetailsScreen(
+                            route.orderId,
+                            onBack = { popOr(UserRoute.Shell) },
+                        )
                     }
                     UserRoute.OrdersList -> NavEntry(route) {
                         OrdersListScreen(onOpen = { push(UserRoute.OrderDetails(it)) }, onBack = { pop() })
