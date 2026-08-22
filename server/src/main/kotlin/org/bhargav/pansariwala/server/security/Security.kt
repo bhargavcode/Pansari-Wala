@@ -5,6 +5,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.basicAuth
 import io.ktor.client.request.post
@@ -33,6 +34,11 @@ class Security(
     private val random = SecureRandom()
     private val json = Json { ignoreUnknownKeys = true }
     private val http = HttpClient(CIO) {
+        install(HttpTimeout) {
+            connectTimeoutMillis = 8_000
+            requestTimeoutMillis = 12_000
+            socketTimeoutMillis = 12_000
+        }
         install(ContentNegotiation) {
             json(json)
         }

@@ -56,13 +56,15 @@ class AndroidDeviceLocation(
             throw LocationUnavailableException()
         }
         val fused = LocationServices.getFusedLocationProviderClient(context)
+        val last = awaitLastLocation(fused)
+        if (last != null) {
+            return GeoPoint(last.latitude, last.longitude)
+        }
         return withTimeout(AppConstants.LOCATION_FETCH_TIMEOUT_MS) {
             val current = awaitCurrentLocation(fused, Priority.PRIORITY_BALANCED_POWER_ACCURACY)
                 ?: awaitCurrentLocation(fused, Priority.PRIORITY_HIGH_ACCURACY)
-            val last = awaitLastLocation(fused)
-            val fresh = current ?: last
-            if (fresh != null) {
-                return@withTimeout GeoPoint(fresh.latitude, fresh.longitude)
+            if (current != null) {
+                return@withTimeout GeoPoint(current.latitude, current.longitude)
             }
             val oneShot = awaitSingleUpdate(fused)
             GeoPoint(oneShot.latitude, oneShot.longitude)

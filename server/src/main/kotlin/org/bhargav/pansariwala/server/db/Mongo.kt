@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.server.db
 
 import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
+import java.util.concurrent.TimeUnit
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.exists
 import com.mongodb.client.model.Filters.or
@@ -80,8 +81,8 @@ data class PartnerDoc(
     val email: String,
     val address: String,
     val vehicleReg: String,
-    val platePhoto: String,
-    val vehiclePhoto: String,
+    val platePhoto: String = "",
+    val vehiclePhoto: String = "",
     val profilePhoto: String = "",
     val dlPhoto: String = "",
     val idPhoto: String = "",
@@ -215,6 +216,17 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     val settings = MongoClientSettings.builder()
         .applyConnectionString(ConnectionString(config.mongoUri))
         .codecRegistry(codecRegistry)
+        .applyToClusterSettings { it.serverSelectionTimeout(8, TimeUnit.SECONDS) }
+        .applyToSocketSettings {
+            it.connectTimeout(5, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS)
+        }
+        .applyToConnectionPoolSettings {
+            it.minSize(2)
+                .maxSize(20)
+                .maxWaitTime(5, TimeUnit.SECONDS)
+                .maxConnectionIdleTime(10, TimeUnit.MINUTES)
+        }
+        .applyToServerSettings { it.heartbeatFrequency(10, TimeUnit.SECONDS) }
         .build()
     val client = MongoClient.create(settings)
     val db = client.getDatabase(config.mongoDbName)

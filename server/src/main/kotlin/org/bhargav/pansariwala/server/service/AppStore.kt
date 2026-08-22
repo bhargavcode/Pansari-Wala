@@ -4,6 +4,8 @@ import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.gte
 import com.mongodb.client.model.Filters.`in`
+import com.mongodb.client.model.Filters.or
+import com.mongodb.client.model.Projections.exclude
 import com.mongodb.client.model.ReplaceOptions
 import com.mongodb.client.model.Updates.combine
 import com.mongodb.client.model.Updates.set
@@ -96,6 +98,13 @@ class AppStore(
     private val deliveryOfferCol = mongo.db.getCollection<DeliveryOfferDoc>("delivery_offers")
     private val otpCol = mongo.db.getCollection<OtpDoc>("otp_challenges")
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
+    private val partnerLiteProjection = exclude(
+        "platePhoto",
+        "vehiclePhoto",
+        "profilePhoto",
+        "dlPhoto",
+        "idPhoto",
+    )
 
     fun registerSocket(partnerId: String, session: WebSocketSession) {
         sockets[partnerId] = session
@@ -121,7 +130,7 @@ class AppStore(
 
     fun loginFirebase(idToken: String): TokenResponse {
         val phone = security.verifyFirebaseOrDev(idToken)
-        val partner = partnerCol.find().toList().firstOrNull { Security.normalizePhone(it.phone) == phone }
+        val partner = partnerCol.find(eq("phone", phone)).projection(partnerLiteProjection).firstOrNull()
         if (partner != null) {
             partnerCol.updateOne(eq("_id", partner.id), set("verified", true))
             val token = security.issueJwt(partner.id, "PARTNER", displayName = partner.name)
@@ -405,7 +414,7 @@ class AppStore(
     }
 
     fun customerOrders(userId: String): List<OrderDto> =
-        orderCol.find(eq("customerId", userId)).toList().sortedByDescending { it.createdAt }.map { it.toDto() }
+        mapOrders(orderCol.find(eq("customerId", userId)).toList().sortedByDescending { it.createdAt })
 
     fun transactions(userId: String): List<TxnDto> =
         txnCol.find(eq("customerId", userId)).toList().sortedByDescending { it.createdAt }
@@ -420,21 +429,11 @@ class AppStore(
         return getOrder(orderId)
     }
 
-    fun shopOrders(shopId: String): List<OrderDto> {
-        val rows = orderCol.find(and(eq("shopId", shopId), eq("channel", "ONLINE"))).toList()
-            .sortedByDescending { it.createdAt }
-        if (rows.isEmpty()) return emptyList()
-        val shop = shopCol.find(eq("_id", shopId)).firstOrNull()
-        val partnerIds = rows.mapNotNull { it.partnerId }.distinct()
-        val partners = if (partnerIds.isEmpty()) {
-            emptyMap()
-        } else {
-            partnerCol.find(`in`("_id", partnerIds)).toList().associateBy { it.id }
-        }
-        return rows.map { row ->
-            row.toDto(shop = shop, partner = row.partnerId?.let(partners::get))
-        }
-    }
+    fun shopOrders(shopId: String): List<OrderDto> =
+        mapOrders(
+            orderCol.find(and(eq("shopId", shopId), eq("channel", "ONLINE"))).toList()
+                .sortedByDescending { it.createdAt },
+        )
 
     suspend fun acceptShopOrder(shopId: String, orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
@@ -560,7 +559,7 @@ class AppStore(
         availableOffersForPartner(partnerId).minByOrNull { it.shopDistanceKm }
 
     fun availableOffersForPartner(partnerId: String): List<DeliveryOfferDto> {
-        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: return emptyList()
+        val partner = partnerCol.find(eq("_id", partnerId)).projection(partnerLiteProjection).firstOrNull() ?: return emptyList()
         if (!partner.verified || !partner.online || !partner.hasGpsFix()) return emptyList()
         val now = System.currentTimeMillis()
         val ringing = deliveryOfferCol.find(
@@ -586,7 +585,7 @@ class AppStore(
     fun offerById(offerId: String, partnerId: String): DeliveryOfferDto {
         val now = System.currentTimeMillis()
         val offer = deliveryOfferCol.find(eq("_id", offerId)).firstOrNull() ?: error("Offer not found")
-        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: error("Partner not found")
+        val partner = partnerCol.find(eq("_id", partnerId)).projection(partnerLiteProjection).firstOrNull() ?: error("Partner not found")
         val status = when {
             offer.acceptedBy != null && offer.acceptedBy != partnerId -> "TAKEN_BY_OTHER"
             offer.status == "RINGING" && offer.expiresAt < now -> "EXPIRED"
@@ -599,7 +598,7 @@ class AppStore(
         val lock = acceptLocks.getOrPut(offerId) { Any() }
         synchronized(lock) {
             val offer = deliveryOfferCol.find(eq("_id", offerId)).firstOrNull() ?: error("Offer not found")
-            val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: error("Partner not found")
+            val partner = partnerCol.find(eq("_id", partnerId)).projection(partnerLiteProjection).firstOrNull() ?: error("Partner not found")
             val now = System.currentTimeMillis()
             if (offer.status != "RINGING" || offer.expiresAt < now) {
                 error("ALREADY_TAKEN")
@@ -707,33 +706,31 @@ class AppStore(
 
     fun partnerEarnings(partnerId: String): PartnerEarningsDto {
         val start = startOfToday()
-        val dash = partnerDashboard(partnerId, start, start + 86_400_000)
         val delivered = orderCol.find(
             and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))),
         ).toList()
         val deliveredIds = delivered.map { it.id }.toSet()
-        val totalEarnings = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
-            .filter { it.orderId in deliveredIds }
-            .sumOf { it.payout }
-        val offersSeen = deliveryOfferCol.find().toList()
-            .count { partnerId in it.rejectedBy || it.acceptedBy == partnerId }
-        val accepted = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList().size
+        val acceptedOffers = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
+        val totalEarnings = acceptedOffers.filter { it.orderId in deliveredIds }.sumOf { it.payout }
+        val todayIds = delivered.filter { it.createdAt >= start }.map { it.id }.toSet()
+        val todayEarnings = acceptedOffers.filter { it.orderId in todayIds }.sumOf { it.payout }
+        val offersSeen = deliveryOfferCol.countDocuments(
+            or(eq("acceptedBy", partnerId), eq("rejectedBy", partnerId)),
+        ).toInt()
+        val accepted = acceptedOffers.size
         val acceptanceRate = if (offersSeen == 0) 100 else ((accepted * 100) / offersSeen).coerceIn(0, 100)
         val weekly = (6 downTo 0).map { daysAgo ->
             val dayStart = start - daysAgo * 86_400_000L
             val dayEnd = dayStart + 86_400_000L
-            val dayDelivered = delivered.filter { it.createdAt in dayStart until dayEnd }
-            val dayIds = dayDelivered.map { it.id }.toSet()
-            val amount = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
-                .filter { it.orderId in dayIds }
-                .sumOf { it.payout }
+            val dayIds = delivered.filter { it.createdAt in dayStart until dayEnd }.map { it.id }.toSet()
+            val amount = acceptedOffers.filter { it.orderId in dayIds }.sumOf { it.payout }
             val label = java.time.Instant.ofEpochMilli(dayStart)
                 .atZone(java.time.ZoneId.systemDefault())
                 .dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }
             PartnerDailyEarningDto(label, amount)
         }
         return PartnerEarningsDto(
-            todayEarnings = dash.earnings,
+            todayEarnings = todayEarnings,
             totalEarnings = totalEarnings,
             deliveredCount = delivered.size,
             acceptanceRatePercent = acceptanceRate,
@@ -777,11 +774,12 @@ class AppStore(
 
     fun partnerJobs(partnerId: String, delivered: Boolean, from: Long? = null, to: Long? = null): List<OrderDto> {
         val statuses = if (delivered) listOf("DELIVERED", "COMPLETED") else listOf("PARTNER_ACCEPTED", "ON_THE_WAY")
-        return orderCol.find(and(eq("partnerId", partnerId), `in`("status", statuses))).toList()
-            .filter { row ->
-                !delivered || ((from == null || row.createdAt >= from) && (to == null || row.createdAt <= to))
-            }
-            .map { it.toDto() }
+        return mapOrders(
+            orderCol.find(and(eq("partnerId", partnerId), `in`("status", statuses))).toList()
+                .filter { row ->
+                    !delivered || ((from == null || row.createdAt >= from) && (to == null || row.createdAt <= to))
+                },
+        )
     }
 
     suspend fun cancelPickup(partnerId: String, orderId: String): OrderDto {
@@ -874,12 +872,14 @@ class AppStore(
 
     @Suppress("UNUSED_PARAMETER")
     private suspend fun broadcastOffer(offer: DeliveryOfferDoc, shop: ShopDoc, dropAddress: String) {
-        val partners = partnerCol.find(and(eq("verified", true), eq("online", true))).toList()
+        val partners = partnerCol.find(and(eq("verified", true), eq("online", true)))
+            .projection(partnerLiteProjection)
+            .toList()
         val nearby = partners.filter { partner ->
-            partner.hasGpsFix() && toOfferDto(offer, partner).shopDistanceKm <= PARTNER_RING_KM
+            partner.hasGpsFix() && toOfferDto(offer, partner, shop).shopDistanceKm <= PARTNER_RING_KM
         }
         nearby.forEach { partner ->
-            val dto = toOfferDto(offer, partner).copy(dropAddress = dropAddress.ifBlank { offer.dropAddress })
+            val dto = toOfferDto(offer, partner, shop).copy(dropAddress = dropAddress.ifBlank { offer.dropAddress })
             sockets[partner.id]?.let { session ->
                 runCatching { session.send(Frame.Text(json.encodeToString(dto))) }
             }
@@ -961,14 +961,31 @@ class AppStore(
         return ((items + delivery) * 100.0).toLong().coerceAtLeast(0L)
     }
 
+    private fun mapOrders(rows: List<OrderDoc>): List<OrderDto> {
+        if (rows.isEmpty()) return emptyList()
+        val shops = shopCol.find(`in`("_id", rows.map { it.shopId }.distinct())).toList().associateBy { it.id }
+        val partnerIds = rows.mapNotNull { it.partnerId }.distinct()
+        val partners = if (partnerIds.isEmpty()) {
+            emptyMap()
+        } else {
+            partnerCol.find(`in`("_id", partnerIds)).projection(partnerLiteProjection).toList().associateBy { it.id }
+        }
+        return rows.map { row -> row.toDto(shops[row.shopId], row.partnerId?.let(partners::get)) }
+    }
+
+    private fun partnerLite(id: String): PartnerDoc? =
+        partnerCol.find(eq("_id", id)).projection(partnerLiteProjection).firstOrNull()
+
     private fun OrderDoc.toDto(
-        shop: ShopDoc? = shopCol.find(eq("_id", shopId)).firstOrNull(),
-        partner: PartnerDoc? = partnerId?.let { partnerCol.find(eq("_id", it)).firstOrNull() },
+        shop: ShopDoc? = null,
+        partner: PartnerDoc? = null,
     ): OrderDto {
+        val shopRow = shop ?: shopCol.find(eq("_id", shopId)).firstOrNull()
+        val partnerRow = partner ?: partnerId?.let { partnerLite(it) }
         return OrderDto(
             id = id,
             shopId = shopId,
-            shopName = shop?.name,
+            shopName = shopRow?.name,
             createdAtEpochMs = createdAt,
             status = status,
             customerName = customerName,
@@ -979,15 +996,15 @@ class AppStore(
             deliveryOtp = deliveryOtp,
             pickupPhotoUrls = pickupPhotos,
             partnerId = partnerId,
-            partnerName = partner?.name,
-            partnerPhone = partner?.phone,
-            partnerVehicleReg = partner?.vehicleReg,
+            partnerName = partnerRow?.name,
+            partnerPhone = partnerRow?.phone,
+            partnerVehicleReg = partnerRow?.vehicleReg,
             paymentId = paymentId,
             paymentMethod = paymentMethod,
             customerPhone = customerPhone,
-            shopAddress = shop?.address?.takeIf { it.isNotBlank() } ?: shop?.name,
-            shopLat = shop?.lat,
-            shopLng = shop?.lng,
+            shopAddress = shopRow?.address?.takeIf { it.isNotBlank() } ?: shopRow?.name,
+            shopLat = shopRow?.lat,
+            shopLng = shopRow?.lng,
             customerLat = customerLat,
             customerLng = customerLng,
             totalDistanceKm = totalDistanceKm,

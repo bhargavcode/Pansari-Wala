@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.platform
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -26,6 +27,11 @@ suspend fun fetchDrivingRoute(
 ): List<LatLngPoint> {
     val straight = listOf(LatLngPoint(originLat, originLng), LatLngPoint(destLat, destLng))
     val client = createPlatformHttpClient().config {
+        install(HttpTimeout) {
+            connectTimeoutMillis = AppConstants.HTTP_EXTERNAL_TIMEOUT_MS
+            requestTimeoutMillis = AppConstants.HTTP_EXTERNAL_TIMEOUT_MS
+            socketTimeoutMillis = AppConstants.HTTP_EXTERNAL_TIMEOUT_MS
+        }
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; isLenient = true })
         }

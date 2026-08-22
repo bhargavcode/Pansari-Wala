@@ -3,6 +3,7 @@ package org.bhargav.pansariwala.feature.delivery
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -515,10 +516,13 @@ class PartnerHomeViewModel(
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
             while (true) {
-                runCatching { api.acceptedJobs() }.onSuccess { jobs ->
+                val jobsResult = async { runCatching { api.acceptedJobs() } }
+                val offersResult = async { runCatching { api.availableOffers() } }
+                val incomingResult = async { runCatching { api.incomingOffer() } }
+                jobsResult.await().onSuccess { jobs ->
                     _state.update { it.copy(acceptedJobs = jobs.filter { job -> job.isActiveDelivery }) }
                 }
-                runCatching { api.availableOffers() }.onSuccess { offers ->
+                offersResult.await().onSuccess { offers ->
                     val incomingId = _state.value.incomingOffer?.id
                     _state.update {
                         it.copy(
@@ -530,7 +534,7 @@ class PartnerHomeViewModel(
                         )
                     }
                 }
-                runCatching { api.incomingOffer() }.onSuccess { offer ->
+                incomingResult.await().onSuccess { offer ->
                     val currentId = _state.value.incomingOffer?.id
                     when {
                         offer == null -> Unit

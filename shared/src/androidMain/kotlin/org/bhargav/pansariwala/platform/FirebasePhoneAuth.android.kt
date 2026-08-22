@@ -36,7 +36,7 @@ class AndroidFirebasePhoneAuth : PhoneAuthGateway {
                     ),
                 )
             }
-            handler.postDelayed(timeoutRunnable, (AppConstants.OTP_TIMEOUT_SEC + 5L) * 1_000L)
+            handler.postDelayed(timeoutRunnable, AppConstants.OTP_TIMEOUT_SEC * 1_000L)
             cont.invokeOnCancellation { handler.removeCallbacks(timeoutRunnable) }
             fun clearTimeout() {
                 handler.removeCallbacks(timeoutRunnable)

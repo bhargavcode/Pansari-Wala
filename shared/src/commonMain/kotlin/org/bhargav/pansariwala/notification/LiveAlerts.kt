@@ -31,22 +31,22 @@ class LiveAlerts(
         var lastOfferId: String? = null
         var primed = false
         while (true) {
-            delay(AppConstants.LIVE_ALERT_POLL_MS)
             if (!preferences.hasSession()) {
                 primed = false
                 seenOrders.clear()
                 lastStatus.clear()
                 lastOfferId = null
-                continue
-            }
-            runCatching {
-                when (product) {
-                    AppProduct.POS -> pollShop(seenOrders, primed)
-                    AppProduct.DELIVERY -> lastOfferId = pollPartner(lastOfferId, primed)
-                    AppProduct.USER -> pollCustomer(lastStatus, primed)
+            } else {
+                runCatching {
+                    when (product) {
+                        AppProduct.POS -> pollShop(seenOrders, primed)
+                        AppProduct.DELIVERY -> lastOfferId = pollPartner(lastOfferId, primed)
+                        AppProduct.USER -> pollCustomer(lastStatus, primed)
+                    }
                 }
+                primed = true
             }
-            primed = true
+            delay(AppConstants.LIVE_ALERT_POLL_MS)
         }
     }
 

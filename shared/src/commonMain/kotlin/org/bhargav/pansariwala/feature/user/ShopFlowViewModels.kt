@@ -62,17 +62,24 @@ class ShopCatalogViewModel(
             }
         }
         viewModelScope.launch {
+            runCatching { api.shopCatalog(shopId) }
+                .onSuccess { products ->
+                    _state.update { it.copy(loading = false, products = products) }
+                }
+                .onFailure { err ->
+                    _state.update { it.copy(loading = false, error = err.message) }
+                }
+        }
+        viewModelScope.launch {
             runCatching {
                 val geo = location.currentOrDefault()
-                val shop = api.nearbyShops(geo.lat, geo.lng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
+                api.nearbyShops(geo.lat, geo.lng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
                     .firstOrNull { it.id == shopId }
-                shop?.let { cart.bindShop(shopId, it.name) }
-                val products = api.shopCatalog(shopId)
-                shop to products
-            }.onSuccess { (shop, products) ->
-                _state.update { it.copy(loading = false, shop = shop, products = products) }
-            }.onFailure { err ->
-                _state.update { it.copy(loading = false, error = err.message) }
+            }.onSuccess { shop ->
+                shop?.let {
+                    cart.bindShop(shopId, it.name)
+                    _state.update { s -> s.copy(shop = it) }
+                }
             }
         }
     }

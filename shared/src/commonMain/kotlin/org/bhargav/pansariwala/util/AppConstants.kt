@@ -26,11 +26,11 @@ object AppConstants {
     const val PARTNER_MAP_ROUTE_COLOR: Long = 0xFF0D7377
     const val PARTNER_MAP_ROUTE_WIDTH: Float = 12f
 
-    const val THANK_YOU_DELAY_MS: Long = 2_000L
+    const val THANK_YOU_DELAY_MS: Long = 800L
     const val DELIVERY_RING_TIMEOUT_MS: Long = 15 * 60_000L
     const val PARTNER_OFFER_ACCEPT_MS: Long = 15_000L
     const val LIVE_ALERT_POLL_MS: Long = 5_000L
-    const val LOCATION_FETCH_TIMEOUT_MS: Long = 15_000L
+    const val LOCATION_FETCH_TIMEOUT_MS: Long = 4_000L
     /** Partner GPS push to server while online (foreground + background). */
     const val PARTNER_LOCATION_UPDATE_MS: Long = 2 * 60_000L
     const val PARTNER_RING_RADIUS_KM: Double = 8.0
@@ -48,12 +48,14 @@ object AppConstants {
     const val API_BASE_URL: String = "http://35.172.232.196:8080"
     const val DEFAULT_API_BASE_URL: String = API_BASE_URL
     const val IOS_API_BASE_URL: String = API_BASE_URL
-    const val HTTP_CONNECT_TIMEOUT_MS: Long = 15_000L
-    const val HTTP_REQUEST_TIMEOUT_MS: Long = 45_000L
-    const val HTTP_SOCKET_TIMEOUT_MS: Long = 45_000L
+    const val HTTP_CONNECT_TIMEOUT_MS: Long = 5_000L
+    const val HTTP_REQUEST_TIMEOUT_MS: Long = 12_000L
+    const val HTTP_SOCKET_TIMEOUT_MS: Long = 12_000L
+    const val HTTP_EXTERNAL_TIMEOUT_MS: Long = 5_000L
+    const val REMOTE_LOGIN_TIMEOUT_MS: Long = 4_000L
     const val DEFAULT_PHONE_COUNTRY_CODE: String = "+91"
     const val PHONE_LOCAL_DIGITS: Int = 10
-    const val OTP_TIMEOUT_SEC: Long = 60L
+    const val OTP_TIMEOUT_SEC: Long = 12L
     const val PHOTO_JPEG_QUALITY: Int = 70
     const val PHOTO_MAX_EDGE_PX: Int = 1280
 

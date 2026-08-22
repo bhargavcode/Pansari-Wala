@@ -52,11 +52,11 @@ class KtorPansariApi(
             socketTimeoutMillis = AppConstants.HTTP_SOCKET_TIMEOUT_MS
         }
         install(ContentNegotiation) { json(json) }
-        install(Logging) { level = LogLevel.INFO }
+        install(Logging) { level = LogLevel.HEADERS }
         install(Auth) {
             bearer {
                 loadTokens { currentJwtTokens() }
-                refreshTokens { currentJwtTokens() }
+                refreshTokens { null }
                 sendWithoutRequest { request ->
                     val path = request.url.pathSegments.joinToString("/")
                     val public = path.contains("auth/") ||

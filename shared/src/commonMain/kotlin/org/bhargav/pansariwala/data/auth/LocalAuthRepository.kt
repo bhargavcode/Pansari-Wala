@@ -10,6 +10,7 @@ import org.bhargav.pansariwala.domain.auth.AuthRepository
 import org.bhargav.pansariwala.domain.auth.LoginCredentials
 import org.bhargav.pansariwala.domain.auth.Session
 import org.bhargav.pansariwala.util.generateId
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Authenticates against the seeded local Room database (offline-first) and
@@ -30,9 +31,11 @@ class LocalAuthRepository(
             shopRepository.ensureSeeded()
             val user = shopRepository.authenticate(credentials.identifier, credentials.password)
                 ?: throw IllegalStateException("Invalid username or password.")
-            val remote = runCatching {
-                api.shopLogin(credentials.identifier, credentials.password)
-            }.getOrNull()
+            val remote = withTimeoutOrNull(org.bhargav.pansariwala.util.AppConstants.REMOTE_LOGIN_TIMEOUT_MS) {
+                runCatching {
+                    api.shopLogin(credentials.identifier, credentials.password)
+                }.getOrNull()
+            }
             val session = if (remote != null) {
                 preferences.saveToken(remote)
                 Session(
