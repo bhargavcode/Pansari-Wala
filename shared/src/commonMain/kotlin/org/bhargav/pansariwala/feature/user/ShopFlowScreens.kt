@@ -418,7 +418,7 @@ fun OrderDetailsScreen(
                         onClick = { viewModel.load(orderId) },
                     )
                 }
-                order == null -> CircularProgressIndicator(modifier = Modifier.padding(24.dp))
+                order == null -> CircularProgressIndicator()
                 else -> {
                     Text(
                         stringResource(Res.string.order_number_label, order.id.takeLast(6)),
@@ -461,13 +461,15 @@ fun OrderDetailsScreen(
                         order.items.forEach { item ->
                             Text(item.productName, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",
                                 modifier = Modifier.padding(bottom = 8.dp),
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
                         order.quote?.let { q ->
-                            HorizontalDivider(Modifier = Modifier.padding(vertical = 8.dp))
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(8.dp))
                             CheckoutLine(stringResource(Res.string.checkout_subtotal), q.itemsSubtotal.asMoney())
                             CheckoutLine(stringResource(Res.string.checkout_platform_fee), q.platformFee.asMoney())
                             CheckoutLine(stringResource(Res.string.checkout_delivery), q.deliveryCharge.asMoney())
