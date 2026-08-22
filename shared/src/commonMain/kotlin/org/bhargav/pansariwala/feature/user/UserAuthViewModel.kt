@@ -13,14 +13,21 @@ import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.TokenResponse
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.digitsPhone
 import org.bhargav.pansariwala.platform.fetchPlaceDetails
+import org.bhargav.pansariwala.platform.geocodeAddress
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
 import org.bhargav.pansariwala.platform.searchPlaces
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_address_coordinates
+import pansariwala.shared.generated.resources.error_address_required
+import pansariwala.shared.generated.resources.error_place_details_failed
+import pansariwala.shared.generated.resources.error_profile_required
+import pansariwala.shared.generated.resources.location_unavailable
 import pansariwala.shared.generated.resources.otp_sent_customer
 
 data class PhoneAuthUiState(
@@ -97,22 +104,27 @@ data class AddressUiState(
     val lat: Double? = null,
     val lng: Double? = null,
     val loading: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 class AddressViewModel(
     private val api: PansariApi,
+    private val location: DeviceLocation,
 ) : ViewModel() {
     private val _state = MutableStateFlow(AddressUiState())
     val state: StateFlow<AddressUiState> = _state.asStateFlow()
     private var searchJob: Job? = null
 
-    fun setName(value: String) { _state.update { it.copy(name = value) } }
-    fun setAddress(value: String) { _state.update { it.copy(address = value) } }
-    fun setLocality(value: String) { _state.update { it.copy(locality = value) } }
+    fun setName(value: String) { _state.update { it.copy(name = value, error = null) } }
+    fun setAddress(value: String) {
+        _state.update { it.copy(address = value, error = null, lat = null, lng = null) }
+    }
+    fun setLocality(value: String) {
+        _state.update { it.copy(locality = value, error = null, lat = null, lng = null) }
+    }
 
     fun setPlaceQuery(value: String) {
-        _state.update { it.copy(placeQuery = value) }
+        _state.update { it.copy(placeQuery = value, error = null) }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(AppConstants.PLACE_SEARCH_DEBOUNCE_MS)
@@ -123,9 +135,17 @@ class AddressViewModel(
 
     fun selectPlace(placeId: String) {
         viewModelScope.launch {
-            val details = fetchPlaceDetails(placeId) ?: return@launch
+            _state.update { it.copy(loading = true, error = null) }
+            val details = fetchPlaceDetails(placeId)
+            if (details == null) {
+                _state.update {
+                    it.copy(loading = false, error = UiText.res(Res.string.error_place_details_failed))
+                }
+                return@launch
+            }
             _state.update {
                 it.copy(
+                    loading = false,
                     placeQuery = details.formattedAddress,
                     predictions = emptyList(),
                     address = details.formattedAddress,
@@ -137,27 +157,59 @@ class AddressViewModel(
         }
     }
 
+    fun useCurrentLocation() {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            runCatching { location.currentOrDefault() }
+                .onSuccess { geo ->
+                    _state.update { it.copy(lat = geo.lat, lng = geo.lng, loading = false) }
+                }
+                .onFailure {
+                    _state.update {
+                        it.copy(loading = false, error = UiText.res(Res.string.location_unavailable))
+                    }
+                }
+        }
+    }
+
     fun save(requireName: Boolean, onDone: () -> Unit) {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             val s = _state.value
             if (requireName && s.name.isBlank()) {
-                _state.update { it.copy(loading = false, error = AppConstants.Checkout.ERROR_PROFILE) }
+                _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_profile_required)) }
                 return@launch
             }
-            if (s.address.isBlank() || s.locality.isBlank() || s.lat == null || s.lng == null) {
-                _state.update { it.copy(loading = false, error = AppConstants.Checkout.ERROR_ADDRESS_REQUIRED) }
+            if (s.address.isBlank() || s.locality.isBlank()) {
+                _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_address_required)) }
                 return@launch
             }
+            val coords = resolveCoordinates(s)
+            if (coords == null) {
+                _state.update {
+                    it.copy(loading = false, error = UiText.res(Res.string.error_address_coordinates))
+                }
+                return@launch
+            }
+            val (lat, lng) = coords
             runCatching {
                 if (requireName) {
-                    api.updateProfile(s.name, s.address, s.locality, s.lat, s.lng)
+                    api.updateProfile(s.name, s.address, s.locality, lat, lng)
                 } else {
-                    api.saveAddress(s.address, s.locality, s.lat, s.lng)
+                    api.saveAddress(s.address, s.locality, lat, lng)
                 }
             }.onSuccess { onDone() }
-                .onFailure { _state.update { st -> st.copy(error = it.message) } }
-            _state.update { it.copy(loading = false) }
+                .onFailure { err ->
+                    _state.update { st -> st.copy(error = UiText.Plain(err.message.orEmpty())) }
+                }
+            _state.update { it.copy(loading = false, lat = lat, lng = lng) }
         }
+    }
+
+    private suspend fun resolveCoordinates(state: AddressUiState): Pair<Double, Double>? {
+        state.lat?.let { lat -> state.lng?.let { lng -> return lat to lng } }
+        val query = listOf(state.address, state.locality, "India").filter { it.isNotBlank() }.joinToString(", ")
+        geocodeAddress(query)?.let { return it.lat to it.lng }
+        return runCatching { location.currentOrDefault() }.getOrNull()?.let { it.lat to it.lng }
     }
 }

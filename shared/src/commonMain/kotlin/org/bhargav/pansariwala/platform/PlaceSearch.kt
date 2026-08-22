@@ -47,7 +47,7 @@ suspend fun fetchPlaceDetails(placeId: String): PlaceDetails? {
     return try {
         val body = client.get(AppConstants.GOOGLE_PLACES_DETAILS_URL) {
             parameter("place_id", placeId)
-            parameter("fields", "formatted_address,geometry,address_component,name")
+            parameter("fields", "formatted_address,geometry,address_components,name")
             parameter("key", AppConstants.GOOGLE_MAPS_API_KEY)
         }.body<PlacesDetailsResponse>()
         if (body.status != "OK") return null
@@ -55,6 +55,31 @@ suspend fun fetchPlaceDetails(placeId: String): PlaceDetails? {
         val loc = result.geometry?.location ?: return null
         PlaceDetails(
             formattedAddress = result.formattedAddress.ifBlank { result.name.orEmpty() },
+            locality = localityFrom(result.addressComponents),
+            lat = loc.lat,
+            lng = loc.lng,
+        )
+    } catch (_: Throwable) {
+        null
+    } finally {
+        client.close()
+    }
+}
+
+suspend fun geocodeAddress(query: String): PlaceDetails? {
+    if (query.isBlank()) return null
+    val client = placesHttpClient()
+    return try {
+        val body = client.get(AppConstants.GOOGLE_GEOCODE_URL) {
+            parameter("address", query)
+            parameter("components", "country:IN")
+            parameter("key", AppConstants.GOOGLE_MAPS_API_KEY)
+        }.body<GeocodeResponse>()
+        if (body.status != "OK") return null
+        val result = body.results.firstOrNull() ?: return null
+        val loc = result.geometry?.location ?: return null
+        PlaceDetails(
+            formattedAddress = result.formattedAddress.ifBlank { query },
             locality = localityFrom(result.addressComponents),
             lat = loc.lat,
             lng = loc.lng,
@@ -104,7 +129,20 @@ private data class PlaceDetailsResult(
     val name: String? = null,
     @SerialName("formatted_address") val formattedAddress: String = "",
     val geometry: PlaceGeometry? = null,
-    @SerialName("address_component") val addressComponents: List<PlaceAddressComponent> = emptyList(),
+    @SerialName("address_components") val addressComponents: List<PlaceAddressComponent> = emptyList(),
+)
+
+@Serializable
+private data class GeocodeResponse(
+    val status: String = "",
+    val results: List<GeocodeResult> = emptyList(),
+)
+
+@Serializable
+private data class GeocodeResult(
+    @SerialName("formatted_address") val formattedAddress: String = "",
+    val geometry: PlaceGeometry? = null,
+    @SerialName("address_components") val addressComponents: List<PlaceAddressComponent> = emptyList(),
 )
 
 @Serializable

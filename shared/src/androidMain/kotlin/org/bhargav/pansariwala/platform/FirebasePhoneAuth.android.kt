@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.platform
 
+import android.os.Handler
+import android.os.Looper
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
@@ -24,18 +26,36 @@ class AndroidFirebasePhoneAuth : PhoneAuthGateway {
             fun resumeOnce(result: Result<PhoneOtpSession>) {
                 if (done.compareAndSet(false, true)) cont.resume(result)
             }
+            val handler = Handler(Looper.getMainLooper())
+            val timeoutRunnable = Runnable {
+                resumeOnce(
+                    Result.failure(
+                        IllegalStateException(
+                            "Firebase phone verification timed out. Add release SHA-1 in Firebase or use server OTP.",
+                        ),
+                    ),
+                )
+            }
+            handler.postDelayed(timeoutRunnable, (AppConstants.OTP_TIMEOUT_SEC + 5L) * 1_000L)
+            cont.invokeOnCancellation { handler.removeCallbacks(timeoutRunnable) }
+            fun clearTimeout() {
+                handler.removeCallbacks(timeoutRunnable)
+            }
             val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                 override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                    clearTimeout()
                     autoCredential = credential
                     val sessionId = credential.smsCode ?: "auto"
                     resumeOnce(Result.success(PhoneOtpSession(sessionId = sessionId, usesFirebase = true)))
                 }
 
                 override fun onVerificationFailed(e: FirebaseException) {
+                    clearTimeout()
                     resumeOnce(Result.failure(e))
                 }
 
                 override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {
+                    clearTimeout()
                     resumeOnce(Result.success(PhoneOtpSession(sessionId = verificationId, usesFirebase = true)))
                 }
             }

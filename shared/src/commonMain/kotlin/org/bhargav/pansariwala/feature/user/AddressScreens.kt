@@ -12,6 +12,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -19,15 +20,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.i18n.asString
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_continue
+import pansariwala.shared.generated.resources.action_use_current_location
 import pansariwala.shared.generated.resources.address_screen_title
 import pansariwala.shared.generated.resources.field_address
 import pansariwala.shared.generated.resources.field_locality
 import pansariwala.shared.generated.resources.field_name
 import pansariwala.shared.generated.resources.field_place_search
+import pansariwala.shared.generated.resources.hint_address_pick_place
 import pansariwala.shared.generated.resources.location_confirm_address
 import pansariwala.shared.generated.resources.profile_setup_title
 
@@ -120,6 +124,14 @@ private fun AddressForm(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
+        Text(
+            stringResource(Res.string.hint_address_pick_place),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = viewModel::useCurrentLocation, enabled = !state.loading) {
+            Text(stringResource(Res.string.action_use_current_location))
+        }
         UserPrimaryButton(
             text = confirmLabel,
             onClick = { viewModel.save(requireName, onDone) },
@@ -128,7 +140,7 @@ private fun AddressForm(
                 state.locality.isNotBlank() &&
                 (!requireName || state.name.isNotBlank()),
         )
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
         if (state.loading) CircularProgressIndicator()
     }
 }

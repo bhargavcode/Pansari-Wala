@@ -1,7 +1,7 @@
 package org.bhargav.pansariwala.di
 
+import org.bhargav.pansariwala.platform.AndroidPhoneAuthGateway
 import org.bhargav.pansariwala.platform.AndroidDeviceLocation
-import org.bhargav.pansariwala.platform.AndroidFirebasePhoneAuth
 import org.bhargav.pansariwala.platform.AndroidImagePicker
 import org.bhargav.pansariwala.platform.AndroidRazorpayCheckout
 import org.bhargav.pansariwala.platform.DeviceLocation
@@ -15,7 +15,7 @@ import org.koin.dsl.module
 actual val platformModule: Module = module {
     single { AndroidDeviceLocation(androidContext()) }
     single<DeviceLocation> { get<AndroidDeviceLocation>() }
-    single<PhoneAuthGateway> { AndroidFirebasePhoneAuth() }
+    single<PhoneAuthGateway> { AndroidPhoneAuthGateway(get()) }
     single<ImagePicker> { AndroidImagePicker() }
     single<RazorpayCheckout> { AndroidRazorpayCheckout() }
 }

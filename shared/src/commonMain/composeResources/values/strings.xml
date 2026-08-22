@@ -386,6 +386,11 @@
     <string name="error_name_required">Name is required</string>
     <string name="error_email_invalid">Valid email is required</string>
     <string name="error_address_required">Address is required</string>
+    <string name="error_address_coordinates">Could not locate this address. Search and pick a place, or use current location.</string>
+    <string name="error_place_details_failed">Could not load place details. Try again or enter address manually.</string>
+    <string name="error_profile_required">Complete your profile</string>
+    <string name="action_use_current_location">Use current location</string>
+    <string name="hint_address_pick_place">Search and select a place, or fill address and tap Use current location.</string>
     <string name="error_phone_required">Phone number is required</string>
     <string name="error_photos_required">Please upload all required documents</string>
     <string name="partner_action_sign_up">Sign Up</string>

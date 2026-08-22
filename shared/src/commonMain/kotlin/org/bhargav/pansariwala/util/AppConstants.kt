@@ -19,6 +19,7 @@ object AppConstants {
     const val GOOGLE_DIRECTIONS_URL: String = "https://maps.googleapis.com/maps/api/directions/json"
     const val GOOGLE_PLACES_AUTOCOMPLETE_URL: String = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
     const val GOOGLE_PLACES_DETAILS_URL: String = "https://maps.googleapis.com/maps/api/place/details/json"
+    const val GOOGLE_GEOCODE_URL: String = "https://maps.googleapis.com/maps/api/geocode/json"
     const val PLACE_SEARCH_DEBOUNCE_MS: Long = 350L
     const val DEFAULT_SHOP_DELIVERY_RADIUS_KM: Double = 20.0
     const val OSRM_ROUTE_URL: String = "https://router.project-osrm.org/route/v1/driving"
