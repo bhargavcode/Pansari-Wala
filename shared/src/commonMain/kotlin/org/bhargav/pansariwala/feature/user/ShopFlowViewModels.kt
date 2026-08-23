@@ -46,10 +46,17 @@ import pansariwala.shared.generated.resources.error_razorpay_cancelled
 import pansariwala.shared.generated.resources.error_razorpay_failed
 import pansariwala.shared.generated.resources.error_razorpay_unavailable
 
+enum class CatalogTab { PRODUCTS, RATINGS }
+
 data class CatalogData(
     val shop: MarketplaceShop? = null,
     val products: List<Product> = emptyList(),
+    val ratings: List<org.bhargav.pansariwala.domain.model.ShopReview> = emptyList(),
     val cartCount: Int = 0,
+    val productQuery: String = "",
+    val selectedTab: CatalogTab = CatalogTab.PRODUCTS,
+    val ratingFilterStars: Set<Int> = emptySet(),
+    val showRatingFilterSheet: Boolean = false,
 )
 
 typealias CatalogUiState = AsyncUiState<CatalogData>
@@ -86,6 +93,7 @@ class ShopCatalogViewModel(
             runCatching {
                 coroutineScope {
                     val productsDef = async { api.shopCatalog(shopId) }
+                    val ratingsDef = async { api.shopRatings(shopId) }
                     val shopDef = async {
                         val geo = location.currentOrDefault()
                         api.nearbyShops(geo.lat, geo.lng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
@@ -93,8 +101,9 @@ class ShopCatalogViewModel(
                     }
                     val products = productsDef.await()
                     val shop = shopDef.await()
+                    val ratings = ratingsDef.await()
                     shop?.let { cart.bindShop(shopId, it.name) }
-                    CatalogData(shop = shop, products = products, cartCount = cart.itemCount)
+                    CatalogData(shop = shop, products = products, ratings = ratings, cartCount = cart.itemCount)
                 }
             }.onSuccess { data ->
                 _state.value = AsyncUiState.Success(data)
@@ -113,6 +122,60 @@ class ShopCatalogViewModel(
     fun increment(productId: String) { cart.increment(productId) }
     fun decrement(productId: String) { cart.decrement(productId) }
     fun quantityOf(productId: String): Int = cart.quantityOf(productId)
+
+    fun setProductQuery(value: String) {
+        updateSuccess { it.copy(productQuery = value) }
+    }
+
+    fun selectTab(tab: CatalogTab) {
+        updateSuccess { it.copy(selectedTab = tab) }
+    }
+
+    fun showRatingFilterSheet() {
+        updateSuccess { it.copy(showRatingFilterSheet = true) }
+    }
+
+    fun hideRatingFilterSheet() {
+        updateSuccess { it.copy(showRatingFilterSheet = false) }
+    }
+
+    fun toggleRatingFilter(stars: Int) {
+        updateSuccess { data ->
+            val next = data.ratingFilterStars.toMutableSet().apply {
+                if (contains(stars)) remove(stars) else add(stars)
+            }
+            data.copy(ratingFilterStars = next)
+        }
+    }
+
+    fun setRatingFilter(stars: Set<Int>) {
+        updateSuccess { it.copy(ratingFilterStars = stars) }
+    }
+
+    fun clearRatingFilter() {
+        updateSuccess { it.copy(ratingFilterStars = emptySet()) }
+    }
+
+    fun filteredProducts(data: CatalogData): List<Product> {
+        val query = data.productQuery.trim()
+        if (query.isBlank()) return data.products
+        return data.products.filter {
+            it.name.contains(query, ignoreCase = true) ||
+                it.nameHi.contains(query, ignoreCase = true)
+        }
+    }
+
+    fun filteredRatings(data: CatalogData): List<org.bhargav.pansariwala.domain.model.ShopReview> {
+        if (data.ratingFilterStars.isEmpty()) return data.ratings
+        return data.ratings.filter { it.stars in data.ratingFilterStars }
+    }
+
+    private inline fun updateSuccess(block: (CatalogData) -> CatalogData) {
+        val current = _state.value
+        if (current is AsyncUiState.Success) {
+            _state.value = current.copy(data = block(current.data))
+        }
+    }
 }
 
 data class CartUiState(

@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.server.service
 
 import com.mongodb.client.model.Filters.and
+import com.mongodb.client.model.Filters.exists
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.regex
 import com.mongodb.client.model.Filters.gte
@@ -55,7 +56,7 @@ import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RazorpayOrderDto
 import org.bhargav.pansariwala.server.dto.SavedAddressDto
 import org.bhargav.pansariwala.server.dto.SaveAddressRequest
-import org.bhargav.pansariwala.server.dto.ShopDto
+import org.bhargav.pansariwala.server.dto.ShopReviewDto
 import org.bhargav.pansariwala.server.dto.SyncPullResponse
 import org.bhargav.pansariwala.server.dto.SyncPushRequest
 import org.bhargav.pansariwala.server.dto.TokenResponse
@@ -342,6 +343,7 @@ class AppStore(
                 discountPercent = row.discountPercent,
                 upiId = row.upiId.ifBlank { config.defaultShopUpi },
                 deliveryRadiusKm = row.deliveryRadiusKm,
+                shopType = row.shopType,
             )
         }.filter { it.distanceKm <= radiusKm && it.distanceKm <= it.deliveryRadiusKm }
             .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
@@ -496,7 +498,39 @@ class AppStore(
         require(row.customerId == userId) { "Forbidden" }
         require(row.status in listOf("DELIVERED", "COMPLETED")) { "Rate after delivery" }
         orderCol.replaceOne(eq("_id", orderId), row.copy(ratingStars = stars, ratingComment = comment))
+        recalculateShopRating(row.shopId)
         return getOrder(orderId)
+    }
+
+    fun shopRatings(shopId: String): List<ShopReviewDto> =
+        orderCol.find(
+            and(
+                eq("shopId", shopId),
+                exists("ratingStars", true),
+            ),
+        )
+            .sort(Sorts.descending("createdAt"))
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
+            .mapNotNull { row ->
+                val stars = row.ratingStars ?: return@mapNotNull null
+                ShopReviewDto(
+                    id = row.id,
+                    customerName = row.customerName?.takeIf { it.isNotBlank() } ?: "Customer",
+                    stars = stars,
+                    comment = row.ratingComment,
+                    createdAtEpochMs = row.createdAt,
+                )
+            }
+
+    private fun recalculateShopRating(shopId: String) {
+        val rated = orderCol.find(and(eq("shopId", shopId), exists("ratingStars", true))).toList()
+        val count = rated.size
+        val avg = if (count == 0) 0.0 else rated.mapNotNull { it.ratingStars }.average()
+        shopCol.updateOne(
+            eq("_id", shopId),
+            combine(set("rating", avg), set("ratingCount", count)),
+        )
     }
 
     fun shopOrders(shopId: String): List<OrderDto> =

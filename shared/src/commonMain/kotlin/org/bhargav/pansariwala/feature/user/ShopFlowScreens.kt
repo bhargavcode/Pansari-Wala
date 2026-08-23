@@ -51,6 +51,11 @@ import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.domain.model.OrderStatus
+import androidx.compose.material3.Card
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.rememberModalBottomSheetState
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.feature.delivery.PickupPhotoStrip
 import org.bhargav.pansariwala.i18n.asString
@@ -76,7 +81,19 @@ import pansariwala.shared.generated.resources.action_proceed_payment
 import pansariwala.shared.generated.resources.action_save_rating
 import pansariwala.shared.generated.resources.action_update_rating
 import pansariwala.shared.generated.resources.cart_title
-import pansariwala.shared.generated.resources.catalog_shop_rating
+import pansariwala.shared.generated.resources.shop_distance
+import pansariwala.shared.generated.resources.catalog_no_products
+import pansariwala.shared.generated.resources.catalog_no_ratings
+import pansariwala.shared.generated.resources.catalog_rating_filter
+import pansariwala.shared.generated.resources.catalog_rating_filter_all
+import pansariwala.shared.generated.resources.catalog_rating_filter_title
+import pansariwala.shared.generated.resources.catalog_rating_stars
+import pansariwala.shared.generated.resources.catalog_search_products
+import pansariwala.shared.generated.resources.catalog_shop_rating_count
+import pansariwala.shared.generated.resources.catalog_tab_products
+import pansariwala.shared.generated.resources.catalog_tab_ratings
+import pansariwala.shared.generated.resources.action_apply
+import pansariwala.shared.generated.resources.action_clear
 import pansariwala.shared.generated.resources.checkout_delivery
 import pansariwala.shared.generated.resources.checkout_discount
 import pansariwala.shared.generated.resources.checkout_discount_applied
@@ -112,6 +129,7 @@ import pansariwala.shared.generated.resources.thank_you_body
 import pansariwala.shared.generated.resources.thank_you_title
 import pansariwala.shared.generated.resources.user_cart_items
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShopCatalogScreen(
     shopId: String,
@@ -122,6 +140,48 @@ fun ShopCatalogScreen(
     LaunchedEffect(shopId) { viewModel.load(shopId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val data = (state as? AsyncUiState.Success)?.data
+    val ratingFilterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var draftRatingStars by remember(data?.showRatingFilterSheet) {
+        mutableStateOf(data?.ratingFilterStars ?: emptySet())
+    }
+
+    if (data?.showRatingFilterSheet == true) {
+        ModalBottomSheet(
+            onDismissRequest = viewModel::hideRatingFilterSheet,
+            sheetState = ratingFilterSheetState,
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(Res.string.catalog_rating_filter_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                (5 downTo 1).forEach { stars ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            draftRatingStars = draftRatingStars.toMutableSet().apply {
+                                if (contains(stars)) remove(stars) else add(stars)
+                            }
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.Checkbox(checked = stars in draftRatingStars, onCheckedChange = null)
+                        Text(stringResource(Res.string.catalog_rating_stars, stars))
+                    }
+                }
+                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(onClick = { draftRatingStars = emptySet() }) {
+                        Text(stringResource(Res.string.action_clear))
+                    }
+                    UserPrimaryButton(
+                        text = stringResource(Res.string.action_apply),
+                        onClick = {
+                            viewModel.setRatingFilter(draftRatingStars)
+                            viewModel.hideRatingFilterSheet()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+
     PansariScreen(
         title = data?.shop?.name ?: "…",
         onBack = onBack,
@@ -137,42 +197,118 @@ fun ShopCatalogScreen(
                 Modifier.weight(1f).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                data?.shop?.let { shop ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(shop.name.take(1), fontWeight = FontWeight.Bold)
-                    }
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
-                        Text(shop.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Text(stringResource(Res.string.catalog_shop_rating, shop.rating.toString()))
-                    }
-                }
-                }
-                data?.products.orEmpty().groupBy { it.category }.forEach { (category, products) ->
-                Text(
-                    category.displayName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp),
+                OutlinedTextField(
+                    value = data?.productQuery.orEmpty(),
+                    onValueChange = viewModel::setProductQuery,
+                    label = { Text(stringResource(Res.string.catalog_search_products)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
                 )
-                products.forEach { product ->
-                    CatalogProductRow(
-                        name = product.name,
-                        price = product.sellingPrice.asMoney(),
-                        quantity = viewModel.quantityOf(product.id),
-                        onIncrement = {
-                            if (viewModel.quantityOf(product.id) == 0) viewModel.add(product)
-                            else viewModel.increment(product.id)
-                        },
-                        onDecrement = { viewModel.decrement(product.id) },
-                        onAdd = { viewModel.add(product) },
+                data?.shop?.let { shop ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    ) {
+                        Row(
+                            Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(shop.name.take(1), fontWeight = FontWeight.Bold)
+                            }
+                            Column(modifier = Modifier.padding(start = 12.dp)) {
+                                Text(shop.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                ShopRatingBadge(
+                                    rating = shop.rating,
+                                    ratingCount = shop.ratingCount,
+                                    onClick = { viewModel.selectTab(CatalogTab.RATINGS) },
+                                )
+                                Text(
+                                    stringResource(
+                                        Res.string.shop_distance,
+                                        shop.distanceKm.let { (it * 10).toInt() / 10.0 }.toString(),
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                }
+                TabRow(selectedTabIndex = if (data?.selectedTab == CatalogTab.RATINGS) 1 else 0) {
+                    Tab(
+                        selected = data?.selectedTab == CatalogTab.PRODUCTS,
+                        onClick = { viewModel.selectTab(CatalogTab.PRODUCTS) },
+                        text = { Text(stringResource(Res.string.catalog_tab_products)) },
+                    )
+                    Tab(
+                        selected = data?.selectedTab == CatalogTab.RATINGS,
+                        onClick = { viewModel.selectTab(CatalogTab.RATINGS) },
+                        text = { Text(stringResource(Res.string.catalog_tab_ratings)) },
                     )
                 }
-            }
+                when (data?.selectedTab) {
+                    CatalogTab.RATINGS -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable(onClick = viewModel::showRatingFilterSheet),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(stringResource(Res.string.catalog_rating_filter), fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (data.ratingFilterStars.isEmpty()) {
+                                        stringResource(Res.string.catalog_rating_filter_all)
+                                    } else {
+                                        data.ratingFilterStars.sortedDescending().joinToString(", ") { "$it★" }
+                                    },
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        val ratings = viewModel.filteredRatings(data)
+                        if (ratings.isEmpty()) {
+                            Text(stringResource(Res.string.catalog_no_ratings), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            ratings.forEach { review ->
+                                ShopReviewCard(review = review)
+                            }
+                        }
+                    }
+                    else -> {
+                        val products = data?.let { viewModel.filteredProducts(it) }.orEmpty()
+                        if (products.isEmpty()) {
+                            Text(stringResource(Res.string.catalog_no_products), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            products.groupBy { it.category }.forEach { (category, grouped) ->
+                                Text(
+                                    category.displayName,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                                grouped.forEach { product ->
+                                    CatalogProductRow(
+                                        name = product.name,
+                                        price = product.sellingPrice.asMoney(),
+                                        quantity = viewModel.quantityOf(product.id),
+                                        onIncrement = {
+                                            if (viewModel.quantityOf(product.id) == 0) viewModel.add(product)
+                                            else viewModel.increment(product.id)
+                                        },
+                                        onDecrement = { viewModel.decrement(product.id) },
+                                        onAdd = { viewModel.add(product) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
             if ((data?.cartCount ?: 0) > 0) {
                 UserPrimaryButton(

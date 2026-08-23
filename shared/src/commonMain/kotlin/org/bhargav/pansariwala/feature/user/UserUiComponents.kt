@@ -41,6 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
+import org.bhargav.pansariwala.domain.model.ShopReview
+import org.bhargav.pansariwala.domain.model.ShopSortOption
+import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.designsystem.PansariElevation
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderStatus
@@ -56,6 +59,12 @@ import pansariwala.shared.generated.resources.order_number_label
 import pansariwala.shared.generated.resources.shop_distance
 import pansariwala.shared.generated.resources.shop_open_now
 import pansariwala.shared.generated.resources.shop_rating
+import pansariwala.shared.generated.resources.shop_type_electronics
+import pansariwala.shared.generated.resources.shop_type_general_store
+import pansariwala.shared.generated.resources.shop_type_hardware
+import pansariwala.shared.generated.resources.shop_type_medical_store
+import pansariwala.shared.generated.resources.shop_type_stationery
+import pansariwala.shared.generated.resources.shop_type_sweet_shop
 import pansariwala.shared.generated.resources.shop_closed
 import pansariwala.shared.generated.resources.status_accepted
 import pansariwala.shared.generated.resources.status_cancelled
@@ -70,6 +79,58 @@ import pansariwala.shared.generated.resources.status_rejected
 import pansariwala.shared.generated.resources.user_brand_title
 import pansariwala.shared.generated.resources.user_cart_items
 import kotlin.math.roundToInt
+
+@Composable
+fun shopTypeLabel(type: ShopType): String = stringResource(
+    when (type) {
+        ShopType.GENERAL_STORE -> Res.string.shop_type_general_store
+        ShopType.HARDWARE -> Res.string.shop_type_hardware
+        ShopType.MEDICAL_STORE -> Res.string.shop_type_medical_store
+        ShopType.SWEET_SHOP -> Res.string.shop_type_sweet_shop
+        ShopType.STATIONERY -> Res.string.shop_type_stationery
+        ShopType.ELECTRONICS -> Res.string.shop_type_electronics
+    },
+)
+
+@Composable
+fun ShopRatingBadge(
+    rating: Double,
+    ratingCount: Int,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    val displayRating = ((rating * 10).roundToInt() / 10.0).toString()
+    Text(
+        text = stringResource(Res.string.shop_rating, displayRating, ratingCount),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.Medium,
+        modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    )
+}
+
+@Composable
+fun ShopReviewCard(review: ShopReview, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.card),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(review.customerName, fontWeight = FontWeight.SemiBold)
+                Text("★ ${review.stars}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+            review.comment?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
 
 @Composable
 fun UserBrandHeader(modifier: Modifier = Modifier) {
@@ -162,7 +223,7 @@ fun ShopDiscoveryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = stringResource(Res.string.shop_rating, shop.rating.toString(), shop.ratingCount),
+                    text = stringResource(Res.string.shop_rating, ((shop.rating * 10).roundToInt() / 10.0).toString(), shop.ratingCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

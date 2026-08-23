@@ -39,6 +39,7 @@ data class ShopDoc(
     val upiId: String = "success@razorpay",
     val address: String = "",
     val deliveryRadiusKm: Double = 20.0,
+    val shopType: String = "GENERAL_STORE",
 )
 
 @Serializable
@@ -291,8 +292,11 @@ private fun ensureIndexes(db: MongoDatabase) {
 private fun seed(db: MongoDatabase, security: Security) {
     db.getCollection<ShopDoc>("shops").insertMany(
         listOf(
-            ShopDoc("shop_1", "Bhargav Kirana", null, 4.6, 128, 28.6139, 77.2090, true, true, true, 5.0, "success@razorpay"),
-            ShopDoc("shop_2", "Laxmi General Store", null, 4.3, 86, 28.6200, 77.2150, true, true, true, 0.0, "success@razorpay"),
+            ShopDoc("shop_1", "Bhargav Kirana", null, 4.6, 128, 28.6139, 77.2090, true, true, true, 5.0, "success@razorpay", shopType = "GENERAL_STORE"),
+            ShopDoc("shop_2", "Laxmi General Store", null, 4.3, 86, 28.6200, 77.2150, true, true, true, 0.0, "success@razorpay", shopType = "GENERAL_STORE"),
+            ShopDoc("shop_3", "Sharma Medical", null, 4.5, 64, 28.6180, 77.2120, true, true, true, 0.0, "success@razorpay", shopType = "MEDICAL_STORE"),
+            ShopDoc("shop_4", "Gupta Hardware", null, 4.1, 42, 28.6160, 77.2060, true, true, true, 0.0, "success@razorpay", shopType = "HARDWARE"),
+            ShopDoc("shop_5", "Mithai Mahal", null, 4.8, 210, 28.6145, 77.2105, true, true, true, 3.0, "success@razorpay", shopType = "SWEET_SHOP"),
         ),
     )
     db.getCollection<ShopUserDoc>("shop_users").insertMany(

@@ -102,6 +102,16 @@ data class ShopDto(
     val discountPercent: Double = 0.0,
     val upiId: String = "",
     val deliveryRadiusKm: Double = 20.0,
+    val shopType: String = "GENERAL_STORE",
+)
+
+@Serializable
+data class ShopReviewDto(
+    val id: String,
+    val customerName: String,
+    val stars: Int,
+    val comment: String? = null,
+    val createdAtEpochMs: Long,
 )
 
 @Serializable

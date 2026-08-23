@@ -14,6 +14,8 @@ import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
+import org.bhargav.pansariwala.domain.model.ShopSortOption
+import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
@@ -25,7 +27,13 @@ import pansariwala.shared.generated.resources.location_unavailable
 data class MarketUiState(
     val query: String = "",
     val radiusKm: Double = AppConstants.DEFAULT_SEARCH_RADIUS_KM,
+    val allShops: List<MarketplaceShop> = emptyList(),
     val shops: List<MarketplaceShop> = emptyList(),
+    val selectedShopTypes: Set<ShopType> = emptySet(),
+    val sortOption: ShopSortOption = ShopSortOption.DISTANCE_ASC,
+    val showFilterSheet: Boolean = false,
+    val userName: String = "",
+    val locationLabel: String = "",
     val loading: Boolean = true,
     val error: UiText? = null,
     val fetchingLocation: Boolean = false,
@@ -64,14 +72,30 @@ class MarketViewModel(
     }
 
     fun onHomeVisible() {
+        loadProfile()
         if (_state.value.locationPermissionGranted) {
-            if (homeLoaded && _state.value.shops.isNotEmpty()) {
+            if (homeLoaded && _state.value.allShops.isNotEmpty()) {
                 refreshShops(useCachedLocation = true, soft = true)
             } else {
                 refreshLocationAndShops()
             }
         } else {
             _state.update { it.copy(requestLocationPermission = true) }
+        }
+    }
+
+    fun loadProfile() {
+        viewModelScope.launch {
+            runCatching { api.me() }.onSuccess { profile ->
+                val label = buildString {
+                    if (profile.locality.isNotBlank()) append(profile.locality)
+                    if (profile.address.isNotBlank()) {
+                        if (isNotEmpty()) append(", ")
+                        append(profile.address)
+                    }
+                }.ifBlank { profile.address }
+                _state.update { it.copy(userName = profile.name, locationLabel = label) }
+            }
         }
     }
 
@@ -110,11 +134,28 @@ class MarketViewModel(
         }
     }
 
-    fun setRadius(km: Double) {
-        viewModelScope.launch {
-            preferences.setSearchRadiusKm(km)
+    fun toggleShopType(type: ShopType) {
+        _state.update { state ->
+            val next = state.selectedShopTypes.toMutableSet().apply {
+                if (contains(type)) remove(type) else add(type)
+            }
+            state.copy(selectedShopTypes = next)
         }
+        applyFilters()
     }
+
+    fun setSortOption(option: ShopSortOption) {
+        _state.update { it.copy(sortOption = option) }
+        applyFilters()
+    }
+
+    fun setFilterShopTypes(types: Set<ShopType>) {
+        _state.update { it.copy(selectedShopTypes = types) }
+        applyFilters()
+    }
+
+    fun showFilterSheet() { _state.update { it.copy(showFilterSheet = true) } }
+    fun hideFilterSheet() { _state.update { it.copy(showFilterSheet = false) } }
 
     fun search() {
         if (_state.value.locationPermissionGranted) {
@@ -146,7 +187,7 @@ class MarketViewModel(
             val cachedLng = lastLng
             _state.update {
                 it.copy(
-                    loading = !soft || it.shops.isEmpty(),
+                    loading = !soft || it.allShops.isEmpty(),
                     error = null,
                 )
             }
@@ -173,11 +214,28 @@ class MarketViewModel(
             api.nearbyShops(lat, lng, _state.value.radiusKm, _state.value.query)
         }.onSuccess { shops ->
             homeLoaded = true
-            _state.update { it.copy(loading = false, shops = shops, error = null) }
+            _state.update { it.copy(loading = false, allShops = shops, error = null) }
+            applyFilters()
         }.onFailure { err ->
             err.rethrowIfStructuredCancellation()
             _state.update { it.copy(loading = false, error = err.toApiUiText()) }
         }
+    }
+
+    private fun applyFilters() {
+        val current = _state.value
+        var result = current.allShops
+        if (current.selectedShopTypes.isNotEmpty()) {
+            result = result.filter { it.shopType in current.selectedShopTypes }
+        }
+        result = when (current.sortOption) {
+            ShopSortOption.DISTANCE_ASC -> result.sortedBy { it.distanceKm }
+            ShopSortOption.DISTANCE_DESC -> result.sortedByDescending { it.distanceKm }
+            ShopSortOption.RATING_DESC -> result.sortedByDescending { it.rating }
+            ShopSortOption.NAME_ASC -> result.sortedBy { it.name.lowercase() }
+            ShopSortOption.NAME_DESC -> result.sortedByDescending { it.name.lowercase() }
+        }
+        _state.update { it.copy(shops = result) }
     }
 
     private fun handleLocationFailure(err: Throwable) {

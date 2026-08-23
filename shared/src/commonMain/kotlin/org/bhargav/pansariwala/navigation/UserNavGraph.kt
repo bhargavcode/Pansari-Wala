@@ -6,6 +6,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.SnackbarDuration
@@ -52,7 +57,6 @@ import org.bhargav.pansariwala.feature.user.TransactionsScreen
 import org.bhargav.pansariwala.feature.user.UserLanguageScreen
 import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
 import org.bhargav.pansariwala.feature.user.UserSettingsHub
-import org.bhargav.pansariwala.feature.user.UserShopTabScreen
 import org.bhargav.pansariwala.feature.user.UserThemeScreen
 import org.bhargav.pansariwala.notification.NotificationRouter
 import org.jetbrains.compose.resources.stringResource
@@ -62,7 +66,6 @@ import pansariwala.shared.generated.resources.action_show
 import pansariwala.shared.generated.resources.tab_home
 import pansariwala.shared.generated.resources.tab_orders
 import pansariwala.shared.generated.resources.tab_profile
-import pansariwala.shared.generated.resources.tab_shop
 
 private val userNavConfig = SavedStateConfiguration {
     serializersModule = SerializersModule {
@@ -164,6 +167,7 @@ fun UserNavGraph() {
                             onNotifications = { push(UserRoute.NotificationPrefs) },
                             onTheme = { push(UserRoute.ThemePrefs) },
                             onLogout = { replaceAll(UserRoute.PhoneAuth) },
+                            onChangeLocation = { push(UserRoute.Address) },
                         )
                     }
                     is UserRoute.ShopCatalog -> NavEntry(route) {
@@ -242,25 +246,24 @@ private fun UserShell(
     onNotifications: () -> Unit,
     onTheme: () -> Unit,
     onLogout: () -> Unit,
+    onChangeLocation: () -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
     val cart: CartStore = koinInject()
     val cartLines by cart.lines.collectAsStateWithLifecycle(emptyList())
     val cartShopId by cart.shopId.collectAsStateWithLifecycle(null)
-    val cartShopName by cart.shopName.collectAsStateWithLifecycle(null)
     val cartCount = cartLines.sumOf { it.quantity.toInt() }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Column(Modifier.weight(1f).padding(bottom = 4.dp)) {
                 when (tab) {
-                    0 -> MarketScreen(onOpenShop = onOpenShop, onContinueOrder = onOpenCart)
-                    1 -> UserShopTabScreen(
-                        activeShopId = cartShopId,
-                        activeShopName = cartShopName,
+                    0 -> MarketScreen(
                         onOpenShop = onOpenShop,
+                        onContinueOrder = onOpenCart,
+                        onChangeLocation = onChangeLocation,
                     )
-                    2 -> AccountHomeScreen(
+                    1 -> AccountHomeScreen(
                         onRecent = onOrder,
                         onAllOrders = onAllOrders,
                         onTxns = onTxns,
@@ -273,30 +276,24 @@ private fun UserShell(
                 NavigationBarItem(
                     selected = tab == 0,
                     onClick = { tab = 0 },
-                    icon = { Text("H") },
+                    icon = { Icon(Icons.Default.Home, contentDescription = stringResource(Res.string.tab_home)) },
                     label = { Text(stringResource(Res.string.tab_home)) },
                 )
                 NavigationBarItem(
                     selected = tab == 1,
                     onClick = { tab = 1 },
-                    icon = { Text("S") },
-                    label = { Text(stringResource(Res.string.tab_shop)) },
+                    icon = { Icon(Icons.Default.ReceiptLong, contentDescription = stringResource(Res.string.tab_orders)) },
+                    label = { Text(stringResource(Res.string.tab_orders)) },
                 )
                 NavigationBarItem(
                     selected = tab == 2,
                     onClick = { tab = 2 },
-                    icon = { Text("O") },
-                    label = { Text(stringResource(Res.string.tab_orders)) },
-                )
-                NavigationBarItem(
-                    selected = tab == 3,
-                    onClick = { tab = 3 },
-                    icon = { Text("P") },
+                    icon = { Icon(Icons.Default.Person, contentDescription = stringResource(Res.string.tab_profile)) },
                     label = { Text(stringResource(Res.string.tab_profile)) },
                 )
             }
         }
-        if (cartCount > 0 && cartShopId != null && tab in 0..1) {
+        if (cartCount > 0 && cartShopId != null && tab == 0) {
             CartFloatingPill(
                 itemCount = cartCount,
                 onClick = { onOpenCart(cartShopId!!) },

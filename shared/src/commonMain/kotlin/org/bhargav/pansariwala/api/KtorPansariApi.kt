@@ -139,6 +139,9 @@ class KtorPansariApi(
     override suspend fun shopCatalog(shopId: String): List<Product> =
         client.get("shops/$shopId/catalog").body<List<ProductDto>>().map { it.toModel() }
 
+    override suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview> =
+        client.get("shops/$shopId/ratings").body<List<ShopReviewDto>>().map { it.toModel() }
+
     override suspend fun shopOffers(shopId: String): List<ShopOffer> =
         client.get("shops/$shopId/offers").body<List<OfferDto>>().map { it.toModel() }
 

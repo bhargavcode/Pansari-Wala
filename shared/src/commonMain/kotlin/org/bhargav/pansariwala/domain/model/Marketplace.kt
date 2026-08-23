@@ -28,6 +28,29 @@ data class GeoPoint(
     val lng: Double,
 )
 
+enum class ShopType(val apiValue: String) {
+    GENERAL_STORE("GENERAL_STORE"),
+    HARDWARE("HARDWARE"),
+    MEDICAL_STORE("MEDICAL_STORE"),
+    SWEET_SHOP("SWEET_SHOP"),
+    STATIONERY("STATIONERY"),
+    ELECTRONICS("ELECTRONICS"),
+    ;
+
+    companion object {
+        fun fromApi(value: String): ShopType =
+            entries.firstOrNull { it.apiValue.equals(value, ignoreCase = true) } ?: GENERAL_STORE
+    }
+}
+
+enum class ShopSortOption {
+    DISTANCE_ASC,
+    DISTANCE_DESC,
+    RATING_DESC,
+    NAME_ASC,
+    NAME_DESC,
+}
+
 data class MarketplaceShop(
     val id: String,
     val name: String,
@@ -37,9 +60,18 @@ data class MarketplaceShop(
     val distanceKm: Double,
     val isOpen: Boolean,
     val location: GeoPoint,
+    val shopType: ShopType = ShopType.GENERAL_STORE,
     val offerCount: Int = 0,
     val discountPercent: Double = 0.0,
     val deliveryRadiusKm: Double = 20.0,
+)
+
+data class ShopReview(
+    val id: String,
+    val customerName: String,
+    val stars: Int,
+    val comment: String?,
+    val createdAtEpochMs: Long,
 )
 
 data class ShopOffer(

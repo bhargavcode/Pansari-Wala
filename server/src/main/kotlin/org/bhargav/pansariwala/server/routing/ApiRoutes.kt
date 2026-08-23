@@ -116,6 +116,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         get("/shops/{id}/catalog") {
             call.respond(store.catalog(call.parameters["id"]!!))
         }
+        get("/shops/{id}/ratings") {
+            call.respond(withContext(Dispatchers.IO) { store.shopRatings(call.parameters["id"]!!) })
+        }
         get("/shops/{id}/offers") {
             call.respond(store.offers(call.parameters["id"]!!))
         }

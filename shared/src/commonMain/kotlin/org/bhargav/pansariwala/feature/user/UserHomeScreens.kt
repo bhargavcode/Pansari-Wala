@@ -9,7 +9,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import org.bhargav.pansariwala.domain.model.ShopSortOption
+import org.bhargav.pansariwala.domain.model.ShopType
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -21,12 +36,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.designsystem.SectionCard
@@ -59,8 +80,20 @@ import pansariwala.shared.generated.resources.field_otp
 import pansariwala.shared.generated.resources.field_phone
 import pansariwala.shared.generated.resources.help_body
 import pansariwala.shared.generated.resources.location_confirm_address
+import pansariwala.shared.generated.resources.action_apply
+import pansariwala.shared.generated.resources.action_clear
+import pansariwala.shared.generated.resources.market_filter
+import pansariwala.shared.generated.resources.market_filter_title
+import pansariwala.shared.generated.resources.market_greeting
+import pansariwala.shared.generated.resources.market_location_unknown
 import pansariwala.shared.generated.resources.market_radius_range
 import pansariwala.shared.generated.resources.market_search_products
+import pansariwala.shared.generated.resources.market_shop_types
+import pansariwala.shared.generated.resources.market_sort_distance_asc
+import pansariwala.shared.generated.resources.market_sort_distance_desc
+import pansariwala.shared.generated.resources.market_sort_name_asc
+import pansariwala.shared.generated.resources.market_sort_name_desc
+import pansariwala.shared.generated.resources.market_sort_rating
 import pansariwala.shared.generated.resources.no_orders_yet
 import pansariwala.shared.generated.resources.no_shops_nearby
 import pansariwala.shared.generated.resources.profile_payment_header
@@ -222,10 +255,12 @@ fun UserLocationAccessScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketScreen(
     onOpenShop: (String) -> Unit,
     onContinueOrder: (String) -> Unit,
+    onChangeLocation: () -> Unit = {},
     viewModel: MarketViewModel = koinViewModel(),
     cart: CartStore = koinInject(),
 ) {
@@ -234,9 +269,19 @@ fun MarketScreen(
     val cartLines by cart.lines.collectAsStateWithLifecycle()
     val cartShopId by cart.shopId.collectAsStateWithLifecycle()
     val cartShopName by cart.shopName.collectAsStateWithLifecycle()
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var draftSort by remember(state.showFilterSheet) { mutableStateOf(state.sortOption) }
+    var draftTypes by remember(state.showFilterSheet) { mutableStateOf(state.selectedShopTypes) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(Unit) {
         viewModel.onHomeVisible()
+    }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.loadProfile()
+        }
     }
 
     RequestLocationPermission(
@@ -255,6 +300,62 @@ fun MarketScreen(
         message = deniedMessage,
     )
 
+    if (state.showFilterSheet) {
+        ModalBottomSheet(
+            onDismissRequest = viewModel::hideFilterSheet,
+            sheetState = filterSheetState,
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(Res.string.market_filter_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                listOf(
+                    ShopSortOption.DISTANCE_ASC to Res.string.market_sort_distance_asc,
+                    ShopSortOption.DISTANCE_DESC to Res.string.market_sort_distance_desc,
+                    ShopSortOption.RATING_DESC to Res.string.market_sort_rating,
+                    ShopSortOption.NAME_ASC to Res.string.market_sort_name_asc,
+                    ShopSortOption.NAME_DESC to Res.string.market_sort_name_desc,
+                ).forEach { (option, labelRes) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { draftSort = option },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = draftSort == option, onClick = { draftSort = option })
+                        Text(stringResource(labelRes))
+                    }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(stringResource(Res.string.market_shop_types), fontWeight = FontWeight.SemiBold)
+                ShopType.entries.forEach { type ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            draftTypes = draftTypes.toMutableSet().apply {
+                                if (contains(type)) remove(type) else add(type)
+                            }
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = type in draftTypes, onCheckedChange = null)
+                        Text(shopTypeLabel(type))
+                    }
+                }
+                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(onClick = {
+                        draftSort = ShopSortOption.DISTANCE_ASC
+                        draftTypes = emptySet()
+                    }) { Text(stringResource(Res.string.action_clear)) }
+                    UserPrimaryButton(
+                        text = stringResource(Res.string.action_apply),
+                        onClick = {
+                            viewModel.setSortOption(draftSort)
+                            viewModel.setFilterShopTypes(draftTypes)
+                            viewModel.hideFilterSheet()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+
     PansariScreen(
         error = state.error.toErrorBanner(),
         onErrorAction = {
@@ -263,80 +364,67 @@ fun MarketScreen(
         isLoading = state.loading && state.shops.isEmpty(),
         isRefreshing = state.loading && state.shops.isNotEmpty(),
     ) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        if (cartLines.isNotEmpty() && cartShopId != null) {
-            ContinueLastOrderCard(
-                shopName = cartShopName ?: cartShopId.orEmpty(),
-                lines = cartLines,
-                subtotal = cart.subtotal,
-                onContinue = { onContinueOrder(cartShopId!!) },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-        }
-        OutlinedTextField(
-            value = state.query,
-            onValueChange = viewModel::setQuery,
-            label = { Text(stringResource(Res.string.market_search_products)) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            singleLine = true,
-        )
-        Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                stringResource(
-                    Res.string.market_radius_range,
-                    AppConstants.MIN_SEARCH_RADIUS_KM.roundToInt().toString(),
-                    AppConstants.MAX_SEARCH_RADIUS_KM.roundToInt().toString(),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-            )
-            Slider(
-                value = state.radiusKm.toFloat(),
-                onValueChange = { viewModel.setRadius(it.toDouble()) },
-                valueRange = AppConstants.MIN_SEARCH_RADIUS_KM.toFloat()..AppConstants.MAX_SEARCH_RADIUS_KM.toFloat(),
-            )
-            Text(
-                "${state.radiusKm.roundToInt()} km",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            if (state.shops.isEmpty() && !state.loading) {
-                Text(stringResource(Res.string.no_shops_nearby))
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(
+                    stringResource(Res.string.market_greeting, state.userName.ifBlank { "there" }),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = state.locationLabel.ifBlank { stringResource(Res.string.market_location_unknown) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp).clickable(onClick = onChangeLocation),
+                )
             }
-            state.shops.forEach { shop ->
-                ShopDiscoveryCard(shop = shop, onClick = { onOpenShop(shop.id) })
+            if (cartLines.isNotEmpty() && cartShopId != null) {
+                ContinueLastOrderCard(
+                    shopName = cartShopName ?: cartShopId.orEmpty(),
+                    lines = cartLines,
+                    subtotal = cart.subtotal,
+                    onContinue = { onContinueOrder(cartShopId!!) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
-        }
-    }
-    }
-}
-
-@Composable
-fun UserShopTabScreen(
-    activeShopId: String?,
-    activeShopName: String?,
-    onOpenShop: (String) -> Unit,
-) {
-    PansariScreen {
-        Column(
-            Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-        if (activeShopId != null && activeShopName != null) {
-            Text(
-                stringResource(Res.string.user_shop_tab_continue, activeShopName),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
-            UserPrimaryButton(text = activeShopName, onClick = { onOpenShop(activeShopId) })
-        } else {
-            Text(
-                stringResource(Res.string.user_shop_tab_empty),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = viewModel::setQuery,
+                    label = { Text(stringResource(Res.string.market_search_products)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                )
+                IconButton(onClick = viewModel::showFilterSheet) {
+                    Icon(Icons.Default.FilterList, contentDescription = stringResource(Res.string.market_filter))
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ShopType.entries.forEach { type ->
+                    FilterChip(
+                        selected = type in state.selectedShopTypes,
+                        onClick = { viewModel.toggleShopType(type) },
+                        label = { Text(shopTypeLabel(type)) },
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (state.shops.isEmpty() && !state.loading) {
+                    Text(stringResource(Res.string.no_shops_nearby))
+                }
+                state.shops.forEach { shop ->
+                    ShopDiscoveryCard(shop = shop, onClick = { onOpenShop(shop.id) })
+                }
+            }
         }
     }
 }

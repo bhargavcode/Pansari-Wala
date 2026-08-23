@@ -32,6 +32,7 @@ interface PansariApi {
 
     suspend fun nearbyShops(lat: Double, lng: Double, radiusKm: Double, query: String): List<MarketplaceShop>
     suspend fun shopCatalog(shopId: String): List<Product>
+    suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview>
     suspend fun shopOffers(shopId: String): List<ShopOffer>
     suspend fun quote(request: QuoteRequest): QuoteDto
     /** Non-payment readiness check (profile, cart, stock). Call before Razorpay. */

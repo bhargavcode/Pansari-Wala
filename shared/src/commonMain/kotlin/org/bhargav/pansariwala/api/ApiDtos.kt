@@ -22,6 +22,7 @@ import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.ShopOffer
+import org.bhargav.pansariwala.domain.model.ShopType
 
 @Serializable
 data class ApiErrorBody(val error: String, val code: String? = null)
@@ -116,6 +117,16 @@ data class ShopDto(
     val discountPercent: Double = 0.0,
     val upiId: String = "",
     val deliveryRadiusKm: Double = 20.0,
+    val shopType: String = "GENERAL_STORE",
+)
+
+@Serializable
+data class ShopReviewDto(
+    val id: String,
+    val customerName: String,
+    val stars: Int,
+    val comment: String? = null,
+    val createdAtEpochMs: Long,
 )
 
 @Serializable
@@ -399,6 +410,15 @@ fun ShopDto.toModel() = MarketplaceShop(
     offerCount = offerCount,
     discountPercent = discountPercent,
     deliveryRadiusKm = deliveryRadiusKm,
+    shopType = ShopType.fromApi(shopType),
+)
+
+fun ShopReviewDto.toModel() = org.bhargav.pansariwala.domain.model.ShopReview(
+    id = id,
+    customerName = customerName,
+    stars = stars,
+    comment = comment,
+    createdAtEpochMs = createdAtEpochMs,
 )
 
 fun SavedAddressDto.toModel() = org.bhargav.pansariwala.domain.model.SavedAddress(
