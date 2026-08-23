@@ -5,7 +5,10 @@ import androidx.compose.runtime.LaunchedEffect
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.useContents
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.bhargav.pansariwala.domain.model.GeoPoint
 import org.bhargav.pansariwala.util.AppConstants
@@ -139,19 +142,26 @@ object IosLocationEngine {
         manager.showsBackgroundLocationIndicator = true
     }
 
-    suspend fun currentFix(): GeoPoint {
+    suspend fun currentFix(): GeoPoint = withContext(Dispatchers.Main) {
         if (!isGranted()) throw LocationPermissionDeniedException()
-        lastFix?.let { return it }
-        return withTimeout(AppConstants.LOCATION_FETCH_TIMEOUT_MS) {
-            suspendCancellableCoroutine { cont ->
-                pendingFix = { result ->
-                    result
-                        .onSuccess { if (cont.isActive) cont.resume(it) }
-                        .onFailure { if (cont.isActive) cont.resumeWithException(it) }
+        val cached = lastFix
+        try {
+            withTimeout(AppConstants.LOCATION_FETCH_TIMEOUT_MS) {
+                suspendCancellableCoroutine { cont ->
+                    pendingFix = { result ->
+                        result
+                            .onSuccess { if (cont.isActive) cont.resume(it) }
+                            .onFailure { if (cont.isActive) cont.resumeWithException(it) }
+                    }
+                    manager.requestLocation()
+                    manager.startUpdatingLocation()
+                    cont.invokeOnCancellation { pendingFix = null }
                 }
-                manager.requestLocation()
-                cont.invokeOnCancellation { pendingFix = null }
             }
+        } catch (_: TimeoutCancellationException) {
+            cached ?: throw LocationUnavailableException()
+        } finally {
+            if (!backgroundActive) manager.stopUpdatingLocation()
         }
     }
 }
@@ -169,8 +179,10 @@ actual fun RequestLocationPermission(
 ) {
     LaunchedEffect(trigger) {
         if (!trigger) return@LaunchedEffect
-        onConsumed()
-        IosLocationEngine.requestWhenInUse(onResult)
+        IosLocationEngine.requestWhenInUse { granted ->
+            onConsumed()
+            onResult(granted)
+        }
     }
 }
 

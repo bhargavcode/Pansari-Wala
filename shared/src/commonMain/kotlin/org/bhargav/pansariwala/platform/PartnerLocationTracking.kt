@@ -30,15 +30,13 @@ class PartnerLocationTracker(
 ) {
     suspend fun setOnlineDuty(online: Boolean) {
         preferences.setPartnerOnlineDuty(online)
-        if (online && preferences.hasSession()) {
-            startPartnerLocationTracking()
-        } else {
-            stopPartnerLocationTracking()
-        }
+        ensureTracking()
     }
 
-    suspend fun restore() {
-        if (preferences.getPartnerOnlineDuty() && preferences.hasSession()) {
+    suspend fun restore() = ensureTracking()
+
+    suspend fun ensureTracking() {
+        if (preferences.hasSession()) {
             startPartnerLocationTracking()
         } else {
             stopPartnerLocationTracking()

@@ -55,21 +55,38 @@ class AndroidDeviceLocation(
         if (!context.isLocationEnabled()) {
             throw LocationUnavailableException()
         }
+        lastKnown()?.let { return it }
         val fused = LocationServices.getFusedLocationProviderClient(context)
-        val last = awaitLastLocation(fused)
-        if (last != null) {
-            return GeoPoint(last.latitude, last.longitude)
+        val fusedLast = awaitLastLocation(fused)
+        if (fusedLast != null && fusedLast.isUsable()) {
+            return GeoPoint(fusedLast.latitude, fusedLast.longitude)
         }
         return withTimeout(AppConstants.LOCATION_FETCH_TIMEOUT_MS) {
-            val current = awaitCurrentLocation(fused, Priority.PRIORITY_BALANCED_POWER_ACCURACY)
-                ?: awaitCurrentLocation(fused, Priority.PRIORITY_HIGH_ACCURACY)
-            if (current != null) {
+            val current = awaitCurrentLocation(fused, Priority.PRIORITY_HIGH_ACCURACY)
+                ?: awaitCurrentLocation(fused, Priority.PRIORITY_BALANCED_POWER_ACCURACY)
+            if (current != null && current.isUsable()) {
                 return@withTimeout GeoPoint(current.latitude, current.longitude)
             }
-            val oneShot = awaitSingleUpdate(fused)
-            GeoPoint(oneShot.latitude, oneShot.longitude)
+            val oneShot = runCatching { awaitSingleUpdate(fused) }.getOrNull()
+            if (oneShot != null && oneShot.isUsable()) {
+                return@withTimeout GeoPoint(oneShot.latitude, oneShot.longitude)
+            }
+            lastKnown() ?: throw LocationUnavailableException()
         }
     }
+
+    private fun lastKnown(): GeoPoint? {
+        val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val cached = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .mapNotNull { provider ->
+                runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
+            }
+            .filter { it.isUsable() }
+            .maxByOrNull { it.time }
+        return cached?.let { GeoPoint(it.latitude, it.longitude) }
+    }
+
+    private fun Location.isUsable(): Boolean = !(latitude == 0.0 && longitude == 0.0)
 
     private suspend fun awaitCurrentLocation(
         fused: com.google.android.gms.location.FusedLocationProviderClient,
@@ -135,12 +152,13 @@ actual fun RequestLocationPermission(
 
     LaunchedEffect(trigger) {
         if (!trigger) return@LaunchedEffect
-        onConsumed()
         if (context.hasLocationPermission()) {
+            onConsumed()
             onResult(true)
-        } else {
-            launcher.launch(locationPermissions)
+            return@LaunchedEffect
         }
+        launcher.launch(locationPermissions)
+        onConsumed()
     }
 }
 

@@ -482,9 +482,7 @@ class PartnerHomeViewModel(
         }
         if (granted) {
             refreshCurrentLocation()
-            if (_state.value.online) {
-                viewModelScope.launch { locationTracker.setOnlineDuty(true) }
-            }
+            viewModelScope.launch { locationTracker.ensureTracking() }
         }
     }
 
@@ -593,6 +591,7 @@ class PartnerHomeViewModel(
             runCatching { fetchAndPushLocation() }
                 .onSuccess { geo ->
                     _state.update { it.copy(lat = geo.lat, lng = geo.lng, fetchingLocation = false) }
+                    locationTracker.ensureTracking()
                 }
                 .onFailure { e ->
                     val denied = e is LocationPermissionDeniedException
@@ -622,7 +621,10 @@ class PartnerHomeViewModel(
         if (!_state.value.locationPermissionGranted) return
         viewModelScope.launch {
             runCatching { fetchAndPushLocation() }
-                .onSuccess { geo -> _state.update { it.copy(lat = geo.lat, lng = geo.lng, error = null) } }
+                .onSuccess { geo ->
+                    _state.update { it.copy(lat = geo.lat, lng = geo.lng, error = null) }
+                    locationTracker.ensureTracking()
+                }
                 .onFailure { e ->
                     when (e) {
                         is LocationPermissionDeniedException -> {

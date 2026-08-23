@@ -393,6 +393,14 @@
     <string name="action_use_current_location">Use current location</string>
     <string name="hint_address_pick_place">Search and select a place, or fill address and tap Use current location.</string>
     <string name="partner_register_location_required">Allow location access so we can save your registration address on the map.</string>
+    <string name="partner_location_access_title">Share your live location</string>
+    <string name="partner_location_access_subtitle">We use your GPS to match nearby delivery jobs and keep your position updated on the shop map.</string>
+    <string name="partner_location_access_reason_jobs">See jobs around your current position</string>
+    <string name="partner_location_access_reason_tracking">Stay visible to shops while you are on duty</string>
+    <string name="partner_location_access_reason_eta">Give customers an accurate arrival time</string>
+    <string name="partner_location_access_action">Allow &amp; use current location</string>
+    <string name="partner_location_access_continue">Continue to home</string>
+    <string name="partner_location_permission_denied_message">Pansari Wala needs your location to assign nearby deliveries and update your position every 2 minutes.\n\nWithout location access you will not receive jobs around you.</string>
     <string name="error_phone_required">Phone number is required</string>
     <string name="error_photos_required">Please upload all required documents</string>
     <string name="partner_action_sign_up">Sign Up</string>

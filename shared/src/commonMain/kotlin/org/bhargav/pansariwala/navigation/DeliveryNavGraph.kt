@@ -22,6 +22,7 @@ import org.bhargav.pansariwala.feature.delivery.PartnerDeliverToCustomerScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerDeliveryCompleteScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerEarningsScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerHomeScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerLocationAccessScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerLoginScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerNavigateToStoreScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerPickupItemsScreen
@@ -40,6 +41,7 @@ private val deliveryNavConfig = SavedStateConfiguration {
             subclass(DeliveryRoute.Splash::class, DeliveryRoute.Splash.serializer())
             subclass(DeliveryRoute.Login::class, DeliveryRoute.Login.serializer())
             subclass(DeliveryRoute.Register::class, DeliveryRoute.Register.serializer())
+            subclass(DeliveryRoute.LocationAccess::class, DeliveryRoute.LocationAccess.serializer())
             subclass(DeliveryRoute.Home::class, DeliveryRoute.Home.serializer())
             subclass(DeliveryRoute.NavigateToStore::class, DeliveryRoute.NavigateToStore.serializer())
             subclass(DeliveryRoute.PickupItems::class, DeliveryRoute.PickupItems.serializer())
@@ -95,16 +97,19 @@ fun DeliveryNavGraph() {
                     }
                     DeliveryRoute.Login -> NavEntry(route) {
                         PartnerLoginScreen(
-                            onVerified = { replaceAll(DeliveryRoute.Home) },
+                            onVerified = { replaceAll(DeliveryRoute.LocationAccess) },
                             onSignUp = { push(DeliveryRoute.Register) },
                         )
                     }
                     DeliveryRoute.Register -> NavEntry(route) {
                         PartnerRegisterScreen(
-                            onVerified = { replaceAll(DeliveryRoute.Home) },
+                            onVerified = { replaceAll(DeliveryRoute.LocationAccess) },
                             onSignIn = { replaceAll(DeliveryRoute.Login) },
                             onBack = { replaceAll(DeliveryRoute.Login) },
                         )
+                    }
+                    DeliveryRoute.LocationAccess -> NavEntry(route) {
+                        PartnerLocationAccessScreen(onDone = { replaceAll(DeliveryRoute.Home) })
                     }
                     DeliveryRoute.Home -> NavEntry(route) {
                         PartnerHomeScreen(

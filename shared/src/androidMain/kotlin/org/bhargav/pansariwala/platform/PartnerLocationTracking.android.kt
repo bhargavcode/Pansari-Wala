@@ -25,18 +25,35 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.koin.core.context.GlobalContext
 
-actual fun startPartnerLocationTracking() {
-    if (AppProductHolder.current != AppProduct.DELIVERY) return
-    val context = GlobalContext.get().get<Context>()
-    val intent = Intent(context, PartnerLocationService::class.java)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(intent)
-    } else {
-        context.startService(intent)
+private val fallbackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+private var fallbackJob: Job? = null
+
+private fun startFallbackLoop() {
+    if (fallbackJob?.isActive == true) return
+    val koin = runCatching { GlobalContext.get() }.getOrNull() ?: return
+    fallbackJob = fallbackScope.launch {
+        partnerLocationUpdateLoop(koin.get(), koin.get())
     }
 }
 
+actual fun startPartnerLocationTracking() {
+    if (AppProductHolder.current != AppProduct.DELIVERY) return
+    val context = GlobalContext.get().get<Context>()
+    if (!context.hasLocationPermission()) return
+    val intent = Intent(context, PartnerLocationService::class.java)
+    val started = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }.isSuccess
+    if (!started) startFallbackLoop()
+}
+
 actual fun stopPartnerLocationTracking() {
+    fallbackJob?.cancel()
+    fallbackJob = null
     val context = runCatching { GlobalContext.get().get<Context>() }.getOrNull() ?: return
     context.stopService(Intent(context, PartnerLocationService::class.java))
 }

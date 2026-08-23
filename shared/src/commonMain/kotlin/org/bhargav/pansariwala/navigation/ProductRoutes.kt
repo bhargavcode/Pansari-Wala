@@ -29,6 +29,7 @@ sealed interface DeliveryRoute : NavKey {
     @Serializable data object Splash : DeliveryRoute
     @Serializable data object Login : DeliveryRoute
     @Serializable data object Register : DeliveryRoute
+    @Serializable data object LocationAccess : DeliveryRoute
     @Serializable data object Home : DeliveryRoute
     @Serializable data class NavigateToStore(val orderId: String) : DeliveryRoute
     @Serializable data class PickupItems(val orderId: String) : DeliveryRoute

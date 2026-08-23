@@ -30,8 +30,8 @@ object AppConstants {
     const val DELIVERY_RING_TIMEOUT_MS: Long = 15 * 60_000L
     const val PARTNER_OFFER_ACCEPT_MS: Long = 15_000L
     const val LIVE_ALERT_POLL_MS: Long = 5_000L
-    const val LOCATION_FETCH_TIMEOUT_MS: Long = 4_000L
-    /** Partner GPS push to server while online (foreground + background). */
+    const val LOCATION_FETCH_TIMEOUT_MS: Long = 15_000L
+    /** Partner GPS push to server (foreground + background). */
     const val PARTNER_LOCATION_UPDATE_MS: Long = 2 * 60_000L
     const val PARTNER_RING_RADIUS_KM: Double = 8.0
     const val ARRIVAL_PROXIMITY_RADIUS_M: Double = 100.0

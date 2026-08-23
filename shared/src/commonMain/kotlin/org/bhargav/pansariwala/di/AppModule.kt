@@ -28,6 +28,7 @@ import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.feature.delivery.PartnerEarningsViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerHomeViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerJobViewModel
+import org.bhargav.pansariwala.feature.delivery.PartnerLocationAccessViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerLoginViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterViewModel
 import org.bhargav.pansariwala.feature.order.OnlineOrdersViewModel
@@ -97,6 +98,7 @@ val appModule = module {
     viewModelOf(::OrderDetailsViewModel)
     viewModelOf(::PartnerLoginViewModel)
     viewModelOf(::PartnerRegisterViewModel)
+    viewModelOf(::PartnerLocationAccessViewModel)
     viewModelOf(::PartnerHomeViewModel)
     viewModelOf(::PartnerJobViewModel)
     viewModelOf(::PartnerEarningsViewModel)

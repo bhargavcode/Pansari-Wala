@@ -16,7 +16,7 @@ class WasmJsDeviceLocation : DeviceLocation {
 internal suspend fun requestBrowserLocation(): GeoPoint = suspendCancellableCoroutine { cont ->
     val geolocation = window.asDynamic().navigator.geolocation
     if (geolocation == undefined) {
-        cont.resumeWithException(LocationPermissionDeniedException())
+        cont.resumeWithException(LocationUnavailableException())
         return@suspendCancellableCoroutine
     }
     geolocation.getCurrentPosition(
@@ -29,10 +29,13 @@ internal suspend fun requestBrowserLocation(): GeoPoint = suspendCancellableCoro
                 ),
             )
         },
-        { _: JsAny? ->
-            cont.resumeWithException(LocationPermissionDeniedException())
+        { error: JsAny? ->
+            val code = error.asDynamic().code as? Int ?: 1
+            cont.resumeWithException(
+                if (code == 1) LocationPermissionDeniedException() else LocationUnavailableException(),
+            )
         },
-        js("({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })"),
+        js("({ enableHighAccuracy: true, timeout: 20000, maximumAge: 15000 })"),
     )
 }
 
@@ -44,10 +47,9 @@ actual fun RequestLocationPermission(
 ) {
     LaunchedEffect(trigger) {
         if (!trigger) return@LaunchedEffect
+        val granted = runCatching { requestBrowserLocation() }.isSuccess
         onConsumed()
-        runCatching { requestBrowserLocation() }
-            .onSuccess { onResult(true) }
-            .onFailure { onResult(false) }
+        onResult(granted)
     }
 }
 
