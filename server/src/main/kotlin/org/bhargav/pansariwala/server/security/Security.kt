@@ -44,7 +44,16 @@ class Security(
         }
     }
 
-    fun hashPassword(raw: String): String = sha256(config.passwordSalt + raw)
+    fun hashPassword(raw: String): String = sha256(config.passwordSalt + raw.trim())
+
+    fun passwordMatches(raw: String, storedHash: String): Boolean {
+        val password = raw.trim()
+        if (storedHash.isBlank() || password.isEmpty()) return false
+        if (signaturesEqual(storedHash, hashPassword(password))) return true
+        val defaultSalt = ServerConfig.DEFAULT_PASSWORD_SALT
+        return config.passwordSalt != defaultSalt &&
+            signaturesEqual(storedHash, sha256(defaultSalt + password))
+    }
 
     fun sha256(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(StandardCharsets.UTF_8))

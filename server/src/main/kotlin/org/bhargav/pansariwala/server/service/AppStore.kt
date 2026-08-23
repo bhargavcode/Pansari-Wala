@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.server.service
 
 import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.eq
+import com.mongodb.client.model.Filters.regex
 import com.mongodb.client.model.Filters.gte
 import com.mongodb.client.model.Filters.`in`
 import com.mongodb.client.model.Filters.or
@@ -116,17 +117,35 @@ class AppStore(
     }
 
     fun shopLogin(username: String, password: String): TokenResponse {
-        val row = shopUserCol.find(eq("username", username)).firstOrNull() ?: error("Invalid credentials")
-        if (row.passwordHash != security.hashPassword(password)) error("Invalid credentials")
+        val row = shopUserCol.find(usernameFilter(username)).firstOrNull() ?: error("Invalid credentials")
+        verifyAndMigratePassword(row.passwordHash, password) { hash ->
+            shopUserCol.updateOne(eq("_id", row.id), set("passwordHash", hash))
+        }
         val token = security.issueJwt(row.id, "SHOP", row.shopId, row.displayName)
         return TokenResponse(token, null, "SHOP", row.id, row.shopId, row.displayName)
     }
 
     fun adminLogin(username: String, password: String): TokenResponse {
-        val row = adminUserCol.find(eq("username", username)).firstOrNull() ?: error("Invalid credentials")
-        if (row.passwordHash != security.hashPassword(password)) error("Invalid credentials")
+        val row = adminUserCol.find(usernameFilter(username)).firstOrNull() ?: error("Invalid credentials")
+        verifyAndMigratePassword(row.passwordHash, password) { hash ->
+            adminUserCol.updateOne(eq("_id", row.id), set("passwordHash", hash))
+        }
         val token = security.issueJwt(row.id, "ADMIN", displayName = "Admin")
         return TokenResponse(token, null, "ADMIN", row.id, null, "Admin")
+    }
+
+    private fun usernameFilter(username: String) =
+        regex("username", "^${Regex.escape(username.trim())}$", "i")
+
+    private fun verifyAndMigratePassword(
+        storedHash: String,
+        password: String,
+        persist: (String) -> Unit,
+    ) {
+        val raw = password.trim()
+        if (!security.passwordMatches(raw, storedHash)) error("Invalid credentials")
+        val current = security.hashPassword(raw)
+        if (storedHash != current) persist(current)
     }
 
     fun loginFirebase(idToken: String): TokenResponse {

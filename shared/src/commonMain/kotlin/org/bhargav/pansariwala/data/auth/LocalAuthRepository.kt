@@ -44,8 +44,12 @@ class LocalAuthRepository(
             val remoteError = remoteResult?.exceptionOrNull()
             val requireServerJwt = currentAppProduct() == AppProduct.POS
             if (remote == null && requireServerJwt) {
+                val remoteMessage = remoteError?.message.orEmpty()
+                if (remoteMessage.contains("Invalid credentials", ignoreCase = true)) {
+                    throw IllegalStateException("Invalid username or password.")
+                }
                 throw IllegalStateException(
-                    remoteError?.message?.takeIf { it.isNotBlank() }
+                    remoteMessage.takeIf { it.isNotBlank() }
                         ?: "Cannot reach the shop server.",
                 )
             }
@@ -86,10 +90,13 @@ class LocalAuthRepository(
                     payload = mapOf("identifier" to credentials.identifier.take(3) + "***"),
                 ),
             )
-            crashReporter.recordException(
-                error,
-                mapOf("screen" to "login", "action" to "submit"),
-            )
+            val expected = error.message.orEmpty().contains("Invalid username or password")
+            if (!expected) {
+                crashReporter.recordException(
+                    error,
+                    mapOf("screen" to "login", "action" to "submit"),
+                )
+            }
         }
     }
 

@@ -26,6 +26,7 @@ data class ServerConfig(
     val smsConfigured: Boolean get() = smsApiUrl.isNotBlank()
 
     companion object {
+        const val DEFAULT_PASSWORD_SALT = "pansari-local-salt"
         private const val ATLAS_USER = "pansariwala"
         private const val ATLAS_HOST = "pansariwala.nl9gm4j.mongodb.net"
         private const val ATLAS_APP = "pansariwala"
@@ -45,7 +46,7 @@ data class ServerConfig(
             devAuth = env("AUTH_DEV_MODE", "true").toBooleanStrict(),
             smsApiUrl = env("SMS_API_URL", ""),
             smsApiToken = env("SMS_API_TOKEN", ""),
-            passwordSalt = env("PASSWORD_SALT", "pansari-local-salt"),
+            passwordSalt = env("PASSWORD_SALT", DEFAULT_PASSWORD_SALT),
             uploadDir = env("UPLOAD_DIR", "./data/uploads"),
         )
 

@@ -5,7 +5,7 @@ class LoginUseCase(
 ) {
     suspend operator fun invoke(credentials: LoginCredentials): Result<Session> {
         val identifier = credentials.identifier.trim()
-        val password = credentials.password
+        val password = credentials.password.trim()
         if (identifier.isBlank() || password.length < 4) {
             return Result.failure(
                 IllegalArgumentException("Enter a valid phone/email and password (min 4 chars)."),

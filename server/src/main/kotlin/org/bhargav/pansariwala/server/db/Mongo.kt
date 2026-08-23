@@ -235,7 +235,24 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
         seed(db, security)
     }
     ensureShopUpis(db)
+    ensureDemoShopUsers(db, security)
     return MongoApp(client, db)
+}
+
+private fun ensureDemoShopUsers(db: MongoDatabase, security: Security) {
+    val users = db.getCollection<ShopUserDoc>("shop_users")
+    listOf(
+        ShopUserDoc("user_owner", "shop_1", "owner", security.hashPassword("1234"), "Owner", "SHOP"),
+        ShopUserDoc("user_cashier", "shop_1", "cashier", security.hashPassword("1234"), "Cashier", "SHOP"),
+    ).forEach { demo ->
+        if (users.find(eq("username", demo.username)).firstOrNull() == null) {
+            users.insertOne(demo)
+        }
+    }
+    val admins = db.getCollection<AdminUserDoc>("admin_users")
+    if (admins.find(eq("username", "admin")).firstOrNull() == null) {
+        admins.insertOne(AdminUserDoc("admin_1", "admin", security.hashPassword("admin123")))
+    }
 }
 
 private fun ensureShopUpis(db: MongoDatabase) {
