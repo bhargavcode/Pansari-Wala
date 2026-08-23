@@ -30,14 +30,17 @@ import org.bhargav.pansariwala.platform.ImagePicker
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.digitsPhone
+import org.bhargav.pansariwala.platform.fetchPlaceDetails
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
 import org.bhargav.pansariwala.platform.normalizeVehicleReg
+import org.bhargav.pansariwala.platform.searchPlaces
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_address_required
 import pansariwala.shared.generated.resources.error_email_invalid
 import pansariwala.shared.generated.resources.error_generic
+import pansariwala.shared.generated.resources.error_place_details_failed
 import pansariwala.shared.generated.resources.partner_job_load_failed
 import pansariwala.shared.generated.resources.partner_job_unavailable
 import pansariwala.shared.generated.resources.error_phone_invalid
@@ -49,14 +52,15 @@ import pansariwala.shared.generated.resources.error_photo_pick_failed
 import pansariwala.shared.generated.resources.error_photos_required
 import pansariwala.shared.generated.resources.error_plate_mismatch
 import pansariwala.shared.generated.resources.location_unavailable
+import pansariwala.shared.generated.resources.dev_otp_hint
 import pansariwala.shared.generated.resources.otp_sent_partner
 import pansariwala.shared.generated.resources.otp_sent_partner_login
+import pansariwala.shared.generated.resources.partner_register_location_required
 
 private val VEHICLE_REG_PATTERN = Regex("^[A-Z]{2}\\d{1,2}[A-Z]{0,3}\\d{4}$")
 
 data class PartnerLoginUiState(
     val phone: String = "",
-    val email: String = "",
     val otp: String = "",
     val step: Int = 0,
     val loading: Boolean = false,
@@ -74,7 +78,6 @@ class PartnerLoginViewModel(
     private var session: PhoneOtpSession? = null
 
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
-    fun setEmail(value: String) { _state.update { it.copy(email = value, error = null) } }
     fun setOtp(value: String) { _state.update { it.copy(otp = value, error = null) } }
 
     fun sendOtp() {
@@ -84,7 +87,15 @@ class PartnerLoginViewModel(
                 .onSuccess { next ->
                     session = next
                     _state.update {
-                        it.copy(loading = false, step = 1, hint = UiText.res(Res.string.otp_sent_partner_login))
+                        it.copy(
+                            loading = false,
+                            step = 1,
+                            hint = if (next.devOtp != null) {
+                                UiText.res(Res.string.dev_otp_hint)
+                            } else {
+                                UiText.res(Res.string.otp_sent_partner_login)
+                            },
+                        )
                     }
                 }
                 .onFailure { error ->
@@ -122,7 +133,12 @@ class PartnerLoginViewModel(
 data class RegisterUiState(
     val name: String = "",
     val email: String = "",
+    val placeQuery: String = "",
+    val predictions: List<org.bhargav.pansariwala.platform.PlacePrediction> = emptyList(),
     val address: String = "",
+    val locality: String = "",
+    val lat: Double? = null,
+    val lng: Double? = null,
     val phone: String = "",
     val vehicleReg: String = "",
     val profilePhoto: String = "",
@@ -132,6 +148,8 @@ data class RegisterUiState(
     val otp: String = "",
     val step: Int = 0,
     val loading: Boolean = false,
+    val requestLocationPermission: Boolean = false,
+    val showLocationDeniedDialog: Boolean = false,
     val error: UiText? = null,
     val hint: UiText? = null,
 )
@@ -147,14 +165,101 @@ class PartnerRegisterViewModel(
     val state: StateFlow<RegisterUiState> = _state.asStateFlow()
     private var session: PhoneOtpSession? = null
     private var registered = false
+    private var searchJob: Job? = null
     private val ocr = FormatPlateOcr()
 
-    fun setName(v: String) { _state.update { it.copy(name = v) } }
-    fun setEmail(v: String) { _state.update { it.copy(email = v) } }
-    fun setAddress(v: String) { _state.update { it.copy(address = v) } }
-    fun setPhone(v: String) { _state.update { it.copy(phone = v) } }
-    fun setVehicleReg(v: String) { _state.update { it.copy(vehicleReg = v) } }
-    fun setOtp(v: String) { _state.update { it.copy(otp = v) } }
+    fun setName(v: String) { _state.update { it.copy(name = v, error = null) } }
+    fun setEmail(v: String) { _state.update { it.copy(email = v, error = null) } }
+    fun setAddress(v: String) {
+        _state.update { it.copy(address = v, error = null, lat = null, lng = null) }
+    }
+    fun setLocality(v: String) {
+        _state.update { it.copy(locality = v, error = null, lat = null, lng = null) }
+    }
+    fun setPhone(v: String) { _state.update { it.copy(phone = v, error = null) } }
+    fun setVehicleReg(v: String) { _state.update { it.copy(vehicleReg = v, error = null) } }
+    fun setOtp(v: String) { _state.update { it.copy(otp = v, error = null) } }
+
+    fun setPlaceQuery(value: String) {
+        _state.update { it.copy(placeQuery = value, error = null) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(AppConstants.PLACE_SEARCH_DEBOUNCE_MS)
+            val results = searchPlaces(value)
+            _state.update { it.copy(predictions = results) }
+        }
+    }
+
+    fun selectPlace(placeId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            val details = fetchPlaceDetails(placeId)
+            if (details == null) {
+                _state.update {
+                    it.copy(loading = false, error = UiText.res(Res.string.error_place_details_failed))
+                }
+                return@launch
+            }
+            _state.update {
+                it.copy(
+                    loading = false,
+                    placeQuery = details.formattedAddress,
+                    predictions = emptyList(),
+                    address = details.formattedAddress,
+                    locality = details.locality.ifBlank { it.locality },
+                    lat = details.lat,
+                    lng = details.lng,
+                )
+            }
+        }
+    }
+
+    fun requestLocationForAddress() {
+        _state.update { it.copy(requestLocationPermission = true, error = null) }
+    }
+
+    fun consumeLocationPermissionRequest() {
+        _state.update { it.copy(requestLocationPermission = false) }
+    }
+
+    fun onLocationPermissionResult(granted: Boolean) {
+        if (!granted) {
+            _state.update {
+                it.copy(
+                    showLocationDeniedDialog = true,
+                    error = UiText.res(Res.string.partner_register_location_required),
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            runCatching { location.currentOrDefault() }
+                .onSuccess { geo ->
+                    _state.update { it.copy(lat = geo.lat, lng = geo.lng, loading = false) }
+                }
+                .onFailure { err ->
+                    val message = when (err) {
+                        is LocationPermissionDeniedException ->
+                            UiText.res(Res.string.partner_register_location_required)
+                        is LocationUnavailableException ->
+                            UiText.res(Res.string.location_unavailable)
+                        else -> UiText.res(Res.string.location_unavailable)
+                    }
+                    _state.update { it.copy(loading = false, error = message) }
+                }
+        }
+    }
+
+    fun retryLocationPermission() {
+        _state.update {
+            it.copy(showLocationDeniedDialog = false, requestLocationPermission = true, error = null)
+        }
+    }
+
+    fun dismissLocationDeniedDialog() {
+        _state.update { it.copy(showLocationDeniedDialog = false) }
+    }
 
     private fun attach(field: (RegisterUiState, String) -> RegisterUiState) {
         viewModelScope.launch {
@@ -223,14 +328,26 @@ class PartnerRegisterViewModel(
                 }
                 return@launch
             }
+            val geo = resolveRegistrationGeo()
+            if (geo == null) {
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        requestLocationPermission = true,
+                        error = UiText.res(Res.string.partner_register_location_required),
+                    )
+                }
+                return@launch
+            }
             runCatching {
                 if (!registered) {
-                    val geo = location.currentOrDefault()
                     api.registerPartner(
                         PartnerRegisterRequest(
                             name = _state.value.name,
                             email = _state.value.email,
-                            address = _state.value.address,
+                            address = listOf(_state.value.address, _state.value.locality)
+                                .filter { it.isNotBlank() }
+                                .joinToString(", "),
                             phone = digitsPhone(_state.value.phone),
                             vehicleReg = entered,
                             vehiclePhotoBase64 = _state.value.vehiclePhoto,
@@ -246,11 +363,43 @@ class PartnerRegisterViewModel(
                 phoneAuth.sendOtp(_state.value.phone).getOrThrow()
             }.onSuccess { otpSession ->
                 session = otpSession
-                _state.update { it.copy(loading = false, step = 1, hint = UiText.res(Res.string.otp_sent_partner)) }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        step = 1,
+                        hint = if (otpSession.devOtp != null) {
+                            UiText.res(Res.string.dev_otp_hint)
+                        } else {
+                            UiText.res(Res.string.otp_sent_partner)
+                        },
+                    )
+                }
             }.onFailure { error ->
-                _state.update { s -> s.copy(loading = false, error = mapPhoneAuthError(error, verifying = false)) }
+                val mapped = when (error) {
+                    is LocationPermissionDeniedException ->
+                        UiText.res(Res.string.partner_register_location_required)
+                    is LocationUnavailableException ->
+                        UiText.res(Res.string.location_unavailable)
+                    else -> mapPhoneAuthError(error, verifying = false)
+                }
+                _state.update { s -> s.copy(loading = false, error = mapped) }
             }
         }
+    }
+
+    private suspend fun resolveRegistrationGeo(): GeoPoint? {
+        val cachedLat = _state.value.lat
+        val cachedLng = _state.value.lng
+        if (cachedLat != null && cachedLng != null) {
+            return GeoPoint(cachedLat, cachedLng)
+        }
+        return runCatching { location.currentOrDefault() }
+            .onFailure {
+                if (it is LocationPermissionDeniedException) {
+                    _state.update { s -> s.copy(requestLocationPermission = true) }
+                }
+            }
+            .getOrNull()
     }
 
     fun verify(onDone: () -> Unit) {

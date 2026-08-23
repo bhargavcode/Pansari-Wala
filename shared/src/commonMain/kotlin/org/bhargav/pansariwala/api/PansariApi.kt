@@ -16,7 +16,7 @@ interface PansariApi {
 
     suspend fun shopLogin(username: String, password: String): TokenResponse
     suspend fun loginWithFirebase(idToken: String): TokenResponse
-    suspend fun requestOtp(phone: String): String
+    suspend fun requestOtp(phone: String): OtpSessionResponse
     suspend fun verifyOtp(phone: String, otp: String, sessionId: String?): TokenResponse
     suspend fun updateProfile(
         name: String,

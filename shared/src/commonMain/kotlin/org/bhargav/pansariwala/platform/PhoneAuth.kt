@@ -16,14 +16,23 @@ interface PhoneAuthGateway {
     suspend fun verifyOtp(phone: String, otp: String, session: PhoneOtpSession): Result<PhoneAuthResult>
 }
 
-data class PhoneOtpSession(val sessionId: String, val usesFirebase: Boolean)
+data class PhoneOtpSession(
+    val sessionId: String,
+    val usesFirebase: Boolean,
+    val devOtp: String? = null,
+)
 data class PhoneAuthResult(val firebaseIdToken: String?, val verifiedPhone: String)
 
 class ServerPhoneAuthGateway(
     private val api: PansariApi,
 ) : PhoneAuthGateway {
     override suspend fun sendOtp(phone: String): Result<PhoneOtpSession> = runCatching {
-        PhoneOtpSession(sessionId = api.requestOtp(digitsPhone(phone)), usesFirebase = false)
+        val body = api.requestOtp(digitsPhone(phone))
+        PhoneOtpSession(
+            sessionId = body.sessionId,
+            usesFirebase = false,
+            devOtp = body.devOtp,
+        )
     }
 
     override suspend fun verifyOtp(
@@ -63,10 +72,22 @@ fun mapPhoneAuthError(error: Throwable, verifying: Boolean): UiText {
             UiText.res(Res.string.error_otp_expired)
         containsAny(msg, "quota", "too-many-requests", "ERROR_TOO_MANY_REQUESTS") ->
             UiText.res(Res.string.error_otp_quota)
+        isPlayIntegrityAuthFailure(error) ->
+            UiText.res(Res.string.error_otp_send_failed)
         verifying -> error.message?.let { UiText.Plain(it) } ?: UiText.res(Res.string.error_otp_verify_failed)
         else -> error.message?.let { UiText.Plain(it) } ?: UiText.res(Res.string.error_otp_send_failed)
     }
 }
+
+fun isPlayIntegrityAuthFailure(error: Throwable): Boolean =
+    containsAny(
+        error.message.orEmpty(),
+        "play_integrity",
+        "play integrity",
+        "app-not-authorized",
+        "not authorized to use Firebase",
+        "Invalid app info",
+    )
 
 private fun containsAny(haystack: String, vararg needles: String): Boolean =
     needles.any { haystack.contains(it, ignoreCase = true) }

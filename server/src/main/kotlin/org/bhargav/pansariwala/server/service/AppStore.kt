@@ -37,6 +37,7 @@ import org.bhargav.pansariwala.server.dto.MasterProductDto
 import org.bhargav.pansariwala.server.dto.OfferDto
 import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
+import org.bhargav.pansariwala.server.dto.OtpSessionResponse
 import org.bhargav.pansariwala.server.dto.PartnerDailyEarningDto
 import org.bhargav.pansariwala.server.dto.PartnerDashboardDto
 import org.bhargav.pansariwala.server.dto.PartnerEarningsDto
@@ -139,15 +140,45 @@ class AppStore(
         return upsertCustomerToken(phone)
     }
 
-    fun requestOtp(phone: String): String {
+    fun requestOtp(phone: String): OtpSessionResponse {
         val normalized = Security.normalizePhone(phone)
+        require(normalized.length == 10) { "Invalid phone" }
         val sessionId = security.randomId("otp")
-        val code = security.randomOtp()
+        // No SMS provider → fixed code so sideloaded / iOS Personal Team builds can sign in.
+        // Real SMS (SMS_API_URL) → random code (or 123456 when AUTH_DEV_MODE=true).
+        val useFixedOtp = config.devAuth || !config.smsConfigured
+        val code = if (useFixedOtp) "123456" else (100000 + kotlin.random.Random.nextInt(900000)).toString()
         otpCol.deleteMany(eq("phone", normalized))
         otpCol.insertOne(
             OtpDoc(sessionId, normalized, security.sha256(code), "phone", System.currentTimeMillis() + 5 * 60_000),
         )
-        return sessionId
+        if (config.smsConfigured) {
+            deliverSmsOtp(normalized, code)
+        } else {
+            println("WARN: SMS_API_URL unset — OTP for $normalized is $code (set AUTH_DEV_MODE=true or configure SMS)")
+        }
+        return OtpSessionResponse(sessionId = sessionId, devOtp = code.takeIf { useFixedOtp })
+    }
+
+    private fun deliverSmsOtp(phone: String, code: String) {
+        val url = config.smsApiUrl
+        val body = """{"phone":"$phone","otp":"$code"}"""
+        val connection = java.net.URI(url).toURL().openConnection() as java.net.HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            if (config.smsApiToken.isNotBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer ${config.smsApiToken}")
+            }
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            require(status in 200..299) { "SMS provider returned HTTP $status" }
+        } finally {
+            connection.disconnect()
+        }
     }
 
     fun verifyOtp(phone: String, otp: String, sessionId: String?): TokenResponse {
@@ -631,7 +662,7 @@ class AppStore(
         return offerById(offerId, partnerId)
     }
 
-    fun registerPartner(request: PartnerRegisterRequest): String {
+    fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse {
         val reg = Security.normalizeReg(request.vehicleReg)
         require(Security.vehicleRegRegex.matches(reg)) { "Invalid vehicle registration" }
         require(request.vehiclePhotoBase64.length > 64) { "Vehicle photo required" }

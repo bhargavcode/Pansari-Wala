@@ -16,10 +16,14 @@ data class ServerConfig(
     val firebaseProjectId: String,
     val fcmServerKey: String,
     val devAuth: Boolean,
+    /** Optional HTTP endpoint that accepts JSON `{ "phone": "10digits", "otp": "123456" }`. */
+    val smsApiUrl: String,
+    val smsApiToken: String,
     val passwordSalt: String,
     val uploadDir: String,
 ) {
     val paymentsEnabled: Boolean get() = razorpayKeyId.isNotBlank() && razorpayKeySecret.isNotBlank()
+    val smsConfigured: Boolean get() = smsApiUrl.isNotBlank()
 
     companion object {
         private const val ATLAS_USER = "pansariwala"
@@ -39,6 +43,8 @@ data class ServerConfig(
             firebaseProjectId = env("FIREBASE_PROJECT_ID", "pansariwala-5f4b4"),
             fcmServerKey = env("FCM_SERVER_KEY", ""),
             devAuth = env("AUTH_DEV_MODE", "true").toBooleanStrict(),
+            smsApiUrl = env("SMS_API_URL", ""),
+            smsApiToken = env("SMS_API_TOKEN", ""),
             passwordSalt = env("PASSWORD_SALT", "pansari-local-salt"),
             uploadDir = env("UPLOAD_DIR", "./data/uploads"),
         )

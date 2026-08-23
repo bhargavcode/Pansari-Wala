@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -69,15 +70,42 @@ android {
         System.getenv("API_BASE_URL")
             ?: (project.findProperty("API_BASE_URL") as String?)
             ?: "http://35.172.232.196:8080"
-    val keystorePath = System.getenv("ANDROID_KEYSTORE_FILE")
-    val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-    val keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-    val keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+    val signingProps = Properties().apply {
+        listOf(
+            rootProject.file("local.properties"),
+            file("keystore.properties"),
+            rootProject.file("keystore.properties"),
+        ).filter { it.exists() }.forEach { source ->
+            source.inputStream().use { load(it) }
+        }
+    }
+    fun signingValue(envName: String, vararg propertyKeys: String): String? {
+        System.getenv(envName)?.takeIf { it.isNotBlank() }?.let { return it }
+        propertyKeys.forEach { key ->
+            (project.findProperty(key) as String?)?.takeIf { it.isNotBlank() }?.let { return it }
+            signingProps.getProperty(key)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return null
+    }
+    val defaultKeystore = file("pansariwala.jks").takeIf { it.exists() }
+    val keystorePath = signingValue("ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_FILE", "storeFile")
+        ?: defaultKeystore?.absolutePath
+    val keystorePassword = signingValue("ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEYSTORE_PASSWORD", "storePassword")
+    val keyAlias = signingValue("ANDROID_KEY_ALIAS", "ANDROID_KEY_ALIAS", "keyAlias") ?: "pansariwala"
+    val keyPassword = signingValue("ANDROID_KEY_PASSWORD", "ANDROID_KEY_PASSWORD", "keyPassword")
+        ?: keystorePassword
     val hasReleaseSigning =
         !keystorePath.isNullOrBlank() &&
+            file(keystorePath!!).isFile &&
             !keystorePassword.isNullOrBlank() &&
-            !keyAlias.isNullOrBlank() &&
+            keyAlias.isNotBlank() &&
             !keyPassword.isNullOrBlank()
+    if (!hasReleaseSigning) {
+        logger.warn(
+            "Android Studio Run will use the debug keystore (Firebase OTP needs pansariwala.jks). " +
+                "Add ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD to local.properties or androidApp/keystore.properties.",
+        )
+    }
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {
@@ -90,8 +118,12 @@ android {
     }
     buildTypes {
         debug {
-            // Always use the default Android debug keystore — never the production keystore.
-            signingConfig = signingConfigs.getByName("debug")
+            // Sign debug the same as release so Android Studio Run matches Firebase SHA fingerprints.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
         release {
@@ -101,11 +133,7 @@ android {
                 "proguard-rules.pro"
             )
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-            signingConfig = if (hasReleaseSigning) {
-                signingConfigs.getByName("release")
-            } else {
-                null
-            }
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

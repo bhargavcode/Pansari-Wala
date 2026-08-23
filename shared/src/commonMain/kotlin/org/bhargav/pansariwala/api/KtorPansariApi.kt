@@ -88,10 +88,8 @@ class KtorPansariApi(
     override suspend fun loginWithFirebase(idToken: String): TokenResponse =
         client.post("auth/user/firebase") { setBody(FirebaseAuthRequest(idToken)) }.body()
 
-    override suspend fun requestOtp(phone: String): String {
-        val body = client.post("auth/otp/request") { setBody(OtpRequest(phone)) }.body<OtpSessionResponse>()
-        return body.sessionId
-    }
+    override suspend fun requestOtp(phone: String): OtpSessionResponse =
+        client.post("auth/otp/request") { setBody(OtpRequest(phone)) }.body()
 
     override suspend fun verifyOtp(phone: String, otp: String, sessionId: String?): TokenResponse =
         client.post("auth/otp/verify") { setBody(OtpVerifyRequest(phone, otp, sessionId)) }.body()

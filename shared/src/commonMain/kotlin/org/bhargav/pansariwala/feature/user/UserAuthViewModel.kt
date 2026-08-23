@@ -28,6 +28,7 @@ import pansariwala.shared.generated.resources.error_address_required
 import pansariwala.shared.generated.resources.error_place_details_failed
 import pansariwala.shared.generated.resources.error_profile_required
 import pansariwala.shared.generated.resources.location_unavailable
+import pansariwala.shared.generated.resources.dev_otp_hint
 import pansariwala.shared.generated.resources.otp_sent_customer
 
 data class PhoneAuthUiState(
@@ -62,7 +63,11 @@ class PhoneAuthViewModel(
                         it.copy(
                             loading = false,
                             step = 1,
-                            hint = UiText.res(Res.string.otp_sent_customer),
+                            hint = if (next.devOtp != null) {
+                                UiText.res(Res.string.dev_otp_hint)
+                            } else {
+                                UiText.res(Res.string.otp_sent_customer)
+                            },
                         )
                     }
                 }

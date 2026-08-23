@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,15 +64,20 @@ import pansariwala.shared.generated.resources.partner_job_load_failed
 import pansariwala.shared.generated.resources.partner_route_header_meta
 import pansariwala.shared.generated.resources.action_resend_otp
 import pansariwala.shared.generated.resources.action_send_otp
+import pansariwala.shared.generated.resources.action_use_current_location
 import pansariwala.shared.generated.resources.action_verify_otp
 import pansariwala.shared.generated.resources.field_address
 import pansariwala.shared.generated.resources.field_email
+import pansariwala.shared.generated.resources.field_locality
 import pansariwala.shared.generated.resources.field_name
 import pansariwala.shared.generated.resources.field_otp
 import pansariwala.shared.generated.resources.field_phone
+import pansariwala.shared.generated.resources.field_place_search
 import pansariwala.shared.generated.resources.field_vehicle_photo
 import pansariwala.shared.generated.resources.field_vehicle_reg
+import pansariwala.shared.generated.resources.hint_address_pick_place
 import pansariwala.shared.generated.resources.order_number_label
+import pansariwala.shared.generated.resources.partner_register_location_required
 import pansariwala.shared.generated.resources.partner_action_arrived_customer
 import pansariwala.shared.generated.resources.partner_arrive_need_proximity
 import pansariwala.shared.generated.resources.partner_action_arrived_store
@@ -154,14 +160,7 @@ fun PartnerLoginScreen(
         OutlinedTextField(
             value = state.phone,
             onValueChange = viewModel::setPhone,
-            label = { Text(stringResource(Res.string.partner_login_phone_email)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        OutlinedTextField(
-            value = state.email,
-            onValueChange = viewModel::setEmail,
-            label = { Text(stringResource(Res.string.field_email)) },
+            label = { Text(stringResource(Res.string.field_phone)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -200,6 +199,20 @@ fun PartnerRegisterScreen(
     viewModel: PartnerRegisterViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    RequestLocationPermission(
+        trigger = state.requestLocationPermission,
+        onConsumed = viewModel::consumeLocationPermissionRequest,
+        onResult = viewModel::onLocationPermissionResult,
+    )
+    LocationPermissionDeniedDialog(
+        visible = state.showLocationDeniedDialog,
+        onRetry = viewModel::retryLocationPermission,
+        onOpenSettings = {
+            openAppLocationSettings()
+            viewModel.dismissLocationDeniedDialog()
+        },
+        onDismiss = viewModel::dismissLocationDeniedDialog,
+    )
     Column(Modifier.fillMaxSize()) {
         PartnerTopBar(
             title = stringResource(Res.string.partner_register_title),
@@ -230,7 +243,45 @@ fun PartnerRegisterScreen(
                 )
                 OutlinedTextField(state.name, viewModel::setName, label = { Text(stringResource(Res.string.field_name)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(state.email, viewModel::setEmail, label = { Text(stringResource(Res.string.field_email)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(state.address, viewModel::setAddress, label = { Text(stringResource(Res.string.field_address)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = state.placeQuery,
+                    onValueChange = viewModel::setPlaceQuery,
+                    label = { Text(stringResource(Res.string.field_place_search)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                state.predictions.forEach { prediction ->
+                    Text(
+                        prediction.description,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.selectPlace(prediction.placeId) }
+                            .padding(vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                OutlinedTextField(
+                    value = state.address,
+                    onValueChange = viewModel::setAddress,
+                    label = { Text(stringResource(Res.string.field_address)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+                OutlinedTextField(
+                    value = state.locality,
+                    onValueChange = viewModel::setLocality,
+                    label = { Text(stringResource(Res.string.field_locality)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Text(
+                    stringResource(Res.string.hint_address_pick_place),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = viewModel::requestLocationForAddress, enabled = !state.loading) {
+                    Text(stringResource(Res.string.action_use_current_location))
+                }
                 OutlinedTextField(state.phone, viewModel::setPhone, label = { Text(stringResource(Res.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(state.vehicleReg, viewModel::setVehicleReg, label = { Text(stringResource(Res.string.field_vehicle_reg)) }, modifier = Modifier.fillMaxWidth())
                 PartnerDocumentRow(stringResource(Res.string.partner_doc_dl), state.dlPhoto, viewModel::attachDl)

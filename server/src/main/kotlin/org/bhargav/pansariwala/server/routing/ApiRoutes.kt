@@ -72,7 +72,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
     }
     post("/auth/otp/request") {
         val body = call.receive<OtpRequest>()
-        call.respond(OtpSessionResponse(store.requestOtp(body.phone)))
+        call.respond(store.requestOtp(body.phone))
     }
     post("/auth/otp/verify") {
         val body = call.receive<OtpVerifyRequest>()
@@ -80,7 +80,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
     }
     post("/partners/register") {
         val body = call.receive<PartnerRegisterRequest>()
-        call.respond(OtpSessionResponse(store.registerPartner(body)))
+        call.respond(store.registerPartner(body))
     }
 
     authenticate("auth-jwt") {

@@ -31,7 +31,7 @@ class AndroidFirebasePhoneAuth : PhoneAuthGateway {
                 resumeOnce(
                     Result.failure(
                         IllegalStateException(
-                            "Firebase phone verification timed out. Add release SHA-1 in Firebase or use server OTP.",
+                            "Firebase phone verification timed out. Install a build signed with pansariwala.jks (SHA registered in Firebase).",
                         ),
                     ),
                 )

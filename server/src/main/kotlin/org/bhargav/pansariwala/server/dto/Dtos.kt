@@ -39,7 +39,11 @@ data class OtpRequest(val phone: String)
 data class OtpVerifyRequest(val phone: String, val otp: String, val sessionId: String? = null)
 
 @Serializable
-data class OtpSessionResponse(val sessionId: String)
+data class OtpSessionResponse(
+    val sessionId: String,
+    /** Present when SMS is not sent (dev / no SMS provider). Client may show as hint. */
+    val devOtp: String? = null,
+)
 
 @Serializable
 data class UpdateProfileRequest(

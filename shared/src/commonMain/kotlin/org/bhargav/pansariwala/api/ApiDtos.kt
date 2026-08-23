@@ -188,7 +188,10 @@ data class IncomingOfferResponse(val offer: DeliveryOfferDto? = null)
 data class OkResponse(val ok: Boolean = true)
 
 @Serializable
-data class OtpSessionResponse(val sessionId: String)
+data class OtpSessionResponse(
+    val sessionId: String,
+    val devOtp: String? = null,
+)
 
 @Serializable
 data class RazorpayOrderDto(

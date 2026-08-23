@@ -3,36 +3,21 @@ package org.bhargav.pansariwala.platform
 import org.bhargav.pansariwala.api.PansariApi
 
 /**
- * Uses server OTP when the API reports [devAuth] (AUTH_DEV_MODE); otherwise Firebase phone auth.
+ * In-app server OTP only. Personal Team builds cannot enable Push Notifications,
+ * which Firebase Phone Auth needs for silent APNs verification.
  */
 class IosPhoneAuthGateway(
-    private val api: PansariApi,
+    api: PansariApi,
 ) : PhoneAuthGateway {
-    private val firebaseAuth = IosFirebasePhoneAuth()
     private val serverAuth = ServerPhoneAuthGateway(api)
 
-    @Volatile
-    private var preferServerOtp: Boolean? = null
-
-    private suspend fun useServerOtp(): Boolean {
-        preferServerOtp?.let { return it }
-        val devAuth = runCatching { api.publicConfig().devAuth }.getOrNull()
-        val useServer = devAuth ?: true
-        preferServerOtp = useServer
-        return useServer
-    }
-
     override suspend fun sendOtp(phone: String): Result<PhoneOtpSession> =
-        if (useServerOtp()) serverAuth.sendOtp(phone) else firebaseAuth.sendOtp(phone)
+        serverAuth.sendOtp(phone)
 
     override suspend fun verifyOtp(
         phone: String,
         otp: String,
         session: PhoneOtpSession,
     ): Result<PhoneAuthResult> =
-        if (session.usesFirebase) {
-            firebaseAuth.verifyOtp(phone, otp, session)
-        } else {
-            serverAuth.verifyOtp(phone, otp, session)
-        }
+        serverAuth.verifyOtp(phone, otp, session)
 }

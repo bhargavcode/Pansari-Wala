@@ -55,7 +55,7 @@ object AppConstants {
     const val REMOTE_LOGIN_TIMEOUT_MS: Long = 4_000L
     const val DEFAULT_PHONE_COUNTRY_CODE: String = "+91"
     const val PHONE_LOCAL_DIGITS: Int = 10
-    const val OTP_TIMEOUT_SEC: Long = 12L
+    const val OTP_TIMEOUT_SEC: Long = 60L
     const val PHOTO_JPEG_QUALITY: Int = 70
     const val PHOTO_MAX_EDGE_PX: Int = 1280
 
