@@ -175,8 +175,7 @@ fun PartnerTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 4.dp),
+                .height(56.dp),
         ) {
             Box(
                 modifier = Modifier
@@ -241,8 +240,7 @@ fun PartnerHomeTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 12.dp),
+                .height(56.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

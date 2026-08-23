@@ -31,12 +31,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.designsystem.PansariScreen
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
@@ -68,17 +70,20 @@ fun AddEditInventoryScreen(
     LaunchedEffect(productId) { viewModel.load(productId) }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    PansariScreen(
+        title = stringResource(if (state.isEditing) Res.string.update_product else Res.string.add_product),
+        onBack = onBack,
+        error = state.error.toErrorBanner(retryable = false),
+        onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError) },
+        isLoading = state.loading,
     ) {
-        PansariTopBar(
-            title = stringResource(if (state.isEditing) Res.string.update_product else Res.string.add_product),
-            onBack = onBack,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
 
         Text(
             text = stringResource(Res.string.inventory_lookup_hint),
@@ -110,14 +115,6 @@ fun AddEditInventoryScreen(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        state.error?.let {
-            Text(
-                it.asString(),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-
         OutlinedTextField(
             value = state.name,
             onValueChange = viewModel::onNameChange,
@@ -214,6 +211,7 @@ fun AddEditInventoryScreen(
                     if (state.isEditing) Res.string.update_product else Res.string.add_product,
                 ),
             )
+        }
         }
     }
 }

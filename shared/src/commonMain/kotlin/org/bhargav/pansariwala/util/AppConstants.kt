@@ -44,6 +44,14 @@ object AppConstants {
     const val DEV_OTP: String = "123456"
     const val DELIVERY_OTP_LENGTH: Int = 4
     const val PUBLIC_ORDER_CODE_LENGTH: Int = 8
+
+    object PartnerProgress {
+        const val TO_STORE: String = "TO_STORE"
+        const val AT_STORE: String = "AT_STORE"
+        const val CAPTURE: String = "CAPTURE"
+        const val TO_CUSTOMER: String = "TO_CUSTOMER"
+        const val AT_CUSTOMER: String = "AT_CUSTOMER"
+    }
     const val JWT_PREFIX: String = "eyJ"
     const val DEFAULT_API_PORT: Int = 8080
     /** Shared API URL for debug/release and all platforms (override via Android `API_BASE_URL` env in CI). */

@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.feature.settings.SettingsViewModel
@@ -58,11 +59,14 @@ fun UserLanguageScreen(
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    PansariScreen(
+        title = stringResource(Res.string.settings_language_card),
+        onBack = onBack,
     ) {
-        PansariTopBar(title = stringResource(Res.string.settings_language_card), onBack = onBack)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         SectionCard(title = stringResource(Res.string.settings_language)) {
             AppLanguage.entries.forEach { language ->
                 LanguageRadioRow(
@@ -73,6 +77,7 @@ fun UserLanguageScreen(
             }
         }
         UserPrimaryButton(text = stringResource(Res.string.action_confirm), onClick = onBack)
+        }
     }
 }
 
@@ -90,11 +95,14 @@ fun UserThemeScreen(
             CustomTheme.ROSE -> Res.string.theme_rose
         },
     )
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    PansariScreen(
+        title = stringResource(Res.string.settings_theme_card),
+        onBack = onBack,
     ) {
-        PansariTopBar(title = stringResource(Res.string.settings_theme_card), onBack = onBack)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         Text(
             stringResource(Res.string.settings_current_theme, themeLabel),
             style = MaterialTheme.typography.bodyMedium,
@@ -118,6 +126,7 @@ fun UserThemeScreen(
             }
         }
         UserPrimaryButton(text = stringResource(Res.string.action_confirm), onClick = onBack)
+        }
     }
 }
 
@@ -129,14 +138,14 @@ fun UserNotificationSettingsScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle(
         org.bhargav.pansariwala.settings.AppUserSettings(),
     )
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    PansariScreen(
+        title = stringResource(Res.string.settings_notification_card),
+        onBack = onBack,
     ) {
-        PansariTopBar(
-            title = stringResource(Res.string.settings_notification_card),
-            onBack = onBack,
-        )
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         SectionCard(title = stringResource(Res.string.settings_notification_card)) {
             NotificationToggle(
                 title = stringResource(Res.string.notify_offers),
@@ -160,6 +169,7 @@ fun UserNotificationSettingsScreen(
             text = stringResource(Res.string.action_manage_notifications),
             onClick = onBack,
         )
+        }
     }
 }
 

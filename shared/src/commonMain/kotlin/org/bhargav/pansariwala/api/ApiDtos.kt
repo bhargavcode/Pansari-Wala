@@ -242,6 +242,7 @@ data class OrderDto(
     val ratingStars: Int? = null,
     val ratingComment: String? = null,
     val cancelReason: String? = null,
+    val partnerProgress: String = "",
 )
 
 @Serializable
@@ -507,6 +508,7 @@ fun OrderDto.toModel() = Order(
     totalDistanceKm = totalDistanceKm,
     deliveryDurationMin = deliveryDurationMin,
     partnerPayoutInr = partnerPayoutInr,
+    partnerProgress = partnerProgress,
 )
 
 fun OfferDto.toModel() = ShopOffer(id, title, description, discountPercent)

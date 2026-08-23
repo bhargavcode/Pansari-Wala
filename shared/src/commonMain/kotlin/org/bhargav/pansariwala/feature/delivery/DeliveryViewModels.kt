@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +13,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.PartnerRegisterRequest
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.DeliveryOfferStatus
@@ -76,6 +79,8 @@ class PartnerLoginViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(PartnerLoginUiState())
     val state: StateFlow<PartnerLoginUiState> = _state.asStateFlow()
+
+    fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
 
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
@@ -164,6 +169,8 @@ class PartnerRegisterViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(RegisterUiState())
     val state: StateFlow<RegisterUiState> = _state.asStateFlow()
+
+    fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
     private var registered = false
     private var searchJob: Job? = null
@@ -457,6 +464,8 @@ class PartnerHomeViewModel(
     /** Offers already shown in the accept flash — stay listable, do not re-popup. */
     private val flashedOfferIds = mutableSetOf<String>()
 
+    fun dismissError() { _state.update { it.copy(error = null) } }
+
     init {
         refresh()
         requestLocationAccessOnLanding()
@@ -499,9 +508,11 @@ class PartnerHomeViewModel(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             runCatching {
-                val profile = api.partnerProfile()
-                val accepted = api.acceptedJobs().filter { it.isActiveDelivery }
-                profile to accepted
+                coroutineScope {
+                    val profile = async { api.partnerProfile() }
+                    val accepted = async { api.acceptedJobs() }
+                    profile.await() to accepted.await().filter { it.isActiveDelivery }
+                }
             }.onSuccess { (profile, accepted) ->
                 _state.update {
                     it.copy(loading = false, profile = profile, online = profile.online, acceptedJobs = accepted)
@@ -522,14 +533,18 @@ class PartnerHomeViewModel(
         viewModelScope.launch {
             _state.update { it.copy(refreshing = true, error = null) }
             runCatching {
-                val profile = api.partnerProfile()
-                val accepted = api.acceptedJobs().filter { it.isActiveDelivery }
-                val offers = if (profile.online) {
-                    runCatching { api.availableOffers() }.getOrDefault(emptyList())
-                } else {
-                    emptyList()
+                coroutineScope {
+                    val profile = async { api.partnerProfile() }
+                    val accepted = async { api.acceptedJobs() }
+                    val profileValue = profile.await()
+                    val acceptedValue = accepted.await().filter { it.isActiveDelivery }
+                    val offers = if (profileValue.online) {
+                        runCatching { api.availableOffers() }.getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
+                    Triple(profileValue, acceptedValue, offers)
                 }
-                Triple(profile, accepted, offers)
             }.onSuccess { (profile, accepted, offers) ->
                 _state.update {
                     it.copy(
@@ -827,6 +842,8 @@ class PartnerJobViewModel(
     private val _state = MutableStateFlow(PartnerJobUiState())
     val state: StateFlow<PartnerJobUiState> = _state.asStateFlow()
 
+    fun dismissError() { _state.update { it.copy(error = null) } }
+
     fun load(orderId: String) {
         if (orderId.isBlank()) {
             _state.update {
@@ -847,6 +864,9 @@ class PartnerJobViewModel(
                             error = null,
                             photoOne = storedOne.ifBlank { it.photoOne },
                             photoTwo = storedTwo.ifBlank { it.photoTwo },
+                            captureStep = if (storedOne.isNotBlank() && storedTwo.isNotBlank() &&
+                                order.resumeProgress == AppConstants.PartnerProgress.CAPTURE
+                            ) 1 else it.captureStep,
                         )
                     }
                 }
@@ -888,6 +908,33 @@ class PartnerJobViewModel(
             runCatching { api.arrivedAtStore(orderId) }
                 .onSuccess {
                     _state.update { it.copy(submitting = false) }
+                    onDone()
+                }
+                .onFailure {
+                    _state.update { s -> s.copy(submitting = false, error = UiText.res(Res.string.error_generic)) }
+                }
+        }
+    }
+
+    fun verifyBags(onDone: () -> Unit) {
+        val orderId = _state.value.order?.id ?: return
+        val one = _state.value.photoOne
+        val two = _state.value.photoTwo
+        viewModelScope.launch {
+            _state.update { it.copy(submitting = true, error = null) }
+            runCatching { api.verifyBags(orderId, one, two) }
+                .onSuccess { order ->
+                    val storedOne = order.visiblePickupPhotos.getOrNull(0).orEmpty()
+                    val storedTwo = order.visiblePickupPhotos.getOrNull(1).orEmpty()
+                    _state.update {
+                        it.copy(
+                            submitting = false,
+                            order = order,
+                            photoOne = storedOne.ifBlank { it.photoOne },
+                            photoTwo = storedTwo.ifBlank { it.photoTwo },
+                            captureStep = if (storedOne.isNotBlank() && storedTwo.isNotBlank()) 1 else it.captureStep,
+                        )
+                    }
                     onDone()
                 }
                 .onFailure {
@@ -956,6 +1003,7 @@ data class PartnerEarningsUiState(
     val profile: PartnerProfile? = null,
     val earnings: PartnerEarnings? = null,
     val loading: Boolean = true,
+    val error: UiText? = null,
 )
 
 class PartnerEarningsViewModel(
@@ -966,15 +1014,22 @@ class PartnerEarningsViewModel(
 
     init { load() }
 
+    fun dismissError() { _state.update { it.copy(error = null) } }
+
     fun load() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
+            _state.update { it.copy(loading = true, error = null) }
             runCatching {
-                api.partnerProfile() to api.partnerEarnings()
+                coroutineScope {
+                    val profile = async { api.partnerProfile() }
+                    val earnings = async { api.partnerEarnings() }
+                    profile.await() to earnings.await()
+                }
             }.onSuccess { (profile, earnings) ->
                 _state.update { it.copy(loading = false, profile = profile, earnings = earnings) }
-            }.onFailure {
-                _state.update { s -> s.copy(loading = false) }
+            }.onFailure { error ->
+                error.rethrowIfStructuredCancellation()
+                _state.update { s -> s.copy(loading = false, error = error.toApiUiText()) }
             }
         }
     }

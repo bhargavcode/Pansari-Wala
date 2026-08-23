@@ -31,15 +31,21 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
 import org.bhargav.pansariwala.designsystem.AdaptivePane
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.StatTile
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.auth.AuthRepository
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.i18n.localizeCustomerName
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.ui.AsyncUiState
+import org.bhargav.pansariwala.ui.errorBannerOrNull
+import org.bhargav.pansariwala.ui.isBlockingLoad
+import org.bhargav.pansariwala.ui.isRefreshing
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
@@ -90,83 +96,85 @@ fun DashboardScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val success = state as? AsyncUiState.Success
 
-    if (state.loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        return
-    }
-
-    AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            stickyHeader {
-                Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
-                    DashboardHeader(state, analytics, onOpenSettings = {
-                        analytics.log(AnalyticsEvent.ButtonClicked("settings", "dashboard"))
-                        onOpenSettings.invoke()
-                    }, scope, authRepository, onLogout = {
-                        analytics.log(AnalyticsEvent.ButtonClicked("logout", "dashboard"))
-                        onLogout.invoke()
-                    }, compact = widthClass == WindowWidthClass.Compact)
-                    if (widthClass != WindowWidthClass.Compact) {
-                        SalesCard(state)
+    PansariScreen(
+        error = state.errorBannerOrNull(),
+        isLoading = state.isBlockingLoad(),
+        isRefreshing = state.isRefreshing(),
+        onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = {}) },
+    ) {
+        val data = success?.data ?: return@PansariScreen
+        AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                stickyHeader {
+                    Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
+                        DashboardHeader(data, analytics, onOpenSettings = {
+                            analytics.log(AnalyticsEvent.ButtonClicked("settings", "dashboard"))
+                            onOpenSettings.invoke()
+                        }, scope, authRepository, onLogout = {
+                            analytics.log(AnalyticsEvent.ButtonClicked("logout", "dashboard"))
+                            onLogout.invoke()
+                        }, compact = widthClass == WindowWidthClass.Compact)
+                        if (widthClass != WindowWidthClass.Compact) {
+                            SalesCard(data)
+                        }
                     }
                 }
-            }
 
-            if (widthClass == WindowWidthClass.Compact) {
-                item { SalesCard(state) }
-            }
+                if (widthClass == WindowWidthClass.Compact) {
+                    item { SalesCard(data) }
+                }
 
-            if (widthClass == WindowWidthClass.Expanded) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
+                if (widthClass == WindowWidthClass.Expanded) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            OrdersCard(
+                                orders = data.recentOrders,
+                                onCreateOrder = onCreateOrder,
+                                onEditOrder = onEditOrder,
+                                onOpenOrdersWorkspace = onOpenOrdersWorkspace,
+                                onOpenOnlineOrders = onOpenOnlineOrders,
+                                modifier = Modifier.weight(1f),
+                            )
+                            InventoryCard(
+                                state = data,
+                                onAddOrUpdateInventory = onAddOrUpdateInventory,
+                                onShowLowStockList = onShowLowStockList,
+                                onShowFullInventory = onShowFullInventory,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                } else {
+                    item {
                         OrdersCard(
-                            orders = state.recentOrders,
+                            orders = data.recentOrders,
                             onCreateOrder = onCreateOrder,
                             onEditOrder = onEditOrder,
                             onOpenOrdersWorkspace = onOpenOrdersWorkspace,
                             onOpenOnlineOrders = onOpenOnlineOrders,
-                            modifier = Modifier.weight(1f),
+                            compact = true,
+                            modifier = Modifier.fillMaxWidth(),
                         )
+                    }
+                    item {
                         InventoryCard(
-                            state = state,
+                            state = data,
                             onAddOrUpdateInventory = onAddOrUpdateInventory,
                             onShowLowStockList = onShowLowStockList,
                             onShowFullInventory = onShowFullInventory,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                }
-            } else {
-                item {
-                    OrdersCard(
-                        orders = state.recentOrders,
-                        onCreateOrder = onCreateOrder,
-                        onEditOrder = onEditOrder,
-                        onOpenOrdersWorkspace = onOpenOrdersWorkspace,
-                        onOpenOnlineOrders = onOpenOnlineOrders,
-                        compact = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                item {
-                    InventoryCard(
-                        state = state,
-                        onAddOrUpdateInventory = onAddOrUpdateInventory,
-                        onShowLowStockList = onShowLowStockList,
-                        onShowFullInventory = onShowFullInventory,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
             }
         }
@@ -175,7 +183,7 @@ fun DashboardScreen(
 
 @Composable
 fun DashboardHeader(
-    state: DashboardUiState,
+    state: DashboardData,
     analytics: Analytics,
     onOpenSettings: () -> Unit,
     scope: CoroutineScope,
@@ -238,7 +246,7 @@ fun DashboardHeader(
     }
 }
 @Composable
-private fun SalesCard(state: DashboardUiState) {
+private fun SalesCard(state: DashboardData) {
     SectionCard(
         title = stringResource(Res.string.sales_title),
         subtitle = stringResource(Res.string.sales_subtitle),
@@ -351,7 +359,7 @@ private fun OrdersCard(
 
 @Composable
 private fun InventoryCard(
-    state: DashboardUiState,
+    state: DashboardData,
     onAddOrUpdateInventory: () -> Unit,
     onShowLowStockList: () -> Unit,
     onShowFullInventory: () -> Unit,

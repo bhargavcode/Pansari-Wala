@@ -55,8 +55,11 @@ import org.bhargav.pansariwala.platform.openAppLocationSettings
 import org.bhargav.pansariwala.platform.openExternalNavigation
 import org.bhargav.pansariwala.designsystem.PansariElevation
 import org.bhargav.pansariwala.designsystem.PansariLinkButton
+import org.bhargav.pansariwala.designsystem.PansariScreen
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
 import org.jetbrains.compose.resources.stringResource
@@ -160,10 +163,17 @@ fun PartnerLoginScreen(
     viewModel: PartnerLoginViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    PansariScreen(
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::sendOtp, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading,
     ) {
+        Column(Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Spacer(Modifier.height(32.dp))
         PartnerBrandHeader()
         Spacer(Modifier.height(24.dp))
@@ -196,8 +206,7 @@ fun PartnerLoginScreen(
             PansariLinkButton(onClick = viewModel::sendOtp, enabled = !state.loading, text = stringResource(Res.string.action_resend_otp))
         }
         PansariLinkButton(onClick = onSignUp, enabled = !state.loading, text = stringResource(Res.string.partner_signup_join))
-        state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
-        if (state.loading) CircularProgressIndicator()
+        }
     }
 }
 
@@ -223,14 +232,23 @@ fun PartnerRegisterScreen(
         },
         onDismiss = viewModel::dismissLocationDeniedDialog,
     )
-    Column(Modifier.fillMaxSize()) {
-        PartnerTopBar(
-            title = stringResource(Res.string.partner_register_title),
-            onBack = onBack,
-            trailing = {
-                Text("?", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-            },
-        )
+    PansariScreen(
+        topBar = {
+            PartnerTopBar(
+                title = stringResource(Res.string.partner_register_title),
+                onBack = onBack,
+                trailing = {
+                    Text("?", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                },
+            )
+        },
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::save, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading,
+    ) {
+        Column(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .weight(1f)
@@ -316,8 +334,8 @@ fun PartnerRegisterScreen(
                 )
                 PansariLinkButton(onClick = viewModel::save, enabled = !state.loading, text = stringResource(Res.string.action_resend_otp))
             }
-            state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
             PansariLinkButton(onClick = onSignIn, enabled = !state.loading, text = stringResource(Res.string.partner_login_prompt))
+        }
         }
     }
 }
@@ -345,13 +363,23 @@ fun PartnerHomeScreen(
         },
         onDismiss = viewModel::dismissLocationDeniedDialog,
     )
-    Box(Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    PansariScreen(
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::refresh, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading,
+        isRefreshing = state.refreshing,
+        topBar = {
             PartnerHomeTopBar(
                 title = state.profile?.name ?: stringResource(Res.string.partner_driver_active),
                 profilePhotoBase64 = state.profile?.profilePhoto,
                 onProfileClick = onEarnings,
             )
+        },
+    ) {
+    Box(Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
             PartnerOnlineBanner(
                 online = state.online,
                 onToggle = viewModel::setOnline,
@@ -441,13 +469,6 @@ fun PartnerHomeScreen(
                     modifier = Modifier.padding(16.dp),
                 )
             }
-            state.error?.let { error ->
-                Text(
-                    error.asString(),
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
         }
         state.incomingOffer?.let { offer ->
             PartnerOfferDialog(
@@ -460,9 +481,7 @@ fun PartnerHomeScreen(
         if (state.showOfferTakenSheet) {
             PartnerOfferTakenSheet(onOkay = viewModel::dismissOfferTakenSheet)
         }
-        if (state.loading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        }
+    }
     }
 }
 
@@ -635,8 +654,9 @@ fun PartnerPickupItemsScreen(
                 }
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_verify_bags),
-                    onClick = onVerifyBags,
+                    onClick = { viewModel.verifyBags(onVerifyBags) },
                     modifier = Modifier.padding(16.dp),
+                    enabled = !state.submitting,
                 )
             }
             else -> PartnerJobErrorState(
@@ -695,8 +715,8 @@ fun PartnerCapturePhotosScreen(
                 )
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_take_photos),
-                    onClick = { viewModel.setCaptureStep(1) },
-                    enabled = state.photoOne.isNotBlank() && state.photoTwo.isNotBlank(),
+                    onClick = { viewModel.verifyBags {} },
+                    enabled = state.photoOne.isNotBlank() && state.photoTwo.isNotBlank() && !state.submitting,
                 )
             } else {
                 PartnerPhotoSlot(
@@ -1021,11 +1041,20 @@ fun PartnerEarningsScreen(
     viewModel: PartnerEarningsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PartnerTopBar(
-            title = stringResource(Res.string.partner_earnings_profile),
-            onBack = onBack,
-        )
+    PansariScreen(
+        topBar = {
+            PartnerTopBar(
+                title = stringResource(Res.string.partner_earnings_profile),
+                onBack = onBack,
+            )
+        },
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::load, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading,
+    ) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
 
         state.profile?.let { profile ->
             Row(
@@ -1136,7 +1165,7 @@ fun PartnerEarningsScreen(
             fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(16.dp))
-        if (state.loading) CircularProgressIndicator(Modifier.padding(16.dp))
+        }
     }
 }
 

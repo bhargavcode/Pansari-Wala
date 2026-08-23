@@ -109,6 +109,10 @@ class LoginViewModel(
         _events.value = null
     }
 
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
     private fun mapLoginError(error: Throwable): UiText = when (error.message) {
         "Invalid username or password." -> UiText.res(Res.string.error_invalid_credentials)
         "Enter a valid phone/email and password (min 4 chars)." ->

@@ -19,8 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.designsystem.PansariScreen
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
@@ -76,15 +78,22 @@ private fun AddressForm(
     viewModel: AddressViewModel,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(
-        Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    PansariScreen(
+        title = if (onBack != null) title else null,
+        onBack = onBack,
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading,
     ) {
-        if (onBack != null) {
-            PansariTopBar(title = title, onBack = onBack)
-        } else {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        }
+        Column(
+            Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (onBack == null) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            }
         if (requireName) {
             OutlinedTextField(
                 value = state.name,
@@ -140,7 +149,6 @@ private fun AddressForm(
                 state.locality.isNotBlank() &&
                 (!requireName || state.name.isNotBlank()),
         )
-        state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
-        if (state.loading) CircularProgressIndicator()
+        }
     }
 }

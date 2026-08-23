@@ -302,6 +302,7 @@
     <string name="partner_payment_method">Method</string>
     <string name="error_generic">Something went wrong. Try again.</string>
     <string name="error_network">Cannot reach the shop server.</string>
+    <string name="error_request_timeout">The server took too long to respond. Try again.</string>
     <string name="error_session_expired">Your shop session expired. Sign in again to view online orders.</string>
     <string name="action_retry">Retry</string>
     <string name="dev_otp_hint">Dev OTP is 123456</string>

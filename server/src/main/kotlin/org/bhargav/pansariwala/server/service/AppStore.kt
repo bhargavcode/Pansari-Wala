@@ -8,6 +8,7 @@ import com.mongodb.client.model.Filters.`in`
 import com.mongodb.client.model.Filters.or
 import com.mongodb.client.model.Projections.exclude
 import com.mongodb.client.model.ReplaceOptions
+import com.mongodb.client.model.Sorts
 import com.mongodb.client.model.Updates.combine
 import com.mongodb.client.model.Updates.set
 import io.ktor.websocket.Frame
@@ -65,7 +66,9 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
+import java.util.concurrent.TimeUnit
 
+private const val QUERY_MAX_MS = 8_000L
 private const val PARTNER_RING_KM = 8.0
 /** How long an unpicked job stays listable for partners in range (not the 15s accept UI flash). */
 private const val OFFER_TTL_MS = 15 * 60_000L
@@ -464,10 +467,18 @@ class AppStore(
     }
 
     fun customerOrders(userId: String): List<OrderDto> =
-        mapOrders(orderCol.find(eq("customerId", userId)).toList().sortedByDescending { it.createdAt })
+        mapOrders(
+            orderCol.find(eq("customerId", userId))
+                .sort(Sorts.descending("createdAt"))
+                .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+                .toList(),
+        )
 
     fun transactions(userId: String): List<TxnDto> =
-        txnCol.find(eq("customerId", userId)).toList().sortedByDescending { it.createdAt }
+        txnCol.find(eq("customerId", userId))
+            .sort(Sorts.descending("createdAt"))
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
             .map { TxnDto(it.id, it.orderId, it.amount, it.title, it.createdAt) }
 
     fun rateOrder(userId: String, orderId: String, stars: Int, comment: String?): OrderDto {
@@ -481,8 +492,10 @@ class AppStore(
 
     fun shopOrders(shopId: String): List<OrderDto> =
         mapOrders(
-            orderCol.find(and(eq("shopId", shopId), eq("channel", "ONLINE"))).toList()
-                .sortedByDescending { it.createdAt },
+            orderCol.find(and(eq("shopId", shopId), eq("channel", "ONLINE")))
+                .sort(Sorts.descending("createdAt"))
+                .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+                .toList(),
         )
 
     suspend fun acceptShopOrder(shopId: String, orderId: String): OrderDto {
@@ -666,6 +679,7 @@ class AppStore(
                     set("partnerId", partnerId),
                     set("partnerPayoutInr", dto.payoutInr),
                     set("totalDistanceKm", dto.totalDistanceKm),
+                    set("partnerProgress", "TO_STORE"),
                 ),
             )
         }
@@ -798,6 +812,22 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
         require(row.status == "PARTNER_ACCEPTED") { "Invalid status" }
+        if (row.partnerProgress != "AT_STORE" && row.partnerProgress != "CAPTURE") {
+            orderCol.updateOne(eq("_id", orderId), set("partnerProgress", "AT_STORE"))
+        }
+        return getOrder(orderId)
+    }
+
+    fun verifyBags(partnerId: String, orderId: String, photoOne: String, photoTwo: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.partnerId == partnerId) { "Forbidden" }
+        require(row.status == "PARTNER_ACCEPTED") { "Invalid status" }
+        val updates = if (photoOne.length > 64 && photoTwo.length > 64) {
+            combine(set("partnerProgress", "CAPTURE"), set("pickupPhotos", listOf(photoOne, photoTwo)))
+        } else {
+            set("partnerProgress", "CAPTURE")
+        }
+        orderCol.updateOne(eq("_id", orderId), updates)
         return getOrder(orderId)
     }
 
@@ -805,6 +835,9 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
         require(row.status == "ON_THE_WAY") { "Invalid status" }
+        if (row.partnerProgress != "AT_CUSTOMER") {
+            orderCol.updateOne(eq("_id", orderId), set("partnerProgress", "AT_CUSTOMER"))
+        }
         return getOrder(orderId)
     }
 
@@ -835,7 +868,7 @@ class AppStore(
     suspend fun cancelPickup(partnerId: String, orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
-        orderCol.replaceOne(eq("_id", orderId), row.copy(status = "LOOKING_FOR_PARTNER", partnerId = null))
+        orderCol.replaceOne(eq("_id", orderId), row.copy(status = "LOOKING_FOR_PARTNER", partnerId = null, partnerProgress = ""))
         deliveryOfferCol.find(eq("orderId", orderId)).toList().forEach { offer ->
             deliveryOfferCol.replaceOne(eq("_id", offer.id), offer.copy(status = "CANCELLED", acceptedBy = null))
         }
@@ -852,6 +885,7 @@ class AppStore(
             combine(
                 set("status", "ON_THE_WAY"),
                 set("pickupPhotos", listOf(photoOne, photoTwo)),
+                set("partnerProgress", "TO_CUSTOMER"),
             ),
         )
         return getOrder(orderId)
@@ -1059,6 +1093,7 @@ class AppStore(
             totalDistanceKm = totalDistanceKm,
             deliveryDurationMin = deliveryDurationMin,
             partnerPayoutInr = partnerPayoutInr,
+            partnerProgress = partnerProgress,
             items = items,
             quote = quote,
             ratingStars = ratingStars,

@@ -194,7 +194,7 @@ fun AppNavGraph(
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.TopCenter)
                 .padding(16.dp),
         )
     }

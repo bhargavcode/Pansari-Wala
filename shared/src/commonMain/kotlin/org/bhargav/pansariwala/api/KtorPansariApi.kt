@@ -251,6 +251,11 @@ class KtorPansariApi(
     override suspend fun arrivedAtStore(orderId: String): Order =
         client.post("partners/jobs/$orderId/arrived-store").body<OrderDto>().toModel()
 
+    override suspend fun verifyBags(orderId: String, photoOne: String, photoTwo: String): Order =
+        client.post("partners/jobs/$orderId/verify-bags") {
+            setBody(PickupRequest(photoOne, photoTwo))
+        }.body<OrderDto>().toModel()
+
     override suspend fun submitPickup(orderId: String, photoOne: String, photoTwo: String): Order =
         client.post("partners/jobs/$orderId/pickup") {
             setBody(PickupRequest(photoOne, photoTwo))

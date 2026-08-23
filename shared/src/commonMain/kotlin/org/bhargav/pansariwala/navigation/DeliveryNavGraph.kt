@@ -32,7 +32,7 @@ import org.bhargav.pansariwala.feature.user.UserLanguageScreen
 import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
 import org.bhargav.pansariwala.feature.user.UserThemeScreen
 import org.bhargav.pansariwala.notification.NotificationRouter
-import org.bhargav.pansariwala.domain.model.OrderStatus
+import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.util.AppConstants
 
 private val deliveryNavConfig = SavedStateConfiguration {
@@ -54,6 +54,17 @@ private val deliveryNavConfig = SavedStateConfiguration {
             subclass(DeliveryRoute.ThemePrefs::class, DeliveryRoute.ThemePrefs.serializer())
             subclass(DeliveryRoute.NotificationPrefs::class, DeliveryRoute.NotificationPrefs.serializer())
         }
+    }
+}
+
+private fun resumePartnerJob(order: Order): DeliveryRoute {
+    val id = order.id
+    return when (order.resumeProgress) {
+        AppConstants.PartnerProgress.AT_STORE -> DeliveryRoute.PickupItems(id)
+        AppConstants.PartnerProgress.CAPTURE -> DeliveryRoute.CapturePhotos(id)
+        AppConstants.PartnerProgress.TO_CUSTOMER -> DeliveryRoute.DeliverToCustomer(id)
+        AppConstants.PartnerProgress.AT_CUSTOMER -> DeliveryRoute.CustomerPayment(id)
+        else -> DeliveryRoute.NavigateToStore(id)
     }
 }
 
@@ -115,10 +126,7 @@ fun DeliveryNavGraph() {
                         PartnerHomeScreen(
                             onNavigateToStore = { push(DeliveryRoute.NavigateToStore(it)) },
                             onResumeJob = { order ->
-                                when (order.status) {
-                                    OrderStatus.ON_THE_WAY -> push(DeliveryRoute.DeliverToCustomer(order.id))
-                                    else -> push(DeliveryRoute.NavigateToStore(order.id))
-                                }
+                                push(resumePartnerJob(order))
                             },
                             onEarnings = { push(DeliveryRoute.Earnings) },
                         )

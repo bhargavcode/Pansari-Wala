@@ -165,6 +165,7 @@ data class OrderDoc(
     val totalDistanceKm: Double? = null,
     val deliveryDurationMin: Int? = null,
     val partnerPayoutInr: Double? = null,
+    val partnerProgress: String = "",
 )
 
 @Serializable
@@ -271,6 +272,19 @@ private fun ensureIndexes(db: MongoDatabase) {
         .createIndex(Indexes.ascending("phone"), IndexOptions().unique(true))
     db.getCollection<AdminUserDoc>("admin_users")
         .createIndex(Indexes.ascending("username"), IndexOptions().unique(true))
+    db.getCollection<OrderDoc>("orders").apply {
+        createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.ascending("channel"), Indexes.descending("createdAt")))
+        createIndex(Indexes.ascending("partnerId"))
+    }
+    db.getCollection<TxnDoc>("transactions")
+        .createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))
+    db.getCollection<ProductDoc>("products")
+        .createIndex(Indexes.ascending("shopId"))
+    db.getCollection<DeliveryOfferDoc>("delivery_offers").apply {
+        createIndex(Indexes.ascending("orderId"))
+        createIndex(Indexes.ascending("status"))
+    }
 }
 
 private fun seed(db: MongoDatabase, security: Security) {

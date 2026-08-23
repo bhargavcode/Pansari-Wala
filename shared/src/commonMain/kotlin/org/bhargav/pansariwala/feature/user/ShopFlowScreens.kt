@@ -45,13 +45,21 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.designsystem.SectionCard
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.feature.delivery.PickupPhotoStrip
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.ui.AsyncUiState
+import org.bhargav.pansariwala.ui.ErrorBannerState
+import org.bhargav.pansariwala.ui.errorBannerOrNull
+import org.bhargav.pansariwala.ui.isBlockingLoad
+import org.bhargav.pansariwala.ui.isRefreshing
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
@@ -113,13 +121,23 @@ fun ShopCatalogScreen(
 ) {
     LaunchedEffect(shopId) { viewModel.load(shopId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize()) {
-        Column(
-            Modifier.weight(1f).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            PansariTopBar(title = state.shop?.name ?: "…", onBack = onBack)
-            state.shop?.let { shop ->
+    val data = (state as? AsyncUiState.Success)?.data
+    PansariScreen(
+        title = data?.shop?.name ?: "…",
+        onBack = onBack,
+        error = state.errorBannerOrNull(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = { viewModel.load(shopId) }, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.isBlockingLoad(),
+        isRefreshing = state.isRefreshing(),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.weight(1f).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                data?.shop?.let { shop ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
@@ -132,9 +150,8 @@ fun ShopCatalogScreen(
                         Text(stringResource(Res.string.catalog_shop_rating, shop.rating.toString()))
                     }
                 }
-            }
-            if (state.loading) CircularProgressIndicator()
-            state.products.groupBy { it.category }.forEach { (category, products) ->
+                }
+                data?.products.orEmpty().groupBy { it.category }.forEach { (category, products) ->
                 Text(
                     category.displayName,
                     style = MaterialTheme.typography.titleSmall,
@@ -156,14 +173,14 @@ fun ShopCatalogScreen(
                     )
                 }
             }
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        }
-        if (state.cartCount > 0) {
-            UserPrimaryButton(
-                text = stringResource(Res.string.user_cart_items, state.cartCount),
-                onClick = onOpenCart,
-                modifier = Modifier.padding(16.dp),
-            )
+            }
+            if ((data?.cartCount ?: 0) > 0) {
+                UserPrimaryButton(
+                    text = stringResource(Res.string.user_cart_items, data?.cartCount ?: 0),
+                    onClick = onOpenCart,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
         }
     }
 }
@@ -202,8 +219,11 @@ fun CartScreen(
     viewModel: CartViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        PansariTopBar(title = stringResource(Res.string.cart_title), onBack = onBack)
+    PansariScreen(
+        title = stringResource(Res.string.cart_title),
+        onBack = onBack,
+    ) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             state.lines.forEach { line ->
                 Row(
@@ -239,6 +259,7 @@ fun CartScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
         )
+        }
     }
 }
 
@@ -259,17 +280,18 @@ fun CheckoutScreen(
         }
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val snackbarText = state.snackbar?.asString()
-    LaunchedEffect(snackbarText) {
-        if (snackbarText != null) {
-            snackbarHostState.showSnackbar(snackbarText)
-            viewModel.consumeSnackbar()
-        }
-    }
-    Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PansariTopBar(title = stringResource(Res.string.checkout_title), onBack = onBack)
+    val checkoutError = state.error.toErrorBanner()
+        ?: state.snackbar?.let { ErrorBannerState.ack(it) }
+    PansariScreen(
+        title = stringResource(Res.string.checkout_title),
+        onBack = onBack,
+        error = checkoutError,
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = { viewModel.load(shopId) }, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.placing,
+    ) {
+        Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         val quote = state.quote
         var addressMenuOpen by remember { mutableStateOf(false) }
         val selected = state.addresses.firstOrNull { it.id == state.selectedAddressId }
@@ -350,13 +372,7 @@ fun CheckoutScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
-        if (state.placing) CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-        state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
-    }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
-        )
+        }
     }
 }
 
@@ -374,10 +390,12 @@ fun ThankYouScreen(
     viewModel: ThankYouViewModel = koinViewModel(),
 ) {
     LaunchedEffect(Unit) { viewModel.goNext(onContinue) }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    PansariScreen {
+        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(Res.string.thank_you_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(stringResource(Res.string.thank_you_body), modifier = Modifier.padding(top = 8.dp))
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
+        }
     }
 }
 
@@ -390,14 +408,18 @@ fun OrderDetailsScreen(
     LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val order = state.order
-    Column(Modifier.fillMaxSize()) {
-        // Keep back outside scroll so clicks/gestures are not eaten by NestedScroll.
-        PansariTopBar(
-            title = order?.shopName?.takeIf { it.isNotBlank() }
-                ?: order?.shopId
-                ?: stringResource(Res.string.order_details_title),
-            onBack = onBack,
-        )
+    PansariScreen(
+        title = order?.shopName?.takeIf { it.isNotBlank() }
+            ?: order?.shopId
+            ?: stringResource(Res.string.order_details_title),
+        onBack = onBack,
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = { viewModel.load(orderId) }, onDismiss = viewModel::dismissError)
+        },
+        isLoading = order == null && state.error == null,
+    ) {
+        Column(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .weight(1f)
@@ -518,6 +540,7 @@ fun OrderDetailsScreen(
             }
             Spacer(Modifier.height(16.dp))
         }
+        }
     }
 }
 
@@ -582,11 +605,22 @@ fun OrdersListScreen(
     viewModel: AccountViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        PansariTopBar(title = stringResource(Res.string.account_all_orders), onBack = onBack)
-        state.orders.forEach { order ->
-            OrderAccountTile(order = order, onClick = { onOpen(order.id) })
-            HorizontalDivider()
+    val orders = (state as? AsyncUiState.Success)?.data?.orders.orEmpty()
+    PansariScreen(
+        title = stringResource(Res.string.account_all_orders),
+        onBack = onBack,
+        error = state.errorBannerOrNull(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::refresh, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.isBlockingLoad(),
+        isRefreshing = state.isRefreshing(),
+    ) {
+        Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+            orders.forEach { order ->
+                OrderAccountTile(order = order, onClick = { onOpen(order.id) })
+                HorizontalDivider()
+            }
         }
     }
 }
@@ -597,8 +631,19 @@ fun TransactionsScreen(
     viewModel: AccountViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        PansariTopBar(title = stringResource(Res.string.account_transactions), onBack = onBack)
-        state.txns.forEach { Text("${it.title}  ${it.amount.asMoney()}") }
+    val txns = (state as? AsyncUiState.Success)?.data?.txns.orEmpty()
+    PansariScreen(
+        title = stringResource(Res.string.account_transactions),
+        onBack = onBack,
+        error = state.errorBannerOrNull(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::refresh, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.isBlockingLoad(),
+        isRefreshing = state.isRefreshing(),
+    ) {
+        Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+            txns.forEach { Text("${it.title}  ${it.amount.asMoney()}") }
+        }
     }
 }

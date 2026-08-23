@@ -48,6 +48,8 @@ class PhoneAuthViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(PhoneAuthUiState())
     val state: StateFlow<PhoneAuthUiState> = _state.asStateFlow()
+
+    fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
 
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
@@ -119,6 +121,8 @@ class AddressViewModel(
     private val _state = MutableStateFlow(AddressUiState())
     val state: StateFlow<AddressUiState> = _state.asStateFlow()
     private var searchJob: Job? = null
+
+    fun dismissError() { _state.update { it.copy(error = null) } }
 
     fun setName(value: String) { _state.update { it.copy(name = value, error = null) } }
     fun setAddress(value: String) {

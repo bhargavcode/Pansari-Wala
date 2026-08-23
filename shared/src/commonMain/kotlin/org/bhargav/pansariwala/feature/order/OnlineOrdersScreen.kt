@@ -30,8 +30,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
-import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.i18n.asString
@@ -77,63 +79,61 @@ fun OnlineOrdersScreen(
     viewModel: OnlineOrdersViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    PansariScreen(
+        title = stringResource(Res.string.online_orders_title),
+        onBack = onBack,
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = { viewModel.refresh() }, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading && state.orders.isEmpty(),
+        isRefreshing = state.loading && state.orders.isNotEmpty(),
     ) {
-        PansariTopBar(
-            title = stringResource(Res.string.online_orders_title),
-            onBack = onBack,
-        )
-        state.error?.let { message ->
-            SectionCard(title = message.asString()) {
-                Button(onClick = { viewModel.refresh() }) {
-                    Text(stringResource(Res.string.action_retry))
-                }
+        Column(
+            Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (state.orders.isEmpty() && !state.loading && state.error == null) {
+                Text(stringResource(Res.string.online_orders_empty))
             }
-        }
-        if (state.loading && state.orders.isEmpty() && state.error == null) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-        } else if (state.orders.isEmpty() && state.error == null) {
-            Text(stringResource(Res.string.online_orders_empty))
-        }
-        state.orders.forEach { order ->
-            val busy = state.busyId == order.id
-            SectionCard(title = "${order.id} · ${order.customerName.orEmpty().ifBlank { order.id }} · ${onlineOrderStatusLabel(order.status)}") {
-                order.items.forEach { item ->
-                    Text("${item.productName} × ${item.quantity.asQuantity()} · ${item.lineTotal.asMoney()}")
-                }
-                OnlineOrderStatusNote(order)
-                order.cancelReason?.let { reason ->
-                    Text(
-                        text = "${stringResource(Res.string.cancel_reason_label)}: $reason",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 4.dp),
+            state.orders.forEach { order ->
+                val busy = state.busyId == order.id
+                SectionCard(title = "${order.id} · ${order.customerName.orEmpty().ifBlank { order.id }} · ${onlineOrderStatusLabel(order.status)}") {
+                    order.items.forEach { item ->
+                        Text("${item.productName} × ${item.quantity.asQuantity()} · ${item.lineTotal.asMoney()}")
+                    }
+                    OnlineOrderStatusNote(order)
+                    order.cancelReason?.let { reason ->
+                        Text(
+                            text = "${stringResource(Res.string.cancel_reason_label)}: $reason",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    DeliveryPartnerDetails(order)
+                    OnlineOrderActions(
+                        order = order,
+                        busy = busy,
+                        onAccept = { viewModel.accept(order.id) },
+                        onPacking = { viewModel.markPacking(order.id) },
+                        onRequestPartner = { viewModel.requestDeliveryPartner(order.id) },
+                        onCancel = { viewModel.openCancel(order.id) },
                     )
                 }
-                DeliveryPartnerDetails(order)
-                OnlineOrderActions(
-                    order = order,
-                    busy = busy,
-                    onAccept = { viewModel.accept(order.id) },
-                    onPacking = { viewModel.markPacking(order.id) },
-                    onRequestPartner = { viewModel.requestDeliveryPartner(order.id) },
-                    onCancel = { viewModel.openCancel(order.id) },
-                )
             }
         }
-    }
-    if (state.cancelOrderId != null) {
-        CancelOnlineOrderSheet(
-            reason = state.cancelReason,
-            customReason = state.customCancelReason,
-            onReasonChange = viewModel::onCancelReasonChange,
-            onCustomReasonChange = viewModel::onCustomCancelReasonChange,
-            onConfirm = viewModel::confirmCancel,
-            onDismiss = viewModel::dismissCancel,
-            busy = state.busyId == state.cancelOrderId,
-        )
+        if (state.cancelOrderId != null) {
+            CancelOnlineOrderSheet(
+                reason = state.cancelReason,
+                customReason = state.customCancelReason,
+                onReasonChange = viewModel::onCancelReasonChange,
+                onCustomReasonChange = viewModel::onCustomCancelReasonChange,
+                onConfirm = viewModel::confirmCancel,
+                onDismiss = viewModel::dismissCancel,
+                busy = state.busyId == state.cancelOrderId,
+            )
+        }
     }
 }
 

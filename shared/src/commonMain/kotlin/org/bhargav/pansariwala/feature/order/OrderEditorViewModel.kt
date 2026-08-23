@@ -83,6 +83,8 @@ class OrderEditorViewModel(
     private val _uiState = MutableStateFlow(OrderEditorUiState())
     val uiState: StateFlow<OrderEditorUiState> = _uiState.asStateFlow()
 
+    fun dismissError() { _uiState.update { it.copy(error = null) } }
+
     private var shopId: String = SeedData.DEMO_SHOP_ID
     private var editingOrderId: String? = null
     private var createdAt: Long = AppClock.nowMillis()

@@ -12,7 +12,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.designsystem.PansariScreen
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -23,6 +24,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.ui.AsyncUiState
+import org.bhargav.pansariwala.ui.errorBannerOrNull
+import org.bhargav.pansariwala.ui.isBlockingLoad
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
@@ -42,14 +46,18 @@ fun InventoryListScreen(
     viewModel: InventoryListViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val products = if (lowStockOnly) state.products.filter { it.isLowStock } else state.products
+    val products = (state as? AsyncUiState.Success)?.data?.products
+        ?.let { list -> if (lowStockOnly) list.filter { it.isLowStock } else list }
+        ?: emptyList()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        PansariTopBar(
-            title = stringResource(if (lowStockOnly) Res.string.low_stock_items else Res.string.all_inventory),
-            onBack = onBack,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
+    PansariScreen(
+        title = stringResource(if (lowStockOnly) Res.string.low_stock_items else Res.string.all_inventory),
+        onBack = onBack,
+        error = state.errorBannerOrNull(),
+        isLoading = state.isBlockingLoad(),
+        onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = {}) },
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text(
             text = stringResource(Res.string.products_count, products.size),
             style = MaterialTheme.typography.bodySmall,
@@ -61,6 +69,7 @@ fun InventoryListScreen(
                 InventoryRow(product, onEditProduct)
                 HorizontalDivider()
             }
+        }
         }
     }
 }

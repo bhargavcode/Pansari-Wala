@@ -66,6 +66,7 @@ interface PansariApi {
     suspend fun deliveredJobs(fromEpochMs: Long, toEpochMs: Long): List<Order>
     suspend fun cancelPickup(orderId: String): Order
     suspend fun arrivedAtStore(orderId: String): Order
+    suspend fun verifyBags(orderId: String, photoOne: String = "", photoTwo: String = ""): Order
     suspend fun submitPickup(orderId: String, photoOne: String, photoTwo: String): Order
     suspend fun arrivedAtCustomer(orderId: String): Order
     suspend fun deliverOrder(orderId: String, otp: String): Order

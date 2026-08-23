@@ -27,12 +27,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.designsystem.SectionCard
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedDialog
 import org.bhargav.pansariwala.platform.RequestLocationPermission
 import org.bhargav.pansariwala.platform.openAppLocationSettings
+import org.bhargav.pansariwala.ui.AsyncUiState
+import org.bhargav.pansariwala.ui.errorBannerOrNull
+import org.bhargav.pansariwala.ui.isBlockingLoad
+import org.bhargav.pansariwala.ui.isRefreshing
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -83,6 +90,11 @@ fun PhoneAuthScreen(
     viewModel: PhoneAuthViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    PansariScreen(
+        error = state.error.toErrorBanner(),
+        onErrorAction = { handleErrorBannerAction(it, onRetry = viewModel::sendOtp, onDismiss = viewModel::dismissError) },
+        isLoading = state.loading,
+    ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -125,8 +137,7 @@ fun PhoneAuthScreen(
                 Text(stringResource(Res.string.action_resend_otp))
             }
         }
-        state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
-        if (state.loading) CircularProgressIndicator()
+        }
     }
 }
 
@@ -154,6 +165,13 @@ fun UserLocationAccessScreen(
         message = deniedMessage,
     )
 
+    PansariScreen(
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::requestLocationAccess, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.fetchingLocation || state.saving,
+    ) {
     Column(
         Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -200,12 +218,7 @@ fun UserLocationAccessScreen(
             onClick = { viewModel.continueToHome(onDone) },
             enabled = !state.saving && state.lat != null && state.lng != null && state.locationPermissionGranted,
         )
-        state.error?.let {
-            Text(it.asString(), color = MaterialTheme.colorScheme.error)
-        }
-        if (state.fetchingLocation || state.saving) {
-            CircularProgressIndicator()
-        }
+    }
     }
 }
 
@@ -242,6 +255,14 @@ fun MarketScreen(
         message = deniedMessage,
     )
 
+    PansariScreen(
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::search, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading && state.shops.isEmpty(),
+        isRefreshing = state.loading && state.shops.isNotEmpty(),
+    ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         if (cartLines.isNotEmpty() && cartShopId != null) {
             ContinueLastOrderCard(
@@ -282,15 +303,14 @@ fun MarketScreen(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
-            if (state.loading) CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             if (state.shops.isEmpty() && !state.loading) {
                 Text(stringResource(Res.string.no_shops_nearby))
             }
             state.shops.forEach { shop ->
                 ShopDiscoveryCard(shop = shop, onClick = { onOpenShop(shop.id) })
             }
-            state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
         }
+    }
     }
 }
 
@@ -300,11 +320,12 @@ fun UserShopTabScreen(
     activeShopName: String?,
     onOpenShop: (String) -> Unit,
 ) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    PansariScreen {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         if (activeShopId != null && activeShopName != null) {
             Text(
                 stringResource(Res.string.user_shop_tab_continue, activeShopName),
@@ -319,6 +340,7 @@ fun UserShopTabScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        }
     }
 }
 
@@ -331,42 +353,61 @@ fun AccountHomeScreen(
     viewModel: AccountViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    val data = (state as? AsyncUiState.Success)?.data
+    PansariScreen(
+        error = state.errorBannerOrNull(),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::refresh, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.isBlockingLoad(),
+        isRefreshing = state.isRefreshing(),
     ) {
-        Text(
-            stringResource(Res.string.account_recent_three),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
-        SectionCard(title = stringResource(Res.string.account_recent_three)) {
-            if (state.recent.isEmpty()) {
-                Text(
-                    stringResource(Res.string.no_orders_yet),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                state.recent.forEach { order ->
-                    OrderAccountTile(order = order, onClick = { onRecent(order.id) })
-                    HorizontalDivider()
+        Column(
+            Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                stringResource(Res.string.account_recent_three),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+            SectionCard(title = stringResource(Res.string.account_recent_three)) {
+                if (data?.recent.isNullOrEmpty()) {
+                    Text(
+                        stringResource(Res.string.no_orders_yet),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    data.recent.forEach { order ->
+                        OrderAccountTile(order = order, onClick = { onRecent(order.id) })
+                        HorizontalDivider()
+                    }
                 }
             }
+            UserMenuRow(
+                title = stringResource(Res.string.account_all_orders),
+                onClick = onAllOrders,
+                trailing = (data?.orders?.size ?: 0).toString(),
+            )
+            HorizontalDivider()
+            UserMenuRow(
+                title = stringResource(Res.string.account_transactions),
+                onClick = onTxns,
+                trailing = (data?.txns?.size ?: 0).toString(),
+            )
+            HorizontalDivider()
+            UserMenuRow(title = stringResource(Res.string.account_help), onClick = onHelp)
         }
-        UserMenuRow(title = stringResource(Res.string.account_all_orders), onClick = onAllOrders, trailing = state.orders.size.toString())
-        HorizontalDivider()
-        UserMenuRow(title = stringResource(Res.string.account_transactions), onClick = onTxns, trailing = state.txns.size.toString())
-        HorizontalDivider()
-        UserMenuRow(title = stringResource(Res.string.account_help), onClick = onHelp)
     }
 }
 
 @Composable
 fun HelpScreen(onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PansariTopBar(title = stringResource(Res.string.account_help), onBack = onBack)
-        Text(stringResource(Res.string.help_body))
+    PansariScreen(title = stringResource(Res.string.account_help), onBack = onBack) {
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(Res.string.help_body))
+        }
     }
 }
 
@@ -380,7 +421,8 @@ fun UserSettingsHub(
 ) {
     val radius by viewModel.radius.collectAsStateWithLifecycle(AppConstants.DEFAULT_SEARCH_RADIUS_KM)
     val settings by viewModel.settings.collectAsStateWithLifecycle(org.bhargav.pansariwala.settings.AppUserSettings())
-    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+    PansariScreen {
+        Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text(
             stringResource(Res.string.profile_payment_header),
             style = MaterialTheme.typography.titleMedium,
@@ -408,6 +450,7 @@ fun UserSettingsHub(
         HorizontalDivider()
         TextButton(onClick = { viewModel.logout(onLogout) }, modifier = Modifier.padding(top = 16.dp)) {
             Text(stringResource(Res.string.action_logout))
+        }
         }
     }
 }

@@ -35,8 +35,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
@@ -67,6 +70,13 @@ fun LoginScreen(
         }
     }
 
+    PansariScreen(
+        error = uiState.errorMessage.toErrorBanner(retryable = true),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = viewModel::onLoginClick, onDismiss = viewModel::dismissError)
+        },
+        isLoading = uiState.isLoading,
+    ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthClass = when {
             maxWidth < 600.dp -> WindowWidthClass.Compact
@@ -103,6 +113,7 @@ fun LoginScreen(
                 }
             }
         }
+    }
     }
 }
 
@@ -207,15 +218,6 @@ private fun LoginFormColumn(
                 modifier = Modifier.align(Alignment.End),
             ) {
                 Text(stringResource(Res.string.login_forgot_password))
-            }
-
-            uiState.errorMessage?.let { message ->
-                Text(
-                    text = message.asString(),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
             }
 
             Button(

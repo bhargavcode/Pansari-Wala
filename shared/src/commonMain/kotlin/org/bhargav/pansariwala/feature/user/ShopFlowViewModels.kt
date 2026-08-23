@@ -3,6 +3,8 @@ package org.bhargav.pansariwala.feature.user
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.api.PlaceOrderItemDto
 import org.bhargav.pansariwala.api.PlaceOrderRequest
 import org.bhargav.pansariwala.api.QuoteDto
@@ -26,6 +30,8 @@ import org.bhargav.pansariwala.domain.model.toFulfillmentStep
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.RazorpayCheckout
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.ui.AsyncUiState
+import org.bhargav.pansariwala.ui.beginLoad
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_checkout_address_required
@@ -38,47 +44,64 @@ import pansariwala.shared.generated.resources.error_razorpay_cancelled
 import pansariwala.shared.generated.resources.error_razorpay_failed
 import pansariwala.shared.generated.resources.error_razorpay_unavailable
 
-data class CatalogUiState(
-    val shop: org.bhargav.pansariwala.domain.model.MarketplaceShop? = null,
+data class CatalogData(
+    val shop: MarketplaceShop? = null,
     val products: List<Product> = emptyList(),
-    val loading: Boolean = true,
-    val error: String? = null,
     val cartCount: Int = 0,
 )
+
+typealias CatalogUiState = AsyncUiState<CatalogData>
 
 class ShopCatalogViewModel(
     private val api: PansariApi,
     private val cart: CartStore,
     private val location: org.bhargav.pansariwala.platform.DeviceLocation,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(CatalogUiState())
+    private val _state = MutableStateFlow<CatalogUiState>(AsyncUiState.Idle)
     val state: StateFlow<CatalogUiState> = _state.asStateFlow()
+
+    fun dismissError() {
+        _state.value = when (val current = _state.value) {
+            is AsyncUiState.Error -> AsyncUiState.Idle
+            is AsyncUiState.Success -> current.copy(bannerError = null)
+            else -> current
+        }
+    }
 
     fun load(shopId: String) {
         cart.bindShop(shopId)
         viewModelScope.launch {
             cart.lines.collect { lines ->
-                _state.update { it.copy(cartCount = lines.sumOf { line -> line.quantity.toInt() }) }
+                val count = lines.sumOf { line -> line.quantity.toInt() }
+                val current = _state.value
+                if (current is AsyncUiState.Success) {
+                    _state.value = current.copy(data = current.data.copy(cartCount = count))
+                }
             }
         }
         viewModelScope.launch {
-            runCatching { api.shopCatalog(shopId) }
-                .onSuccess { products ->
-                    _state.update { it.copy(loading = false, products = products) }
-                }
-                .onFailure { err ->
-                    _state.update { it.copy(loading = false, error = err.message) }
-                }
-        }
-        viewModelScope.launch {
+            _state.value = _state.value.beginLoad()
             runCatching {
-                val geo = location.currentOrDefault()
-                api.nearbyShops(geo.lat, geo.lng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
-                    .firstOrNull { it.id == shopId }
-            }.onSuccess { shop ->
-                shop?.let {
-                    cart.bindShop(shopId, it.name)
-                    _state.update { s -> s.copy(shop = it) }
+                coroutineScope {
+                    val productsDef = async { api.shopCatalog(shopId) }
+                    val shopDef = async {
+                        val geo = location.currentOrDefault()
+                        api.nearbyShops(geo.lat, geo.lng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
+                            .firstOrNull { it.id == shopId }
+                    }
+                    val products = productsDef.await()
+                    val shop = shopDef.await()
+                    shop?.let { cart.bindShop(shopId, it.name) }
+                    CatalogData(shop = shop, products = products, cartCount = cart.itemCount)
+                }
+            }.onSuccess { data ->
+                _state.value = AsyncUiState.Success(data)
+            }.onFailure { err ->
+                err.rethrowIfStructuredCancellation()
+                val message = err.toApiUiText()
+                _state.value = when (val current = _state.value) {
+                    is AsyncUiState.Success -> current.copy(isRefreshing = false, bannerError = message)
+                    else -> AsyncUiState.Error(message)
                 }
             }
         }
@@ -171,6 +194,7 @@ class CheckoutViewModel(
     fun toggleOffers() { _state.update { it.copy(offersExpanded = !it.offersExpanded) } }
 
     fun consumeSnackbar() { _state.update { it.copy(snackbar = null) } }
+    fun dismissError() { _state.update { it.copy(error = null, snackbar = null) } }
 
     fun selectAddress(shopId: String, addressId: String) {
         viewModelScope.launch {
@@ -302,6 +326,8 @@ class OrderDetailsViewModel(
     private val _state = MutableStateFlow(OrderDetailsUiState())
     val state: StateFlow<OrderDetailsUiState> = _state.asStateFlow()
     private var pollJob: Job? = null
+
+    fun dismissError() { _state.update { it.copy(error = null) } }
 
     fun load(orderId: String) {
         pollJob?.cancel()

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.designsystem.AdaptivePane
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.StatTile
 import org.bhargav.pansariwala.designsystem.PansariTopBar
@@ -93,16 +94,15 @@ fun OrdersWorkspaceScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(focusOrderId) { viewModel.focusOrder(focusOrderId) }
 
-    AdaptivePane(modifier = Modifier.fillMaxSize()) { widthClass ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-        ) {
-            PansariTopBar(
-                title = stringResource(Res.string.orders_workspace_title),
-                onBack = onBack,
-            )
+    PansariScreen(
+        title = stringResource(Res.string.orders_workspace_title),
+        onBack = onBack,
+        isLoading = state.loading,
+    ) {
+        AdaptivePane(modifier = Modifier.fillMaxSize()) { widthClass ->
+            Column(
+                modifier = Modifier.fillMaxSize(),
+            ) {
 
             if (widthClass == WindowWidthClass.Expanded) {
                 Row(
@@ -162,18 +162,19 @@ fun OrdersWorkspaceScreen(
                 }
             }
         }
-    }
 
         if (state.showCancelDialog) {
-        CancelOrderBottomSheet(
-            reason = state.cancelReason,
-            customReason = state.customCancelReason,
-            onReasonChange = viewModel::onCancelReasonChange,
-            onCustomReasonChange = viewModel::onCustomCancelReasonChange,
-            onConfirm = viewModel::confirmCancelOrder,
-            onDismiss = viewModel::dismissCancelDialog,
+            CancelOrderBottomSheet(
+                reason = state.cancelReason,
+                customReason = state.customCancelReason,
+                onReasonChange = viewModel::onCancelReasonChange,
+                onCustomReasonChange = viewModel::onCustomCancelReasonChange,
+                onConfirm = viewModel::confirmCancelOrder,
+                onDismiss = viewModel::dismissCancelDialog,
                 busy = state.cancellingOrder,
-        )
+            )
+        }
+    }
     }
 }
 

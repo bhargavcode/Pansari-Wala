@@ -46,6 +46,8 @@ import org.bhargav.pansariwala.server.dto.SyncPushRequest
 import org.bhargav.pansariwala.server.dto.UpdateProfileRequest
 import org.bhargav.pansariwala.server.dto.VerifyPaymentRequest
 import org.bhargav.pansariwala.server.service.AppStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
     get("/health") { call.respond(org.bhargav.pansariwala.server.dto.OkResponse(true)) }
@@ -101,7 +103,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
             store.updateCustomerLocation(call.userId(), body.lat, body.lng)
             call.respond(OkResponse())
         }
-        get("/me/transactions") { call.respond(store.transactions(call.userId())) }
+        get("/me/transactions") {
+            call.respond(withContext(Dispatchers.IO) { store.transactions(call.userId()) })
+        }
         get("/shops") {
             val lat = call.parameters["lat"]?.toDoubleOrNull() ?: error("lat required")
             val lng = call.parameters["lng"]?.toDoubleOrNull() ?: error("lng required")
@@ -134,14 +138,18 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         post("/orders") {
             call.respond(store.placeOrder(call.userId(), call.receive<PlaceOrderRequest>()))
         }
-        get("/orders/mine") { call.respond(store.customerOrders(call.userId())) }
+        get("/orders/mine") {
+            call.respond(withContext(Dispatchers.IO) { store.customerOrders(call.userId()) })
+        }
         get("/orders/{id}") { call.respond(store.getOrder(call.parameters["id"]!!)) }
         post("/orders/{id}/rating") {
             val body = call.receive<RateOrderRequest>()
             call.respond(store.rateOrder(call.userId(), call.parameters["id"]!!, body.stars, body.comment))
         }
 
-        get("/shop/orders") { call.respond(store.shopOrders(call.requireShopId())) }
+        get("/shop/orders") {
+            call.respond(withContext(Dispatchers.IO) { store.shopOrders(call.requireShopId()) })
+        }
         post("/shop/orders/{id}/accept") {
             call.respond(store.acceptShopOrder(call.requireShopId(), call.parameters["id"]!!))
         }
@@ -220,6 +228,17 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         }
         post("/partners/jobs/{id}/arrived-store") {
             call.respond(store.arrivedAtStore(call.userId(), call.parameters["id"]!!))
+        }
+        post("/partners/jobs/{id}/verify-bags") {
+            val body = runCatching { call.receive<PickupRequest>() }.getOrNull()
+            call.respond(
+                store.verifyBags(
+                    call.userId(),
+                    call.parameters["id"]!!,
+                    body?.photoOneBase64.orEmpty(),
+                    body?.photoTwoBase64.orEmpty(),
+                ),
+            )
         }
         post("/partners/jobs/{id}/arrived-customer") {
             call.respond(store.arrivedAtCustomer(call.userId(), call.parameters["id"]!!))

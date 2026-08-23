@@ -30,10 +30,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.designsystem.AdaptivePane
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.PansariSearchTopBar
 import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
@@ -73,7 +76,12 @@ fun OrderEditorScreen(
         onConsumed = viewModel::consumeMicPermissionRequest,
         onResult = viewModel::onMicPermissionResult,
     )
-    AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
+    PansariScreen(
+        error = state.error.toErrorBanner(retryable = false),
+        onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError) },
+        isLoading = state.loading,
+    ) {
+        AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
         if (widthClass == WindowWidthClass.Expanded) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -90,6 +98,7 @@ fun OrderEditorScreen(
             }
         } else {
             SearchOrSuggestedItems(state, viewModel, showHeader = true, onBack = onBack)
+        }
         }
     }
 }
@@ -150,14 +159,6 @@ private fun ColumnScope.CartSection(state: OrderEditorUiState, viewModel: OrderE
         }
     }
 
-    state.error?.let {
-        Text(
-            text = it.asString(),
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-    }
     HorizontalDivider()
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),

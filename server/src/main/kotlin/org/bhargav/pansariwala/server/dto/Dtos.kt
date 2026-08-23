@@ -226,6 +226,7 @@ data class OrderDto(
     val ratingStars: Int? = null,
     val ratingComment: String? = null,
     val cancelReason: String? = null,
+    val partnerProgress: String = "",
 )
 
 @Serializable

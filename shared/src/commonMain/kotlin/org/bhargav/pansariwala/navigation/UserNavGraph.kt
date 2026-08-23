@@ -225,7 +225,7 @@ fun UserNavGraph() {
         )
         SnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+            modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
         )
     }
 }

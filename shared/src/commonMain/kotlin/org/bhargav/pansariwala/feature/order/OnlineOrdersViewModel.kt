@@ -34,6 +34,8 @@ class OnlineOrdersViewModel(
     private val _uiState = MutableStateFlow(OnlineOrdersUiState())
     val uiState: StateFlow<OnlineOrdersUiState> = _uiState.asStateFlow()
 
+    fun dismissError() { _uiState.update { it.copy(error = null) } }
+
     init {
         viewModelScope.launch {
             refresh()

@@ -34,6 +34,8 @@ class UserLocationAccessViewModel(
     private val _state = MutableStateFlow(UserLocationAccessUiState())
     val state: StateFlow<UserLocationAccessUiState> = _state.asStateFlow()
 
+    fun dismissError() { _state.update { it.copy(error = null) } }
+
     init {
         requestLocationAccess()
     }

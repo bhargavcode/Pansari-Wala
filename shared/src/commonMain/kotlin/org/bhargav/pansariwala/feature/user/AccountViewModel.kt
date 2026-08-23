@@ -2,43 +2,65 @@ package org.bhargav.pansariwala.feature.user
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.MoneyTxn
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.ui.AsyncUiState
+import org.bhargav.pansariwala.ui.beginLoad
 import org.bhargav.pansariwala.util.AppConstants
 
-data class AccountUiState(
-    val recent: List<Order> = emptyList(),
+data class AccountData(
     val orders: List<Order> = emptyList(),
     val txns: List<MoneyTxn> = emptyList(),
-    val loading: Boolean = true,
-)
+) {
+    val recent: List<Order> get() = orders.take(AppConstants.RECENT_ORDERS_CARD_LIMIT)
+}
+
+typealias AccountUiState = AsyncUiState<AccountData>
 
 class AccountViewModel(
     private val api: PansariApi,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(AccountUiState())
+    private val _state = MutableStateFlow<AccountUiState>(AsyncUiState.Idle)
     val state: StateFlow<AccountUiState> = _state.asStateFlow()
 
     init { refresh() }
 
+    fun dismissError() {
+        _state.value = when (val current = _state.value) {
+            is AsyncUiState.Error -> AsyncUiState.Idle
+            is AsyncUiState.Success -> current.copy(bannerError = null)
+            else -> current
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch {
-            val orders = runCatching { api.myOrders() }.getOrDefault(emptyList())
-            val txns = runCatching { api.myTransactions() }.getOrDefault(emptyList())
-            _state.update {
-                it.copy(
-                    loading = false,
-                    orders = orders,
-                    recent = orders.take(AppConstants.RECENT_ORDERS_CARD_LIMIT),
-                    txns = txns,
-                )
+            _state.value = _state.value.beginLoad()
+            runCatching {
+                coroutineScope {
+                    val orders = async { api.myOrders() }
+                    val txns = async { api.myTransactions() }
+                    AccountData(orders = orders.await(), txns = txns.await())
+                }
+            }.onSuccess { data ->
+                _state.value = AsyncUiState.Success(data)
+            }.onFailure { error ->
+                error.rethrowIfStructuredCancellation()
+                val message = error.toApiUiText()
+                _state.value = when (val current = _state.value) {
+                    is AsyncUiState.Success -> current.copy(isRefreshing = false, bannerError = message)
+                    else -> AsyncUiState.Error(message)
+                }
             }
         }
     }

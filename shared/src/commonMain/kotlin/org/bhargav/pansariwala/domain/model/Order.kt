@@ -74,6 +74,7 @@ data class Order(
     val totalDistanceKm: Double? = null,
     val deliveryDurationMin: Int? = null,
     val partnerPayoutInr: Double? = null,
+    val partnerProgress: String = "",
 ) {
     val totalValue: Double get() = quote?.payable ?: items.sumOf { it.lineTotal }
     val itemCount: Int get() = items.size
@@ -98,4 +99,9 @@ data class Order(
         }
     val visiblePickupPhotos: List<String>
         get() = pickupPhotoUrls.filter { it.length > 64 }
+    val resumeProgress: String
+        get() = partnerProgress.ifBlank {
+            if (status == OrderStatus.ON_THE_WAY) AppConstants.PartnerProgress.TO_CUSTOMER
+            else AppConstants.PartnerProgress.TO_STORE
+        }
 }

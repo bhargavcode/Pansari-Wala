@@ -52,6 +52,8 @@ class AddEditInventoryViewModel(
     private val _uiState = MutableStateFlow(AddEditInventoryUiState())
     val uiState: StateFlow<AddEditInventoryUiState> = _uiState.asStateFlow()
 
+    fun dismissError() { _uiState.update { it.copy(error = null) } }
+
     private var shopId: String = SeedData.DEMO_SHOP_ID
     private var loadedProductId: String? = null
 

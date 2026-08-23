@@ -38,6 +38,8 @@ class MarketViewModel(
     private val _state = MutableStateFlow(MarketUiState())
     val state: StateFlow<MarketUiState> = _state.asStateFlow()
 
+    fun dismissError() { _state.update { it.copy(error = null) } }
+
     init {
         viewModelScope.launch {
             val radius = preferences.getSearchRadiusKm()

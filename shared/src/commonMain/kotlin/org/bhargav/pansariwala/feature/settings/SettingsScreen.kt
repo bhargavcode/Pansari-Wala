@@ -24,7 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.settings.CustomTheme
@@ -57,17 +57,17 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    PansariScreen(
+        title = stringResource(Res.string.settings_title),
+        onBack = onBack,
     ) {
-        PansariTopBar(
-            title = stringResource(Res.string.settings_title),
-            onBack = onBack,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
 
         SectionCard(title = stringResource(Res.string.settings_notifications)) {
             SettingsToggle(
@@ -121,6 +121,7 @@ fun SettingsScreen(
                     onClick = { viewModel.setCustomTheme(theme) },
                 )
             }
+        }
         }
     }
 }
