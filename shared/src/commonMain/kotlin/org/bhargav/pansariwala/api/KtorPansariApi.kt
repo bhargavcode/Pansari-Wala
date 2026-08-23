@@ -3,9 +3,11 @@ package org.bhargav.pansariwala.api
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.authProviders
+import io.ktor.client.plugins.auth.providers.BearerAuthProvider
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
+import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
@@ -56,7 +58,7 @@ class KtorPansariApi(
         install(Auth) {
             bearer {
                 loadTokens { currentJwtTokens() }
-                refreshTokens { null }
+                refreshTokens { currentJwtTokens() }
                 sendWithoutRequest { request ->
                     val path = request.url.pathSegments.joinToString("/")
                     val public = path.contains("auth/") ||
@@ -71,12 +73,18 @@ class KtorPansariApi(
             url(baseUrl.trimEnd('/') + "/")
             contentType(ContentType.Application.Json)
         }
+    }.also { http ->
+        JwtAuthCache.onInvalidate = {
+            http.authProviders
+                .filterIsInstance<BearerAuthProvider>()
+                .forEach { it.clearToken() }
+        }
     }
 
     private suspend fun currentJwtTokens(): BearerTokens? {
         val token = preferences.getAccessToken() ?: return null
         if (!token.startsWith(AppConstants.JWT_PREFIX)) return null
-        return BearerTokens(token, "")
+        return BearerTokens(accessToken = token, refreshToken = token)
     }
 
     override suspend fun publicConfig(): PublicConfigDto =

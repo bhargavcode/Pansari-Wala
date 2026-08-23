@@ -51,6 +51,8 @@ class LiveAlerts(
     }
 
     private suspend fun pollShop(seen: MutableSet<String>, primed: Boolean) {
+        val token = preferences.getAccessToken()
+        if (token.isNullOrBlank() || !token.startsWith(AppConstants.JWT_PREFIX)) return
         val orders = api.shopOnlineOrders()
         if (primed) {
             orders.filter { it.status == OrderStatus.RECEIVED && it.id !in seen }.forEach { order ->

@@ -52,7 +52,7 @@ object AppConstants {
     const val HTTP_REQUEST_TIMEOUT_MS: Long = 12_000L
     const val HTTP_SOCKET_TIMEOUT_MS: Long = 12_000L
     const val HTTP_EXTERNAL_TIMEOUT_MS: Long = 5_000L
-    const val REMOTE_LOGIN_TIMEOUT_MS: Long = 4_000L
+    const val REMOTE_LOGIN_TIMEOUT_MS: Long = 15_000L
     const val DEFAULT_PHONE_COUNTRY_CODE: String = "+91"
     const val PHONE_LOCAL_DIGITS: Int = 10
     const val OTP_TIMEOUT_SEC: Long = 60L
