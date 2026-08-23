@@ -506,69 +506,62 @@ class PartnerHomeViewModel(
 
     fun refresh() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-            runCatching {
-                coroutineScope {
-                    val profile = async { api.partnerProfile() }
-                    val accepted = async { api.acceptedJobs() }
-                    profile.await() to accepted.await().filter { it.isActiveDelivery }
-                }
-            }.onSuccess { (profile, accepted) ->
-                _state.update {
-                    it.copy(loading = false, profile = profile, online = profile.online, acceptedJobs = accepted)
-                }
-                syncLocationDuty(profile.online)
-                if (profile.online) {
-                    refreshAvailableOffers()
-                    startPolling()
-                }
-            }.onFailure { e ->
-                _state.update { it.copy(loading = false, error = UiText.Plain(e.message.orEmpty())) }
+            val keepContent = _state.value.profile != null
+            _state.update {
+                it.copy(
+                    loading = !keepContent,
+                    refreshing = keepContent,
+                    error = null,
+                )
             }
-        }
-    }
-
-    fun pullRefresh() {
-        if (_state.value.refreshing) return
-        viewModelScope.launch {
-            _state.update { it.copy(refreshing = true, error = null) }
             runCatching {
                 coroutineScope {
-                    val profile = async { api.partnerProfile() }
-                    val accepted = async { api.acceptedJobs() }
-                    val profileValue = profile.await()
-                    val acceptedValue = accepted.await().filter { it.isActiveDelivery }
-                    val offers = if (profileValue.online) {
+                    val profileDef = async { api.partnerProfile() }
+                    val acceptedDef = async { api.acceptedJobs() }
+                    val profile = profileDef.await()
+                    val accepted = acceptedDef.await().filter { it.isActiveDelivery }
+                    val offers = if (profile.online) {
                         runCatching { api.availableOffers() }.getOrDefault(emptyList())
                     } else {
                         emptyList()
                     }
-                    Triple(profileValue, acceptedValue, offers)
+                    Triple(profile, accepted, offers)
                 }
             }.onSuccess { (profile, accepted, offers) ->
                 _state.update {
                     it.copy(
+                        loading = false,
                         refreshing = false,
                         profile = profile,
                         online = profile.online,
                         acceptedJobs = accepted,
                         availableOffers = offers,
+                        error = null,
                     )
                 }
                 syncLocationDuty(profile.online)
                 if (profile.online) {
-                    if (_state.value.locationPermissionGranted) pushLocation()
                     startPolling()
                 } else {
                     pollJob?.cancel()
                     timerJob?.cancel()
                 }
             }.onFailure { e ->
+                e.rethrowIfStructuredCancellation()
                 _state.update {
-                    it.copy(refreshing = false, error = UiText.Plain(e.message.orEmpty()))
+                    it.copy(
+                        loading = false,
+                        refreshing = false,
+                        error = e.toApiUiText(),
+                    )
                 }
             }
         }
+    }
+
+    fun pullRefresh() {
+        if (_state.value.refreshing) return
+        refresh()
     }
 
     fun offerSecondsRemaining(offer: DeliveryOffer): Int =
@@ -618,7 +611,7 @@ class PartnerHomeViewModel(
                             error = when {
                                 denied -> null
                                 unavailable -> UiText.res(Res.string.location_unavailable)
-                                else -> UiText.Plain(e.message.orEmpty())
+                                else -> e.toApiUiText()
                             },
                             locationPermissionGranted = !denied,
                             showLocationDeniedDialog = denied,
@@ -657,7 +650,7 @@ class PartnerHomeViewModel(
                         else -> {
                             // Background location sync retries; don't spam the home screen with socket errors.
                             if (!e.isTransientNetworkFailure()) {
-                                _state.update { it.copy(error = UiText.Plain(e.message.orEmpty())) }
+                                _state.update { it.copy(error = e.toApiUiText()) }
                             }
                         }
                     }
@@ -680,8 +673,9 @@ class PartnerHomeViewModel(
     }
 
     private fun startPolling() {
-        pollJob?.cancel()
+        if (pollJob?.isActive == true) return
         pollJob = viewModelScope.launch {
+            delay(AppConstants.LIVE_ALERT_POLL_MS)
             while (true) {
                 val jobsResult = async { runCatching { api.acceptedJobs() } }
                 val offersResult = async { runCatching { api.availableOffers() } }
@@ -772,7 +766,7 @@ class PartnerHomeViewModel(
                     }
                 }
                 .onFailure { e ->
-                    _state.update { it.copy(error = UiText.Plain(e.message.orEmpty())) }
+                    _state.update { it.copy(error = e.toApiUiText()) }
                 }
         }
     }
@@ -876,7 +870,7 @@ class PartnerJobViewModel(
                             UiText.res(Res.string.partner_job_unavailable)
                         e.message?.contains("Forbidden", ignoreCase = true) == true ->
                             UiText.res(Res.string.partner_job_unavailable)
-                        else -> UiText.res(Res.string.partner_job_load_failed)
+                        else -> e.toApiUiText()
                     }
                     _state.update { s -> s.copy(loading = false, order = null, error = message) }
                 }

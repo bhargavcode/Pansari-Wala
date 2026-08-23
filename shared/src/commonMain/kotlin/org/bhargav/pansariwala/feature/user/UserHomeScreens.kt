@@ -275,10 +275,7 @@ fun MarketScreen(
         }
         OutlinedTextField(
             value = state.query,
-            onValueChange = {
-                viewModel.setQuery(it)
-                viewModel.search()
-            },
+            onValueChange = viewModel::setQuery,
             label = { Text(stringResource(Res.string.market_search_products)) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             singleLine = true,

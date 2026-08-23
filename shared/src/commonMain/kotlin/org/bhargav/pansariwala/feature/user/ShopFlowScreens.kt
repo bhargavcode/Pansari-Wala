@@ -430,19 +430,8 @@ fun OrderDetailsScreen(
         ) {
             Spacer(Modifier.height(4.dp))
             when {
-                order == null && state.error != null -> {
-                    Text(
-                        state.error!!.takeUnless { it == "load_failed" }
-                            ?: stringResource(Res.string.error_order_load_failed),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    UserPrimaryButton(
-                        text = stringResource(Res.string.action_retry),
-                        onClick = { viewModel.load(orderId) },
-                    )
-                }
-                order == null -> CircularProgressIndicator()
-                else -> {
+                order == null && state.error == null -> CircularProgressIndicator()
+                order != null -> {
                     Text(
                         stringResource(Res.string.order_number_label, order.displayNumber),
                         style = MaterialTheme.typography.labelMedium,

@@ -19,6 +19,8 @@ import org.bhargav.pansariwala.api.PlaceOrderRequest
 import org.bhargav.pansariwala.api.QuoteDto
 import org.bhargav.pansariwala.api.VerifyPaymentRequest
 import org.bhargav.pansariwala.data.local.AppPreferences
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.Order
@@ -297,9 +299,7 @@ private fun checkoutError(err: Throwable, message: String = checkoutErrorMessage
         UiText.res(Res.string.error_checkout_empty_cart)
     message.contains(AppConstants.Checkout.ERROR_MISSING_QUOTE) ->
         UiText.res(Res.string.error_checkout_quote_missing)
-    else -> message.takeIf { it.isNotBlank() && !it.startsWith("Client request") }
-        ?.let { UiText.Plain(it) }
-        ?: UiText.res(Res.string.error_generic)
+    else -> err.toApiUiText()
 }
 
 class ThankYouViewModel : ViewModel() {
@@ -317,7 +317,7 @@ data class OrderDetailsUiState(
     val stars: Int = 0,
     val comment: String = "",
     val editingRating: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 class OrderDetailsViewModel(
@@ -347,8 +347,9 @@ class OrderDetailsViewModel(
                         }
                     }
                     .onFailure { err ->
+                        err.rethrowIfStructuredCancellation()
                         if (_state.value.order == null) {
-                            _state.update { it.copy(error = err.message?.takeIf { m -> m.isNotBlank() } ?: "load_failed") }
+                            _state.update { it.copy(error = err.toApiUiText()) }
                         }
                     }
                 delay(AppConstants.LIVE_ALERT_POLL_MS)

@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.ui.ErrorBannerAction
 import org.bhargav.pansariwala.ui.ErrorBannerState
@@ -47,13 +48,11 @@ fun PansariErrorBanner(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
         shape = RoundedCornerShape(12.dp),
-        shadowElevation = 6.dp,
+        shadowElevation = 8.dp,
         tonalElevation = 2.dp,
     ) {
         Row(
@@ -104,29 +103,38 @@ fun PansariScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(Modifier.fillMaxSize()) {
-            error?.let { banner ->
-                PansariErrorBanner(state = banner, onAction = onErrorAction)
-            }
-            when {
-                topBar != null -> topBar()
-                title != null -> PansariTopBar(title = title, onBack = onBack, actions = actions)
-            }
-            if (isRefreshing && !isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                content()
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                when {
+                    topBar != null -> topBar()
+                    title != null -> PansariTopBar(title = title, onBack = onBack, actions = actions)
+                }
+                if (isRefreshing && !isLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    content()
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
+            }
+            error?.let { banner ->
+                PansariErrorBanner(
+                    state = banner,
+                    onAction = onErrorAction,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .zIndex(2f)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
             }
         }
     }

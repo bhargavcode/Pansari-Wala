@@ -176,8 +176,12 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
             val to = call.parameters["to"]?.toLongOrNull() ?: (from + 86_400_000)
             call.respond(store.partnerDashboard(call.userId(), from, to))
         }
-        get("/partners/profile") { call.respond(store.partnerProfile(call.userId())) }
-        get("/partners/earnings") { call.respond(store.partnerEarnings(call.userId())) }
+        get("/partners/profile") {
+            call.respond(withContext(Dispatchers.IO) { store.partnerProfile(call.userId()) })
+        }
+        get("/partners/earnings") {
+            call.respond(withContext(Dispatchers.IO) { store.partnerEarnings(call.userId()) })
+        }
         post("/partners/online") {
             val body = call.receive<PartnerOnlineRequest>()
             store.setPartnerOnline(call.userId(), body.online)
@@ -192,7 +196,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
             call.respond(IncomingOfferResponse(store.incomingForPartner(call.userId())))
         }
         get("/partners/offers/available") {
-            call.respond(store.availableOffersForPartner(call.userId()))
+            call.respond(withContext(Dispatchers.IO) { store.availableOffersForPartner(call.userId()) })
         }
         get("/partners/offers/{id}") {
             call.respond(store.offerById(call.parameters["id"]!!, call.userId()))
@@ -210,14 +214,17 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         post("/partners/offers/{id}/reject") {
             call.respond(store.rejectOffer(call.userId(), call.parameters["id"]!!))
         }
-        get("/partners/jobs/accepted") { call.respond(store.partnerJobs(call.userId(), delivered = false)) }
+        get("/partners/jobs/accepted") {
+            call.respond(withContext(Dispatchers.IO) { store.partnerJobs(call.userId(), delivered = false) })
+        }
         get("/partners/jobs/{id}") {
-            call.respond(store.partnerJob(call.userId(), call.parameters["id"]!!))
+            val id = call.parameters["id"]!!
+            call.respond(withContext(Dispatchers.IO) { store.partnerJob(call.userId(), id) })
         }
         get("/partners/jobs/delivered") {
             val from = call.parameters["from"]?.toLongOrNull()
             val to = call.parameters["to"]?.toLongOrNull()
-            call.respond(store.partnerJobs(call.userId(), delivered = true, from, to))
+            call.respond(withContext(Dispatchers.IO) { store.partnerJobs(call.userId(), delivered = true, from, to) })
         }
         post("/partners/jobs/{id}/cancel") {
             call.respond(store.cancelPickup(call.userId(), call.parameters["id"]!!))

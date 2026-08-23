@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,6 +75,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.designsystem.PansariElevation
+import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderItem
@@ -153,74 +155,21 @@ fun PartnerBrandHeader(modifier: Modifier = Modifier) {
     }
 }
 
-private val PartnerTopBarSlot = 48.dp
-
-/**
- * Prototype top bar: solid primary, white content, balanced leading | title | trailing slots.
- */
+/** Same edge-aligned toolbar as POS/User screens ([PansariTopBar]). */
 @Composable
 fun PartnerTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null,
-    trailing: (@Composable () -> Unit)? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    val contentColor = MaterialTheme.colorScheme.onPrimary
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primary,
-        shadowElevation = PansariElevation.toolbar,
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .size(PartnerTopBarSlot),
-                contentAlignment = Alignment.Center,
-            ) {
-                when {
-                    leading != null -> leading()
-                    onBack != null -> {
-                        Text(
-                            text = "←",
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable(onClick = onBack)
-                                .padding(8.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = contentColor,
-                        )
-                    }
-                }
-            }
-            Text(
-                text = title,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(horizontal = PartnerTopBarSlot + 4.dp),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = contentColor,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .size(PartnerTopBarSlot),
-                contentAlignment = Alignment.Center,
-            ) {
-                trailing?.invoke()
-            }
-        }
-    }
+    PansariTopBar(
+        title = title,
+        onBack = onBack,
+        modifier = modifier,
+        actions = trailing ?: {},
+    )
 }
 
 /** Home bar: profile + status on the left, matching slot on the right for balance. */
@@ -242,10 +191,10 @@ fun PartnerHomeTopBar(
                 .fillMaxWidth()
                 .height(56.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 modifier = Modifier
+                    .padding(start = 4.dp)
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.22f))
@@ -265,15 +214,15 @@ fun PartnerHomeTopBar(
             }
             Text(
                 text = title,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp, end = 8.dp),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = contentColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            // Trailing mirror slot keeps the bar balanced with job screens.
-            Spacer(Modifier.size(40.dp))
         }
     }
 }

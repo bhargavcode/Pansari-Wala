@@ -6,7 +6,9 @@ import com.mongodb.client.model.Filters.regex
 import com.mongodb.client.model.Filters.gte
 import com.mongodb.client.model.Filters.`in`
 import com.mongodb.client.model.Filters.or
+import com.mongodb.client.model.Filters.lt
 import com.mongodb.client.model.Projections.exclude
+import com.mongodb.client.model.Projections.include
 import com.mongodb.client.model.ReplaceOptions
 import com.mongodb.client.model.Sorts
 import com.mongodb.client.model.Updates.combine
@@ -107,6 +109,13 @@ class AppStore(
         "platePhoto",
         "vehiclePhoto",
         "profilePhoto",
+        "dlPhoto",
+        "idPhoto",
+    )
+    /** Home/profile: keep avatar, drop other heavy base64 blobs. */
+    private val partnerProfileProjection = exclude(
+        "platePhoto",
+        "vehiclePhoto",
         "dlPhoto",
         "idPhoto",
     )
@@ -728,16 +737,25 @@ class AppStore(
     }
 
     fun partnerProfile(partnerId: String): PartnerProfileDto {
-        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: error("Partner not found")
+        val partner = partnerCol.find(eq("_id", partnerId))
+            .projection(partnerProfileProjection)
+            .firstOrNull() ?: error("Partner not found")
         val start = startOfToday()
         val end = start + 86_400_000
-        val dash = partnerDashboard(partnerId, start, end)
-        val totalDelivered = orderCol.find(
-            and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))),
-        ).toList()
-        val totalEarnings = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
-            .filter { offer -> totalDelivered.any { it.id == offer.orderId } }
-            .sumOf { it.payout }
+        val deliveredStatuses = listOf("DELIVERED", "COMPLETED")
+        val deliveredFilter = and(eq("partnerId", partnerId), `in`("status", deliveredStatuses))
+        val todayFilter = and(deliveredFilter, gte("createdAt", start), lt("createdAt", end))
+        val deliveredCount = orderCol.countDocuments(deliveredFilter).toInt()
+        val todayOrderIds = orderCol.find(todayFilter)
+            .projection(include("_id"))
+            .map { it.id }
+            .toList()
+        val todayEarnings = sumPartnerPayout(partnerId, todayOrderIds)
+        val allDeliveredIds = orderCol.find(deliveredFilter)
+            .projection(include("_id"))
+            .map { it.id }
+            .toList()
+        val totalEarnings = sumPartnerPayout(partnerId, allDeliveredIds)
         return PartnerProfileDto(
             id = partner.id,
             name = partner.name,
@@ -748,11 +766,19 @@ class AppStore(
             verified = partner.verified,
             online = partner.online,
             joinedAtEpochMs = partner.joinedAt,
-            todayEarnings = dash.earnings,
+            todayEarnings = todayEarnings,
             totalEarnings = totalEarnings,
-            deliveredCount = totalDelivered.size,
+            deliveredCount = deliveredCount,
             profilePhoto = partner.profilePhoto,
         )
+    }
+
+    private fun sumPartnerPayout(partnerId: String, orderIds: List<String>): Double {
+        if (orderIds.isEmpty()) return 0.0
+        return deliveryOfferCol.find(and(eq("acceptedBy", partnerId), `in`("orderId", orderIds)))
+            .projection(include("payout"))
+            .toList()
+            .sumOf { it.payout }
     }
 
     fun setPartnerOnline(partnerId: String, online: Boolean) {
@@ -857,11 +883,21 @@ class AppStore(
 
     fun partnerJobs(partnerId: String, delivered: Boolean, from: Long? = null, to: Long? = null): List<OrderDto> {
         val statuses = if (delivered) listOf("DELIVERED", "COMPLETED") else listOf("PARTNER_ACCEPTED", "ON_THE_WAY")
+        val filter = if (delivered && from != null && to != null) {
+            and(
+                eq("partnerId", partnerId),
+                `in`("status", statuses),
+                gte("createdAt", from),
+                lt("createdAt", to),
+            )
+        } else {
+            and(eq("partnerId", partnerId), `in`("status", statuses))
+        }
         return mapOrders(
-            orderCol.find(and(eq("partnerId", partnerId), `in`("status", statuses))).toList()
-                .filter { row ->
-                    !delivered || ((from == null || row.createdAt >= from) && (to == null || row.createdAt <= to))
-                },
+            orderCol.find(filter)
+                .sort(Sorts.descending("createdAt"))
+                .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+                .toList(),
         )
     }
 

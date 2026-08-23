@@ -238,7 +238,7 @@ fun PartnerRegisterScreen(
                 title = stringResource(Res.string.partner_register_title),
                 onBack = onBack,
                 trailing = {
-                    Text("?", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    Text("?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 },
             )
         },
@@ -544,40 +544,47 @@ fun PartnerNavigateToStoreScreen(
     LaunchedEffect(orderId) {
         origin = runCatching { deviceLocation.currentOrDefault() }.getOrNull()
     }
-    Column(modifier = Modifier.fillMaxSize()) {
-        val shopLabel = order?.shopName?.takeIf { it.isNotBlank() }
-            ?: stringResource(Res.string.partner_route_to_store)
-        val km = order?.shopDistanceKm() ?: 0.0
-        val mins = order?.deliveryDurationMin ?: 6
-        val headerMeta = order?.let {
-            stringResource(
-                Res.string.partner_route_header_meta,
-                shopLabel,
-                ((km * 10).toInt() / 10.0).toString(),
-                mins.toString(),
-            )
-        }
-        PartnerTopBar(
-            title = stringResource(Res.string.partner_route_to_store),
-            onBack = onBack,
+    val shopLabel = order?.shopName?.takeIf { it.isNotBlank() }
+        ?: stringResource(Res.string.partner_route_to_store)
+    val km = order?.shopDistanceKm() ?: 0.0
+    val mins = order?.deliveryDurationMin ?: 6
+    val headerMeta = order?.let {
+        stringResource(
+            Res.string.partner_route_header_meta,
+            shopLabel,
+            ((km * 10).toInt() / 10.0).toString(),
+            mins.toString(),
         )
-        if (headerMeta != null) {
-            PartnerRouteMetaBar(text = headerMeta)
-        }
-        when {
-            state.loading && order == null -> PartnerJobLoadingState(contentModifier = Modifier.weight(1f))
-            state.error != null && order == null -> PartnerJobErrorState(
-                message = state.error!!.asString(),
+    }
+    PansariScreen(
+        topBar = {
+            Column {
+                PartnerTopBar(
+                    title = stringResource(Res.string.partner_route_to_store),
+                    onBack = onBack,
+                )
+                if (headerMeta != null) {
+                    PartnerRouteMetaBar(text = headerMeta)
+                }
+            }
+        },
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(
+                it,
                 onRetry = { viewModel.load(orderId) },
-                onBack = onBack,
-                contentModifier = Modifier.weight(1f),
+                onDismiss = viewModel::dismissError,
             )
-            order != null -> {
-                val shopLat = order.shopLat ?: AppConstants.DEFAULT_MAP_LAT
-                val shopLng = order.shopLng ?: AppConstants.DEFAULT_MAP_LNG
+        },
+        isLoading = state.loading && order == null,
+    ) {
+        order?.let { loaded ->
+            val shopLat = loaded.shopLat ?: AppConstants.DEFAULT_MAP_LAT
+            val shopLng = loaded.shopLng ?: AppConstants.DEFAULT_MAP_LNG
+            Column(Modifier.fillMaxSize()) {
                 PartnerMapPlaceholder(
                     title = shopLabel,
-                    subtitle = order.shopAddress,
+                    subtitle = loaded.shopAddress,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     fillHeight = true,
                     lat = shopLat,
@@ -593,16 +600,9 @@ fun PartnerNavigateToStoreScreen(
                         ((km * 10).toInt() / 10.0).toString(),
                         mins.toString(),
                     ),
-                    address = order.shopAddress.orEmpty(),
+                    address = loaded.shopAddress.orEmpty(),
                     onNavigate = { openExternalNavigation(shopLat, shopLng) },
                 )
-                state.error?.let {
-                    Text(
-                        it.asString(),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_arrived_store),
                     onClick = { viewModel.arrivedAtStore(onArrived) },
@@ -610,12 +610,6 @@ fun PartnerNavigateToStoreScreen(
                     enabled = !state.submitting,
                 )
             }
-            else -> PartnerJobErrorState(
-                message = stringResource(Res.string.partner_job_load_failed),
-                onRetry = { viewModel.load(orderId) },
-                onBack = onBack,
-                contentModifier = Modifier.weight(1f),
-            )
         }
     }
 }
@@ -632,25 +626,29 @@ fun PartnerPickupItemsScreen(
 ) {
     androidx.compose.runtime.LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(modifier = Modifier.fillMaxSize()) {
-        PartnerTopBar(title = stringResource(Res.string.partner_picking_up), onBack = onBack)
-        when {
-            state.loading && state.order == null -> PartnerJobLoadingState(contentModifier = Modifier.weight(1f))
-            state.error != null && state.order == null -> PartnerJobErrorState(
-                message = state.error!!.asString(),
+    val order = state.order
+    PansariScreen(
+        title = stringResource(Res.string.partner_picking_up),
+        onBack = onBack,
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(
+                it,
                 onRetry = { viewModel.load(orderId) },
-                onBack = onBack,
-                contentModifier = Modifier.weight(1f),
+                onDismiss = viewModel::dismissError,
             )
-            state.order != null -> {
-                val order = state.order!!
+        },
+        isLoading = state.loading && order == null,
+    ) {
+        order?.let { loaded ->
+            Column(Modifier.fillMaxSize()) {
                 Text(
-                    stringResource(Res.string.order_number_label, order.id),
+                    stringResource(Res.string.order_number_label, loaded.id),
                     modifier = Modifier.padding(16.dp),
                     fontWeight = FontWeight.Bold,
                 )
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                    order.items.forEach { PartnerProductRow(it) }
+                    loaded.items.forEach { PartnerProductRow(it) }
                 }
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_verify_bags),
@@ -659,12 +657,6 @@ fun PartnerPickupItemsScreen(
                     enabled = !state.submitting,
                 )
             }
-            else -> PartnerJobErrorState(
-                message = stringResource(Res.string.partner_job_load_failed),
-                onRetry = { viewModel.load(orderId) },
-                onBack = onBack,
-                contentModifier = Modifier.weight(1f),
-            )
         }
     }
 }
@@ -679,17 +671,21 @@ fun PartnerCapturePhotosScreen(
     androidx.compose.runtime.LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val darkBg = Color(0xFF1A1A1A)
-    Column(Modifier.fillMaxSize().background(darkBg)) {
-        PartnerTopBar(
-            title = stringResource(
-                if (state.captureStep == 0) Res.string.partner_capture_images else Res.string.partner_submit_images,
-            ),
-            onBack = onBack,
-        )
+    PansariScreen(
+        title = stringResource(
+            if (state.captureStep == 0) Res.string.partner_capture_images else Res.string.partner_submit_images,
+        ),
+        onBack = onBack,
+        error = state.error.toErrorBanner(retryable = false),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading && state.order == null,
+    ) {
         Column(
             Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
+                .background(darkBg)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -739,7 +735,6 @@ fun PartnerCapturePhotosScreen(
                     enabled = !state.submitting,
                 )
             }
-            state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
         }
     }
 }
@@ -765,44 +760,51 @@ fun PartnerDeliverToCustomerScreen(
     // DEV ONLY — remove with DevTripleTapUnlock.kt
     var forceArriveEnabled by remember { mutableStateOf(false) }
     val canArrive = withinRadius || forceArriveEnabled
-    Column(modifier = Modifier.fillMaxSize()) {
-        val customerLabel = order?.customerName?.takeIf { it.isNotBlank() }
-            ?: stringResource(Res.string.partner_route_to_customer)
-        val km = order?.quote?.deliveryDistanceKm ?: order?.totalDistanceKm?.div(2) ?: 2.0
-        val mins = order?.deliveryDurationMin ?: 8
-        val headerMeta = order?.let {
-            stringResource(
-                Res.string.partner_route_header_meta,
-                customerLabel,
-                ((km * 10).toInt() / 10.0).toString(),
-                mins.toString(),
-            )
-        }
-        PartnerTopBar(
-            title = stringResource(Res.string.partner_delivering),
-            onBack = onBack,
+    val customerLabel = order?.customerName?.takeIf { it.isNotBlank() }
+        ?: stringResource(Res.string.partner_route_to_customer)
+    val km = order?.quote?.deliveryDistanceKm ?: order?.totalDistanceKm?.div(2) ?: 2.0
+    val mins = order?.deliveryDurationMin ?: 8
+    val headerMeta = order?.let {
+        stringResource(
+            Res.string.partner_route_header_meta,
+            customerLabel,
+            ((km * 10).toInt() / 10.0).toString(),
+            mins.toString(),
         )
-        if (headerMeta != null) {
-            PartnerRouteMetaBar(text = headerMeta)
-        }
-        when {
-            state.loading && order == null -> PartnerJobLoadingState(contentModifier = Modifier.weight(1f))
-            state.error != null && order == null -> PartnerJobErrorState(
-                message = state.error!!.asString(),
+    }
+    PansariScreen(
+        topBar = {
+            Column {
+                PartnerTopBar(
+                    title = stringResource(Res.string.partner_delivering),
+                    onBack = onBack,
+                )
+                if (headerMeta != null) {
+                    PartnerRouteMetaBar(text = headerMeta)
+                }
+            }
+        },
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(
+                it,
                 onRetry = { viewModel.load(orderId) },
-                onBack = onBack,
-                contentModifier = Modifier.weight(1f),
+                onDismiss = viewModel::dismissError,
             )
-            order != null -> {
+        },
+        isLoading = state.loading && order == null,
+    ) {
+        order?.let { loaded ->
+            Column(Modifier.fillMaxSize()) {
                 PartnerMapPlaceholder(
                     title = customerLabel,
-                    subtitle = order.deliveryAddress,
+                    subtitle = loaded.deliveryAddress,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     fillHeight = true,
                     lat = destLat,
                     lng = destLng,
-                    originLat = origin?.lat ?: order.shopLat,
-                    originLng = origin?.lng ?: order.shopLng,
+                    originLat = origin?.lat ?: loaded.shopLat,
+                    originLng = origin?.lng ?: loaded.shopLng,
                     showCaption = false,
                 )
                 PartnerLocationCard(
@@ -812,16 +814,9 @@ fun PartnerDeliverToCustomerScreen(
                         ((km * 10).toInt() / 10.0).toString(),
                         mins.toString(),
                     ),
-                    address = order.deliveryAddress.orEmpty(),
+                    address = loaded.deliveryAddress.orEmpty(),
                     onNavigate = { openExternalNavigation(destLat, destLng) },
                 )
-                state.error?.let {
-                    Text(
-                        it.asString(),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
                 if (!canArrive) {
                     Text(
                         stringResource(Res.string.partner_arrive_need_proximity),
@@ -846,12 +841,6 @@ fun PartnerDeliverToCustomerScreen(
                     }
                 }
             }
-            else -> PartnerJobErrorState(
-                message = stringResource(Res.string.partner_job_load_failed),
-                onRetry = { viewModel.load(orderId) },
-                onBack = onBack,
-                contentModifier = Modifier.weight(1f),
-            )
         }
     }
 }
@@ -870,11 +859,16 @@ fun PartnerCustomerPaymentScreen(
     var otp by remember { mutableStateOf("") }
     val otpReady = otp.length == AppConstants.DELIVERY_OTP_LENGTH
     val pickupPhotos = order?.visiblePickupPhotos.orEmpty()
-    Column(Modifier.fillMaxSize()) {
-        PartnerTopBar(
-            title = stringResource(Res.string.partner_customer_payment),
-            onBack = onBack,
-        )
+    PansariScreen(
+        title = stringResource(Res.string.partner_customer_payment),
+        onBack = onBack,
+        error = state.error.toErrorBanner(retryable = false),
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError)
+        },
+        isLoading = state.loading && order == null,
+    ) {
+        Column(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .weight(1f)
@@ -965,9 +959,6 @@ fun PartnerCustomerPaymentScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
-            state.error?.let {
-                Text(it.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
-            }
         }
         PartnerPrimaryButton(
             text = stringResource(Res.string.partner_action_complete_delivery),
@@ -975,6 +966,7 @@ fun PartnerCustomerPaymentScreen(
             modifier = Modifier.padding(16.dp),
             enabled = order != null && !state.submitting && otpReady,
         )
+        }
     }
 }
 
@@ -1003,15 +995,22 @@ fun PartnerDeliveryCompleteScreen(
 ) {
     androidx.compose.runtime.LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize()) {
-        PartnerTopBar(
-            title = stringResource(Res.string.partner_delivery_complete),
-            onBack = onBack,
-        )
+    PansariScreen(
+        title = stringResource(Res.string.partner_delivery_complete),
+        onBack = onBack,
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(
+                it,
+                onRetry = { viewModel.load(orderId) },
+                onDismiss = viewModel::dismissError,
+            )
+        },
+        isLoading = state.loading && state.order == null,
+    ) {
         Column(
             Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -1023,12 +1022,12 @@ fun PartnerDeliveryCompleteScreen(
                 Text(stringResource(Res.string.partner_summary_rating))
                 Text("★★★★★", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.headlineSmall)
             }
+            Spacer(Modifier.weight(1f))
+            PartnerPrimaryButton(
+                text = stringResource(Res.string.partner_action_done),
+                onClick = onDone,
+            )
         }
-        PartnerPrimaryButton(
-            text = stringResource(Res.string.partner_action_done),
-            onClick = onDone,
-            modifier = Modifier.padding(16.dp),
-        )
     }
 }
 

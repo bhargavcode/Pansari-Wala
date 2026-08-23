@@ -2,12 +2,16 @@ package org.bhargav.pansariwala.feature.user
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.i18n.UiText
@@ -38,6 +42,11 @@ class MarketViewModel(
     private val _state = MutableStateFlow(MarketUiState())
     val state: StateFlow<MarketUiState> = _state.asStateFlow()
 
+    private var searchJob: Job? = null
+    private var lastLat: Double? = null
+    private var lastLng: Double? = null
+    private var homeLoaded = false
+
     fun dismissError() { _state.update { it.copy(error = null) } }
 
     init {
@@ -45,9 +54,10 @@ class MarketViewModel(
             val radius = preferences.getSearchRadiusKm()
             _state.update { it.copy(radiusKm = radius) }
             preferences.observeSearchRadiusKm().collect { km ->
+                val changed = km != _state.value.radiusKm
                 _state.update { it.copy(radiusKm = km) }
-                if (_state.value.locationPermissionGranted) {
-                    refreshShops()
+                if (changed && _state.value.locationPermissionGranted) {
+                    refreshShops(useCachedLocation = true)
                 }
             }
         }
@@ -55,7 +65,11 @@ class MarketViewModel(
 
     fun onHomeVisible() {
         if (_state.value.locationPermissionGranted) {
-            refreshLocationAndShops()
+            if (homeLoaded && _state.value.shops.isNotEmpty()) {
+                refreshShops(useCachedLocation = true, soft = true)
+            } else {
+                refreshLocationAndShops()
+            }
         } else {
             _state.update { it.copy(requestLocationPermission = true) }
         }
@@ -87,21 +101,24 @@ class MarketViewModel(
         _state.update { it.copy(showLocationDeniedDialog = false) }
     }
 
-    fun setQuery(value: String) { _state.update { it.copy(query = value) } }
+    fun setQuery(value: String) {
+        _state.update { it.copy(query = value) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(AppConstants.PLACE_SEARCH_DEBOUNCE_MS)
+            search()
+        }
+    }
 
     fun setRadius(km: Double) {
         viewModelScope.launch {
             preferences.setSearchRadiusKm(km)
-            _state.update { it.copy(radiusKm = km) }
-            if (_state.value.locationPermissionGranted) {
-                refreshShops()
-            }
         }
     }
 
     fun search() {
         if (_state.value.locationPermissionGranted) {
-            refreshShops()
+            refreshShops(useCachedLocation = true)
         } else {
             _state.update { it.copy(requestLocationPermission = true) }
         }
@@ -115,22 +132,39 @@ class MarketViewModel(
                     handleLocationFailure(err)
                     return@launch
                 }
-            runCatching { api.updateCustomerLocation(geo.lat, geo.lng) }
+            lastLat = geo.lat
+            lastLng = geo.lng
+            viewModelScope.launch { runCatching { api.updateCustomerLocation(geo.lat, geo.lng) } }
             _state.update { it.copy(fetchingLocation = false) }
             loadShops(geo.lat, geo.lng)
         }
     }
 
-    private fun refreshShops() {
+    private fun refreshShops(useCachedLocation: Boolean = false, soft: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-            val geo = runCatching { location.currentOrDefault() }
-                .getOrElse { err ->
-                    handleLocationFailure(err)
-                    return@launch
-                }
-            runCatching { api.updateCustomerLocation(geo.lat, geo.lng) }
-            loadShops(geo.lat, geo.lng)
+            val cachedLat = lastLat
+            val cachedLng = lastLng
+            _state.update {
+                it.copy(
+                    loading = !soft || it.shops.isEmpty(),
+                    error = null,
+                )
+            }
+            val geo = if (useCachedLocation && cachedLat != null && cachedLng != null) {
+                cachedLat to cachedLng
+            } else {
+                runCatching { location.currentOrDefault() }
+                    .getOrElse { err ->
+                        handleLocationFailure(err)
+                        return@launch
+                    }.let {
+                        lastLat = it.lat
+                        lastLng = it.lng
+                        viewModelScope.launch { runCatching { api.updateCustomerLocation(it.lat, it.lng) } }
+                        it.lat to it.lng
+                    }
+            }
+            loadShops(geo.first, geo.second)
         }
     }
 
@@ -138,9 +172,11 @@ class MarketViewModel(
         runCatching {
             api.nearbyShops(lat, lng, _state.value.radiusKm, _state.value.query)
         }.onSuccess { shops ->
-            _state.update { it.copy(loading = false, shops = shops) }
+            homeLoaded = true
+            _state.update { it.copy(loading = false, shops = shops, error = null) }
         }.onFailure { err ->
-            _state.update { it.copy(loading = false, error = UiText.Plain(err.message.orEmpty())) }
+            err.rethrowIfStructuredCancellation()
+            _state.update { it.copy(loading = false, error = err.toApiUiText()) }
         }
     }
 
@@ -154,7 +190,7 @@ class MarketViewModel(
                 error = when {
                     denied -> null
                     unavailable -> UiText.res(Res.string.location_unavailable)
-                    else -> UiText.Plain(err.message.orEmpty())
+                    else -> err.toApiUiText()
                 },
                 locationPermissionGranted = !denied,
                 showLocationDeniedDialog = denied,

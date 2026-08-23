@@ -276,6 +276,7 @@ private fun ensureIndexes(db: MongoDatabase) {
         createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))
         createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.ascending("channel"), Indexes.descending("createdAt")))
         createIndex(Indexes.ascending("partnerId"))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("partnerId"), Indexes.ascending("status")))
     }
     db.getCollection<TxnDoc>("transactions")
         .createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))

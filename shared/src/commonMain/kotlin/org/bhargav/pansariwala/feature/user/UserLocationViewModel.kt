@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.domain.model.GeoPoint
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.DeviceLocation
@@ -94,7 +95,7 @@ class UserLocationAccessViewModel(
                             error = when {
                                 denied -> null
                                 unavailable -> UiText.res(Res.string.location_unavailable)
-                                else -> UiText.Plain(e.message.orEmpty())
+                                else -> e.toApiUiText()
                             },
                             locationPermissionGranted = !denied,
                             showLocationDeniedDialog = denied,
