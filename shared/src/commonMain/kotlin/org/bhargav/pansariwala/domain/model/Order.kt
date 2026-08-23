@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.domain.model
 
+import org.bhargav.pansariwala.util.AppConstants
+
 enum class OrderStatus {
     DRAFT,
     RECEIVED,
@@ -84,4 +86,16 @@ data class Order(
             status != OrderStatus.REJECTED
     val isActiveDelivery: Boolean
         get() = status == OrderStatus.PARTNER_ACCEPTED || status == OrderStatus.ON_THE_WAY
+    /** Shop digits + 8-char order code, e.g. shop_12 + 24B112A4 → 1224B112A4. */
+    val displayNumber: String
+        get() {
+            val shopPart = shopId.filter { it.isDigit() }.ifBlank { shopId.substringAfterLast('_', shopId) }
+            val raw = id.substringAfterLast('_').ifBlank { id }
+            val orderPart = raw.filter { it.isLetterOrDigit() }
+                .takeLast(AppConstants.PUBLIC_ORDER_CODE_LENGTH)
+                .uppercase()
+            return "$shopPart$orderPart"
+        }
+    val visiblePickupPhotos: List<String>
+        get() = pickupPhotoUrls.filter { it.length > 64 }
 }

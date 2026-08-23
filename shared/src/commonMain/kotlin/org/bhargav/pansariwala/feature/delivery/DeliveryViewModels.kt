@@ -39,6 +39,7 @@ import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_address_required
 import pansariwala.shared.generated.resources.error_email_invalid
+import pansariwala.shared.generated.resources.error_otp_invalid
 import pansariwala.shared.generated.resources.error_generic
 import pansariwala.shared.generated.resources.error_place_details_failed
 import pansariwala.shared.generated.resources.partner_job_load_failed
@@ -837,7 +838,17 @@ class PartnerJobViewModel(
             _state.update { it.copy(loading = true, error = null, order = null, submitting = false) }
             runCatching { api.partnerJob(orderId) }
                 .onSuccess { order ->
-                    _state.update { it.copy(loading = false, order = order, error = null) }
+                    val storedOne = order.visiblePickupPhotos.getOrNull(0).orEmpty()
+                    val storedTwo = order.visiblePickupPhotos.getOrNull(1).orEmpty()
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            order = order,
+                            error = null,
+                            photoOne = storedOne.ifBlank { it.photoOne },
+                            photoTwo = storedTwo.ifBlank { it.photoTwo },
+                        )
+                    }
                 }
                 .onFailure { e ->
                     val message = when {
@@ -921,14 +932,21 @@ class PartnerJobViewModel(
     fun completeDelivery(otp: String, onDone: () -> Unit) {
         val orderId = _state.value.order?.id ?: return
         viewModelScope.launch {
-            _state.update { it.copy(submitting = true) }
+            _state.update { it.copy(submitting = true, error = null) }
             runCatching { api.deliverOrder(orderId, otp) }
                 .onSuccess { order ->
                     _state.update { it.copy(submitting = false, order = order) }
                     onDone()
                 }
-                .onFailure {
-                    _state.update { s -> s.copy(submitting = false, error = UiText.res(Res.string.error_generic)) }
+                .onFailure { e ->
+                    val otpFailed = e.message?.contains("OTP", ignoreCase = true) == true ||
+                        e.message?.contains("400") == true
+                    _state.update { s ->
+                        s.copy(
+                            submitting = false,
+                            error = UiText.res(if (otpFailed) Res.string.error_otp_invalid else Res.string.error_generic),
+                        )
+                    }
                 }
         }
     }

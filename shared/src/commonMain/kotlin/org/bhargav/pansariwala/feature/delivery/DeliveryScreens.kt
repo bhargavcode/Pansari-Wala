@@ -37,6 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -92,6 +96,15 @@ import pansariwala.shared.generated.resources.partner_action_take_photos
 import pansariwala.shared.generated.resources.partner_action_verify_bags
 import pansariwala.shared.generated.resources.partner_bag_photo
 import pansariwala.shared.generated.resources.partner_call_customer
+import pansariwala.shared.generated.resources.partner_call_customer_cd
+import pansariwala.shared.generated.resources.checkout_delivery
+import pansariwala.shared.generated.resources.checkout_discount
+import pansariwala.shared.generated.resources.checkout_payable
+import pansariwala.shared.generated.resources.checkout_platform_fee
+import pansariwala.shared.generated.resources.checkout_subtotal
+import pansariwala.shared.generated.resources.partner_payment_method
+import pansariwala.shared.generated.resources.payment_method_cod
+import pansariwala.shared.generated.resources.payment_method_online
 import pansariwala.shared.generated.resources.partner_capture_hint
 import pansariwala.shared.generated.resources.partner_capture_images
 import pansariwala.shared.generated.resources.partner_customer_payment
@@ -111,10 +124,8 @@ import pansariwala.shared.generated.resources.partner_offer_distance
 import pansariwala.shared.generated.resources.partner_offer_order
 import pansariwala.shared.generated.resources.partner_offer_payout
 import pansariwala.shared.generated.resources.partner_offer_timer
-import pansariwala.shared.generated.resources.partner_payment_cod
-import pansariwala.shared.generated.resources.partner_payment_online
-import pansariwala.shared.generated.resources.partner_performance
 import pansariwala.shared.generated.resources.partner_picking_up
+import pansariwala.shared.generated.resources.partner_performance
 import pansariwala.shared.generated.resources.partner_photo_slot
 import pansariwala.shared.generated.resources.partner_profile_pic
 import pansariwala.shared.generated.resources.partner_register_title
@@ -122,7 +133,6 @@ import pansariwala.shared.generated.resources.partner_route_to_customer
 import pansariwala.shared.generated.resources.partner_route_to_store
 import pansariwala.shared.generated.resources.partner_section_address
 import pansariwala.shared.generated.resources.partner_section_contact
-import pansariwala.shared.generated.resources.partner_section_dropoff
 import pansariwala.shared.generated.resources.partner_section_payment
 import pansariwala.shared.generated.resources.partner_signup_join
 import pansariwala.shared.generated.resources.partner_signup_prompt
@@ -674,12 +684,14 @@ fun PartnerCapturePhotosScreen(
                     state.photoOne.isNotBlank(),
                     onClick = { viewModel.attachPhoto(1) },
                     dark = true,
+                    imageBase64 = state.photoOne,
                 )
                 PartnerPhotoSlot(
                     stringResource(Res.string.partner_photo_slot, "2"),
                     state.photoTwo.isNotBlank(),
                     onClick = { viewModel.attachPhoto(2) },
                     dark = true,
+                    imageBase64 = state.photoTwo,
                 )
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_take_photos),
@@ -692,12 +704,14 @@ fun PartnerCapturePhotosScreen(
                     true,
                     onClick = {},
                     dark = true,
+                    imageBase64 = state.photoOne,
                 )
                 PartnerPhotoSlot(
                     stringResource(Res.string.partner_bag_photo, "2"),
                     true,
                     onClick = {},
                     dark = true,
+                    imageBase64 = state.photoTwo,
                 )
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_start_delivery),
@@ -832,6 +846,10 @@ fun PartnerCustomerPaymentScreen(
     androidx.compose.runtime.LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val order = state.order
+    val uriHandler = LocalUriHandler.current
+    var otp by remember { mutableStateOf("") }
+    val otpReady = otp.length == AppConstants.DELIVERY_OTP_LENGTH
+    val pickupPhotos = order?.visiblePickupPhotos.orEmpty()
     Column(Modifier.fillMaxSize()) {
         PartnerTopBar(
             title = stringResource(Res.string.partner_customer_payment),
@@ -845,17 +863,87 @@ fun PartnerCustomerPaymentScreen(
         ) {
             order?.let {
                 SectionBlock(stringResource(Res.string.partner_section_address), it.deliveryAddress.orEmpty())
-                SectionBlock(
-                    stringResource(Res.string.partner_section_contact),
-                    stringResource(Res.string.partner_call_customer) + " · ${it.customerPhone.orEmpty()}",
-                )
-                val paymentLabel = if (it.paymentMethod == "ONLINE") {
-                    stringResource(Res.string.partner_payment_online, it.totalValue.asMoney())
-                } else {
-                    stringResource(Res.string.partner_payment_cod, it.totalValue.asMoney())
+                val phone = it.customerPhone.orEmpty()
+                val callLabel = stringResource(Res.string.partner_call_customer_cd)
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            stringResource(Res.string.partner_section_contact),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            listOf(stringResource(Res.string.partner_call_customer), phone)
+                                .filter { part -> part.isNotBlank() }
+                                .joinToString(" · "),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    IconButton(
+                        onClick = { uriHandler.openUri("tel:$phone") },
+                        enabled = phone.isNotBlank(),
+                        modifier = Modifier.semantics { contentDescription = callLabel },
+                    ) {
+                        Text("📞", style = MaterialTheme.typography.headlineSmall)
+                    }
                 }
-                SectionBlock(stringResource(Res.string.partner_section_payment), paymentLabel)
-                SectionBlock(stringResource(Res.string.partner_section_dropoff), it.dropoffInstructions.orEmpty())
+                Card(
+                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.card),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            stringResource(Res.string.partner_section_payment),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        val quote = it.quote
+                        if (quote != null) {
+                            PaymentDetailLine(stringResource(Res.string.checkout_subtotal), quote.itemsSubtotal.asMoney())
+                            if (quote.discount > 0) {
+                                PaymentDetailLine(
+                                    stringResource(Res.string.checkout_discount),
+                                    "-${quote.discount.asMoney()}",
+                                )
+                            }
+                            PaymentDetailLine(stringResource(Res.string.checkout_platform_fee), quote.platformFee.asMoney())
+                            PaymentDetailLine(stringResource(Res.string.checkout_delivery), quote.deliveryCharge.asMoney())
+                            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                            PaymentDetailLine(
+                                stringResource(Res.string.checkout_payable),
+                                quote.payable.asMoney(),
+                                bold = true,
+                            )
+                        } else {
+                            PaymentDetailLine(
+                                stringResource(Res.string.checkout_payable),
+                                it.totalValue.asMoney(),
+                                bold = true,
+                            )
+                        }
+                        PaymentDetailLine(
+                            stringResource(Res.string.partner_payment_method),
+                            stringResource(
+                                if (it.paymentMethod == "ONLINE") Res.string.payment_method_online
+                                else Res.string.payment_method_cod,
+                            ),
+                        )
+                    }
+                }
+                if (pickupPhotos.isNotEmpty()) {
+                    PickupPhotoStrip(
+                        photos = pickupPhotos,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                DeliveryOtpInput(
+                    value = otp,
+                    onValueChange = { otp = it },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
             state.error?.let {
                 Text(it.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
@@ -863,9 +951,9 @@ fun PartnerCustomerPaymentScreen(
         }
         PartnerPrimaryButton(
             text = stringResource(Res.string.partner_action_complete_delivery),
-            onClick = { viewModel.completeDelivery("", onComplete) },
+            onClick = { viewModel.completeDelivery(otp, onComplete) },
             modifier = Modifier.padding(16.dp),
-            enabled = order != null && !state.submitting,
+            enabled = order != null && !state.submitting && otpReady,
         )
     }
 }
@@ -875,6 +963,14 @@ private fun SectionBlock(title: String, body: String) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         Text(body, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun PaymentDetailLine(label: String, value: String, bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
+        Text(value, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
     }
 }
 

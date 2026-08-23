@@ -50,6 +50,7 @@ import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.ProductCategory
+import org.bhargav.pansariwala.feature.delivery.PickupPhotoStrip
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
@@ -421,7 +422,7 @@ fun OrderDetailsScreen(
                 order == null -> CircularProgressIndicator()
                 else -> {
                     Text(
-                        stringResource(Res.string.order_number_label, order.id.takeLast(6)),
+                        stringResource(Res.string.order_number_label, order.displayNumber),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
@@ -454,7 +455,10 @@ fun OrderDetailsScreen(
                         }
                     } else {
                         SectionCard(title = stringResource(Res.string.order_progress_title)) {
-                            OrderProgressStepper(current = state.step)
+                            OrderProgressStepper(
+                                current = state.step,
+                                pickupPhotos = order.visiblePickupPhotos,
+                            )
                         }
                     }
                     SectionCard(title = stringResource(Res.string.order_items_title)) {
@@ -518,7 +522,10 @@ fun OrderDetailsScreen(
 }
 
 @Composable
-private fun OrderProgressStepper(current: FulfillmentStep) {
+private fun OrderProgressStepper(
+    current: FulfillmentStep,
+    pickupPhotos: List<String> = emptyList(),
+) {
     val steps = listOf(
         FulfillmentStep.PLACED to Res.string.order_step_placed,
         FulfillmentStep.ACCEPTED to Res.string.order_step_accepted,
@@ -535,20 +542,34 @@ private fun OrderProgressStepper(current: FulfillmentStep) {
                 isCurrent -> MaterialTheme.colorScheme.tertiary
                 else -> MaterialTheme.colorScheme.outline
             }
-            Row(verticalAlignment = Alignment.Top) {
+            val showPhotos = step == FulfillmentStep.ON_THE_WAY && pickupPhotos.isNotEmpty() &&
+                current.ordinal >= FulfillmentStep.ON_THE_WAY.ordinal
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(28.dp).clip(CircleShape).background(circleColor), contentAlignment = Alignment.Center) {
                         if (completed) Text("✓", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                     if (index != steps.lastIndex) {
-                        Box(Modifier.width(2.dp).height(28.dp).background(if (completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant))
+                        Box(
+                            Modifier
+                                .width(2.dp)
+                                .height(if (showPhotos) 180.dp else 28.dp)
+                                .background(if (completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                        )
                     }
                 }
-                Text(
-                    stringResource(labelRes),
-                    modifier = Modifier.padding(start = 12.dp, top = 4.dp),
-                    fontWeight = if (completed || isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                )
+                Column(Modifier.padding(start = 12.dp, top = 4.dp).weight(1f)) {
+                    Text(
+                        stringResource(labelRes),
+                        fontWeight = if (completed || isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                    if (showPhotos) {
+                        PickupPhotoStrip(
+                            photos = pickupPhotos,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
             }
         }
     }

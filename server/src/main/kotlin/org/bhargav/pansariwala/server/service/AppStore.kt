@@ -413,7 +413,7 @@ class AppStore(
             val product = catalog[line.productId]!!
             OrderItemDto(product.id, product.name, product.unit, line.quantity, product.sellingPrice)
         }
-        val id = security.randomId("ord")
+        val id = security.newOrderId()
         val otp = security.deliveryOtp()
         val now = System.currentTimeMillis()
         val paymentMethod = if (request.razorpayPaymentId.isNullOrBlank()) "COD" else "ONLINE"
@@ -791,7 +791,7 @@ class AppStore(
     fun partnerJob(partnerId: String, orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
-        return row.toDto()
+        return row.toDto().copy(deliveryOtp = null)
     }
 
     fun arrivedAtStore(partnerId: String, orderId: String): OrderDto {
@@ -851,7 +851,7 @@ class AppStore(
             eq("_id", orderId),
             combine(
                 set("status", "ON_THE_WAY"),
-                set("pickupPhotos", listOf("bag_photo_1", "bag_photo_2")),
+                set("pickupPhotos", listOf(photoOne, photoTwo)),
             ),
         )
         return getOrder(orderId)
@@ -860,8 +860,7 @@ class AppStore(
     fun deliver(partnerId: String, orderId: String, otp: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
-        val isOnline = row.paymentMethod == "ONLINE" || !row.paymentId.isNullOrBlank()
-        if (!isOnline) require(row.deliveryOtp == otp) { "Invalid delivery OTP" }
+        require(otp.length == 4 && row.deliveryOtp == otp) { "Invalid delivery OTP" }
         val offer = deliveryOfferCol.find(and(eq("orderId", orderId), eq("acceptedBy", partnerId))).firstOrNull()
         val totalKm = row.totalDistanceKm
             ?: offer?.let { stored ->

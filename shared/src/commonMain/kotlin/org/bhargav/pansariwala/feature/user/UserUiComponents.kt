@@ -489,7 +489,7 @@ fun OrderAccountTile(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(Res.string.order_number_label, order.id.takeLast(6)),
+                text = stringResource(Res.string.order_number_label, order.displayNumber),
                 fontWeight = FontWeight.SemiBold,
             )
             Text(

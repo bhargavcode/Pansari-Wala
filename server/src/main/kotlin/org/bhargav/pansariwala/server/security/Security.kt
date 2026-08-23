@@ -83,6 +83,13 @@ class Security(
 
     fun randomId(prefix: String): String = prefix + "_" + sha256(System.nanoTime().toString() + random.nextLong()).take(12)
 
+    fun publicOrderCode(): String {
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        return buildString(8) { repeat(8) { append(alphabet[random.nextInt(alphabet.length)]) } }
+    }
+
+    fun newOrderId(): String = "ord_" + publicOrderCode()
+
     fun hmacSha256Hex(secret: String, payload: String): String {
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))

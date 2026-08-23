@@ -36,9 +36,23 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
@@ -70,6 +84,10 @@ import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_accept
 import pansariwala.shared.generated.resources.action_okay
+import pansariwala.shared.generated.resources.action_close
+import pansariwala.shared.generated.resources.pickup_photos_title
+import pansariwala.shared.generated.resources.partner_enter_delivery_otp
+import pansariwala.shared.generated.resources.partner_otp_customer_hint
 import pansariwala.shared.generated.resources.offer_already_taken
 import pansariwala.shared.generated.resources.offer_already_taken_title
 import pansariwala.shared.generated.resources.partner_accepted
@@ -92,6 +110,7 @@ import pansariwala.shared.generated.resources.partner_offer_timer
 import pansariwala.shared.generated.resources.partner_resume_job
 import pansariwala.shared.generated.resources.partner_navigate
 import pansariwala.shared.generated.resources.partner_item_price
+import pansariwala.shared.generated.resources.partner_bag_photo
 import pansariwala.shared.generated.resources.partner_offline_banner
 import pansariwala.shared.generated.resources.partner_online_banner
 import pansariwala.shared.generated.resources.partner_pending_verification
@@ -707,15 +726,18 @@ fun PartnerPhotoSlot(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     dark: Boolean = false,
+    imageBase64: String = "",
 ) {
+    val hasImage = imageBase64.isNotBlank()
+    val filled = attached || hasImage
     val borderColor = when {
-        attached -> MaterialTheme.colorScheme.primary
+        filled -> MaterialTheme.colorScheme.primary
         dark -> Color.White.copy(alpha = 0.35f)
         else -> MaterialTheme.colorScheme.outlineVariant
     }
     val bg = when {
-        attached && dark -> Color.White.copy(alpha = 0.12f)
-        attached -> MaterialTheme.colorScheme.primaryContainer
+        filled && dark -> Color.White.copy(alpha = 0.12f)
+        filled -> MaterialTheme.colorScheme.primaryContainer
         dark -> Color.White.copy(alpha = 0.08f)
         else -> MaterialTheme.colorScheme.surface
     }
@@ -730,9 +752,27 @@ fun PartnerPhotoSlot(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (attached) "✓" else "📷", style = MaterialTheme.typography.headlineMedium, color = fg)
-            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = fg)
+        if (hasImage) {
+            Base64ImageThumbnail(
+                base64 = imageBase64,
+                contentDescription = label,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = Color.White)
+            }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("📷", style = MaterialTheme.typography.headlineMedium, color = fg)
+                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = fg)
+            }
         }
     }
 }
@@ -765,6 +805,7 @@ fun Base64ImageThumbnail(
     base64: String,
     contentDescription: String,
     modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     val imageBitmap = remember(base64) {
         runCatching {
@@ -778,12 +819,169 @@ fun Base64ImageThumbnail(
             bitmap = imageBitmap,
             contentDescription = contentDescription,
             modifier = modifier,
-            contentScale = ContentScale.Crop,
+            contentScale = contentScale,
         )
     } else {
         Box(modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
             Text("📷")
         }
+    }
+}
+
+@Composable
+fun PickupPhotoStrip(
+    photos: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    val visible = photos.filter { it.length > 64 }
+    if (visible.isEmpty()) return
+    var preview by remember { mutableStateOf<String?>(null) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(Res.string.pickup_photos_title),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            visible.forEachIndexed { index, photo ->
+                val label = stringResource(Res.string.partner_bag_photo, (index + 1).toString())
+                Base64ImageThumbnail(
+                    base64 = photo,
+                    contentDescription = label,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { preview = photo },
+                )
+            }
+        }
+    }
+    preview?.let { photo ->
+        FullscreenBase64Image(
+            base64 = photo,
+            contentDescription = stringResource(Res.string.pickup_photos_title),
+            onDismiss = { preview = null },
+        )
+    }
+}
+
+@Composable
+fun FullscreenBase64Image(
+    base64: String,
+    contentDescription: String,
+    onDismiss: () -> Unit,
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    val transformState = rememberTransformableState { zoom, pan, _ ->
+        scale = (scale * zoom).coerceIn(1f, 4f)
+        offset = if (scale <= 1.01f) Offset.Zero else offset + pan
+    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            Base64ImageThumbnail(
+                base64 = base64,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    }
+                    .transformable(transformState),
+            )
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            ) {
+                Text(stringResource(Res.string.action_close), color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun DeliveryOtpInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    length: Int = AppConstants.DELIVERY_OTP_LENGTH,
+) {
+    val digits = value.filter { it.isDigit() }.take(length)
+    val focusRequesters = remember { List(length) { FocusRequester() } }
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(Res.string.partner_enter_delivery_otp),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            stringResource(Res.string.partner_otp_customer_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        ) {
+            repeat(length) { index ->
+                val char = digits.getOrNull(index)?.toString().orEmpty()
+                Box(
+                    modifier = Modifier
+                        .size(56.dp, 64.dp)
+                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BasicTextField(
+                        value = char,
+                        onValueChange = { incoming ->
+                            val typed = incoming.filter { it.isDigit() }
+                            when {
+                                typed.length > 1 -> {
+                                    val pasted = typed.take(length)
+                                    onValueChange(pasted)
+                                    focusRequesters[(pasted.length - 1).coerceAtMost(length - 1)].requestFocus()
+                                }
+                                typed.isEmpty() -> {
+                                    onValueChange(digits.take(index))
+                                    if (index > 0) focusRequesters[index - 1].requestFocus()
+                                }
+                                else -> {
+                                    val prefix = digits.take(index)
+                                    val suffix = digits.drop(index + 1)
+                                    onValueChange((prefix + typed.last() + suffix).take(length))
+                                    if (index < length - 1) focusRequesters[index + 1].requestFocus()
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequesters[index]),
+                        textStyle = MaterialTheme.typography.headlineSmall.copy(
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        singleLine = true,
+                    )
+                }
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        if (digits.isEmpty()) focusRequesters.firstOrNull()?.requestFocus()
     }
 }
 
