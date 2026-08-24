@@ -15,17 +15,19 @@ GitHub Actions workflow: [`.github/workflows/ci-cd.yml`](../.github/workflows/ci
 | **web** | JS browser dist → artifact `web-js-dist` |
 | **server** | Fat JAR `pansari-server-all.jar` → artifact `pansari-server-jar` |
 | **deploy-server** | SCP JAR to EC2 + `systemctl restart` (skips if EC2 secrets missing) |
+| **deploy-web** | SCP JS dist to EC2 web root + `nginx reload` (skips if EC2 secrets missing) |
 | **ios** | Placeholder only — runs only when dispatch `build_ios=true` (exits until implemented) |
 
 ## Your environment (Pansari)
 
 | Setting | Value |
 |---|---|
-| EC2 host | `35.172.232.196` (use Elastic IP to avoid changes on stop/start) |
+| EC2 host | `52.1.25.27` (Elastic IP) |
 | EC2 user | `ec2-user` |
 | Deploy path | `/opt/pansari` |
 | Service | `pansari-server` |
-| API (release APKs) | `http://35.172.232.196:8080` |
+| API (release APKs) | `https://api.pansariwala.shop` |
+| Web (marketing + admin) | `https://pansariwala.shop` |
 
 Bootstrap on the instance (Amazon Linux):
 
@@ -44,7 +46,7 @@ Repo → **Settings → Secrets and variables → Actions**
 
 | Secret | Value |
 |---|---|
-| `API_BASE_URL` | `http://35.172.232.196:8080` (**release** BuildConfig) |
+| `API_BASE_URL` | `https://api.pansariwala.shop` (**release** BuildConfig) |
 | `ANDROID_KEYSTORE_BASE64` | `base64 -i your.keystore \| pbcopy` (macOS) |
 | `ANDROID_KEYSTORE_PASSWORD` | keystore password |
 | `ANDROID_KEY_ALIAS` | key alias |
@@ -77,11 +79,12 @@ Direct path pattern: **Actions → CI/CD run → Artifacts → Download zip**
 
 | Secret | Value |
 |---|---|
-| `EC2_HOST` | `35.172.232.196` |
+| `EC2_HOST` | `52.1.25.27` |
 | `EC2_USER` | `ec2-user` |
 | `EC2_SSH_KEY` | Full private key PEM contents |
 | `EC2_DEPLOY_PATH` | `/opt/pansari` |
 | `EC2_SERVICE_NAME` | `pansari-server` (optional; this is the default) |
+| `EC2_WEB_ROOT` | `/var/www/pansariwala` (optional; web static root) |
 
 ## One-time EC2 setup
 
@@ -136,5 +139,5 @@ Not auto-built. When ready:
 
 - Default branch is **`main`** (workflow also listens to `master`).
 - Deploy uses atomic upload (`*.jar.tmp` then `mv`) then restart.
-- Web dist is artifact-only for now (no CDN deploy).
+- Web dist auto-deploys to EC2 when `EC2_*` secrets are set. See [AWS-HOSTING.md](./AWS-HOSTING.md) for nginx + domain setup.
 - Full secret list: see § One-time GitHub secrets above.

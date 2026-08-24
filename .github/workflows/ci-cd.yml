@@ -132,6 +132,54 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  deploy-web:
+    name: Deploy web → EC2
+    needs: web
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+      (github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download web dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-js-dist-${{ github.run_id }}
+          path: webApp/build/dist/js/productionExecutable
+
+      - name: Check EC2 secrets
+        id: ec2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_WEB_ROOT: ${{ secrets.EC2_WEB_ROOT }}
+        run: |
+          if [ -z "$EC2_HOST" ] || [ -z "$EC2_USER" ] || [ -z "$EC2_SSH_KEY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "EC2 secrets missing — skipping web deploy (see docs/AWS-HOSTING.md)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy web to EC2
+        if: steps.ec2.outputs.skip == 'false'
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_WEB_ROOT: ${{ secrets.EC2_WEB_ROOT }}
+        run: |
+          KEY_PATH="${RUNNER_TEMP}/ec2_key.pem"
+          printf '%s\n' "$EC2_SSH_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          export EC2_SSH_KEY_PATH="$KEY_PATH"
+          export EC2_WEB_ROOT="${EC2_WEB_ROOT:-/var/www/pansariwala}"
+          export DIST_DIR="webApp/build/dist/js/productionExecutable"
+          chmod +x scripts/deploy-web.sh
+          ./scripts/deploy-web.sh
+
   deploy-server:
     name: Deploy server → EC2
     needs: server

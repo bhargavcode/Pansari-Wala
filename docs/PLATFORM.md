@@ -36,7 +36,7 @@ Four products share one Kotlin codebase and one Ktor backend.
 - Customer: phone OTP (`AUTH_DEV_MODE` OTP is `123456`) then name + address
 - Production phone auth: Firebase ID token → `POST /auth/user/firebase` (audience + issuer checked against `FIREBASE_PROJECT_ID`)
 - Partner: register (name, email, address, phone, vehicle reg, two photos) → plate format check → OTP → JWT role `PARTNER`
-- Admin: `admin` / `admin123` → `/auth/admin/login`
+- Admin: username from `ADMIN_USERNAME` (default `bhargav`) / password from `ADMIN_PASSWORD` env → `/auth/admin/login` (legacy `admin`/`admin123` removed on seed)
 
 ## How the marketplace works
 

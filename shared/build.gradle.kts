@@ -15,6 +15,10 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+compose.resources {
+    publicResClass = true
+}
+
 kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")

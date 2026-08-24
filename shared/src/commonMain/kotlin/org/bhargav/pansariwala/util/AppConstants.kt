@@ -54,10 +54,35 @@ object AppConstants {
     }
     const val JWT_PREFIX: String = "eyJ"
     const val DEFAULT_API_PORT: Int = 8080
+    const val PUBLIC_DOMAIN: String = "pansariwala.shop"
+    const val WEB_BASE_URL: String = "https://pansariwala.shop"
+    const val API_HOST: String = "api.pansariwala.shop"
     /** Shared API URL for debug/release and all platforms (override via Android `API_BASE_URL` env in CI). */
-    const val API_BASE_URL: String = "http://35.172.232.196:8080"
+    const val API_BASE_URL: String = "https://api.pansariwala.shop"
     const val DEFAULT_API_BASE_URL: String = API_BASE_URL
     const val IOS_API_BASE_URL: String = API_BASE_URL
+    const val BRAND_TAGLINE: String = "Apka apna market"
+    const val PLAY_STORE_USER_URL: String =
+        "https://play.google.com/store/apps/details?id=org.bhargav.pansariwala.user"
+    const val PLAY_STORE_DELIVERY_URL: String =
+        "https://play.google.com/store/apps/details?id=org.bhargav.pansariwala.delivery"
+    const val APP_STORE_USER_URL: String = "https://apps.apple.com/app/id000000000"
+    const val APP_STORE_DELIVERY_URL: String = "https://apps.apple.com/app/id000000001"
+    const val S3_BUCKET: String = "pansariwala-assets"
+    const val S3_REGION: String = "ap-south-1"
+    object S3Prefix {
+        const val MASTER_PRODUCT_IMAGES: String = "master/product-images/"
+        const val MASTER_SHOP_IMAGES: String = "master/shop-images/"
+        const val MASTER_SHOP_VERIFICATION: String = "master/shop-verification/"
+        const val USERS_USER_IMAGE: String = "users/user-image/"
+        const val USERS_VEHICLE_IMAGE: String = "users/vehicle-image/"
+        const val USERS_USER_IDS: String = "users/user-ids/"
+        const val PARTNERS_USER_IMAGE: String = "partners/user-image/"
+        const val PARTNERS_VEHICLE_IMAGE: String = "partners/vehicle-image/"
+        const val PARTNERS_USER_IDS: String = "partners/user-ids/"
+        const val SHOPS_DELIVERY_PACKETS: String = "shops/delivery-packets/"
+        const val SHOPS_SHOP: String = "shops/shop/"
+    }
     const val HTTP_CONNECT_TIMEOUT_MS: Long = 5_000L
     const val HTTP_REQUEST_TIMEOUT_MS: Long = 12_000L
     const val HTTP_SOCKET_TIMEOUT_MS: Long = 12_000L

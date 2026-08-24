@@ -56,6 +56,7 @@ import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RazorpayOrderDto
 import org.bhargav.pansariwala.server.dto.SavedAddressDto
 import org.bhargav.pansariwala.server.dto.SaveAddressRequest
+import org.bhargav.pansariwala.server.dto.ShopDto
 import org.bhargav.pansariwala.server.dto.ShopReviewDto
 import org.bhargav.pansariwala.server.dto.SyncPullResponse
 import org.bhargav.pansariwala.server.dto.SyncPushRequest

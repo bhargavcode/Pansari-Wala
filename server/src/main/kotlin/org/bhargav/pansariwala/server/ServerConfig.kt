@@ -21,9 +21,14 @@ data class ServerConfig(
     val smsApiToken: String,
     val passwordSalt: String,
     val uploadDir: String,
+    val adminUsername: String,
+    val adminPassword: String,
+    val s3Bucket: String,
+    val s3Region: String,
 ) {
     val paymentsEnabled: Boolean get() = razorpayKeyId.isNotBlank() && razorpayKeySecret.isNotBlank()
     val smsConfigured: Boolean get() = smsApiUrl.isNotBlank()
+    val s3Configured: Boolean get() = s3Bucket.isNotBlank()
 
     companion object {
         const val DEFAULT_PASSWORD_SALT = "pansari-local-salt"
@@ -48,6 +53,10 @@ data class ServerConfig(
             smsApiToken = env("SMS_API_TOKEN", ""),
             passwordSalt = env("PASSWORD_SALT", DEFAULT_PASSWORD_SALT),
             uploadDir = env("UPLOAD_DIR", "./data/uploads"),
+            adminUsername = env("ADMIN_USERNAME", "bhargav"),
+            adminPassword = env("ADMIN_PASSWORD", ""),
+            s3Bucket = env("S3_BUCKET", "pansariwala-assets"),
+            s3Region = env("AWS_REGION", "ap-south-1"),
         )
 
         private fun mongoUriFromEnv(): String {

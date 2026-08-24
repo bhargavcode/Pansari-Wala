@@ -234,10 +234,11 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     val db = client.getDatabase(config.mongoDbName)
     ensureIndexes(db)
     if (db.getCollection<ShopDoc>("shops").countDocuments() == 0L) {
-        seed(db, security)
+        seed(db, security, config)
     }
     ensureShopUpis(db)
     ensureDemoShopUsers(db, security)
+    ensureMasterAdmin(db, security, config)
     return MongoApp(client, db)
 }
 
@@ -251,9 +252,30 @@ private fun ensureDemoShopUsers(db: MongoDatabase, security: Security) {
             users.insertOne(demo)
         }
     }
+}
+
+/** Creates or rotates master admin from ADMIN_USERNAME / ADMIN_PASSWORD. Never hardcodes credentials. */
+private fun ensureMasterAdmin(db: MongoDatabase, security: Security, config: ServerConfig) {
+    val username = config.adminUsername.trim().ifBlank { "bhargav" }
+    val password = config.adminPassword
+    if (password.isBlank()) {
+        if (config.devAuth) {
+            println("WARN: ADMIN_PASSWORD unset — skip master admin seed/rotate (set before production)")
+            return
+        }
+        error("ADMIN_PASSWORD is required when AUTH_DEV_MODE=false")
+    }
     val admins = db.getCollection<AdminUserDoc>("admin_users")
-    if (admins.find(eq("username", "admin")).firstOrNull() == null) {
-        admins.insertOne(AdminUserDoc("admin_1", "admin", security.hashPassword("admin123")))
+    val hash = security.hashPassword(password)
+    val existing = admins.find(eq("username", username)).firstOrNull()
+    if (existing == null) {
+        admins.insertOne(AdminUserDoc("admin_1", username, hash))
+    } else {
+        admins.updateOne(eq("_id", existing.id), set("passwordHash", hash))
+    }
+    // Remove legacy default admin account if username changed
+    if (username != "admin") {
+        admins.deleteMany(eq("username", "admin"))
     }
 }
 
@@ -289,7 +311,7 @@ private fun ensureIndexes(db: MongoDatabase) {
     }
 }
 
-private fun seed(db: MongoDatabase, security: Security) {
+private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
     db.getCollection<ShopDoc>("shops").insertMany(
         listOf(
             ShopDoc("shop_1", "Bhargav Kirana", null, 4.6, 128, 28.6139, 77.2090, true, true, true, 5.0, "success@razorpay", shopType = "GENERAL_STORE"),
@@ -305,9 +327,7 @@ private fun seed(db: MongoDatabase, security: Security) {
             ShopUserDoc("user_cashier", "shop_1", "cashier", security.hashPassword("1234"), "Cashier", "SHOP"),
         ),
     )
-    db.getCollection<AdminUserDoc>("admin_users").insertOne(
-        AdminUserDoc("admin_1", "admin", security.hashPassword("admin123")),
-    )
+    ensureMasterAdmin(db, security, config)
     db.getCollection<CategoryDoc>("master_categories").insertMany(
         listOf(
             CategoryDoc("cat_grocery", "General Grocery"),
