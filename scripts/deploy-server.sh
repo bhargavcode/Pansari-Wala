@@ -13,7 +13,13 @@ EC2_SERVICE_NAME="${EC2_SERVICE_NAME:-pansari-server}"
 JAR_PATH="${JAR_PATH:-server/build/libs/pansari-server-all.jar}"
 REMOTE_JAR="${EC2_DEPLOY_PATH%/}/pansari-server-all.jar"
 KNOWN_HOSTS="${RUNNER_TEMP:-/tmp}/ec2_known_hosts"
-SSH_OPTS=(-i "$EC2_SSH_KEY_PATH" -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS" -o IdentitiesOnly=yes)
+SSH_OPTS=(
+  -i "$EC2_SSH_KEY_PATH"
+  -o StrictHostKeyChecking=accept-new
+  -o UserKnownHostsFile="$KNOWN_HOSTS"
+  -o IdentitiesOnly=yes
+  -o ConnectTimeout=20
+)
 
 if [[ ! -f "$JAR_PATH" ]]; then
   echo "JAR not found: $JAR_PATH" >&2
@@ -21,7 +27,8 @@ if [[ ! -f "$JAR_PATH" ]]; then
 fi
 
 echo "Trusting host key for ${EC2_HOST}"
-ssh-keyscan -H "$EC2_HOST" >> "$KNOWN_HOSTS" 2>/dev/null
+: > "$KNOWN_HOSTS"
+ssh-keyscan -T 20 -H "$EC2_HOST" >> "$KNOWN_HOSTS" 2>/dev/null || true
 
 echo "Uploading $JAR_PATH -> ${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}"
 scp "${SSH_OPTS[@]}" "$JAR_PATH" "${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}.tmp"
