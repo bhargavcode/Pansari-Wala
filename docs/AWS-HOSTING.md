@@ -40,7 +40,7 @@ Elastic IP **`52.1.25.27`** must stay attached to the EC2 instance.
 
 | Port | Source | Use |
 |---|---|---|
-| 22 | Your IP | SSH |
+| 22 | `0.0.0.0/0` (or GitHub Actions IP ranges) | SSH for CI deploy — **your home IP is not enough**; GitHub runners will time out |
 | 80 | 0.0.0.0/0 | HTTP (certbot + redirect) |
 | 443 | 0.0.0.0/0 | HTTPS |
 | 8080 | — | Close from public once nginx is live |

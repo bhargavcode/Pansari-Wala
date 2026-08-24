@@ -38,6 +38,11 @@ fi
 echo "Trusting host key for ${EC2_HOST}"
 : > "$KNOWN_HOSTS"
 ssh-keyscan -T 20 -H "$EC2_HOST" >> "$KNOWN_HOSTS" 2>/dev/null || true
+if ! ssh "${SSH_OPTS[@]}" -o BatchMode=yes "${EC2_USER}@${EC2_HOST}" "true"; then
+  echo "Cannot SSH to ${EC2_HOST}:22 from GitHub Actions." >&2
+  echo "Open EC2 security group inbound TCP 22 from 0.0.0.0/0 (GitHub runner IPs are not your home IP)." >&2
+  exit 255
+fi
 
 REMOTE_TMP="/tmp/pansariwala-web-$$"
 echo "Uploading $DIST_DIR -> ${EC2_USER}@${EC2_HOST}:${REMOTE_TMP} (root ${EC2_WEB_ROOT})"

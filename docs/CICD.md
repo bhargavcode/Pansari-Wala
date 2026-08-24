@@ -111,7 +111,7 @@ sudo nano /opt/pansari/env                  # fill JWT/Mongo/Razorpay
 
 This installs `scripts/pansari-server.service`, creates `/opt/pansari/env`, and allows passwordless `systemctl restart` for the deploy user.
 
-3. Open security group for **8080** (or terminate TLS on nginx/ALB on 443).
+3. Open the instance security group: **TCP 22 from 0.0.0.0/0** so GitHub Actions can SSH (home-IP-only SSH causes `Connection timed out`). Also open **80/443** for nginx (and **8080** only until TLS is on).
 4. After the first CI deploy (or manual `scp` of the JAR): `sudo systemctl start pansari-server`
 
 ## Local commands (same as CI)

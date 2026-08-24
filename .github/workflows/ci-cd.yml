@@ -211,9 +211,21 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_WEB_ROOT: ${{ secrets.EC2_WEB_ROOT || '/var/www/pansariwala' }}
         run: |
+          # Trim accidental whitespace/newlines from secrets
+          EC2_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n' | xargs)"
+          EC2_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n' | xargs)"
+          case "$EC2_HOST" in
+            52.1.25.27) echo "EC2_HOST check: Elastic IP OK" ;;
+            35.172.232.196)
+              echo "::error::EC2_HOST is still the old public IP 35.172.232.196 (SSH times out). Set secret EC2_HOST=52.1.25.27"
+              exit 1
+              ;;
+            *) echo "EC2_HOST check: custom host (len=${#EC2_HOST})" ;;
+          esac
           KEY_PATH="${RUNNER_TEMP}/ec2_key.pem"
           printf '%s\n' "$EC2_SSH_KEY" > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
+          export EC2_HOST EC2_USER
           export EC2_SSH_KEY_PATH="$KEY_PATH"
           export EC2_WEB_ROOT="${EC2_WEB_ROOT:-/var/www/pansariwala}"
           export DIST_DIR="webApp/build/dist/js/productionExecutable"
@@ -264,9 +276,20 @@ jobs:
           EC2_SERVICE_NAME: ${{ secrets.EC2_SERVICE_NAME }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
+          EC2_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n' | xargs)"
+          EC2_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n' | xargs)"
+          case "$EC2_HOST" in
+            52.1.25.27) echo "EC2_HOST check: Elastic IP OK" ;;
+            35.172.232.196)
+              echo "::error::EC2_HOST is still the old public IP 35.172.232.196 (SSH times out). Set secret EC2_HOST=52.1.25.27"
+              exit 1
+              ;;
+            *) echo "EC2_HOST check: custom host (len=${#EC2_HOST})" ;;
+          esac
           KEY_PATH="${RUNNER_TEMP}/ec2_key.pem"
           printf '%s\n' "$EC2_SSH_KEY" > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
+          export EC2_HOST EC2_USER
           export EC2_SSH_KEY_PATH="$KEY_PATH"
           export EC2_SERVICE_NAME="${EC2_SERVICE_NAME:-pansari-server}"
           chmod +x scripts/deploy-server.sh
