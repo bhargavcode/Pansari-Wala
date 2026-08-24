@@ -78,6 +78,17 @@ On start, the server creates/rotates the master admin from `ADMIN_*` and removes
 sudo bash scripts/bootstrap-ec2-web.sh pansariwala.shop ec2-user /var/www/pansariwala
 ```
 
+CI stages files in `/tmp` (the SSH user cannot write `/var/www`), then `sudo /usr/local/bin/pansari-publish-web` copies them into the nginx root.
+
+If nginx is already installed and you only need CI deploy permission:
+
+```bash
+sudo install -m 0755 scripts/pansari-publish-web.sh /usr/local/bin/pansari-publish-web
+echo 'ec2-user ALL=(root) NOPASSWD: /usr/local/bin/pansari-publish-web' | sudo tee /etc/sudoers.d/pansari-web
+sudo chmod 440 /etc/sudoers.d/pansari-web
+sudo mkdir -p /var/www/pansariwala
+```
+
 After DNS propagates:
 
 ```bash

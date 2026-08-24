@@ -41,6 +41,12 @@ cat > "${WEB_ROOT}/index.html" <<EOF
 EOF
 chown "$DEPLOY_USER:$DEPLOY_USER" "${WEB_ROOT}/index.html"
 
+install -m 0755 "$SCRIPT_DIR/pansari-publish-web.sh" /usr/local/bin/pansari-publish-web
+SUDOERS_FILE="/etc/sudoers.d/pansari-web"
+echo "${DEPLOY_USER} ALL=(root) NOPASSWD: /usr/local/bin/pansari-publish-web" > "$SUDOERS_FILE"
+chmod 440 "$SUDOERS_FILE"
+echo "Wrote $SUDOERS_FILE"
+
 nginx -t
 systemctl enable nginx
 systemctl start nginx

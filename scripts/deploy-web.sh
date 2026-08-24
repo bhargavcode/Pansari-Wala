@@ -17,21 +17,37 @@ if [[ ! -d "$DIST_DIR" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$DIST_DIR/index.html" ]]; then
+  found="$(find "$DIST_DIR" -name index.html -print -quit 2>/dev/null || true)"
+  if [[ -n "${found}" ]]; then
+    DIST_DIR="$(dirname "$found")"
+    echo "Using nested dist: $DIST_DIR"
+  else
+    echo "index.html not found under $DIST_DIR" >&2
+    exit 1
+  fi
+fi
+
 echo "Trusting host key for ${EC2_HOST}"
 ssh-keyscan -H "$EC2_HOST" >> "$KNOWN_HOSTS" 2>/dev/null
 
-REMOTE_TMP="${EC2_WEB_ROOT}.deploy.$$"
+# Stage under /tmp — deploy user cannot mkdir under /var/www
+REMOTE_TMP="/tmp/pansariwala-web-$$"
 echo "Uploading $DIST_DIR -> ${EC2_USER}@${EC2_HOST}:${REMOTE_TMP}"
 ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" "rm -rf '${REMOTE_TMP}' && mkdir -p '${REMOTE_TMP}'"
 scp -r "${SSH_OPTS[@]}" "${DIST_DIR}/." "${EC2_USER}@${EC2_HOST}:${REMOTE_TMP}/"
 
 ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" bash -s <<EOF
 set -euo pipefail
-sudo mkdir -p '${EC2_WEB_ROOT}'
-sudo rsync -a --delete '${REMOTE_TMP}/' '${EC2_WEB_ROOT}/'
+if [[ -x /usr/local/bin/pansari-publish-web ]]; then
+  sudo /usr/local/bin/pansari-publish-web '${REMOTE_TMP}' '${EC2_WEB_ROOT}'
+else
+  sudo mkdir -p '${EC2_WEB_ROOT}'
+  sudo rsync -a --delete '${REMOTE_TMP}/' '${EC2_WEB_ROOT}/'
+  sudo nginx -t
+  sudo systemctl reload nginx
+fi
 rm -rf '${REMOTE_TMP}'
-sudo nginx -t
-sudo systemctl reload nginx
 EOF
 
 echo "Web deploy complete."

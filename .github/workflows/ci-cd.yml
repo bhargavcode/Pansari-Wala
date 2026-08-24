@@ -23,8 +23,41 @@ permissions:
   actions: write
 
 jobs:
+  flags:
+    name: Read CICDflags
+    runs-on: ubuntu-latest
+    outputs:
+      android_enabled: ${{ steps.read.outputs.android_enabled }}
+      ios_enabled: ${{ steps.read.outputs.ios_enabled }}
+      web_enabled: ${{ steps.read.outputs.web_enabled }}
+      server_enabled: ${{ steps.read.outputs.server_enabled }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        name: Parse .github/cicd.flags
+        run: |
+          flag() {
+            local key="$1"
+            local val
+            val="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" .github/cicd.flags | tail -1 | cut -d= -f2- | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+            case "$val" in
+              true|1|yes) echo true ;;
+              *) echo false ;;
+            esac
+          }
+          {
+            echo "android_enabled=$(flag android_enabled)"
+            echo "ios_enabled=$(flag ios_enabled)"
+            echo "web_enabled=$(flag web_enabled)"
+            echo "server_enabled=$(flag server_enabled)"
+          } | tee -a "$GITHUB_OUTPUT"
+          echo "CI flags:"
+          cat "$GITHUB_OUTPUT"
+
   android:
     name: Android (all flavors × debug/release)
+    needs: flags
+    if: needs.flags.outputs.android_enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +113,8 @@ jobs:
 
   web:
     name: Web (JS distribution)
+    needs: flags
+    if: needs.flags.outputs.web_enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -108,6 +143,8 @@ jobs:
 
   server:
     name: Server (fat JAR)
+    needs: flags
+    if: needs.flags.outputs.server_enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -134,11 +171,14 @@ jobs:
 
   deploy-web:
     name: Deploy web → EC2
-    needs: web
+    needs: [flags, web]
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-      (github.event_name == 'workflow_dispatch')
+      needs.flags.outputs.web_enabled == 'true' &&
+      (
+        (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+        github.event_name == 'workflow_dispatch'
+      )
     steps:
       - uses: actions/checkout@v4
 
@@ -182,11 +222,14 @@ jobs:
 
   deploy-server:
     name: Deploy server → EC2
-    needs: server
+    needs: [flags, server]
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.deploy_server)
+      needs.flags.outputs.server_enabled == 'true' &&
+      (
+        (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.deploy_server)
+      )
     steps:
       - uses: actions/checkout@v4
 
@@ -230,7 +273,7 @@ jobs:
 
   prune-artifacts:
     name: Prune artifacts (keep latest 5 per type)
-    needs: [android, web, server]
+    needs: [flags, android, web, server]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
@@ -275,8 +318,14 @@ jobs:
 
   ios:
     name: iOS (placeholder — manual only)
+    needs: flags
     runs-on: macos-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_ios }}
+    if: |
+      needs.flags.outputs.ios_enabled == 'true' &&
+      (
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.build_ios)
+      )
     steps:
       - uses: actions/checkout@v4
       - name: iOS builds not enabled yet

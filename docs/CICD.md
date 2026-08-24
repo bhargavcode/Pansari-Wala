@@ -2,6 +2,19 @@
 
 GitHub Actions workflow: [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml)
 
+## Job toggles
+
+Edit [`.github/cicd.flags`](../.github/cicd.flags) then push (or re-run the workflow):
+
+```
+android_enabled = true
+ios_enabled = false
+web_enabled = true
+server_enabled = true
+```
+
+`true` / `1` / `yes` runs that job. Anything else skips it (and its deploy). Keep `ios_enabled = false` until iOS CI is implemented.
+
 ## Trigger
 
 - Push / merge to **`main`** (also accepts `master`)
