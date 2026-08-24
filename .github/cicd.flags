@@ -1,7 +1,7 @@
 # Toggle CI jobs. true/1/yes = run; anything else = skip.
 # Edit this file and push (or re-run workflow).
 
-android_enabled = true
+android_enabled = false
 ios_enabled = false
 web_enabled = true
 server_enabled = true
