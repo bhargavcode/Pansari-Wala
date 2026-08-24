@@ -34,19 +34,24 @@ fun main() {
     val store = AppStore(config, security, mongo)
 
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
-        install(CallLogging) { level = Level.INFO }
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = false; isLenient = true })
-        }
+        // CORS first so preflight + error responses always include ACAO (web localhost → API).
         install(CORS) {
             allowMethod(HttpMethod.Options)
             allowMethod(HttpMethod.Get)
             allowMethod(HttpMethod.Post)
             allowMethod(HttpMethod.Put)
+            allowMethod(HttpMethod.Patch)
             allowMethod(HttpMethod.Delete)
             allowHeader(HttpHeaders.Authorization)
             allowHeader(HttpHeaders.ContentType)
+            allowHeader(HttpHeaders.Accept)
+            allowNonSimpleContentTypes = true
             anyHost()
+            maxAgeInSeconds = 86_400
+        }
+        install(CallLogging) { level = Level.INFO }
+        install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = false; isLenient = true })
         }
         install(WebSockets)
         install(StatusPages) {

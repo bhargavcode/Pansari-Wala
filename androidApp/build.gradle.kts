@@ -66,10 +66,15 @@ android {
             buildConfigField("String", "APP_PRODUCT", "\"DELIVERY\"")
         }
     }
-    val apiBaseUrl =
+    val productionApiBaseUrl =
         System.getenv("API_BASE_URL")
             ?: (project.findProperty("API_BASE_URL") as String?)
-            ?: "http://35.172.232.196:8080"
+            ?: "https://api.pansariwala.shop"
+    val debugApiBaseUrl =
+        System.getenv("API_BASE_URL_DEBUG")
+            ?: (project.findProperty("API_BASE_URL_DEBUG") as String?)
+            ?: "http://10.0.2.2:8080"
+    val useProductionApiForDebug = System.getenv("GITHUB_ACTIONS") == "true"
     val signingProps = Properties().apply {
         listOf(
             rootProject.file("local.properties"),
@@ -124,7 +129,11 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                "\"${if (useProductionApiForDebug) productionApiBaseUrl else debugApiBaseUrl}\"",
+            )
         }
         release {
             isMinifyEnabled = false
@@ -132,7 +141,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            buildConfigField("String", "API_BASE_URL", "\"$productionApiBaseUrl\"")
             signingConfig = signingConfigs.getByName("debug")
         }
     }

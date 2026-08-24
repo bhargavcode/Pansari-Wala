@@ -57,10 +57,14 @@ object AppConstants {
     const val PUBLIC_DOMAIN: String = "pansariwala.shop"
     const val WEB_BASE_URL: String = "https://pansariwala.shop"
     const val API_HOST: String = "api.pansariwala.shop"
-    /** Shared API URL for debug/release and all platforms (override via Android `API_BASE_URL` env in CI). */
+    /** Production API (release + GitHub Actions). */
     const val API_BASE_URL: String = "https://api.pansariwala.shop"
     const val DEFAULT_API_BASE_URL: String = API_BASE_URL
     const val IOS_API_BASE_URL: String = API_BASE_URL
+    /** Local Ktor (`./gradlew :server:run`). Web + iOS Simulator. */
+    const val LOCAL_API_BASE_URL: String = "http://127.0.0.1:8080"
+    /** Android emulator → host machine. Override with `API_BASE_URL_DEBUG` for a physical device. */
+    const val ANDROID_EMULATOR_API_BASE_URL: String = "http://10.0.2.2:8080"
     const val BRAND_TAGLINE: String = "Apka apna market"
     const val PLAY_STORE_USER_URL: String =
         "https://play.google.com/store/apps/details?id=org.bhargav.pansariwala.user"

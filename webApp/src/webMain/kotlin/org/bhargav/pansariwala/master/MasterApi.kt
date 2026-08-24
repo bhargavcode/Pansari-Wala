@@ -12,9 +12,9 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.api.createPlatformHttpClient
-import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.api.ApiRuntime
 
-class MasterApi(private val baseUrl: String = AppConstants.API_BASE_URL) {
+class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val client = createPlatformHttpClient().config {
         expectSuccess = true
