@@ -32,16 +32,23 @@ import org.bhargav.pansariwala.server.db.OtpDoc
 import org.bhargav.pansariwala.server.db.PartnerDoc
 import org.bhargav.pansariwala.server.db.ProductDoc
 import org.bhargav.pansariwala.server.db.ShopDoc
+import org.bhargav.pansariwala.server.db.ShopTypeDoc
 import org.bhargav.pansariwala.server.db.ShopUserDoc
 import org.bhargav.pansariwala.server.db.TxnDoc
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
 import org.bhargav.pansariwala.server.dto.CustomerDto
 import org.bhargav.pansariwala.server.dto.DeliveryOfferDto
 import org.bhargav.pansariwala.server.dto.MasterCategoryDto
+import org.bhargav.pansariwala.server.dto.MasterCategoryUpsert
 import org.bhargav.pansariwala.server.dto.MasterProductDto
+import org.bhargav.pansariwala.server.dto.MasterProductUpsert
 import org.bhargav.pansariwala.server.dto.OfferDto
 import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
+import org.bhargav.pansariwala.server.dto.ShopTypeDto
+import org.bhargav.pansariwala.server.dto.ShopTypeUpsert
+import org.bhargav.pansariwala.server.dto.UploadResultDto
+import java.util.UUID
 import org.bhargav.pansariwala.server.dto.OtpSessionResponse
 import org.bhargav.pansariwala.server.dto.PartnerDailyEarningDto
 import org.bhargav.pansariwala.server.dto.PartnerDashboardDto
@@ -100,6 +107,8 @@ class AppStore(
     private val partnerCol = mongo.db.getCollection<PartnerDoc>("partners")
     private val categoryCol = mongo.db.getCollection<CategoryDoc>("master_categories")
     private val masterProductCol = mongo.db.getCollection<MasterProductDoc>("master_products")
+    private val shopTypeCol = mongo.db.getCollection<ShopTypeDoc>("master_shop_types")
+    private val assetStore = AssetStore(config)
     private val productCol = mongo.db.getCollection<ProductDoc>("products")
     private val offerCol = mongo.db.getCollection<OfferDoc>("offers")
     private val orderCol = mongo.db.getCollection<OrderDoc>("orders")
@@ -1007,7 +1016,94 @@ class AppStore(
         categoryCol.find().toList().map { MasterCategoryDto(it.id, it.name, it.parentId) }
 
     fun masterProducts(): List<MasterProductDto> =
-        masterProductCol.find().toList().map { MasterProductDto(it.id, it.name, it.nameHi, it.categoryId, it.unit, it.barcode) }
+        masterProductCol.find().toList().map {
+            MasterProductDto(it.id, it.name, it.nameHi, it.categoryId, it.unit, it.barcode, it.imageUrl, it.thumbnailUrl)
+        }
+
+    fun upsertMasterCategory(body: MasterCategoryUpsert): MasterCategoryDto {
+        val id = body.id?.takeIf { it.isNotBlank() } ?: "cat_${UUID.randomUUID().toString().take(8)}"
+        val doc = CategoryDoc(id, body.name.trim(), body.parentId?.takeIf { it.isNotBlank() })
+        categoryCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
+        return MasterCategoryDto(doc.id, doc.name, doc.parentId)
+    }
+
+    fun deleteMasterCategory(id: String) {
+        if (masterProductCol.countDocuments(eq("categoryId", id)) > 0L) {
+            error("Category has products")
+        }
+        if (categoryCol.countDocuments(eq("parentId", id)) > 0L) {
+            error("Category has subcategories")
+        }
+        categoryCol.deleteOne(eq("_id", id))
+    }
+
+    fun upsertMasterProduct(body: MasterProductUpsert): MasterProductDto {
+        val id = body.id?.takeIf { it.isNotBlank() } ?: "mp_${UUID.randomUUID().toString().take(8)}"
+        val doc = MasterProductDoc(
+            id = id,
+            name = body.name.trim(),
+            nameHi = body.nameHi.trim(),
+            categoryId = body.categoryId,
+            unit = body.unit.ifBlank { "KG" },
+            barcode = body.barcode?.takeIf { it.isNotBlank() },
+            imageUrl = body.imageUrl,
+            thumbnailUrl = body.thumbnailUrl,
+        )
+        masterProductCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
+        return MasterProductDto(doc.id, doc.name, doc.nameHi, doc.categoryId, doc.unit, doc.barcode, doc.imageUrl, doc.thumbnailUrl)
+    }
+
+    fun deleteMasterProduct(id: String) {
+        masterProductCol.deleteOne(eq("_id", id))
+    }
+
+    fun shopTypes(): List<ShopTypeDto> =
+        shopTypeCol.find().toList().map { ShopTypeDto(it.id, it.name, it.active) }
+
+    fun upsertShopType(body: ShopTypeUpsert): ShopTypeDto {
+        val id = body.id?.takeIf { it.isNotBlank() }
+            ?: body.name.trim().uppercase().replace(Regex("[^A-Z0-9]+"), "_")
+        val doc = ShopTypeDoc(id, body.name.trim(), body.active)
+        shopTypeCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
+        return ShopTypeDto(doc.id, doc.name, doc.active)
+    }
+
+    fun deleteShopType(id: String) {
+        shopTypeCol.deleteOne(eq("_id", id))
+    }
+
+    fun uploadAsset(prefix: String, fileName: String, bytes: ByteArray, contentType: String): UploadResultDto =
+        assetStore.save(prefix, fileName, bytes, contentType)
+
+    fun createShopAdmin(
+        name: String,
+        shopType: String,
+        address: String,
+        lat: Double,
+        lng: Double,
+        active: Boolean,
+    ): ShopDto {
+        val id = "shop_${UUID.randomUUID().toString().take(8)}"
+        shopCol.insertOne(
+            ShopDoc(
+                id = id,
+                name = name.trim(),
+                imageUrl = null,
+                rating = 0.0,
+                ratingCount = 0,
+                lat = lat,
+                lng = lng,
+                isOpen = true,
+                active = active,
+                paymentsEnabled = true,
+                discountPercent = 0.0,
+                upiId = config.defaultShopUpi,
+                address = address,
+                shopType = shopType.ifBlank { "GENERAL_STORE" },
+            ),
+        )
+        return listShopsAdmin().first { it.id == id }
+    }
 
     fun patchShop(shopId: String, active: Boolean?, payments: Boolean?) {
         val updates = buildList {
@@ -1019,7 +1115,31 @@ class AppStore(
         }
     }
 
-    fun listShopsAdmin(): List<ShopDto> = nearbyShops(28.6139, 77.2090, 500.0, "")
+    fun listShopsAdmin(): List<ShopDto> {
+        val lat = 28.6139
+        val lng = 77.2090
+        return shopCol.find().toList().map { row ->
+            ShopDto(
+                id = row.id,
+                name = row.name,
+                imageUrl = row.imageUrl,
+                rating = row.rating,
+                ratingCount = row.ratingCount,
+                distanceKm = haversine(lat, lng, row.lat, row.lng),
+                isOpen = row.isOpen,
+                lat = row.lat,
+                lng = row.lng,
+                offerCount = 0,
+                discountPercent = row.discountPercent,
+                upiId = row.upiId.ifBlank { config.defaultShopUpi },
+                deliveryRadiusKm = row.deliveryRadiusKm,
+                shopType = row.shopType,
+                active = row.active,
+                paymentsEnabled = row.paymentsEnabled,
+                address = row.address,
+            )
+        }.sortedBy { it.name }
+    }
 
     private fun shopById(shopId: String): ShopDoc =
         shopCol.find(eq("_id", shopId)).firstOrNull() ?: error("Shop not found")

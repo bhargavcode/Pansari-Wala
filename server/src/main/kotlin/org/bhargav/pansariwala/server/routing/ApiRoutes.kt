@@ -2,33 +2,41 @@ package org.bhargav.pansariwala.server.routing
 
 import com.auth0.jwt.interfaces.Payload
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
+import io.ktor.server.http.content.staticFiles
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.websocket.webSocket
+import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.io.readByteArray
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.dto.AdminLoginRequest
+import org.bhargav.pansariwala.server.dto.AdminShopCreate
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
-import org.bhargav.pansariwala.server.dto.CustomerLocationRequest
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
+import org.bhargav.pansariwala.server.dto.CustomerLocationRequest
 import org.bhargav.pansariwala.server.dto.DeliverRequest
 import org.bhargav.pansariwala.server.dto.FirebaseAuthRequest
 import org.bhargav.pansariwala.server.dto.IncomingOfferResponse
 import org.bhargav.pansariwala.server.dto.OkResponse
 import org.bhargav.pansariwala.server.dto.OtpRequest
-import org.bhargav.pansariwala.server.dto.OtpSessionResponse
 import org.bhargav.pansariwala.server.dto.OtpVerifyRequest
 import org.bhargav.pansariwala.server.dto.PartnerLocationRequest
 import org.bhargav.pansariwala.server.dto.PartnerOnlineRequest
@@ -46,11 +54,11 @@ import org.bhargav.pansariwala.server.dto.SyncPushRequest
 import org.bhargav.pansariwala.server.dto.UpdateProfileRequest
 import org.bhargav.pansariwala.server.dto.VerifyPaymentRequest
 import org.bhargav.pansariwala.server.service.AppStore
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import java.io.File
 
 fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
-    get("/health") { call.respond(org.bhargav.pansariwala.server.dto.OkResponse(true)) }
+    staticFiles("/uploads", File(config.uploadDir))
+    get("/health") { call.respond(OkResponse(true)) }
     get("/config/public") {
         call.respond(
             PublicConfigDto(
@@ -262,6 +270,20 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
             call.requireRole("ADMIN")
             call.respond(store.listShopsAdmin())
         }
+        post("/admin/shops") {
+            call.requireRole("ADMIN")
+            val body = call.receive<AdminShopCreate>()
+            call.respond(
+                store.createShopAdmin(
+                    name = body.name,
+                    shopType = body.shopType,
+                    address = body.address,
+                    lat = body.lat,
+                    lng = body.lng,
+                    active = body.active,
+                ),
+            )
+        }
         post("/admin/shops/{id}") {
             call.requireRole("ADMIN")
             val body = call.receive<AdminShopPatch>()
@@ -272,8 +294,56 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
             call.requireRole("ADMIN")
             call.respond(store.listShopsAdmin())
         }
+
         get("/master/categories") { call.respond(store.masterCategories()) }
         get("/master/products") { call.respond(store.masterProducts()) }
+        get("/master/shop-types") { call.respond(store.shopTypes()) }
+
+        post("/admin/master/categories") {
+            call.requireRole("ADMIN")
+            call.respond(store.upsertMasterCategory(call.receive()))
+        }
+        delete("/admin/master/categories/{id}") {
+            call.requireRole("ADMIN")
+            store.deleteMasterCategory(call.parameters["id"]!!)
+            call.respond(OkResponse())
+        }
+        post("/admin/master/products") {
+            call.requireRole("ADMIN")
+            call.respond(store.upsertMasterProduct(call.receive()))
+        }
+        delete("/admin/master/products/{id}") {
+            call.requireRole("ADMIN")
+            store.deleteMasterProduct(call.parameters["id"]!!)
+            call.respond(OkResponse())
+        }
+        post("/admin/master/shop-types") {
+            call.requireRole("ADMIN")
+            call.respond(store.upsertShopType(call.receive()))
+        }
+        delete("/admin/master/shop-types/{id}") {
+            call.requireRole("ADMIN")
+            store.deleteShopType(call.parameters["id"]!!)
+            call.respond(OkResponse())
+        }
+        post("/admin/uploads") {
+            call.requireRole("ADMIN")
+            val prefix = call.request.queryParameters["prefix"] ?: "master/product-images"
+            val multipart = call.receiveMultipart()
+            var fileName = "upload.bin"
+            var bytes: ByteArray? = null
+            var contentType = "application/octet-stream"
+            while (true) {
+                val part = multipart.readPart() ?: break
+                if (part is PartData.FileItem) {
+                    fileName = part.originalFileName ?: fileName
+                    contentType = part.contentType?.toString() ?: contentType
+                    bytes = part.provider().readRemaining().readByteArray()
+                }
+            }
+            val data = bytes ?: error("file required")
+            call.respond(store.uploadAsset(prefix, fileName, data, contentType))
+        }
 
         webSocket("/ws/delivery") {
             val partnerId = call.userId()

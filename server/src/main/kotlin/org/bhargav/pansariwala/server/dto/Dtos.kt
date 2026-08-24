@@ -103,6 +103,19 @@ data class ShopDto(
     val upiId: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
+    val active: Boolean = true,
+    val paymentsEnabled: Boolean = true,
+    val address: String = "",
+)
+
+@Serializable
+data class AdminShopCreate(
+    val name: String,
+    val shopType: String = "GENERAL_STORE",
+    val address: String = "",
+    val lat: Double = 28.6139,
+    val lng: Double = 77.2090,
+    val active: Boolean = true,
 )
 
 @Serializable
@@ -360,6 +373,47 @@ data class MasterProductDto(
     val categoryId: String,
     val unit: String,
     val barcode: String? = null,
+    val imageUrl: String? = null,
+    val thumbnailUrl: String? = null,
+)
+
+@Serializable
+data class MasterProductUpsert(
+    val id: String? = null,
+    val name: String,
+    val nameHi: String = "",
+    val categoryId: String,
+    val unit: String = "KG",
+    val barcode: String? = null,
+    val imageUrl: String? = null,
+    val thumbnailUrl: String? = null,
+)
+
+@Serializable
+data class MasterCategoryUpsert(
+    val id: String? = null,
+    val name: String,
+    val parentId: String? = null,
+)
+
+@Serializable
+data class ShopTypeDto(
+    val id: String,
+    val name: String,
+    val active: Boolean = true,
+)
+
+@Serializable
+data class ShopTypeUpsert(
+    val id: String? = null,
+    val name: String,
+    val active: Boolean = true,
+)
+
+@Serializable
+data class UploadResultDto(
+    val url: String,
+    val thumbnailUrl: String,
 )
 
 @Serializable

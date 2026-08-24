@@ -25,10 +25,13 @@ data class ServerConfig(
     val adminPassword: String,
     val s3Bucket: String,
     val s3Region: String,
+    val awsAccessKeyId: String,
+    val awsSecretAccessKey: String,
+    val publicBaseUrl: String,
 ) {
     val paymentsEnabled: Boolean get() = razorpayKeyId.isNotBlank() && razorpayKeySecret.isNotBlank()
     val smsConfigured: Boolean get() = smsApiUrl.isNotBlank()
-    val s3Configured: Boolean get() = s3Bucket.isNotBlank()
+    val s3Configured: Boolean get() = awsAccessKeyId.isNotBlank() && awsSecretAccessKey.isNotBlank() && s3Bucket.isNotBlank()
 
     companion object {
         const val DEFAULT_PASSWORD_SALT = "pansari-local-salt"
@@ -57,6 +60,9 @@ data class ServerConfig(
             adminPassword = env("ADMIN_PASSWORD", ""),
             s3Bucket = env("S3_BUCKET", "pansariwala-assets"),
             s3Region = env("AWS_REGION", "ap-south-1"),
+            awsAccessKeyId = env("AWS_ACCESS_KEY_ID", ""),
+            awsSecretAccessKey = env("AWS_SECRET_ACCESS_KEY", ""),
+            publicBaseUrl = env("PUBLIC_BASE_URL", "https://api.pansariwala.shop"),
         )
 
         private fun mongoUriFromEnv(): String {

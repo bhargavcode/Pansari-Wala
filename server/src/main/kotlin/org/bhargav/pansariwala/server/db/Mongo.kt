@@ -109,6 +109,15 @@ data class MasterProductDoc(
     val categoryId: String,
     val unit: String,
     val barcode: String? = null,
+    val imageUrl: String? = null,
+    val thumbnailUrl: String? = null,
+)
+
+@Serializable
+data class ShopTypeDoc(
+    @SerialName("_id") val id: String,
+    val name: String,
+    val active: Boolean = true,
 )
 
 @Serializable
@@ -239,6 +248,7 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     ensureShopUpis(db)
     ensureDemoShopUsers(db, security)
     ensureMasterAdmin(db, security, config)
+    ensureShopTypes(db)
     return MongoApp(client, db)
 }
 
@@ -276,6 +286,22 @@ private fun ensureMasterAdmin(db: MongoDatabase, security: Security, config: Ser
     // Remove legacy default admin account if username changed
     if (username != "admin") {
         admins.deleteMany(eq("username", "admin"))
+    }
+}
+
+private fun defaultShopTypes(): List<ShopTypeDoc> = listOf(
+    ShopTypeDoc("GENERAL_STORE", "General Store"),
+    ShopTypeDoc("MEDICAL_STORE", "Medical Store"),
+    ShopTypeDoc("HARDWARE", "Hardware"),
+    ShopTypeDoc("SWEET_SHOP", "Sweet Shop"),
+)
+
+private fun ensureShopTypes(db: MongoDatabase) {
+    val col = db.getCollection<ShopTypeDoc>("master_shop_types")
+    defaultShopTypes().forEach { row ->
+        if (col.find(eq("_id", row.id)).firstOrNull() == null) {
+            col.insertOne(row)
+        }
     }
 }
 
@@ -345,6 +371,7 @@ private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
         SeedSku("mp_haldi", "Turmeric", "हल्दी", "STANDARD_SPICES", 220.0, "haldi"),
         SeedSku("mp_namak", "Salt", "नमक", "GENERAL_GROCERY", 22.0, "namak"),
     )
+    db.getCollection<ShopTypeDoc>("master_shop_types").insertMany(defaultShopTypes())
     db.getCollection<MasterProductDoc>("master_products").insertMany(
         skus.map { MasterProductDoc(it.id, it.name, it.nameHi, "cat_grocery", "KG") },
     )
