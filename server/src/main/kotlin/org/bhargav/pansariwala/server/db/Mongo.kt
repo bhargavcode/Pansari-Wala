@@ -311,6 +311,7 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     ensureDemoShopUsers(db, security)
     ensureMasterAdmin(db, security, config)
     ensureShopTypes(db)
+    ensurePrototypeShops(db)
     return MongoApp(client, db)
 }
 
@@ -355,15 +356,76 @@ private fun ensureMasterAdmin(db: MongoDatabase, security: Security, config: Ser
 }
 
 private fun defaultShopTypes(): List<ShopTypeDoc> = listOf(
+    ShopTypeDoc("SUPERMARKET", "Supermarket"),
+    ShopTypeDoc("GROCERY", "Grocery"),
+    ShopTypeDoc("BOUTIQUE", "Boutique"),
     ShopTypeDoc("GENERAL_STORE", "General Store"),
     ShopTypeDoc("MEDICAL_STORE", "Medical Store"),
     ShopTypeDoc("HARDWARE", "Hardware"),
     ShopTypeDoc("SWEET_SHOP", "Sweet Shop"),
 )
 
+/** Prototype master-portal shops (ids match mockup table). */
+private fun prototypeAdminShops(): List<ShopDoc> {
+    val joined = 1_687_478_400_000L // 2023-06-23 UTC
+    val hours = listOf(
+        ShopHoursDayDoc("Mon", "09:00", "21:00"),
+        ShopHoursDayDoc("Tue", "09:00", "21:00"),
+        ShopHoursDayDoc("Wed", "09:00", "21:00"),
+        ShopHoursDayDoc("Thu", "09:00", "21:00"),
+        ShopHoursDayDoc("Fri", "09:00", "21:00"),
+        ShopHoursDayDoc("Sat", "10:00", "20:00"),
+        ShopHoursDayDoc("Sun", "10:00", "18:00"),
+    )
+    val features = ShopFeaturesDoc()
+    return listOf(
+        ShopDoc(
+            id = "301", name = "Ermople Shopisg", imageUrl = null, rating = 4.5, ratingCount = 128,
+            lat = 41.0149426, lng = -55.4878477, isOpen = true, active = true, paymentsEnabled = true,
+            discountPercent = 0.0, upiId = "success@razorpay", address = "Location", shopType = "SUPERMARKET",
+            joinedAt = joined, features = features, ownerName = "Ermople Owner", ownerPhone = "+91-9800000301",
+            ownerEmail = "shop301@ermople.com", city = "New York", state = "NY", zip = "10001", country = "USA",
+            registrationNumber = "REG-301", taxId = "TAX-301", operatingHours = hours,
+        ),
+        ShopDoc(
+            id = "302", name = "Ermople Stara", imageUrl = null, rating = 4.5, ratingCount = 96,
+            lat = 41.0150, lng = -55.4880, isOpen = true, active = true, paymentsEnabled = true,
+            discountPercent = 0.0, upiId = "success@razorpay", address = "Location", shopType = "SUPERMARKET",
+            joinedAt = joined, features = features, ownerName = "Stara Owner", ownerPhone = "+91-9800000302",
+            ownerEmail = "shop302@ermople.com", city = "New York", state = "NY", zip = "10002", country = "USA",
+            registrationNumber = "REG-302", taxId = "TAX-302", operatingHours = hours,
+        ),
+        ShopDoc(
+            id = "303", name = "Shop Market", imageUrl = null, rating = 4.5, ratingCount = 74,
+            lat = 41.0160, lng = -55.4890, isOpen = true, active = true, paymentsEnabled = true,
+            discountPercent = 0.0, upiId = "success@razorpay", address = "Location", shopType = "GROCERY",
+            joinedAt = joined, features = features, ownerName = "Market Owner", ownerPhone = "+91-9800000303",
+            ownerEmail = "shop303@ermople.com", city = "New York", state = "NY", zip = "10003", country = "USA",
+            registrationNumber = "REG-303", taxId = "TAX-303", operatingHours = hours,
+        ),
+        ShopDoc(
+            id = "304", name = "Farmfresh Express", imageUrl = null, rating = 4.5, ratingCount = 110,
+            lat = 41.0170, lng = -55.4900, isOpen = true, active = true, paymentsEnabled = true,
+            discountPercent = 0.0, upiId = "success@razorpay", address = "Location", shopType = "BOUTIQUE",
+            joinedAt = joined, features = features, ownerName = "Farm Owner", ownerPhone = "+91-9800000304",
+            ownerEmail = "shop304@ermople.com", city = "New York", state = "NY", zip = "10004", country = "USA",
+            registrationNumber = "REG-304", taxId = "TAX-304", operatingHours = hours,
+        ),
+    )
+}
+
 private fun ensureShopTypes(db: MongoDatabase) {
     val col = db.getCollection<ShopTypeDoc>("master_shop_types")
     defaultShopTypes().forEach { row ->
+        if (col.find(eq("_id", row.id)).firstOrNull() == null) {
+            col.insertOne(row)
+        }
+    }
+}
+
+private fun ensurePrototypeShops(db: MongoDatabase) {
+    val col = db.getCollection<ShopDoc>("shops")
+    prototypeAdminShops().forEach { row ->
         if (col.find(eq("_id", row.id)).firstOrNull() == null) {
             col.insertOne(row)
         }
@@ -404,12 +466,12 @@ private fun ensureIndexes(db: MongoDatabase) {
 
 private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
     db.getCollection<ShopDoc>("shops").insertMany(
-        listOf(
-            ShopDoc("shop_1", "Bhargav Kirana", null, 4.6, 128, 28.6139, 77.2090, true, true, true, 5.0, "success@razorpay", shopType = "GENERAL_STORE"),
-            ShopDoc("shop_2", "Laxmi General Store", null, 4.3, 86, 28.6200, 77.2150, true, true, true, 0.0, "success@razorpay", shopType = "GENERAL_STORE"),
-            ShopDoc("shop_3", "Sharma Medical", null, 4.5, 64, 28.6180, 77.2120, true, true, true, 0.0, "success@razorpay", shopType = "MEDICAL_STORE"),
-            ShopDoc("shop_4", "Gupta Hardware", null, 4.1, 42, 28.6160, 77.2060, true, true, true, 0.0, "success@razorpay", shopType = "HARDWARE"),
-            ShopDoc("shop_5", "Mithai Mahal", null, 4.8, 210, 28.6145, 77.2105, true, true, true, 3.0, "success@razorpay", shopType = "SWEET_SHOP"),
+        prototypeAdminShops() + listOf(
+            ShopDoc("shop_1", "Bhargav Kirana", null, 4.6, 128, 28.6139, 77.2090, true, true, true, 5.0, "success@razorpay", address = "Connaught Place, Delhi", shopType = "GENERAL_STORE", joinedAt = 1_687_478_400_000L),
+            ShopDoc("shop_2", "Laxmi General Store", null, 4.3, 86, 28.6200, 77.2150, true, true, true, 0.0, "success@razorpay", address = "Karol Bagh, Delhi", shopType = "GENERAL_STORE", joinedAt = 1_687_478_400_000L),
+            ShopDoc("shop_3", "Sharma Medical", null, 4.5, 64, 28.6180, 77.2120, true, true, true, 0.0, "success@razorpay", address = "Location", shopType = "MEDICAL_STORE", joinedAt = 1_687_478_400_000L),
+            ShopDoc("shop_4", "Gupta Hardware", null, 4.1, 42, 28.6160, 77.2060, true, true, true, 0.0, "success@razorpay", address = "Location", shopType = "HARDWARE", joinedAt = 1_687_478_400_000L),
+            ShopDoc("shop_5", "Mithai Mahal", null, 4.8, 210, 28.6145, 77.2105, true, true, true, 3.0, "success@razorpay", address = "Location", shopType = "SWEET_SHOP", joinedAt = 1_687_478_400_000L),
         ),
     )
     db.getCollection<ShopUserDoc>("shop_users").insertMany(

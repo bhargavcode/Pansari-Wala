@@ -315,6 +315,18 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
                 name = body.name,
                 address = body.address,
                 shopType = body.shopType,
+                ownerName = body.ownerName,
+                ownerPhone = body.ownerPhone,
+                ownerEmail = body.ownerEmail,
+                city = body.city,
+                state = body.state,
+                zip = body.zip,
+                country = body.country,
+                registrationNumber = body.registrationNumber,
+                taxId = body.taxId,
+                lat = body.lat,
+                lng = body.lng,
+                operatingHours = body.operatingHours,
             )
             call.respond(OkResponse())
         }

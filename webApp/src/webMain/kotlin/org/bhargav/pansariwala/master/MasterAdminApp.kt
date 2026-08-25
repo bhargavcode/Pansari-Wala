@@ -305,7 +305,7 @@ private fun MasterSidebar(
             )
             items.forEach { (target, icon, label) ->
                 val selected = when (current) {
-                    is MasterDest.ShopDetail, MasterDest.ShopCreate -> target == MasterDest.Shops
+                    is MasterDest.ShopDetail, is MasterDest.ShopEdit, MasterDest.ShopCreate -> target == MasterDest.Shops
                     is MasterDest.ProductEdit -> target == MasterDest.Products
                     is MasterDest.TxnDetail -> target == MasterDest.Transactions
                     is MasterDest.UserDetail -> target == MasterDest.Users
@@ -351,6 +351,7 @@ private fun MasterRouter(
         MasterDest.Shops -> ShopsListScreen(token, onNavigate, onStatus)
         MasterDest.ShopCreate -> ShopCreateScreen(token, onNavigate, onStatus)
         is MasterDest.ShopDetail -> ShopDetailScreen(token, dest.id, onNavigate, onStatus)
+        is MasterDest.ShopEdit -> ShopEditScreen(token, dest.id, onNavigate, onStatus)
         MasterDest.Products -> ProductsListScreen(token, onNavigate, onStatus)
         is MasterDest.ProductEdit -> ProductEditScreen(token, dest.id, onNavigate, onStatus)
         MasterDest.Transactions -> TransactionsScreen(token, onNavigate, onStatus)

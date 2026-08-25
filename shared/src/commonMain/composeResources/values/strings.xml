@@ -219,6 +219,22 @@
     <string name="master_desc_underline">U</string>
     <string name="master_effective_price">Effective Price</string>
     <string name="master_discount">Discount</string>
+    <string name="master_upload_shop_image">Upload Shop Image</string>
+    <string name="master_edit_shop_title">Edit Shop</string>
+    <string name="master_address_details">Address Details</string>
+    <string name="master_feature_online_search">Online Search</string>
+    <string name="master_number_of_shops">Number of Shops</string>
+    <string name="master_placeholder_shop_name">[Type Shop Name]</string>
+    <string name="master_placeholder_owner">[Type Owner Name]</string>
+    <string name="master_placeholder_phone">[Type Contact Number]</string>
+    <string name="master_placeholder_email">[Type Email Address]</string>
+    <string name="master_placeholder_street">[Type Street Address]</string>
+    <string name="master_placeholder_city">[Type City]</string>
+    <string name="master_placeholder_state">[Type State/Province]</string>
+    <string name="master_placeholder_zip">[Type Zip/Postal Code]</string>
+    <string name="master_placeholder_reg">[Type Registration Number]</string>
+    <string name="master_placeholder_tax">[Type Tax ID/VAT]</string>
+    <string name="master_stars_label">Stars</string>
     <string name="login_email_username">Email/Username</string>
 
     <!-- Common actions -->

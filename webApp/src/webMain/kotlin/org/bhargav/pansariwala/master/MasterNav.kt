@@ -9,6 +9,7 @@ sealed class MasterDest {
     data object Shops : MasterDest()
     data object ShopCreate : MasterDest()
     data class ShopDetail(val id: String) : MasterDest()
+    data class ShopEdit(val id: String) : MasterDest()
     data object Products : MasterDest()
     data class ProductEdit(val id: String?) : MasterDest()
     data object Transactions : MasterDest()

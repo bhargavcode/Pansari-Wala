@@ -144,14 +144,19 @@ fun LoginBackground(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun MasterTopBar(title: String, modifier: Modifier = Modifier) {
+fun MasterTopBar(title: String, modifier: Modifier = Modifier, subtitle: String? = null) {
     Surface(color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, modifier = modifier) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                if (subtitle != null) {
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box {
                     IconButton(onClick = {}) {
@@ -283,7 +288,11 @@ fun DateFilterSummaryCard(
 }
 
 @Composable
-fun AddProductPromoCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun AddProductPromoCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    title: String = stringResource(Res.string.master_add_product_card),
+) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
@@ -291,7 +300,7 @@ fun AddProductPromoCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-            Text(stringResource(Res.string.master_add_product_card), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
     }
 }

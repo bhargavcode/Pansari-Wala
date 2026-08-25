@@ -95,11 +95,29 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         name: String? = null,
         address: String? = null,
         shopType: String? = null,
+        ownerName: String? = null,
+        ownerPhone: String? = null,
+        ownerEmail: String? = null,
+        city: String? = null,
+        state: String? = null,
+        zip: String? = null,
+        country: String? = null,
+        registrationNumber: String? = null,
+        taxId: String? = null,
+        lat: Double? = null,
+        lng: Double? = null,
+        operatingHours: List<ShopHoursDayDto>? = null,
     ) {
         client.post(url("/admin/shops/$id")) {
             bearer(token)
             contentType(ContentType.Application.Json)
-            setBody(ShopPatch(active, paymentsEnabled, features, imageUrl, name, address, shopType))
+            setBody(
+                ShopPatch(
+                    active, paymentsEnabled, features, imageUrl, name, address, shopType,
+                    ownerName, ownerPhone, ownerEmail, city, state, zip, country,
+                    registrationNumber, taxId, lat, lng, operatingHours,
+                ),
+            )
         }
     }
 
@@ -314,6 +332,18 @@ data class ShopPatch(
     val name: String? = null,
     val address: String? = null,
     val shopType: String? = null,
+    val ownerName: String? = null,
+    val ownerPhone: String? = null,
+    val ownerEmail: String? = null,
+    val city: String? = null,
+    val state: String? = null,
+    val zip: String? = null,
+    val country: String? = null,
+    val registrationNumber: String? = null,
+    val taxId: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+    val operatingHours: List<ShopHoursDayDto>? = null,
 )
 
 @Serializable

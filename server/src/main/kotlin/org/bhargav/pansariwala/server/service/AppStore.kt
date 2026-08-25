@@ -1185,6 +1185,18 @@ class AppStore(
         name: String? = null,
         address: String? = null,
         shopType: String? = null,
+        ownerName: String? = null,
+        ownerPhone: String? = null,
+        ownerEmail: String? = null,
+        city: String? = null,
+        state: String? = null,
+        zip: String? = null,
+        country: String? = null,
+        registrationNumber: String? = null,
+        taxId: String? = null,
+        lat: Double? = null,
+        lng: Double? = null,
+        operatingHours: List<ShopHoursDayDto>? = null,
     ) {
         val updates = buildList {
             if (active != null) add(set("active", active))
@@ -1202,6 +1214,20 @@ class AppStore(
             if (name != null) add(set("name", name.trim()))
             if (address != null) add(set("address", address.trim()))
             if (shopType != null) add(set("shopType", shopType.trim()))
+            if (ownerName != null) add(set("ownerName", ownerName.trim()))
+            if (ownerPhone != null) add(set("ownerPhone", ownerPhone.trim()))
+            if (ownerEmail != null) add(set("ownerEmail", ownerEmail.trim()))
+            if (city != null) add(set("city", city.trim()))
+            if (state != null) add(set("state", state.trim()))
+            if (zip != null) add(set("zip", zip.trim()))
+            if (country != null) add(set("country", country.trim()))
+            if (registrationNumber != null) add(set("registrationNumber", registrationNumber.trim()))
+            if (taxId != null) add(set("taxId", taxId.trim()))
+            if (lat != null) add(set("lat", lat))
+            if (lng != null) add(set("lng", lng))
+            if (operatingHours != null) {
+                add(set("operatingHours", operatingHours.map { ShopHoursDayDoc(it.day, it.start, it.end, it.closed) }))
+            }
         }
         if (updates.isNotEmpty()) {
             shopCol.updateOne(eq("_id", shopId), combine(updates))
@@ -1211,7 +1237,8 @@ class AppStore(
     fun listShopsAdmin(): List<ShopDto> = listAdminShops().map { it.toLegacyShopDto() }
 
     fun listAdminShops(): List<AdminShopDto> =
-        shopCol.find().toList().map { it.toAdminDto() }.sortedBy { it.name }
+        shopCol.find().toList().map { it.toAdminDto() }
+            .sortedWith(compareBy({ it.id.toIntOrNull() ?: Int.MAX_VALUE }, { it.name }))
 
     fun adminShopDetail(shopId: String): AdminShopDetailDto {
         val shop = shopById(shopId).toAdminDto()

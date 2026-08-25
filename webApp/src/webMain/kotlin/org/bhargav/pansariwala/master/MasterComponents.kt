@@ -99,9 +99,10 @@ fun StatusChip(active: Boolean) {
     val fg = if (active) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer
     Surface(color = bg, shape = RoundedCornerShape(50), modifier = Modifier.clip(RoundedCornerShape(50))) {
         Text(
-            text = if (active) stringResource(Res.string.master_active) else stringResource(Res.string.master_inactive),
+            text = if (active) stringResource(Res.string.master_active).uppercase() else stringResource(Res.string.master_inactive),
             color = fg,
             style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
         )
     }
