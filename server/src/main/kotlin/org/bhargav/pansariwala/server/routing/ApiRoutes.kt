@@ -28,8 +28,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.dto.AdminLoginRequest
+import org.bhargav.pansariwala.server.dto.AdminOrderActionRequest
+import org.bhargav.pansariwala.server.dto.AdminPartnerPatch
 import org.bhargav.pansariwala.server.dto.AdminShopCreate
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
+import org.bhargav.pansariwala.server.dto.AdminUserPatch
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
 import org.bhargav.pansariwala.server.dto.CustomerLocationRequest
 import org.bhargav.pansariwala.server.dto.DeliverRequest
@@ -268,7 +271,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
 
         get("/admin/shops") {
             call.requireRole("ADMIN")
-            call.respond(store.listShopsAdmin())
+            call.respond(store.listAdminShops())
         }
         post("/admin/shops") {
             call.requireRole("ADMIN")
@@ -281,18 +284,85 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
                     lat = body.lat,
                     lng = body.lng,
                     active = body.active,
+                    imageUrl = body.imageUrl,
                 ),
             )
+        }
+        get("/admin/shops/{id}") {
+            call.requireRole("ADMIN")
+            call.respond(store.adminShopDetail(call.parameters["id"]!!))
         }
         post("/admin/shops/{id}") {
             call.requireRole("ADMIN")
             val body = call.receive<AdminShopPatch>()
-            store.patchShop(call.parameters["id"]!!, body.active, body.paymentsEnabled)
+            store.patchShop(
+                shopId = call.parameters["id"]!!,
+                active = body.active,
+                payments = body.paymentsEnabled,
+                features = body.features,
+                imageUrl = body.imageUrl,
+                name = body.name,
+                address = body.address,
+                shopType = body.shopType,
+            )
             call.respond(OkResponse())
+        }
+        get("/admin/dashboard") {
+            call.requireRole("ADMIN")
+            val from = call.parameters["from"]?.toLongOrNull()
+            val to = call.parameters["to"]?.toLongOrNull()
+            call.respond(store.adminDashboard(from, to))
         }
         get("/admin/orders") {
             call.requireRole("ADMIN")
-            call.respond(store.listShopsAdmin())
+            val from = call.parameters["from"]?.toLongOrNull()
+            val to = call.parameters["to"]?.toLongOrNull()
+            call.respond(store.listAdminTransactions(from, to))
+        }
+        get("/admin/orders/{id}") {
+            call.requireRole("ADMIN")
+            call.respond(store.adminOrderDetail(call.parameters["id"]!!))
+        }
+        post("/admin/orders/{id}/cancel") {
+            call.requireRole("ADMIN")
+            val body = runCatching { call.receive<AdminOrderActionRequest>() }.getOrNull()
+            call.respond(store.adminCancelOrder(call.parameters["id"]!!, body?.reason))
+        }
+        post("/admin/orders/{id}/refund") {
+            call.requireRole("ADMIN")
+            call.respond(store.adminRefundOrder(call.parameters["id"]!!))
+        }
+        get("/admin/users") {
+            call.requireRole("ADMIN")
+            val from = call.parameters["from"]?.toLongOrNull()
+            val to = call.parameters["to"]?.toLongOrNull()
+            call.respond(store.listAdminUsers(from, to))
+        }
+        get("/admin/users/{id}") {
+            call.requireRole("ADMIN")
+            call.respond(store.adminUserDetail(call.parameters["id"]!!))
+        }
+        post("/admin/users/{id}") {
+            call.requireRole("ADMIN")
+            val body = call.receive<AdminUserPatch>()
+            store.patchAdminUser(call.parameters["id"]!!, body.active)
+            call.respond(OkResponse())
+        }
+        get("/admin/partners") {
+            call.requireRole("ADMIN")
+            val from = call.parameters["from"]?.toLongOrNull()
+            val to = call.parameters["to"]?.toLongOrNull()
+            call.respond(store.listAdminPartners(from, to))
+        }
+        get("/admin/partners/{id}") {
+            call.requireRole("ADMIN")
+            call.respond(store.adminPartnerDetail(call.parameters["id"]!!))
+        }
+        post("/admin/partners/{id}") {
+            call.requireRole("ADMIN")
+            val body = call.receive<AdminPartnerPatch>()
+            store.patchAdminPartner(call.parameters["id"]!!, body.active)
+            call.respond(OkResponse())
         }
 
         get("/master/categories") { call.respond(store.masterCategories()) }

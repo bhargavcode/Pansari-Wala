@@ -116,6 +116,148 @@ data class AdminShopCreate(
     val lat: Double = 28.6139,
     val lng: Double = 77.2090,
     val active: Boolean = true,
+    val imageUrl: String? = null,
+)
+
+@Serializable
+data class ShopFeaturesDto(
+    val voiceSearch: Boolean = true,
+    val barcodeSearch: Boolean = true,
+    val reportGeneration: Boolean = true,
+    val onlineOrders: Boolean = true,
+    val inventoryAlerts: Boolean = true,
+)
+
+@Serializable
+data class AdminShopDto(
+    val id: String,
+    val name: String,
+    val imageUrl: String? = null,
+    val rating: Double = 0.0,
+    val ratingCount: Int = 0,
+    val lat: Double = 0.0,
+    val lng: Double = 0.0,
+    val isOpen: Boolean = true,
+    val active: Boolean = true,
+    val paymentsEnabled: Boolean = true,
+    val discountPercent: Double = 0.0,
+    val upiId: String = "",
+    val address: String = "",
+    val deliveryRadiusKm: Double = 20.0,
+    val shopType: String = "GENERAL_STORE",
+    val joinedAtEpochMs: Long = 0L,
+    val features: ShopFeaturesDto = ShopFeaturesDto(),
+)
+
+@Serializable
+data class AdminShopDetailDto(
+    val shop: AdminShopDto,
+    val transactions: List<AdminTxnDto> = emptyList(),
+)
+
+@Serializable
+data class AdminDashboardDto(
+    val shopCount: Int,
+    val productCount: Int,
+    val transactionAmount: Double,
+    val transactionCount: Int,
+    val userCount: Int,
+    val partnerCount: Int,
+)
+
+@Serializable
+data class AdminTxnDto(
+    val orderId: String,
+    val transactionNo: String,
+    val createdAtEpochMs: Long,
+    val status: String,
+    val itemsSummary: String,
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val customerAddress: String = "",
+    val customerId: String? = null,
+    val shopId: String,
+    val shopName: String = "",
+    val offers: Double = 0.0,
+    val charges: Double = 0.0,
+    val total: Double = 0.0,
+    val paid: Double = 0.0,
+    val paymentMethod: String = "ONLINE",
+    val refundId: String? = null,
+    val partnerId: String? = null,
+    val partnerName: String? = null,
+    val items: List<OrderItemDto> = emptyList(),
+    val deliveryDurationMin: Int? = null,
+    val partnerVehicleReg: String? = null,
+)
+
+@Serializable
+data class AdminTxnSummaryDto(
+    val amount: Double,
+    val count: Int,
+    val transactions: List<AdminTxnDto>,
+)
+
+@Serializable
+data class AdminUserDto(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val address: String = "",
+    val imageUrl: String? = null,
+    val active: Boolean = true,
+    val joinedAtEpochMs: Long = 0L,
+)
+
+@Serializable
+data class AdminUserDetailDto(
+    val user: AdminUserDto,
+    val orders: List<AdminTxnDto> = emptyList(),
+)
+
+@Serializable
+data class AdminUserPatch(val active: Boolean? = null)
+
+@Serializable
+data class AdminPartnerDto(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val email: String = "",
+    val address: String = "",
+    val idImageUrl: String = "",
+    val vehicleImageUrl: String = "",
+    val profileImageUrl: String = "",
+    val vehicleNumber: String = "",
+    val vehicleName: String = "",
+    val vehicleBrand: String = "",
+    val vehicleColor: String = "",
+    val vehicleType: String = "SCOOTY",
+    val active: Boolean = true,
+    val verified: Boolean = false,
+    val joinedAtEpochMs: Long = 0L,
+)
+
+@Serializable
+data class AdminPartnerDetailDto(
+    val partner: AdminPartnerDto,
+    val acceptedOrders: List<AdminTxnDto> = emptyList(),
+    val cancelledOrders: List<AdminTxnDto> = emptyList(),
+    val totalDeliveredOrders: Int = 0,
+    val totalEarnings: Double = 0.0,
+)
+
+@Serializable
+data class AdminPartnerPatch(val active: Boolean? = null)
+
+@Serializable
+data class AdminOrderActionRequest(val reason: String? = null)
+
+@Serializable
+data class MasterProductVariantDto(
+    val name: String,
+    val sku: String = "",
+    val price: Double = 0.0,
 )
 
 @Serializable
@@ -250,6 +392,7 @@ data class OrderDto(
     val ratingComment: String? = null,
     val cancelReason: String? = null,
     val partnerProgress: String = "",
+    val refundId: String? = null,
 )
 
 @Serializable
@@ -375,6 +518,21 @@ data class MasterProductDto(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val brandName: String = "",
+    val companyName: String = "",
+    val subcategoryId: String? = null,
+    val salePrice: Double = 0.0,
+    val cost: Double = 0.0,
+    val active: Boolean = true,
+    val addedAtEpochMs: Long = 0L,
+    val description: String = "",
+    val sku: String = "",
+    val stockQty: Double = 0.0,
+    val lowStockThreshold: Double = 0.0,
+    val tags: String = "",
+    val weightKg: Double = 0.0,
+    val dimensions: String = "",
+    val variants: List<MasterProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -387,6 +545,20 @@ data class MasterProductUpsert(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val brandName: String = "",
+    val companyName: String = "",
+    val subcategoryId: String? = null,
+    val salePrice: Double = 0.0,
+    val cost: Double = 0.0,
+    val active: Boolean = true,
+    val description: String = "",
+    val sku: String = "",
+    val stockQty: Double = 0.0,
+    val lowStockThreshold: Double = 0.0,
+    val tags: String = "",
+    val weightKg: Double = 0.0,
+    val dimensions: String = "",
+    val variants: List<MasterProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -430,4 +602,12 @@ data class SyncPullResponse(
 )
 
 @Serializable
-data class AdminShopPatch(val active: Boolean? = null, val paymentsEnabled: Boolean? = null)
+data class AdminShopPatch(
+    val active: Boolean? = null,
+    val paymentsEnabled: Boolean? = null,
+    val features: ShopFeaturesDto? = null,
+    val imageUrl: String? = null,
+    val name: String? = null,
+    val address: String? = null,
+    val shopType: String? = null,
+)

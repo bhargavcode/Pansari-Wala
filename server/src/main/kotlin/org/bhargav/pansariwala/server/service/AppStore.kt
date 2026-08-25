@@ -25,6 +25,7 @@ import org.bhargav.pansariwala.server.db.CustomerAddressDoc
 import org.bhargav.pansariwala.server.db.CustomerDoc
 import org.bhargav.pansariwala.server.db.DeliveryOfferDoc
 import org.bhargav.pansariwala.server.db.MasterProductDoc
+import org.bhargav.pansariwala.server.db.MasterProductVariantDoc
 import org.bhargav.pansariwala.server.db.MongoApp
 import org.bhargav.pansariwala.server.db.OfferDoc
 import org.bhargav.pansariwala.server.db.OrderDoc
@@ -32,9 +33,19 @@ import org.bhargav.pansariwala.server.db.OtpDoc
 import org.bhargav.pansariwala.server.db.PartnerDoc
 import org.bhargav.pansariwala.server.db.ProductDoc
 import org.bhargav.pansariwala.server.db.ShopDoc
+import org.bhargav.pansariwala.server.db.ShopFeaturesDoc
 import org.bhargav.pansariwala.server.db.ShopTypeDoc
 import org.bhargav.pansariwala.server.db.ShopUserDoc
 import org.bhargav.pansariwala.server.db.TxnDoc
+import org.bhargav.pansariwala.server.dto.AdminDashboardDto
+import org.bhargav.pansariwala.server.dto.AdminPartnerDetailDto
+import org.bhargav.pansariwala.server.dto.AdminPartnerDto
+import org.bhargav.pansariwala.server.dto.AdminShopDetailDto
+import org.bhargav.pansariwala.server.dto.AdminShopDto
+import org.bhargav.pansariwala.server.dto.AdminTxnDto
+import org.bhargav.pansariwala.server.dto.AdminTxnSummaryDto
+import org.bhargav.pansariwala.server.dto.AdminUserDetailDto
+import org.bhargav.pansariwala.server.dto.AdminUserDto
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
 import org.bhargav.pansariwala.server.dto.CustomerDto
 import org.bhargav.pansariwala.server.dto.DeliveryOfferDto
@@ -42,13 +53,10 @@ import org.bhargav.pansariwala.server.dto.MasterCategoryDto
 import org.bhargav.pansariwala.server.dto.MasterCategoryUpsert
 import org.bhargav.pansariwala.server.dto.MasterProductDto
 import org.bhargav.pansariwala.server.dto.MasterProductUpsert
+import org.bhargav.pansariwala.server.dto.MasterProductVariantDto
 import org.bhargav.pansariwala.server.dto.OfferDto
 import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
-import org.bhargav.pansariwala.server.dto.ShopTypeDto
-import org.bhargav.pansariwala.server.dto.ShopTypeUpsert
-import org.bhargav.pansariwala.server.dto.UploadResultDto
-import java.util.UUID
 import org.bhargav.pansariwala.server.dto.OtpSessionResponse
 import org.bhargav.pansariwala.server.dto.PartnerDailyEarningDto
 import org.bhargav.pansariwala.server.dto.PartnerDashboardDto
@@ -61,23 +69,29 @@ import org.bhargav.pansariwala.server.dto.ProductDto
 import org.bhargav.pansariwala.server.dto.QuoteDto
 import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RazorpayOrderDto
-import org.bhargav.pansariwala.server.dto.SavedAddressDto
 import org.bhargav.pansariwala.server.dto.SaveAddressRequest
+import org.bhargav.pansariwala.server.dto.SavedAddressDto
 import org.bhargav.pansariwala.server.dto.ShopDto
+import org.bhargav.pansariwala.server.dto.ShopFeaturesDto
 import org.bhargav.pansariwala.server.dto.ShopReviewDto
+import org.bhargav.pansariwala.server.dto.ShopTypeDto
+import org.bhargav.pansariwala.server.dto.ShopTypeUpsert
 import org.bhargav.pansariwala.server.dto.SyncPullResponse
 import org.bhargav.pansariwala.server.dto.SyncPushRequest
 import org.bhargav.pansariwala.server.dto.TokenResponse
 import org.bhargav.pansariwala.server.dto.TxnDto
+import org.bhargav.pansariwala.server.dto.UploadResultDto
 import org.bhargav.pansariwala.server.security.Security
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
-import java.util.concurrent.TimeUnit
+import com.mongodb.client.model.Filters.lte
 
 private const val QUERY_MAX_MS = 8_000L
 private const val PARTNER_RING_KM = 8.0
@@ -247,7 +261,7 @@ class AppStore(
         val existing = customerCol.find(eq("phone", phone)).firstOrNull()
         val id = existing?.id ?: security.randomId("cust")
         if (existing == null) {
-            customerCol.insertOne(CustomerDoc(id, phone, "", ""))
+            customerCol.insertOne(CustomerDoc(id, phone, "", "", joinedAt = System.currentTimeMillis()))
         }
         val name = existing?.name.orEmpty()
         val complete = name.isNotBlank() && existing?.address?.isNotBlank() == true
@@ -1016,9 +1030,7 @@ class AppStore(
         categoryCol.find().toList().map { MasterCategoryDto(it.id, it.name, it.parentId) }
 
     fun masterProducts(): List<MasterProductDto> =
-        masterProductCol.find().toList().map {
-            MasterProductDto(it.id, it.name, it.nameHi, it.categoryId, it.unit, it.barcode, it.imageUrl, it.thumbnailUrl)
-        }
+        masterProductCol.find().toList().map { it.toDto() }
 
     fun upsertMasterCategory(body: MasterCategoryUpsert): MasterCategoryDto {
         val id = body.id?.takeIf { it.isNotBlank() } ?: "cat_${UUID.randomUUID().toString().take(8)}"
@@ -1039,6 +1051,7 @@ class AppStore(
 
     fun upsertMasterProduct(body: MasterProductUpsert): MasterProductDto {
         val id = body.id?.takeIf { it.isNotBlank() } ?: "mp_${UUID.randomUUID().toString().take(8)}"
+        val existing = masterProductCol.find(eq("_id", id)).firstOrNull()
         val doc = MasterProductDoc(
             id = id,
             name = body.name.trim(),
@@ -1048,9 +1061,24 @@ class AppStore(
             barcode = body.barcode?.takeIf { it.isNotBlank() },
             imageUrl = body.imageUrl,
             thumbnailUrl = body.thumbnailUrl,
+            brandName = body.brandName.trim(),
+            companyName = body.companyName.trim(),
+            subcategoryId = body.subcategoryId?.takeIf { it.isNotBlank() },
+            salePrice = body.salePrice,
+            cost = body.cost,
+            active = body.active,
+            addedAt = existing?.addedAt?.takeIf { it > 0 } ?: System.currentTimeMillis(),
+            description = body.description,
+            sku = body.sku.trim(),
+            stockQty = body.stockQty,
+            lowStockThreshold = body.lowStockThreshold,
+            tags = body.tags.trim(),
+            weightKg = body.weightKg,
+            dimensions = body.dimensions.trim(),
+            variants = body.variants.map { MasterProductVariantDoc(it.name, it.sku, it.price) },
         )
         masterProductCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
-        return MasterProductDto(doc.id, doc.name, doc.nameHi, doc.categoryId, doc.unit, doc.barcode, doc.imageUrl, doc.thumbnailUrl)
+        return doc.toDto()
     }
 
     fun deleteMasterProduct(id: String) {
@@ -1082,13 +1110,15 @@ class AppStore(
         lat: Double,
         lng: Double,
         active: Boolean,
-    ): ShopDto {
+        imageUrl: String? = null,
+    ): AdminShopDto {
         val id = "shop_${UUID.randomUUID().toString().take(8)}"
+        val now = System.currentTimeMillis()
         shopCol.insertOne(
             ShopDoc(
                 id = id,
                 name = name.trim(),
-                imageUrl = null,
+                imageUrl = imageUrl,
                 rating = 0.0,
                 ratingCount = 0,
                 lat = lat,
@@ -1100,49 +1130,330 @@ class AppStore(
                 upiId = config.defaultShopUpi,
                 address = address,
                 shopType = shopType.ifBlank { "GENERAL_STORE" },
+                joinedAt = now,
+                features = ShopFeaturesDoc(),
             ),
         )
-        return listShopsAdmin().first { it.id == id }
+        return listAdminShops().first { it.id == id }
     }
 
-    fun patchShop(shopId: String, active: Boolean?, payments: Boolean?) {
+    fun patchShop(
+        shopId: String,
+        active: Boolean?,
+        payments: Boolean?,
+        features: ShopFeaturesDto? = null,
+        imageUrl: String? = null,
+        name: String? = null,
+        address: String? = null,
+        shopType: String? = null,
+    ) {
         val updates = buildList {
             if (active != null) add(set("active", active))
             if (payments != null) add(set("paymentsEnabled", payments))
+            if (features != null) {
+                add(set("features", ShopFeaturesDoc(
+                    voiceSearch = features.voiceSearch,
+                    barcodeSearch = features.barcodeSearch,
+                    reportGeneration = features.reportGeneration,
+                    onlineOrders = features.onlineOrders,
+                    inventoryAlerts = features.inventoryAlerts,
+                )))
+            }
+            if (imageUrl != null) add(set("imageUrl", imageUrl))
+            if (name != null) add(set("name", name.trim()))
+            if (address != null) add(set("address", address.trim()))
+            if (shopType != null) add(set("shopType", shopType.trim()))
         }
         if (updates.isNotEmpty()) {
             shopCol.updateOne(eq("_id", shopId), combine(updates))
         }
     }
 
-    fun listShopsAdmin(): List<ShopDto> {
-        val lat = 28.6139
-        val lng = 77.2090
-        return shopCol.find().toList().map { row ->
-            ShopDto(
-                id = row.id,
-                name = row.name,
-                imageUrl = row.imageUrl,
-                rating = row.rating,
-                ratingCount = row.ratingCount,
-                distanceKm = haversine(lat, lng, row.lat, row.lng),
-                isOpen = row.isOpen,
-                lat = row.lat,
-                lng = row.lng,
-                offerCount = 0,
-                discountPercent = row.discountPercent,
-                upiId = row.upiId.ifBlank { config.defaultShopUpi },
-                deliveryRadiusKm = row.deliveryRadiusKm,
-                shopType = row.shopType,
-                active = row.active,
-                paymentsEnabled = row.paymentsEnabled,
-                address = row.address,
+    fun listShopsAdmin(): List<ShopDto> = listAdminShops().map { it.toLegacyShopDto() }
+
+    fun listAdminShops(): List<AdminShopDto> =
+        shopCol.find().toList().map { it.toAdminDto() }.sortedBy { it.name }
+
+    fun adminShopDetail(shopId: String): AdminShopDetailDto {
+        val shop = shopById(shopId).toAdminDto()
+        val txns = listAdminTransactions(shopId = shopId).transactions
+        return AdminShopDetailDto(shop, txns)
+    }
+
+    fun adminDashboard(fromEpochMs: Long? = null, toEpochMs: Long? = null): AdminDashboardDto {
+        val txnSummary = listAdminTransactions(fromEpochMs, toEpochMs)
+        return AdminDashboardDto(
+            shopCount = shopCol.countDocuments().toInt(),
+            productCount = masterProductCol.countDocuments().toInt(),
+            transactionAmount = txnSummary.amount,
+            transactionCount = txnSummary.count,
+            userCount = customerCol.countDocuments().toInt(),
+            partnerCount = partnerCol.countDocuments().toInt(),
+        )
+    }
+
+    fun listAdminTransactions(
+        fromEpochMs: Long? = null,
+        toEpochMs: Long? = null,
+        shopId: String? = null,
+    ): AdminTxnSummaryDto {
+        val filters = buildList {
+            if (fromEpochMs != null) add(gte("createdAt", fromEpochMs))
+            if (toEpochMs != null) add(lte("createdAt", toEpochMs))
+            if (shopId != null) add(eq("shopId", shopId))
+        }
+        val rows = if (filters.isEmpty()) {
+            orderCol.find().sort(Sorts.descending("createdAt")).toList()
+        } else {
+            orderCol.find(and(filters)).sort(Sorts.descending("createdAt")).toList()
+        }
+        val mapped = mapOrders(rows).map { it.toAdminTxn() }
+        return AdminTxnSummaryDto(
+            amount = mapped.sumOf { it.paid },
+            count = mapped.size,
+            transactions = mapped,
+        )
+    }
+
+    fun adminOrderDetail(orderId: String): AdminTxnDto =
+        getOrder(orderId).toAdminTxn()
+
+    suspend fun adminCancelOrder(orderId: String, reason: String?): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        return cancelShopOrder(row.shopId, orderId, reason)
+    }
+
+    suspend fun adminRefundOrder(orderId: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.refundId.isNullOrBlank()) { "Already refunded" }
+        require(!row.paymentId.isNullOrBlank()) { "No payment to refund" }
+        if (row.status !in setOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED")) {
+            return cancelShopOrder(row.shopId, orderId, "ADMIN_REFUND")
+        }
+        val refundPaise = refundAmountPaise(row)
+        val refundId = runCatching {
+            security.refundRazorpayPayment(
+                paymentId = row.paymentId.orEmpty(),
+                amountPaise = refundPaise,
+                notes = mapOf("order_id" to orderId, "reason" to "ADMIN_REFUND"),
             )
-        }.sortedBy { it.name }
+        }.getOrNull() ?: error("Refund failed")
+        orderCol.replaceOne(eq("_id", orderId), row.copy(refundId = refundId))
+        row.customerId?.let { customerId ->
+            if (refundPaise > 0) {
+                txnCol.insertOne(
+                    TxnDoc(
+                        security.randomId("txn"),
+                        orderId,
+                        customerId,
+                        refundPaise / 100.0,
+                        "Refund $orderId",
+                        System.currentTimeMillis(),
+                    ),
+                )
+            }
+        }
+        return getOrder(orderId)
+    }
+
+    fun listAdminUsers(fromEpochMs: Long? = null, toEpochMs: Long? = null): List<AdminUserDto> {
+        val rows = customerCol.find().toList()
+        return rows.map { it.toAdminUserDto() }
+            .filter { u ->
+                val joined = u.joinedAtEpochMs.takeIf { it > 0 } ?: 0L
+                (fromEpochMs == null || joined >= fromEpochMs) &&
+                    (toEpochMs == null || joined <= toEpochMs)
+            }
+            .sortedByDescending { it.joinedAtEpochMs }
+    }
+
+    fun patchAdminUser(userId: String, active: Boolean?) {
+        if (active != null) {
+            customerCol.updateOne(eq("_id", userId), set("active", active))
+        }
+    }
+
+    fun adminUserDetail(userId: String): AdminUserDetailDto {
+        val user = customerCol.find(eq("_id", userId)).firstOrNull()?.toAdminUserDto()
+            ?: error("User not found")
+        val orders = mapOrders(
+            orderCol.find(eq("customerId", userId)).sort(Sorts.descending("createdAt")).toList(),
+        ).map { it.toAdminTxn() }
+        return AdminUserDetailDto(user, orders)
+    }
+
+    fun listAdminPartners(fromEpochMs: Long? = null, toEpochMs: Long? = null): List<AdminPartnerDto> {
+        return partnerCol.find().toList()
+            .map { it.toAdminPartnerDto() }
+            .filter { p ->
+                (fromEpochMs == null || p.joinedAtEpochMs >= fromEpochMs) &&
+                    (toEpochMs == null || p.joinedAtEpochMs <= toEpochMs)
+            }
+            .sortedByDescending { it.joinedAtEpochMs }
+    }
+
+    fun patchAdminPartner(partnerId: String, active: Boolean?) {
+        if (active != null) {
+            partnerCol.updateOne(eq("_id", partnerId), set("active", active))
+        }
+    }
+
+    fun adminPartnerDetail(partnerId: String): AdminPartnerDetailDto {
+        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull()?.toAdminPartnerDto()
+            ?: error("Partner not found")
+        val all = mapOrders(
+            orderCol.find(eq("partnerId", partnerId)).sort(Sorts.descending("createdAt")).toList(),
+        ).map { it.toAdminTxn() }
+        val cancelled = all.filter { it.status in setOf("CANCELLED", "REJECTED") }
+        val accepted = all.filter { it.status !in setOf("CANCELLED", "REJECTED") }
+        val delivered = all.filter { it.status in setOf("DELIVERED", "COMPLETED") }
+        val earnings = partnerProfile(partnerId).totalEarnings
+        return AdminPartnerDetailDto(
+            partner = partner,
+            acceptedOrders = accepted,
+            cancelledOrders = cancelled,
+            totalDeliveredOrders = delivered.size,
+            totalEarnings = earnings,
+        )
     }
 
     private fun shopById(shopId: String): ShopDoc =
         shopCol.find(eq("_id", shopId)).firstOrNull() ?: error("Shop not found")
+
+    private fun MasterProductDoc.toDto() = MasterProductDto(
+        id = id,
+        name = name,
+        nameHi = nameHi,
+        categoryId = categoryId,
+        unit = unit,
+        barcode = barcode,
+        imageUrl = imageUrl,
+        thumbnailUrl = thumbnailUrl,
+        brandName = brandName,
+        companyName = companyName,
+        subcategoryId = subcategoryId,
+        salePrice = salePrice,
+        cost = cost,
+        active = active,
+        addedAtEpochMs = addedAt,
+        description = description,
+        sku = sku,
+        stockQty = stockQty,
+        lowStockThreshold = lowStockThreshold,
+        tags = tags,
+        weightKg = weightKg,
+        dimensions = dimensions,
+        variants = variants.map { MasterProductVariantDto(it.name, it.sku, it.price) },
+    )
+
+    private fun ShopDoc.toAdminDto() = AdminShopDto(
+        id = id,
+        name = name,
+        imageUrl = imageUrl,
+        rating = rating,
+        ratingCount = ratingCount,
+        lat = lat,
+        lng = lng,
+        isOpen = isOpen,
+        active = active,
+        paymentsEnabled = paymentsEnabled,
+        discountPercent = discountPercent,
+        upiId = upiId,
+        address = address,
+        deliveryRadiusKm = deliveryRadiusKm,
+        shopType = shopType,
+        joinedAtEpochMs = joinedAt,
+        features = ShopFeaturesDto(
+            voiceSearch = features.voiceSearch,
+            barcodeSearch = features.barcodeSearch,
+            reportGeneration = features.reportGeneration,
+            onlineOrders = features.onlineOrders,
+            inventoryAlerts = features.inventoryAlerts,
+        ),
+    )
+
+    private fun AdminShopDto.toLegacyShopDto() = ShopDto(
+        id = id,
+        name = name,
+        imageUrl = imageUrl,
+        rating = rating,
+        ratingCount = ratingCount,
+        distanceKm = 0.0,
+        isOpen = isOpen,
+        lat = lat,
+        lng = lng,
+        offerCount = 0,
+        discountPercent = discountPercent,
+        upiId = upiId,
+        deliveryRadiusKm = deliveryRadiusKm,
+        shopType = shopType,
+        active = active,
+        paymentsEnabled = paymentsEnabled,
+        address = address,
+    )
+
+    private fun CustomerDoc.toAdminUserDto() = AdminUserDto(
+        id = id,
+        name = name.ifBlank { phone },
+        phone = phone,
+        address = address,
+        imageUrl = imageUrl,
+        active = active,
+        joinedAtEpochMs = joinedAt,
+    )
+
+    private fun PartnerDoc.toAdminPartnerDto() = AdminPartnerDto(
+        id = id,
+        name = name,
+        phone = phone,
+        email = email,
+        address = address,
+        idImageUrl = idPhoto.ifBlank { platePhoto },
+        vehicleImageUrl = vehiclePhoto,
+        profileImageUrl = profilePhoto,
+        vehicleNumber = vehicleReg,
+        vehicleName = vehicleName,
+        vehicleBrand = vehicleBrand,
+        vehicleColor = vehicleColor,
+        vehicleType = vehicleType,
+        active = active,
+        verified = verified,
+        joinedAtEpochMs = joinedAt,
+    )
+
+    private fun OrderDto.toAdminTxn(): AdminTxnDto {
+        val offers = quote?.discount ?: 0.0
+        val charges = (quote?.platformFee ?: 0.0) + (quote?.deliveryCharge ?: 0.0)
+        val total = quote?.payable ?: items.sumOf { it.quantity * it.unitPrice }
+        val paid = if (!paymentId.isNullOrBlank() && status !in setOf("CANCELLED", "REJECTED")) total else 0.0
+        val summary = items.joinToString(", ") { "${it.quantity.toInt()}x ${it.productName}" }
+        return AdminTxnDto(
+            orderId = id,
+            transactionNo = paymentId ?: razorpayTxnFallback(),
+            createdAtEpochMs = createdAtEpochMs,
+            status = status,
+            itemsSummary = summary.ifBlank { "—" },
+            customerName = customerName.orEmpty(),
+            customerPhone = customerPhone.orEmpty(),
+            customerAddress = deliveryAddress.orEmpty(),
+            customerId = customerId,
+            shopId = shopId,
+            shopName = shopName.orEmpty(),
+            offers = offers,
+            charges = charges,
+            total = total,
+            paid = paid,
+            paymentMethod = paymentMethod,
+            refundId = refundId,
+            partnerId = partnerId,
+            partnerName = partnerName,
+            items = items,
+            deliveryDurationMin = deliveryDurationMin,
+            partnerVehicleReg = partnerVehicleReg,
+        )
+    }
+
+    private fun OrderDto.razorpayTxnFallback(): String = "TXN-${id.takeLast(8).uppercase()}"
 
     @Suppress("UNUSED_PARAMETER")
     private suspend fun broadcastOffer(offer: DeliveryOfferDoc, shop: ShopDoc, dropAddress: String) {
@@ -1290,6 +1601,7 @@ class AppStore(
             ratingStars = ratingStars,
             ratingComment = ratingComment,
             cancelReason = cancelReason,
+            refundId = refundId,
         )
     }
 

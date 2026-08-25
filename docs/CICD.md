@@ -59,7 +59,7 @@ Repo → **Settings → Secrets and variables → Actions**
 
 | Secret | Value |
 |---|---|
-| `API_BASE_URL` | `https://api.pansariwala.shop` (CI + **release**; local **debug** uses `http://10.0.2.2:8080`) |
+| `API_BASE_URL` | `https://api.pansariwala.shop` (debug + release; all platforms) |
 | `ANDROID_KEYSTORE_BASE64` | `base64 -i your.keystore \| pbcopy` (macOS) |
 | `ANDROID_KEYSTORE_PASSWORD` | keystore password |
 | `ANDROID_KEY_ALIAS` | key alias |
@@ -71,9 +71,8 @@ Without keystore secrets, **release** builds are unsigned locally; CI requires `
 
 | Build type | Keystore | API URL |
 |---|---|---|
-| **debug** (local) | debug / Firebase-matching if jks present | `http://10.0.2.2:8080` (override `API_BASE_URL_DEBUG`) |
-| **debug** (GitHub Actions) | same as local debug | EC2 (`API_BASE_URL` secret) |
-| **release** | `pansariwala.jks` (production) | EC2 (`API_BASE_URL`, default `https://api.pansariwala.shop`) |
+| **debug** | debug / Firebase-matching if jks present | `https://api.pansariwala.shop` |
+| **release** | `pansariwala.jks` (production) | `https://api.pansariwala.shop` (`API_BASE_URL` secret/env override) |
 
 CI keeps the **latest 5** artifact sets per type (`android-apks-*`, `web-js-dist-*`, `pansari-server-jar-*`); older runs are deleted automatically.
 

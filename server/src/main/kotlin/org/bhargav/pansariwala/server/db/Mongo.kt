@@ -3,11 +3,14 @@ package org.bhargav.pansariwala.server.db
 import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
 import java.util.concurrent.TimeUnit
+import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.exists
+import com.mongodb.client.model.Filters.ne
 import com.mongodb.client.model.Filters.or
 import com.mongodb.client.model.IndexOptions
 import com.mongodb.client.model.Indexes
+import com.mongodb.client.model.ReplaceOptions
 import com.mongodb.client.model.Updates.set
 import com.mongodb.kotlin.client.MongoClient
 import com.mongodb.kotlin.client.MongoDatabase
@@ -22,6 +25,15 @@ import org.bson.codecs.configuration.CodecRegistries.fromRegistries
 import org.bson.codecs.kotlinx.KotlinSerializerCodecProvider
 
 class MongoApp(val client: MongoClient, val db: MongoDatabase)
+
+@Serializable
+data class ShopFeaturesDoc(
+    val voiceSearch: Boolean = true,
+    val barcodeSearch: Boolean = true,
+    val reportGeneration: Boolean = true,
+    val onlineOrders: Boolean = true,
+    val inventoryAlerts: Boolean = true,
+)
 
 @Serializable
 data class ShopDoc(
@@ -40,6 +52,8 @@ data class ShopDoc(
     val address: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
+    val joinedAt: Long = 0L,
+    val features: ShopFeaturesDoc = ShopFeaturesDoc(),
 )
 
 @Serializable
@@ -62,6 +76,9 @@ data class CustomerDoc(
     val lat: Double? = null,
     val lng: Double? = null,
     val addresses: List<CustomerAddressDoc> = emptyList(),
+    val imageUrl: String? = null,
+    val active: Boolean = true,
+    val joinedAt: Long = 0L,
 )
 
 @Serializable
@@ -92,6 +109,11 @@ data class PartnerDoc(
     val verified: Boolean = false,
     val online: Boolean = false,
     val joinedAt: Long = System.currentTimeMillis(),
+    val vehicleName: String = "",
+    val vehicleBrand: String = "",
+    val vehicleColor: String = "",
+    val vehicleType: String = "SCOOTY",
+    val active: Boolean = true,
 )
 
 @Serializable
@@ -99,6 +121,13 @@ data class CategoryDoc(
     @SerialName("_id") val id: String,
     val name: String,
     val parentId: String? = null,
+)
+
+@Serializable
+data class MasterProductVariantDoc(
+    val name: String,
+    val sku: String = "",
+    val price: Double = 0.0,
 )
 
 @Serializable
@@ -111,6 +140,21 @@ data class MasterProductDoc(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val brandName: String = "",
+    val companyName: String = "",
+    val subcategoryId: String? = null,
+    val salePrice: Double = 0.0,
+    val cost: Double = 0.0,
+    val active: Boolean = true,
+    val addedAt: Long = 0L,
+    val description: String = "",
+    val sku: String = "",
+    val stockQty: Double = 0.0,
+    val lowStockThreshold: Double = 0.0,
+    val tags: String = "",
+    val weightKg: Double = 0.0,
+    val dimensions: String = "",
+    val variants: List<MasterProductVariantDoc> = emptyList(),
 )
 
 @Serializable
@@ -277,16 +321,19 @@ private fun ensureMasterAdmin(db: MongoDatabase, security: Security, config: Ser
     }
     val admins = db.getCollection<AdminUserDoc>("admin_users")
     val hash = security.hashPassword(password)
-    val existing = admins.find(eq("username", username)).firstOrNull()
-    if (existing == null) {
-        admins.insertOne(AdminUserDoc("admin_1", username, hash))
-    } else {
-        admins.updateOne(eq("_id", existing.id), set("passwordHash", hash))
-    }
-    // Remove legacy default admin account if username changed
+    val masterId = "admin_1"
+    // Prefer rotating the canonical row; fall back to the row that already owns this username.
+    val targetId = admins.find(eq("username", username)).firstOrNull()?.id ?: masterId
+    admins.replaceOne(
+        eq("_id", targetId),
+        AdminUserDoc(targetId, username, hash),
+        ReplaceOptions().upsert(true),
+    )
+    // Drop legacy default login and any other rows colliding on username.
     if (username != "admin") {
         admins.deleteMany(eq("username", "admin"))
     }
+    admins.deleteMany(and(eq("username", username), ne("_id", targetId)))
 }
 
 private fun defaultShopTypes(): List<ShopTypeDoc> = listOf(
@@ -372,8 +419,21 @@ private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
         SeedSku("mp_namak", "Salt", "नमक", "GENERAL_GROCERY", 22.0, "namak"),
     )
     db.getCollection<ShopTypeDoc>("master_shop_types").insertMany(defaultShopTypes())
+    val now = System.currentTimeMillis()
     db.getCollection<MasterProductDoc>("master_products").insertMany(
-        skus.map { MasterProductDoc(it.id, it.name, it.nameHi, "cat_grocery", "KG") },
+        skus.map {
+            MasterProductDoc(
+                id = it.id,
+                name = it.name,
+                nameHi = it.nameHi,
+                categoryId = "cat_grocery",
+                unit = "KG",
+                salePrice = it.price,
+                cost = it.price * 0.85,
+                addedAt = now,
+                sku = it.id.uppercase(),
+            )
+        },
     )
     db.getCollection<ProductDoc>("products").insertMany(
         skus.flatMap { sku ->

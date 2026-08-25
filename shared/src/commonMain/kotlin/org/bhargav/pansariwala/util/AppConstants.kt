@@ -57,14 +57,10 @@ object AppConstants {
     const val PUBLIC_DOMAIN: String = "pansariwala.shop"
     const val WEB_BASE_URL: String = "https://pansariwala.shop"
     const val API_HOST: String = "api.pansariwala.shop"
-    /** Production API (release + GitHub Actions). */
+    /** EC2 API for all platforms (debug + release). Override via Android `API_BASE_URL` env/property. */
     const val API_BASE_URL: String = "https://api.pansariwala.shop"
     const val DEFAULT_API_BASE_URL: String = API_BASE_URL
     const val IOS_API_BASE_URL: String = API_BASE_URL
-    /** Local Ktor (`./gradlew :server:run`). Web + iOS Simulator. */
-    const val LOCAL_API_BASE_URL: String = "http://127.0.0.1:8080"
-    /** Android emulator → host machine. Override with `API_BASE_URL_DEBUG` for a physical device. */
-    const val ANDROID_EMULATOR_API_BASE_URL: String = "http://10.0.2.2:8080"
     const val BRAND_TAGLINE: String = "Apka apna market"
     const val PLAY_STORE_USER_URL: String =
         "https://play.google.com/store/apps/details?id=org.bhargav.pansariwala.user"
@@ -153,5 +149,37 @@ object AppConstants {
         const val ERROR_MISSING_QUOTE: String = "Missing quote"
         const val ERROR_OUT_OF_RANGE: String = "Out of shop delivery range"
         const val ERROR_ADDRESS_REQUIRED: String = "Address is required"
+    }
+
+    object MasterWeb {
+        const val TOKEN_STORAGE_KEY: String = "master_admin_token"
+        const val REMEMBER_USER_KEY: String = "master_admin_username"
+        const val SIDEBAR_WIDTH_DP: Int = 220
+        const val COMPACT_BREAKPOINT_DP: Int = 840
+    }
+
+    object ShopFeature {
+        const val VOICE_SEARCH: String = "voiceSearch"
+        const val BARCODE_SEARCH: String = "barcodeSearch"
+        const val REPORT_GENERATION: String = "reportGeneration"
+        const val ONLINE_ORDERS: String = "onlineOrders"
+        const val INVENTORY_ALERTS: String = "inventoryAlerts"
+    }
+
+    object DateFilter {
+        const val TODAY: String = "TODAY"
+        const val YESTERDAY: String = "YESTERDAY"
+        const val WEEKLY: String = "WEEKLY"
+        const val MONTHLY: String = "MONTHLY"
+        const val YEARLY: String = "YEARLY"
+        const val CUSTOM: String = "CUSTOM"
+    }
+
+    object VehicleType {
+        const val SCOOTY: String = "SCOOTY"
+        const val E_RIKSHAW: String = "E_RIKSHAW"
+        const val BIKE: String = "BIKE"
+        const val TEMPO: String = "TEMPO"
+        const val VAN: String = "VAN"
     }
 }
