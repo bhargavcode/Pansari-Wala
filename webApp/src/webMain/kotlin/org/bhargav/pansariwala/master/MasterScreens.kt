@@ -1,6 +1,13 @@
 package org.bhargav.pansariwala.master
 
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -12,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +41,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.designsystem.AdaptivePane
+import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_back
@@ -130,6 +139,45 @@ import pansariwala.shared.generated.resources.master_vehicle_number
 import pansariwala.shared.generated.resources.master_vehicle_type
 import pansariwala.shared.generated.resources.master_view_more
 import pansariwala.shared.generated.resources.master_weight
+import org.bhargav.pansariwala.util.AppConstants
+import pansariwala.shared.generated.resources.master_add_new_shop_subtitle
+import pansariwala.shared.generated.resources.master_add_new_shop_title
+import pansariwala.shared.generated.resources.master_create_shop
+import pansariwala.shared.generated.resources.master_delivery_info
+import pansariwala.shared.generated.resources.master_download_invoice
+import pansariwala.shared.generated.resources.master_general_info
+import pansariwala.shared.generated.resources.master_inventory_section
+import pansariwala.shared.generated.resources.master_issue_refund
+import pansariwala.shared.generated.resources.master_items_in_order
+import pansariwala.shared.generated.resources.master_last_updated
+import pansariwala.shared.generated.resources.master_logistics
+import pansariwala.shared.generated.resources.master_order_info
+import pansariwala.shared.generated.resources.master_order_timeline
+import pansariwala.shared.generated.resources.master_payment_info
+import pansariwala.shared.generated.resources.master_pricing
+import pansariwala.shared.generated.resources.master_print_summary
+import pansariwala.shared.generated.resources.master_shop_image
+import pansariwala.shared.generated.resources.master_shop_orders
+import pansariwala.shared.generated.resources.master_total_rating
+import pansariwala.shared.generated.resources.master_owner_email
+import pansariwala.shared.generated.resources.master_owner_name
+import pansariwala.shared.generated.resources.master_owner_phone
+import pansariwala.shared.generated.resources.master_street_address
+import pansariwala.shared.generated.resources.master_city
+import pansariwala.shared.generated.resources.master_state
+import pansariwala.shared.generated.resources.master_zip
+import pansariwala.shared.generated.resources.master_country
+import pansariwala.shared.generated.resources.master_business_details
+import pansariwala.shared.generated.resources.master_registration_number
+import pansariwala.shared.generated.resources.master_tax_id
+import pansariwala.shared.generated.resources.master_operating_hours
+import pansariwala.shared.generated.resources.master_hours_start
+import pansariwala.shared.generated.resources.master_hours_end
+import pansariwala.shared.generated.resources.master_effective_price
+import pansariwala.shared.generated.resources.master_features
+import pansariwala.shared.generated.resources.master_active
+import pansariwala.shared.generated.resources.master_sales_overview
+import pansariwala.shared.generated.resources.master_txn_trends
 import pansariwala.shared.generated.resources.action_edit
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -146,44 +194,42 @@ internal fun DashboardScreen(token: String, onNavigate: (MasterDest) -> Unit, on
             shops = api.shops(token)
         }.onFailure { onStatus(it.message.orEmpty()) }
     }
+    val s = stats
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_console_title))
+        MasterTopBar(stringResource(Res.string.master_console_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MasterStatCard(
-                    title = stringResource(Res.string.master_card_shops),
-                    value = "${stats?.shopCount ?: "—"}",
-                    actionLabel = stringResource(Res.string.master_new_shop),
-                    onAction = { onNavigate(MasterDest.Shops) },
-                    onClick = { onNavigate(MasterDest.Shops) },
-                )
-                MasterStatCard(
-                    title = stringResource(Res.string.master_card_products),
-                    value = "${stats?.productCount ?: "—"}",
-                    actionLabel = stringResource(Res.string.master_new_product),
-                    onAction = { onNavigate(MasterDest.ProductEdit(null)) },
-                    onClick = { onNavigate(MasterDest.Products) },
-                )
-                MasterStatCard(
-                    title = stringResource(Res.string.master_card_transactions),
-                    value = formatInr(stats?.transactionAmount ?: 0.0),
-                    onClick = { onNavigate(MasterDest.Transactions) },
-                )
-                MasterStatCard(
-                    title = stringResource(Res.string.master_card_users),
-                    value = "${stats?.userCount ?: "—"}",
-                    onClick = { onNavigate(MasterDest.Users) },
-                )
-                MasterStatCard(
-                    title = stringResource(Res.string.master_card_partners),
-                    value = "${stats?.partnerCount ?: "—"}",
-                    onClick = { onNavigate(MasterDest.Partners) },
-                )
+            DashboardTopCards(
+                shopCount = s?.shopCount ?: 0,
+                txnAmount = s?.transactionAmount ?: 0.0,
+                userCount = s?.userCount ?: 0,
+                txnFilter = filter,
+                onTxnFilter = { filter = it },
+                onAddShop = { onNavigate(MasterDest.ShopCreate) },
+                onOpenShops = { onNavigate(MasterDest.Shops) },
+                onOpenUsers = { onNavigate(MasterDest.Users) },
+                onOpenTransactions = { onNavigate(MasterDest.Transactions) },
+            )
+            AdaptivePane(Modifier.fillMaxWidth()) { wc ->
+                if (wc == WindowWidthClass.Compact) {
+                    SimpleBarChart(stringResource(Res.string.master_sales_overview), s?.salesByWeekday.orEmpty())
+                    SimpleLineChart(stringResource(Res.string.master_txn_trends), s?.txnTrendByMonth.orEmpty())
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SimpleBarChart(
+                            stringResource(Res.string.master_sales_overview),
+                            s?.salesByWeekday.orEmpty(),
+                            modifier = Modifier.weight(1f),
+                        )
+                        SimpleLineChart(
+                            stringResource(Res.string.master_txn_trends),
+                            s?.txnTrendByMonth.orEmpty(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
             }
-            Text(stringResource(Res.string.master_date_filter), style = MaterialTheme.typography.titleSmall)
-            DateFilterBar(filter) { filter = it }
             MasterSectionCard(title = stringResource(Res.string.master_shops_list)) {
-                ShopsTable(shops, onNavigate, token, onStatus) { shops = it }
+                DashboardShopsTable(shops, onNavigate, token, onStatus) { shops = it }
             }
         }
     }
@@ -194,9 +240,6 @@ internal fun ShopsListScreen(token: String, onNavigate: (MasterDest) -> Unit, on
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
     var shops by remember { mutableStateOf<List<ShopDto>>(emptyList()) }
-    var name by rememberSaveable { mutableStateOf("") }
-    var shopType by rememberSaveable { mutableStateOf("GENERAL_STORE") }
-    var address by rememberSaveable { mutableStateOf("") }
     fun refresh() {
         scope.launch {
             runCatching { shops = api.shops(token) }.onFailure { onStatus(it.message.orEmpty()) }
@@ -204,27 +247,148 @@ internal fun ShopsListScreen(token: String, onNavigate: (MasterDest) -> Unit, on
     }
     LaunchedEffect(token) { refresh() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_shops_list))
+        MasterTopBar(stringResource(Res.string.master_shops_list))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MasterSectionCard(title = stringResource(Res.string.master_new_shop)) {
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(Res.string.master_shop_name)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(shopType, { shopType = it }, label = { Text(stringResource(Res.string.master_shop_type)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(address, { address = it }, label = { Text(stringResource(Res.string.master_address)) }, modifier = Modifier.fillMaxWidth())
-                Button(onClick = {
-                    scope.launch {
-                        runCatching { api.createShop(token, ShopCreate(name = name, shopType = shopType, address = address)) }
-                            .onSuccess { name = ""; address = ""; refresh() }
-                            .onFailure { onStatus(it.message.orEmpty()) }
-                    }
-                }) { Text(stringResource(Res.string.master_save)) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Button(onClick = { onNavigate(MasterDest.ShopCreate) }) {
+                    Text(stringResource(Res.string.master_new_shop))
+                }
             }
-            MasterSectionCard { ShopsTable(shops, onNavigate, token, onStatus) { shops = it } }
+            MasterSectionCard { DashboardShopsTable(shops, onNavigate, token, onStatus) { shops = it } }
         }
     }
 }
 
 @Composable
-private fun ShopsTable(
+internal fun ShopCreateScreen(token: String, onNavigate: (MasterDest) -> Unit, onStatus: (String) -> Unit) {
+    val api = remember { MasterApi() }
+    val scope = rememberCoroutineScope()
+    var name by rememberSaveable { mutableStateOf("") }
+    var ownerName by rememberSaveable { mutableStateOf("") }
+    var ownerPhone by rememberSaveable { mutableStateOf("") }
+    var ownerEmail by rememberSaveable { mutableStateOf("") }
+    var shopType by rememberSaveable { mutableStateOf("GENERAL_STORE") }
+    var address by rememberSaveable { mutableStateOf("") }
+    var city by rememberSaveable { mutableStateOf("") }
+    var state by rememberSaveable { mutableStateOf("") }
+    var zip by rememberSaveable { mutableStateOf("") }
+    var country by rememberSaveable { mutableStateOf("India") }
+    var registration by rememberSaveable { mutableStateOf("") }
+    var taxId by rememberSaveable { mutableStateOf("") }
+    var imageUrl by rememberSaveable { mutableStateOf("") }
+    var lat by rememberSaveable { mutableStateOf(28.6139) }
+    var lng by rememberSaveable { mutableStateOf(77.2090) }
+    var active by rememberSaveable { mutableStateOf(true) }
+    var voice by rememberSaveable { mutableStateOf(true) }
+    var barcode by rememberSaveable { mutableStateOf(true) }
+    var reports by rememberSaveable { mutableStateOf(true) }
+    var online by rememberSaveable { mutableStateOf(true) }
+    var inventory by rememberSaveable { mutableStateOf(true) }
+    var monStart by rememberSaveable { mutableStateOf("09:00") }
+    var monEnd by rememberSaveable { mutableStateOf("21:00") }
+    var tueStart by rememberSaveable { mutableStateOf("09:00") }
+    var tueEnd by rememberSaveable { mutableStateOf("21:00") }
+    var wedStart by rememberSaveable { mutableStateOf("09:00") }
+    var wedEnd by rememberSaveable { mutableStateOf("21:00") }
+    var thuStart by rememberSaveable { mutableStateOf("09:00") }
+    var thuEnd by rememberSaveable { mutableStateOf("21:00") }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        MasterTopBar(stringResource(Res.string.master_add_new_shop_title))
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(Res.string.master_add_new_shop_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AdaptivePane(Modifier.fillMaxWidth()) { wc ->
+                val cols = if (wc == WindowWidthClass.Compact) 1 else 3
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), maxItemsInEachRow = cols) {
+                    MasterSectionCard(title = stringResource(Res.string.master_shop_image), modifier = Modifier.widthIn(min = 240.dp)) {
+                        ImageThumb(imageUrl.ifBlank { null }, Modifier.size(120.dp).align(Alignment.CenterHorizontally))
+                        OutlinedTextField(imageUrl, { imageUrl = it }, label = { Text(stringResource(Res.string.master_image_url)) }, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(Res.string.master_general_info), fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(name, { name = it }, label = { Text(stringResource(Res.string.master_shop_name)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(ownerName, { ownerName = it }, label = { Text(stringResource(Res.string.master_owner_name)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(ownerPhone, { ownerPhone = it }, label = { Text(stringResource(Res.string.master_owner_phone)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(ownerEmail, { ownerEmail = it }, label = { Text(stringResource(Res.string.master_owner_email)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(shopType, { shopType = it }, label = { Text(stringResource(Res.string.master_shop_type)) }, modifier = Modifier.fillMaxWidth())
+                    }
+                    MasterSectionCard(title = stringResource(Res.string.master_address), modifier = Modifier.widthIn(min = 240.dp)) {
+                        OutlinedTextField(address, { address = it }, label = { Text(stringResource(Res.string.master_street_address)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(city, { city = it }, label = { Text(stringResource(Res.string.master_city)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(state, { state = it }, label = { Text(stringResource(Res.string.master_state)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(zip, { zip = it }, label = { Text(stringResource(Res.string.master_zip)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(country, { country = it }, label = { Text(stringResource(Res.string.master_country)) }, modifier = Modifier.fillMaxWidth())
+                        MapLocationPicker(lat = lat, lng = lng, onLatChange = { lat = it }, onLngChange = { lng = it })
+                    }
+                    MasterSectionCard(title = stringResource(Res.string.master_business_details), modifier = Modifier.widthIn(min = 240.dp)) {
+                        OutlinedTextField(registration, { registration = it }, label = { Text(stringResource(Res.string.master_registration_number)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(taxId, { taxId = it }, label = { Text(stringResource(Res.string.master_tax_id)) }, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(Res.string.master_operating_hours), fontWeight = FontWeight.SemiBold)
+                        HoursRow("Mon", monStart, monEnd, { monStart = it }, { monEnd = it })
+                        HoursRow("Tue", tueStart, tueEnd, { tueStart = it }, { tueEnd = it })
+                        HoursRow("Wed", wedStart, wedEnd, { wedStart = it }, { wedEnd = it })
+                        HoursRow("Thu", thuStart, thuEnd, { thuStart = it }, { thuEnd = it })
+                        FeatureToggle(stringResource(Res.string.master_active), active) { active = !active }
+                        Text(stringResource(Res.string.master_features), fontWeight = FontWeight.SemiBold)
+                        FeatureToggle(stringResource(Res.string.master_feature_voice), voice) { voice = !voice }
+                        FeatureToggle(stringResource(Res.string.master_feature_barcode), barcode) { barcode = !barcode }
+                        FeatureToggle(stringResource(Res.string.master_feature_reports), reports) { reports = !reports }
+                        FeatureToggle(stringResource(Res.string.master_feature_online), online) { online = !online }
+                        FeatureToggle(stringResource(Res.string.master_feature_inventory), inventory) { inventory = !inventory }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { onNavigate(MasterDest.Shops) }) { Text(stringResource(Res.string.master_cancel)) }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = {
+                    scope.launch {
+                        runCatching {
+                            api.createShop(
+                                token,
+                                ShopCreate(
+                                    name = name,
+                                    shopType = shopType,
+                                    address = address,
+                                    lat = lat,
+                                    lng = lng,
+                                    active = active,
+                                    imageUrl = imageUrl.ifBlank { null },
+                                    ownerName = ownerName,
+                                    ownerPhone = ownerPhone,
+                                    ownerEmail = ownerEmail,
+                                    city = city,
+                                    state = state,
+                                    zip = zip,
+                                    country = country,
+                                    registrationNumber = registration,
+                                    taxId = taxId,
+                                    operatingHours = listOf(
+                                        ShopHoursDayDto("Mon", monStart, monEnd),
+                                        ShopHoursDayDto("Tue", tueStart, tueEnd),
+                                        ShopHoursDayDto("Wed", wedStart, wedEnd),
+                                        ShopHoursDayDto("Thu", thuStart, thuEnd),
+                                    ),
+                                    features = ShopFeaturesDto(voice, barcode, reports, online, inventory),
+                                ),
+                            )
+                        }.onSuccess { onNavigate(MasterDest.Shops) }
+                            .onFailure { onStatus(it.message.orEmpty()) }
+                    }
+                }) { Text(stringResource(Res.string.master_create_shop)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HoursRow(day: String, start: String, end: String, onStart: (String) -> Unit, onEnd: (String) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(day, modifier = Modifier.width(36.dp), fontWeight = FontWeight.Medium)
+        OutlinedTextField(start, onStart, label = { Text(stringResource(Res.string.master_hours_start)) }, modifier = Modifier.weight(1f), singleLine = true)
+        OutlinedTextField(end, onEnd, label = { Text(stringResource(Res.string.master_hours_end)) }, modifier = Modifier.weight(1f), singleLine = true)
+    }
+}
+
+@Composable
+private fun DashboardShopsTable(
     shops: List<ShopDto>,
     onNavigate: (MasterDest) -> Unit,
     token: String,
@@ -243,28 +407,20 @@ private fun ShopsTable(
             stringResource(Res.string.master_join_date),
             stringResource(Res.string.master_shop_type),
             stringResource(Res.string.master_status),
+            stringResource(Res.string.master_shop_image),
             stringResource(Res.string.master_actions),
         )
         shops.forEach { s ->
             TableRow {
                 CellText(s.id)
                 CellText(s.name)
-                CellText("${s.rating}")
+                CellText("${s.rating} ★")
                 CellText(s.address.ifBlank { "—" })
                 CellText(formatEpochDate(s.joinedAtEpochMs))
                 CellText(s.shopType)
-                OnOffToggle(s.active) {
-                    scope.launch {
-                        runCatching { api.patchShop(token, s.id, active = !s.active) }
-                            .onSuccess {
-                                onUpdated(shops.map { if (it.id == s.id) it.copy(active = !s.active) else it })
-                            }
-                            .onFailure { onStatus(it.message.orEmpty()) }
-                    }
-                }
-                TextButton(onClick = { onNavigate(MasterDest.ShopDetail(s.id)) }) {
-                    Text(stringResource(Res.string.master_view_more))
-                }
+                StatusChip(s.active)
+                ImageThumb(s.imageUrl)
+                ViewMoreButton { onNavigate(MasterDest.ShopDetail(s.id)) }
             }
         }
     }
@@ -283,62 +439,90 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
     LaunchedEffect(shopId) { refresh() }
     val shop = detail?.shop
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar("${stringResource(Res.string.master_shop_details)}: ${shop?.name ?: shopId}") {
-            TextButton(onClick = { onNavigate(MasterDest.Shops) }) { Text(stringResource(Res.string.action_back)) }
-        }
+        MasterTopBar("${stringResource(Res.string.master_shop_details)}: ${shop?.name ?: shopId}")
         if (shop != null) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MasterSectionCard {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            LabelValue(stringResource(Res.string.master_shop_id), shop.id)
-                            LabelValue(stringResource(Res.string.master_shop_name), shop.name)
-                            LabelValue(stringResource(Res.string.master_shop_location), shop.address)
-                            LabelValue(stringResource(Res.string.master_shop_rating), "${shop.rating}")
-                            LabelValue(stringResource(Res.string.master_join_date), formatEpochDate(shop.joinedAtEpochMs))
-                            LabelValue(stringResource(Res.string.master_shop_type), shop.shopType)
-                        }
-                        Text(shop.imageUrl ?: "—", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                MasterSectionCard(title = stringResource(Res.string.master_features)) {
-                    FeatureToggle(stringResource(Res.string.master_feature_voice), shop.features.voiceSearch) {
-                        scope.launch {
-                            val f = shop.features.copy(voiceSearch = !shop.features.voiceSearch)
-                            runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                        }
-                    }
-                    FeatureToggle(stringResource(Res.string.master_feature_barcode), shop.features.barcodeSearch) {
-                        scope.launch {
-                            val f = shop.features.copy(barcodeSearch = !shop.features.barcodeSearch)
-                            runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                        }
-                    }
-                    FeatureToggle(stringResource(Res.string.master_feature_reports), shop.features.reportGeneration) {
-                        scope.launch {
-                            val f = shop.features.copy(reportGeneration = !shop.features.reportGeneration)
-                            runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                        }
-                    }
-                    FeatureToggle(stringResource(Res.string.master_feature_online), shop.features.onlineOrders) {
-                        scope.launch {
-                            val f = shop.features.copy(onlineOrders = !shop.features.onlineOrders)
-                            runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                        }
-                    }
-                    FeatureToggle(stringResource(Res.string.master_feature_inventory), shop.features.inventoryAlerts) {
-                        scope.launch {
-                            val f = shop.features.copy(inventoryAlerts = !shop.features.inventoryAlerts)
-                            runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
+                    AdaptivePane(Modifier.fillMaxWidth()) { wc ->
+                        if (wc == WindowWidthClass.Compact) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ShopInfoGrid(shop)
+                                ImageThumb(shop.imageUrl, Modifier.size(120.dp))
+                            }
+                        } else {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                                Column(Modifier.weight(2f)) { ShopInfoGrid(shop) }
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                                    ImageThumb(shop.imageUrl, Modifier.size(120.dp))
+                                }
+                            }
                         }
                     }
                 }
-                MasterSectionCard(title = stringResource(Res.string.master_transactions_title)) {
-                    TxnMiniTable(detail?.transactions.orEmpty()) { onNavigate(MasterDest.TxnDetail(it)) }
-                }
+                ResponsiveColumns(
+                    left = {
+                        MasterSectionCard(title = stringResource(Res.string.master_features)) {
+                            FeatureToggle(stringResource(Res.string.master_feature_voice), shop.features.voiceSearch) {
+                                scope.launch {
+                                    val f = shop.features.copy(voiceSearch = !shop.features.voiceSearch)
+                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
+                                }
+                            }
+                            FeatureToggle(stringResource(Res.string.master_feature_barcode), shop.features.barcodeSearch) {
+                                scope.launch {
+                                    val f = shop.features.copy(barcodeSearch = !shop.features.barcodeSearch)
+                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
+                                }
+                            }
+                            FeatureToggle(stringResource(Res.string.master_feature_reports), shop.features.reportGeneration) {
+                                scope.launch {
+                                    val f = shop.features.copy(reportGeneration = !shop.features.reportGeneration)
+                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
+                                }
+                            }
+                            FeatureToggle(stringResource(Res.string.master_feature_online), shop.features.onlineOrders) {
+                                scope.launch {
+                                    val f = shop.features.copy(onlineOrders = !shop.features.onlineOrders)
+                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
+                                }
+                            }
+                            FeatureToggle(stringResource(Res.string.master_feature_inventory), shop.features.inventoryAlerts) {
+                                scope.launch {
+                                    val f = shop.features.copy(inventoryAlerts = !shop.features.inventoryAlerts)
+                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
+                                }
+                            }
+                        }
+                    },
+                    right = {
+                        MasterSectionCard(title = stringResource(Res.string.master_transactions_title)) {
+                            StatsGrid(
+                                listOf(
+                                    stringResource(Res.string.master_shop_id) to shop.id,
+                                    stringResource(Res.string.master_total_rating) to "${shop.rating}",
+                                    stringResource(Res.string.master_shop_orders) to "${detail?.orderCount ?: 0}",
+                                    stringResource(Res.string.master_card_users) to "${detail?.uniqueCustomers ?: 0}",
+                                ),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            TxnMiniTable(detail?.transactions.orEmpty()) { onNavigate(MasterDest.TxnDetail(it)) }
+                        }
+                    },
+                )
+                OutlinedButton(onClick = { onNavigate(MasterDest.Shops) }) { Text(stringResource(Res.string.action_back)) }
             }
         }
     }
+}
+
+@Composable
+private fun ShopInfoGrid(shop: ShopDto) {
+    LabelValue(stringResource(Res.string.master_shop_id), shop.id)
+    LabelValue(stringResource(Res.string.master_shop_name), shop.name)
+    LabelValue(stringResource(Res.string.master_shop_location), shop.address.ifBlank { "—" })
+    LabelValue(stringResource(Res.string.master_shop_rating), "${shop.rating} ★")
+    LabelValue(stringResource(Res.string.master_join_date), formatEpochDate(shop.joinedAtEpochMs))
+    LabelValue(stringResource(Res.string.master_shop_type), shop.shopType)
 }
 
 @Composable
@@ -365,15 +549,11 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
         query.isBlank() || it.name.contains(query, true) || it.id.contains(query, true) || it.brandName.contains(query, true)
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_products_title))
+        MasterTopBar(stringResource(Res.string.master_products_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MasterStatCard(
-                    title = stringResource(Res.string.master_card_products),
-                    value = "${products.size}",
-                    actionLabel = stringResource(Res.string.master_new_product),
-                    onAction = { onNavigate(MasterDest.ProductEdit(null)) },
-                )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                MasterStatCard(title = stringResource(Res.string.master_card_products), value = "${products.size}")
+                AddProductPromoCard(onClick = { onNavigate(MasterDest.ProductEdit(null)) })
             }
             OutlinedTextField(query, { query = it }, label = { Text(stringResource(Res.string.master_search)) }, modifier = Modifier.fillMaxWidth())
             MasterSectionCard {
@@ -476,7 +656,10 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     var dimensions by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     var active by rememberSaveable { mutableStateOf(true) }
+    var variants by remember { mutableStateOf<List<ProductVariantDto>>(emptyList()) }
     var loadedId by remember { mutableStateOf<String?>(null) }
+    val saleVal = sale.toDoubleOrNull() ?: 0.0
+    val effective = saleVal
     LaunchedEffect(productId) {
         if (productId != null && loadedId != productId) {
             runCatching {
@@ -488,35 +671,52 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                 imageUrl = p.imageUrl.orEmpty(); sku = p.sku; stock = p.stockQty.toString()
                 lowStock = p.lowStockThreshold.toString(); tags = p.tags; weight = p.weightKg.toString()
                 dimensions = p.dimensions; description = p.description; active = p.active
+                variants = p.variants
             }.onFailure { onStatus(it.message.orEmpty()) }
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(
+        MasterTopBar(
             if (productId == null) stringResource(Res.string.master_new_product)
             else "${stringResource(Res.string.master_edit_product)}: $name",
-        ) {
-            TextButton(onClick = { onNavigate(MasterDest.Products) }) { Text(stringResource(Res.string.master_cancel)) }
-        }
+        )
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(name, { name = it }, label = { Text(stringResource(Res.string.master_product_name)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(nameHi, { nameHi = it }, label = { Text(stringResource(Res.string.field_name_hi)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(brand, { brand = it }, label = { Text(stringResource(Res.string.master_brand)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(company, { company = it }, label = { Text(stringResource(Res.string.master_company)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(categoryId, { categoryId = it }, label = { Text(stringResource(Res.string.master_category)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(subcategoryId, { subcategoryId = it }, label = { Text(stringResource(Res.string.master_subcategory)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(sale, { sale = it }, label = { Text(stringResource(Res.string.master_sale_price)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(cost, { cost = it }, label = { Text(stringResource(Res.string.master_cost)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(unit, { unit = it }, label = { Text(stringResource(Res.string.field_unit)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(imageUrl, { imageUrl = it }, label = { Text(stringResource(Res.string.master_image_url)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(sku, { sku = it }, label = { Text(stringResource(Res.string.master_sku)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(stock, { stock = it }, label = { Text(stringResource(Res.string.master_stock)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(lowStock, { lowStock = it }, label = { Text(stringResource(Res.string.master_low_stock)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(Res.string.master_tags)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(weight, { weight = it }, label = { Text(stringResource(Res.string.master_weight)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(dimensions, { dimensions = it }, label = { Text(stringResource(Res.string.master_dimensions)) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(description, { description = it }, label = { Text(stringResource(Res.string.master_description)) }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-            FeatureToggle(stringResource(Res.string.master_status), active) { active = !active }
+            AdaptivePane(Modifier.fillMaxWidth()) { wc ->
+                val cols = if (wc == WindowWidthClass.Compact) 1 else 3
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), maxItemsInEachRow = cols) {
+                    Column(Modifier.widthIn(min = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ImageThumb(imageUrl.ifBlank { null }, Modifier.size(120.dp))
+                        OutlinedTextField(imageUrl, { imageUrl = it }, label = { Text(stringResource(Res.string.master_image_url)) }, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(Res.string.master_general_info), fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(name, { name = it }, label = { Text(stringResource(Res.string.master_product_name)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(nameHi, { nameHi = it }, label = { Text(stringResource(Res.string.field_name_hi)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(brand, { brand = it }, label = { Text(stringResource(Res.string.master_brand)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(company, { company = it }, label = { Text(stringResource(Res.string.master_company)) }, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(Res.string.master_pricing), fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(sale, { sale = it }, label = { Text(stringResource(Res.string.master_sale_price)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(cost, { cost = it }, label = { Text(stringResource(Res.string.master_cost)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(unit, { unit = it }, label = { Text(stringResource(Res.string.field_unit)) }, modifier = Modifier.fillMaxWidth())
+                        Text("${stringResource(Res.string.master_effective_price)}: ${formatInr(effective)}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Column(Modifier.widthIn(min = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(categoryId, { categoryId = it }, label = { Text(stringResource(Res.string.master_category)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(subcategoryId, { subcategoryId = it }, label = { Text(stringResource(Res.string.master_subcategory)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(Res.string.master_tags)) }, modifier = Modifier.fillMaxWidth())
+                        VariantsEditor(variants = variants, onChange = { variants = it })
+                        DescriptionEditor(value = description, onValueChange = { description = it })
+                    }
+                    Column(Modifier.widthIn(min = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(Res.string.master_inventory_section), fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(sku, { sku = it }, label = { Text(stringResource(Res.string.master_sku)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(stock, { stock = it }, label = { Text(stringResource(Res.string.master_stock)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(lowStock, { lowStock = it }, label = { Text(stringResource(Res.string.master_low_stock)) }, modifier = Modifier.fillMaxWidth())
+                        FeatureToggle(stringResource(Res.string.master_status), active) { active = !active }
+                        Text(stringResource(Res.string.master_logistics), fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(weight, { weight = it }, label = { Text(stringResource(Res.string.master_weight)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(dimensions, { dimensions = it }, label = { Text(stringResource(Res.string.master_dimensions)) }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
                     scope.launch {
@@ -544,6 +744,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                                     tags = tags,
                                     weightKg = weight.toDoubleOrNull() ?: 0.0,
                                     dimensions = dimensions,
+                                    variants = variants.filter { it.name.isNotBlank() },
                                 ),
                             )
                         }.onSuccess { onNavigate(MasterDest.Products) }
@@ -570,13 +771,17 @@ internal fun TransactionsScreen(token: String, onNavigate: (MasterDest) -> Unit,
     }
     LaunchedEffect(token, filter) { refresh() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_transactions_title))
+        MasterTopBar(stringResource(Res.string.master_transactions_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MasterStatCard(stringResource(Res.string.master_card_transactions), formatInr(summary?.amount ?: 0.0))
+                DateFilterSummaryCard(
+                    title = stringResource(Res.string.master_date_filter),
+                    value = "${summary?.count ?: 0} orders",
+                    selected = filter,
+                    onSelect = { filter = it },
+                )
             }
-            Text(stringResource(Res.string.master_date_filter))
-            DateFilterBar(filter) { filter = it }
             MasterSectionCard {
                 TxnFullTable(summary?.transactions.orEmpty(), token, onNavigate, onStatus) { refresh() }
             }
@@ -618,47 +823,31 @@ private fun TxnFullTable(
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
     val scroll = rememberScrollState()
-    Column(Modifier.horizontalScroll(scroll)) {
-        TableHeader(
-            stringResource(Res.string.master_order_id),
-            stringResource(Res.string.master_transaction_no),
-            stringResource(Res.string.master_item_details),
-            stringResource(Res.string.master_customer),
-            stringResource(Res.string.master_shop_details_col),
-            stringResource(Res.string.master_offers),
-            stringResource(Res.string.master_charges),
-            stringResource(Res.string.master_total),
-            stringResource(Res.string.master_paid),
-            stringResource(Res.string.master_actions),
-        )
+    Column(Modifier.horizontalScroll(scroll).widthIn(min = 1100.dp)) {
+        NestedTxnTableHeader()
         rows.forEach { t ->
-            TableRow(onClick = { onNavigate(MasterDest.TxnDetail(t.orderId)) }) {
-                CellText(t.orderId)
-                CellText(t.transactionNo)
-                CellText(t.itemsSummary)
-                CellText("${t.customerName}\n${t.customerPhone}\n${t.customerAddress}")
-                CellText("${t.shopName}\n[${t.shopId}]")
-                CellText(formatInr(t.offers))
-                CellText(formatInr(t.charges))
-                CellText(formatInr(t.total))
-                CellText(formatInr(t.paid))
-                Row {
-                    TextButton(onClick = {
-                        scope.launch {
-                            runCatching { api.refundOrder(token, t.orderId) }
-                                .onSuccess { onChanged() }
-                                .onFailure { onStatus(it.message.orEmpty()) }
-                        }
-                    }) { Text(stringResource(Res.string.master_refund)) }
-                    TextButton(onClick = {
-                        scope.launch {
-                            runCatching { api.cancelOrder(token, t.orderId) }
-                                .onSuccess { onChanged() }
-                                .onFailure { onStatus(it.message.orEmpty()) }
-                        }
-                    }) { Text(stringResource(Res.string.master_cancel_order)) }
-                }
-            }
+            NestedTxnTableRow(
+                txn = t,
+                onClick = { onNavigate(MasterDest.TxnDetail(t.orderId)) },
+                actions = {
+                    Column {
+                        TextButton(onClick = {
+                            scope.launch {
+                                runCatching { api.refundOrder(token, t.orderId) }
+                                    .onSuccess { onChanged() }
+                                    .onFailure { onStatus(it.message.orEmpty()) }
+                            }
+                        }) { Text(stringResource(Res.string.master_refund)) }
+                        TextButton(onClick = {
+                            scope.launch {
+                                runCatching { api.cancelOrder(token, t.orderId) }
+                                    .onSuccess { onChanged() }
+                                    .onFailure { onStatus(it.message.orEmpty()) }
+                            }
+                        }) { Text(stringResource(Res.string.master_cancel_order), color = MaterialTheme.colorScheme.error) }
+                    }
+                },
+            )
         }
     }
 }
@@ -673,39 +862,57 @@ internal fun TxnDetailScreen(token: String, orderId: String, onNavigate: (Master
     }
     val t = txn
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar("${stringResource(Res.string.master_txn_details)}: #$orderId") {
-            TextButton(onClick = { onNavigate(MasterDest.Transactions) }) { Text(stringResource(Res.string.action_back)) }
-        }
+        MasterTopBar("${stringResource(Res.string.master_txn_details)}: #$orderId")
         if (t != null) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MasterSectionCard {
-                    LabelValue(stringResource(Res.string.master_order_id), t.orderId)
-                    LabelValue(stringResource(Res.string.master_transaction_no), t.transactionNo)
-                    LabelValue(stringResource(Res.string.master_status), t.status)
-                    LabelValue(stringResource(Res.string.master_shop_name), "${t.shopName} [${t.shopId}]")
-                    LabelValue(stringResource(Res.string.master_customer), t.customerName)
-                    LabelValue(stringResource(Res.string.master_contact), t.customerPhone)
-                    LabelValue(stringResource(Res.string.master_address), t.customerAddress)
-                    LabelValue(stringResource(Res.string.master_offers), formatInr(t.offers))
-                    LabelValue(stringResource(Res.string.master_charges), formatInr(t.charges))
-                    LabelValue(stringResource(Res.string.master_total), formatInr(t.total))
-                    LabelValue(stringResource(Res.string.master_paid), formatInr(t.paid))
-                    if (t.partnerName != null) LabelValue(stringResource(Res.string.master_partner_id), "${t.partnerName} [${t.partnerId}]")
-                }
-                MasterSectionCard(title = stringResource(Res.string.master_item_details)) {
-                    t.items.forEach { item ->
-                        Text("${item.productName} · ${item.quantity} ${item.unit} · ${formatInr(item.unitPrice)}")
-                    }
-                }
+                ResponsiveColumns(
+                    left = {
+                        MasterSectionCard(title = stringResource(Res.string.master_order_info)) {
+                            LabelValue(stringResource(Res.string.master_order_id), t.orderId)
+                            LabelValue(stringResource(Res.string.master_transaction_no), t.transactionNo)
+                            LabelValue(stringResource(Res.string.master_status), t.status)
+                            LabelValue(stringResource(Res.string.master_shop_name), "${t.shopName} [${t.shopId}]")
+                        }
+                        MasterSectionCard(title = stringResource(Res.string.master_customer)) {
+                            LabelValue(stringResource(Res.string.master_name), t.customerName)
+                            LabelValue(stringResource(Res.string.master_contact), t.customerPhone)
+                            LabelValue(stringResource(Res.string.master_address), t.customerAddress)
+                        }
+                        MasterSectionCard(title = stringResource(Res.string.master_payment_info)) {
+                            LabelValue(stringResource(Res.string.master_offers), formatInr(t.offers))
+                            LabelValue(stringResource(Res.string.master_charges), formatInr(t.charges))
+                            LabelValue(stringResource(Res.string.master_total), formatInr(t.total))
+                            LabelValue(stringResource(Res.string.master_paid), formatInr(t.paid))
+                        }
+                        MasterSectionCard(title = stringResource(Res.string.master_delivery_info)) {
+                            if (t.partnerName != null) LabelValue(stringResource(Res.string.master_partner_id), "${t.partnerName} [${t.partnerId}]")
+                            t.partnerVehicleReg?.let { LabelValue(stringResource(Res.string.master_vehicle_number), it) }
+                            t.deliveryDurationMin?.let { LabelValue(stringResource(Res.string.master_delivery_info), "${it} min") }
+                        }
+                    },
+                    right = {
+                        MasterSectionCard(title = stringResource(Res.string.master_items_in_order)) {
+                            t.items.forEach { item ->
+                                Text("${item.productName} · ${item.quantity} ${item.unit} · ${formatInr(item.unitPrice)}")
+                            }
+                        }
+                        MasterSectionCard(title = stringResource(Res.string.master_order_timeline)) {
+                            Text("${formatEpochDate(t.createdAtEpochMs)} · ${t.status}")
+                            if (t.refundId != null) Text("Refund: ${t.refundId}")
+                        }
+                    },
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
+                    OutlinedButton(onClick = {
                         scope.launch {
                             runCatching { api.refundOrder(token, orderId) }
                                 .onSuccess { txn = api.orderDetail(token, orderId) }
                                 .onFailure { onStatus(it.message.orEmpty()) }
                         }
-                    }) { Text(stringResource(Res.string.master_refund)) }
-                    OutlinedButton(onClick = {
+                    }) { Text(stringResource(Res.string.master_issue_refund)) }
+                    OutlinedButton(onClick = { /* invoice stub */ }) { Text(stringResource(Res.string.master_download_invoice)) }
+                    OutlinedButton(onClick = { /* print stub */ }) { Text(stringResource(Res.string.master_print_summary)) }
+                    Button(onClick = {
                         scope.launch {
                             runCatching { api.cancelOrder(token, orderId) }
                                 .onSuccess { txn = api.orderDetail(token, orderId) }
@@ -713,6 +920,7 @@ internal fun TxnDetailScreen(token: String, orderId: String, onNavigate: (Master
                         }
                     }) { Text(stringResource(Res.string.master_cancel_order)) }
                 }
+                OutlinedButton(onClick = { onNavigate(MasterDest.Transactions) }) { Text(stringResource(Res.string.action_back)) }
             }
         }
     }
@@ -732,10 +940,17 @@ internal fun UsersScreen(token: String, onNavigate: (MasterDest) -> Unit, onStat
     }
     LaunchedEffect(token, filter) { refresh() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_users_title))
+        MasterTopBar(stringResource(Res.string.master_users_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MasterStatCard(stringResource(Res.string.master_card_users), "${users.size}")
-            DateFilterBar(filter) { filter = it }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MasterStatCard(stringResource(Res.string.master_card_users), "${users.size}")
+                DateFilterSummaryCard(
+                    title = stringResource(Res.string.master_date_filter),
+                    value = "${users.size}",
+                    selected = filter,
+                    onSelect = { filter = it },
+                )
+            }
             MasterSectionCard {
                 val scroll = rememberScrollState()
                 Column(Modifier.horizontalScroll(scroll)) {
@@ -776,25 +991,59 @@ internal fun UsersScreen(token: String, onNavigate: (MasterDest) -> Unit, onStat
 @Composable
 internal fun UserDetailScreen(token: String, userId: String, onNavigate: (MasterDest) -> Unit, onStatus: (String) -> Unit) {
     val api = remember { MasterApi() }
+    val scope = rememberCoroutineScope()
     var detail by remember { mutableStateOf<UserDetailDto?>(null) }
+    var selectedOrder by remember { mutableStateOf<TxnDto?>(null) }
     LaunchedEffect(userId) {
         runCatching { detail = api.userDetail(token, userId) }.onFailure { onStatus(it.message.orEmpty()) }
     }
     val u = detail?.user
+    OrderDetailDialog(
+        txn = selectedOrder,
+        onDismiss = { selectedOrder = null },
+        onRefund = { id ->
+            scope.launch {
+                runCatching { api.refundOrder(token, id) }.onSuccess {
+                    detail = api.userDetail(token, userId)
+                    selectedOrder = null
+                }.onFailure { onStatus(it.message.orEmpty()) }
+            }
+        },
+        onCancel = { id ->
+            scope.launch {
+                runCatching { api.cancelOrder(token, id) }.onSuccess {
+                    detail = api.userDetail(token, userId)
+                    selectedOrder = null
+                }.onFailure { onStatus(it.message.orEmpty()) }
+            }
+        },
+    )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar("${stringResource(Res.string.master_user_details)}: #$userId") {
-            TextButton(onClick = { onNavigate(MasterDest.Users) }) { Text(stringResource(Res.string.action_back)) }
-        }
+        MasterTopBar("${stringResource(Res.string.master_user_details)}: #$userId")
         if (u != null) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MasterSectionCard {
-                    LabelValue(stringResource(Res.string.master_name), u.name)
-                    LabelValue(stringResource(Res.string.master_contact), u.phone)
-                    LabelValue(stringResource(Res.string.master_address), u.address)
-                }
-                MasterSectionCard(title = stringResource(Res.string.master_order_history)) {
-                    TxnMiniTable(detail?.orders.orEmpty()) { onNavigate(MasterDest.TxnDetail(it)) }
-                }
+                ResponsiveColumns(
+                    left = {
+                        MasterSectionCard {
+                            LabelValue(stringResource(Res.string.master_name), u.name)
+                            LabelValue(stringResource(Res.string.master_contact), u.phone)
+                            LabelValue(stringResource(Res.string.master_address), u.address)
+                        }
+                    },
+                    right = {
+                        MasterSectionCard(title = stringResource(Res.string.master_order_history)) {
+                            detail?.orders.orEmpty().forEach { order ->
+                                TableRow(onClick = { selectedOrder = order }) {
+                                    CellText(order.orderId)
+                                    CellText(formatEpochDate(order.createdAtEpochMs))
+                                    CellText(formatInr(order.total))
+                                    CellText(order.status)
+                                }
+                            }
+                        }
+                    },
+                )
+                OutlinedButton(onClick = { onNavigate(MasterDest.Users) }) { Text(stringResource(Res.string.action_back)) }
             }
         }
     }
@@ -814,10 +1063,17 @@ internal fun PartnersScreen(token: String, onNavigate: (MasterDest) -> Unit, onS
     }
     LaunchedEffect(token, filter) { refresh() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_partners_title))
+        MasterTopBar(stringResource(Res.string.master_partners_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MasterStatCard(stringResource(Res.string.master_card_partners), "${partners.size}")
-            DateFilterBar(filter) { filter = it }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MasterStatCard(stringResource(Res.string.master_card_partners), "${partners.size}")
+                DateFilterSummaryCard(
+                    title = stringResource(Res.string.master_date_filter),
+                    value = "${partners.size}",
+                    selected = filter,
+                    onSelect = { filter = it },
+                )
+            }
             MasterSectionCard {
                 val scroll = rememberScrollState()
                 Column(Modifier.horizontalScroll(scroll)) {
@@ -874,33 +1130,40 @@ internal fun PartnerDetailScreen(token: String, partnerId: String, onNavigate: (
     }
     val p = detail?.partner
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar("${stringResource(Res.string.master_partner_details)}: #$partnerId") {
-            TextButton(onClick = { onNavigate(MasterDest.Partners) }) { Text(stringResource(Res.string.action_back)) }
-        }
+        MasterTopBar("${stringResource(Res.string.master_partner_details)}: #$partnerId")
         if (p != null) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MasterSectionCard {
-                    LabelValue(stringResource(Res.string.master_name), p.name)
-                    LabelValue(stringResource(Res.string.master_contact), p.phone)
-                    LabelValue(stringResource(Res.string.master_email), p.email)
-                    LabelValue(stringResource(Res.string.master_address), p.address)
-                    LabelValue(stringResource(Res.string.master_vehicle_number), p.vehicleNumber)
-                    LabelValue(stringResource(Res.string.master_vehicle_name), p.vehicleName)
-                    LabelValue(stringResource(Res.string.master_vehicle_brand), p.vehicleBrand)
-                    LabelValue(stringResource(Res.string.master_vehicle_color), p.vehicleColor)
-                    LabelValue(stringResource(Res.string.master_vehicle_type), p.vehicleType)
-                    LabelValue(stringResource(Res.string.master_join_date), formatEpochDate(p.joinedAtEpochMs))
-                }
-                MasterSectionCard(title = stringResource(Res.string.master_accepted_orders)) {
-                    TxnMiniTable(detail?.acceptedOrders.orEmpty()) { onNavigate(MasterDest.TxnDetail(it)) }
-                }
-                MasterSectionCard(title = stringResource(Res.string.master_cancelled_orders)) {
-                    TxnMiniTable(detail?.cancelledOrders.orEmpty()) { onNavigate(MasterDest.TxnDetail(it)) }
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MasterStatCard(stringResource(Res.string.master_total_delivered), "${detail?.totalDeliveredOrders ?: 0}")
-                    MasterStatCard(stringResource(Res.string.master_total_earnings), formatInr(detail?.totalEarnings ?: 0.0))
-                }
+                ResponsiveColumns(
+                    left = {
+                        MasterSectionCard {
+                            LabelValue(stringResource(Res.string.master_name), p.name)
+                            LabelValue(stringResource(Res.string.master_contact), p.phone)
+                            LabelValue(stringResource(Res.string.master_email), p.email)
+                            LabelValue(stringResource(Res.string.master_address), p.address)
+                            ImageThumb(p.profileImageUrl.ifBlank { p.idImageUrl }, Modifier.size(80.dp))
+                            LabelValue(stringResource(Res.string.master_vehicle_number), p.vehicleNumber)
+                            LabelValue(stringResource(Res.string.master_vehicle_name), p.vehicleName)
+                            LabelValue(stringResource(Res.string.master_vehicle_brand), p.vehicleBrand)
+                            LabelValue(stringResource(Res.string.master_vehicle_color), p.vehicleColor)
+                            LabelValue(stringResource(Res.string.master_vehicle_type), p.vehicleType)
+                            LabelValue(stringResource(Res.string.master_join_date), formatEpochDate(p.joinedAtEpochMs))
+                            OnOffToggle(p.active) { /* read-only in detail */ }
+                        }
+                    },
+                    right = {
+                        MasterSectionCard(title = stringResource(Res.string.master_accepted_orders)) {
+                            TxnMiniTable(detail?.acceptedOrders.orEmpty()) { onNavigate(MasterDest.TxnDetail(it)) }
+                        }
+                        MasterSectionCard(title = stringResource(Res.string.master_cancelled_orders)) {
+                            TxnMiniTable(detail?.cancelledOrders.orEmpty()) { onNavigate(MasterDest.TxnDetail(it)) }
+                        }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            MasterStatCard(stringResource(Res.string.master_total_delivered), "${detail?.totalDeliveredOrders ?: 0}")
+                            MasterStatCard(stringResource(Res.string.master_total_earnings), formatInr(detail?.totalEarnings ?: 0.0))
+                        }
+                    },
+                )
+                OutlinedButton(onClick = { onNavigate(MasterDest.Partners) }) { Text(stringResource(Res.string.action_back)) }
             }
         }
     }
@@ -914,7 +1177,7 @@ internal fun PlatformScreen(token: String, onStatus: (String) -> Unit) {
         runCatching { stats = api.dashboard(token) }.onFailure { onStatus(it.message.orEmpty()) }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_platform_title))
+        MasterTopBar(stringResource(Res.string.master_platform_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MasterStatCard(stringResource(Res.string.master_card_shops), "${stats?.shopCount ?: 0}")
@@ -946,7 +1209,7 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
     }
     LaunchedEffect(token) { refresh() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeaderBar(stringResource(Res.string.master_settings_title))
+        MasterTopBar(stringResource(Res.string.master_settings_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             MasterSectionCard(title = stringResource(Res.string.master_tab_categories)) {
                 Text(stringResource(Res.string.master_new_category), fontWeight = FontWeight.SemiBold)

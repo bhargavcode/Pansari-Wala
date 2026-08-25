@@ -178,6 +178,8 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
 @Serializable data class ActivePatch(val active: Boolean? = null)
 @Serializable data class OrderActionBody(val reason: String? = null)
 
+@Serializable data class AdminChartPointDto(val label: String, val value: Double)
+
 @Serializable
 data class AdminDashboardDto(
     val shopCount: Int,
@@ -186,6 +188,8 @@ data class AdminDashboardDto(
     val transactionCount: Int,
     val userCount: Int,
     val partnerCount: Int,
+    val salesByWeekday: List<AdminChartPointDto> = emptyList(),
+    val txnTrendByMonth: List<AdminChartPointDto> = emptyList(),
 )
 
 @Serializable
@@ -259,6 +263,14 @@ data class ShopFeaturesDto(
 )
 
 @Serializable
+data class ShopHoursDayDto(
+    val day: String,
+    val start: String = "09:00",
+    val end: String = "21:00",
+    val closed: Boolean = false,
+)
+
+@Serializable
 data class ShopDto(
     val id: String,
     val name: String,
@@ -273,10 +285,25 @@ data class ShopDto(
     val ratingCount: Int = 0,
     val joinedAtEpochMs: Long = 0L,
     val features: ShopFeaturesDto = ShopFeaturesDto(),
+    val ownerName: String = "",
+    val ownerPhone: String = "",
+    val ownerEmail: String = "",
+    val city: String = "",
+    val state: String = "",
+    val zip: String = "",
+    val country: String = "India",
+    val registrationNumber: String = "",
+    val taxId: String = "",
+    val operatingHours: List<ShopHoursDayDto> = emptyList(),
 )
 
 @Serializable
-data class ShopDetailDto(val shop: ShopDto, val transactions: List<TxnDto> = emptyList())
+data class ShopDetailDto(
+    val shop: ShopDto,
+    val transactions: List<TxnDto> = emptyList(),
+    val orderCount: Int = 0,
+    val uniqueCustomers: Int = 0,
+)
 
 @Serializable
 data class ShopPatch(
@@ -298,6 +325,17 @@ data class ShopCreate(
     val lng: Double = 77.2090,
     val active: Boolean = true,
     val imageUrl: String? = null,
+    val ownerName: String = "",
+    val ownerPhone: String = "",
+    val ownerEmail: String = "",
+    val city: String = "",
+    val state: String = "",
+    val zip: String = "",
+    val country: String = "India",
+    val registrationNumber: String = "",
+    val taxId: String = "",
+    val operatingHours: List<ShopHoursDayDto> = emptyList(),
+    val features: ShopFeaturesDto? = null,
 )
 
 @Serializable

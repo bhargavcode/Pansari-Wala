@@ -36,6 +36,14 @@ data class ShopFeaturesDoc(
 )
 
 @Serializable
+data class ShopHoursDayDoc(
+    val day: String,
+    val start: String = "09:00",
+    val end: String = "21:00",
+    val closed: Boolean = false,
+)
+
+@Serializable
 data class ShopDoc(
     @SerialName("_id") val id: String,
     val name: String,
@@ -54,6 +62,16 @@ data class ShopDoc(
     val shopType: String = "GENERAL_STORE",
     val joinedAt: Long = 0L,
     val features: ShopFeaturesDoc = ShopFeaturesDoc(),
+    val ownerName: String = "",
+    val ownerPhone: String = "",
+    val ownerEmail: String = "",
+    val city: String = "",
+    val state: String = "",
+    val zip: String = "",
+    val country: String = "India",
+    val registrationNumber: String = "",
+    val taxId: String = "",
+    val operatingHours: List<ShopHoursDayDoc> = emptyList(),
 )
 
 @Serializable

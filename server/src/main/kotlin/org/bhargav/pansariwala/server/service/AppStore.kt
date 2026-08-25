@@ -34,9 +34,11 @@ import org.bhargav.pansariwala.server.db.PartnerDoc
 import org.bhargav.pansariwala.server.db.ProductDoc
 import org.bhargav.pansariwala.server.db.ShopDoc
 import org.bhargav.pansariwala.server.db.ShopFeaturesDoc
+import org.bhargav.pansariwala.server.db.ShopHoursDayDoc
 import org.bhargav.pansariwala.server.db.ShopTypeDoc
 import org.bhargav.pansariwala.server.db.ShopUserDoc
 import org.bhargav.pansariwala.server.db.TxnDoc
+import org.bhargav.pansariwala.server.dto.AdminChartPointDto
 import org.bhargav.pansariwala.server.dto.AdminDashboardDto
 import org.bhargav.pansariwala.server.dto.AdminPartnerDetailDto
 import org.bhargav.pansariwala.server.dto.AdminPartnerDto
@@ -59,6 +61,7 @@ import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
 import org.bhargav.pansariwala.server.dto.OtpSessionResponse
 import org.bhargav.pansariwala.server.dto.PartnerDailyEarningDto
+import org.bhargav.pansariwala.server.dto.ShopHoursDayDto
 import org.bhargav.pansariwala.server.dto.PartnerDashboardDto
 import org.bhargav.pansariwala.server.dto.PartnerEarningsDto
 import org.bhargav.pansariwala.server.dto.PartnerProfileDto
@@ -1111,9 +1114,25 @@ class AppStore(
         lng: Double,
         active: Boolean,
         imageUrl: String? = null,
+        ownerName: String = "",
+        ownerPhone: String = "",
+        ownerEmail: String = "",
+        city: String = "",
+        state: String = "",
+        zip: String = "",
+        country: String = "India",
+        registrationNumber: String = "",
+        taxId: String = "",
+        operatingHours: List<ShopHoursDayDto> = emptyList(),
+        features: ShopFeaturesDto? = null,
     ): AdminShopDto {
         val id = "shop_${UUID.randomUUID().toString().take(8)}"
         val now = System.currentTimeMillis()
+        val composedAddress = listOf(address, city, state, zip, country)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(", ")
         shopCol.insertOne(
             ShopDoc(
                 id = id,
@@ -1128,10 +1147,30 @@ class AppStore(
                 paymentsEnabled = true,
                 discountPercent = 0.0,
                 upiId = config.defaultShopUpi,
-                address = address,
+                address = composedAddress.ifBlank { address },
                 shopType = shopType.ifBlank { "GENERAL_STORE" },
                 joinedAt = now,
-                features = ShopFeaturesDoc(),
+                features = features?.let {
+                    ShopFeaturesDoc(
+                        voiceSearch = it.voiceSearch,
+                        barcodeSearch = it.barcodeSearch,
+                        reportGeneration = it.reportGeneration,
+                        onlineOrders = it.onlineOrders,
+                        inventoryAlerts = it.inventoryAlerts,
+                    )
+                } ?: ShopFeaturesDoc(),
+                ownerName = ownerName.trim(),
+                ownerPhone = ownerPhone.trim(),
+                ownerEmail = ownerEmail.trim(),
+                city = city.trim(),
+                state = state.trim(),
+                zip = zip.trim(),
+                country = country.trim().ifBlank { "India" },
+                registrationNumber = registrationNumber.trim(),
+                taxId = taxId.trim(),
+                operatingHours = operatingHours.map {
+                    ShopHoursDayDoc(it.day, it.start, it.end, it.closed)
+                },
             ),
         )
         return listAdminShops().first { it.id == id }
@@ -1177,11 +1216,22 @@ class AppStore(
     fun adminShopDetail(shopId: String): AdminShopDetailDto {
         val shop = shopById(shopId).toAdminDto()
         val txns = listAdminTransactions(shopId = shopId).transactions
-        return AdminShopDetailDto(shop, txns)
+        val uniqueCustomers = orderCol.find(eq("shopId", shopId))
+            .toList()
+            .mapNotNull { it.customerId }
+            .distinct()
+            .size
+        return AdminShopDetailDto(
+            shop = shop,
+            transactions = txns,
+            orderCount = txns.size,
+            uniqueCustomers = uniqueCustomers,
+        )
     }
 
     fun adminDashboard(fromEpochMs: Long? = null, toEpochMs: Long? = null): AdminDashboardDto {
         val txnSummary = listAdminTransactions(fromEpochMs, toEpochMs)
+        val charts = buildAdminCharts(fromEpochMs, toEpochMs)
         return AdminDashboardDto(
             shopCount = shopCol.countDocuments().toInt(),
             productCount = masterProductCol.countDocuments().toInt(),
@@ -1189,7 +1239,39 @@ class AppStore(
             transactionCount = txnSummary.count,
             userCount = customerCol.countDocuments().toInt(),
             partnerCount = partnerCol.countDocuments().toInt(),
+            salesByWeekday = charts.first,
+            txnTrendByMonth = charts.second,
         )
+    }
+
+    private fun buildAdminCharts(
+        fromEpochMs: Long?,
+        toEpochMs: Long?,
+    ): Pair<List<AdminChartPointDto>, List<AdminChartPointDto>> {
+        val filters = buildList {
+            if (fromEpochMs != null) add(gte("createdAt", fromEpochMs))
+            if (toEpochMs != null) add(lte("createdAt", toEpochMs))
+        }
+        val rows = if (filters.isEmpty()) orderCol.find().toList()
+        else orderCol.find(and(filters)).toList()
+        val weekdayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        val monthLabels = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        val byWeekday = DoubleArray(7)
+        val byMonth = DoubleArray(12)
+        rows.forEach { row ->
+            val cal = java.util.Calendar.getInstance()
+            cal.timeInMillis = row.createdAt
+            val dow = (cal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7
+            val month = cal.get(java.util.Calendar.MONTH)
+            val paid = row.quote?.payable ?: row.items.sumOf { it.quantity * it.unitPrice }
+            byWeekday[dow] += paid
+            byMonth[month] += paid
+        }
+        return weekdayLabels.mapIndexed { i, label ->
+            AdminChartPointDto(label, byWeekday[i])
+        } to monthLabels.mapIndexed { i, label ->
+            AdminChartPointDto(label, byMonth[i])
+        }
     }
 
     fun listAdminTransactions(
@@ -1370,6 +1452,16 @@ class AppStore(
             onlineOrders = features.onlineOrders,
             inventoryAlerts = features.inventoryAlerts,
         ),
+        ownerName = ownerName,
+        ownerPhone = ownerPhone,
+        ownerEmail = ownerEmail,
+        city = city,
+        state = state,
+        zip = zip,
+        country = country,
+        registrationNumber = registrationNumber,
+        taxId = taxId,
+        operatingHours = operatingHours.map { ShopHoursDayDto(it.day, it.start, it.end, it.closed) },
     )
 
     private fun AdminShopDto.toLegacyShopDto() = ShopDto(

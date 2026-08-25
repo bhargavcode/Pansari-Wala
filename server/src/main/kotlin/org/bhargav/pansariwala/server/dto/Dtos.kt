@@ -109,6 +109,14 @@ data class ShopDto(
 )
 
 @Serializable
+data class ShopHoursDayDto(
+    val day: String,
+    val start: String = "09:00",
+    val end: String = "21:00",
+    val closed: Boolean = false,
+)
+
+@Serializable
 data class AdminShopCreate(
     val name: String,
     val shopType: String = "GENERAL_STORE",
@@ -117,6 +125,17 @@ data class AdminShopCreate(
     val lng: Double = 77.2090,
     val active: Boolean = true,
     val imageUrl: String? = null,
+    val ownerName: String = "",
+    val ownerPhone: String = "",
+    val ownerEmail: String = "",
+    val city: String = "",
+    val state: String = "",
+    val zip: String = "",
+    val country: String = "India",
+    val registrationNumber: String = "",
+    val taxId: String = "",
+    val operatingHours: List<ShopHoursDayDto> = emptyList(),
+    val features: ShopFeaturesDto? = null,
 )
 
 @Serializable
@@ -147,13 +166,28 @@ data class AdminShopDto(
     val shopType: String = "GENERAL_STORE",
     val joinedAtEpochMs: Long = 0L,
     val features: ShopFeaturesDto = ShopFeaturesDto(),
+    val ownerName: String = "",
+    val ownerPhone: String = "",
+    val ownerEmail: String = "",
+    val city: String = "",
+    val state: String = "",
+    val zip: String = "",
+    val country: String = "India",
+    val registrationNumber: String = "",
+    val taxId: String = "",
+    val operatingHours: List<ShopHoursDayDto> = emptyList(),
 )
 
 @Serializable
 data class AdminShopDetailDto(
     val shop: AdminShopDto,
     val transactions: List<AdminTxnDto> = emptyList(),
+    val orderCount: Int = 0,
+    val uniqueCustomers: Int = 0,
 )
+
+@Serializable
+data class AdminChartPointDto(val label: String, val value: Double)
 
 @Serializable
 data class AdminDashboardDto(
@@ -163,6 +197,8 @@ data class AdminDashboardDto(
     val transactionCount: Int,
     val userCount: Int,
     val partnerCount: Int,
+    val salesByWeekday: List<AdminChartPointDto> = emptyList(),
+    val txnTrendByMonth: List<AdminChartPointDto> = emptyList(),
 )
 
 @Serializable

@@ -7,6 +7,7 @@ import org.bhargav.pansariwala.util.MILLIS_PER_DAY
 sealed class MasterDest {
     data object Dashboard : MasterDest()
     data object Shops : MasterDest()
+    data object ShopCreate : MasterDest()
     data class ShopDetail(val id: String) : MasterDest()
     data object Products : MasterDest()
     data class ProductEdit(val id: String?) : MasterDest()

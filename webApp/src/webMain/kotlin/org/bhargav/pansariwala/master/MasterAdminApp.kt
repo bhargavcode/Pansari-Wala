@@ -136,15 +136,10 @@ private fun MasterLoginScreen(onLoggedIn: (String, Boolean, String) -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var hint by remember { mutableStateOf<String?>(null) }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        LoginBackground(Modifier.fillMaxSize())
         Card(
-            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(24.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
@@ -310,7 +305,7 @@ private fun MasterSidebar(
             )
             items.forEach { (target, icon, label) ->
                 val selected = when (current) {
-                    is MasterDest.ShopDetail -> target == MasterDest.Shops
+                    is MasterDest.ShopDetail, MasterDest.ShopCreate -> target == MasterDest.Shops
                     is MasterDest.ProductEdit -> target == MasterDest.Products
                     is MasterDest.TxnDetail -> target == MasterDest.Transactions
                     is MasterDest.UserDetail -> target == MasterDest.Users
@@ -354,6 +349,7 @@ private fun MasterRouter(
     when (dest) {
         MasterDest.Dashboard -> DashboardScreen(token, onNavigate, onStatus)
         MasterDest.Shops -> ShopsListScreen(token, onNavigate, onStatus)
+        MasterDest.ShopCreate -> ShopCreateScreen(token, onNavigate, onStatus)
         is MasterDest.ShopDetail -> ShopDetailScreen(token, dest.id, onNavigate, onStatus)
         MasterDest.Products -> ProductsListScreen(token, onNavigate, onStatus)
         is MasterDest.ProductEdit -> ProductEditScreen(token, dest.id, onNavigate, onStatus)
