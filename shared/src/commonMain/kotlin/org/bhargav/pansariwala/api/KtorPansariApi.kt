@@ -218,6 +218,12 @@ class KtorPansariApi(
     override suspend fun partnerProfile(): PartnerProfile =
         client.get("partners/profile").body<PartnerProfileDto>().toModel()
 
+    override suspend fun updatePartnerProfilePhoto(profilePhotoUrl: String) {
+        client.post("partners/profile/photo") {
+            setBody(PartnerProfilePhotoRequest(profilePhotoUrl))
+        }.body<OkResponse>()
+    }
+
     override suspend fun partnerDashboard(fromEpochMs: Long, toEpochMs: Long): PartnerDashboard =
         client.get("partners/dashboard") {
             parameter("from", fromEpochMs)

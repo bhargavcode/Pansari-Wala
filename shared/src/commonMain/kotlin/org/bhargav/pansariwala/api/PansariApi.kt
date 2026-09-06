@@ -54,6 +54,7 @@ interface PansariApi {
 
     suspend fun registerPartner(request: PartnerRegisterRequest): String
     suspend fun partnerProfile(): PartnerProfile
+    suspend fun updatePartnerProfilePhoto(profilePhotoUrl: String)
     suspend fun partnerDashboard(fromEpochMs: Long, toEpochMs: Long): PartnerDashboard
     suspend fun partnerEarnings(): PartnerEarnings
     suspend fun setPartnerOnline(online: Boolean)

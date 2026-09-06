@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -262,6 +263,7 @@ fun PartnerRegisterScreen(
                     base64 = state.profilePhoto,
                     onClick = viewModel::attachProfile,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
+                    showEditBadge = true,
                 )
                 Text(
                     stringResource(Res.string.partner_profile_pic),
@@ -349,6 +351,16 @@ fun PartnerHomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var homeTab by remember { mutableStateOf(0) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.syncCachedProfile()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     RequestLocationPermission(
         trigger = state.requestLocationPermission,
         onConsumed = viewModel::consumeLocationPermissionRequest,
@@ -1061,20 +1073,12 @@ fun PartnerEarningsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (profile.profilePhoto.isNotBlank()) {
-                    Base64ImageThumbnail(
-                        base64 = profile.profilePhoto,
-                        contentDescription = profile.name,
-                        modifier = Modifier.size(64.dp).clip(CircleShape),
-                    )
-                } else {
-                    Box(
-                        Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(profile.name.take(1), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                }
+                PartnerProfileCircle(
+                    base64 = profile.profilePhoto,
+                    onClick = viewModel::changeProfilePhoto,
+                    showEditBadge = true,
+                    uploading = state.uploadingPhoto,
+                )
                 Column {
                     Text(profile.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(profile.phone, style = MaterialTheme.typography.bodySmall)

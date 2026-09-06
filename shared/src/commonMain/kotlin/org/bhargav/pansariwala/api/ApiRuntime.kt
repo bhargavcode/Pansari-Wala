@@ -31,7 +31,8 @@ object ApiRuntime {
 
     /**
      * Explicit HTTP log override.
-     * `null` → [HttpLogLevel.BODY] on debug builds, [HttpLogLevel.NONE] on release.
+     * `null` → [HttpLogLevel.HEADERS] on debug builds, [HttpLogLevel.NONE] on release.
+     * Note: [HttpLogLevel.BODY] is coerced to HEADERS to avoid dumping image bytes to logcat.
      * Examples: `ApiRuntime.httpLogLevel = HttpLogLevel.HEADERS` or `NONE` to silence debug.
      */
     var httpLogLevel: HttpLogLevel? = null
@@ -39,7 +40,7 @@ object ApiRuntime {
     fun resolvedHttpLogLevel(): HttpLogLevel =
         httpLogLevel
             ?: if (isDebugBuild) {
-                HttpLogLevel.BODY
+                HttpLogLevel.HEADERS
             } else {
                 HttpLogLevel.NONE
             }

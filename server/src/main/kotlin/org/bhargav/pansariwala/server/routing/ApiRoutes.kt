@@ -43,6 +43,7 @@ import org.bhargav.pansariwala.server.dto.OtpRequest
 import org.bhargav.pansariwala.server.dto.OtpVerifyRequest
 import org.bhargav.pansariwala.server.dto.PartnerLocationRequest
 import org.bhargav.pansariwala.server.dto.PartnerOnlineRequest
+import org.bhargav.pansariwala.server.dto.PartnerProfilePhotoRequest
 import org.bhargav.pansariwala.server.dto.PartnerRegisterRequest
 import org.bhargav.pansariwala.server.dto.PickupRequest
 import org.bhargav.pansariwala.server.dto.PlaceOrderRequest
@@ -198,6 +199,13 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         }
         get("/partners/profile") {
             call.respond(withContext(Dispatchers.IO) { store.partnerProfile(call.userId()) })
+        }
+        post("/partners/profile/photo") {
+            val body = call.receive<PartnerProfilePhotoRequest>()
+            withContext(Dispatchers.IO) {
+                store.updatePartnerProfilePhoto(call.userId(), body.profilePhotoUrl)
+            }
+            call.respond(OkResponse())
         }
         get("/partners/earnings") {
             call.respond(withContext(Dispatchers.IO) { store.partnerEarnings(call.userId()) })

@@ -56,6 +56,7 @@ import pansariwala.shared.generated.resources.error_phone_required
 import pansariwala.shared.generated.resources.error_photo_pick_failed
 import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_photos_required
+import pansariwala.shared.generated.resources.error_profile_photo_save_failed
 import pansariwala.shared.generated.resources.error_plate_mismatch
 import pansariwala.shared.generated.resources.location_unavailable
 import pansariwala.shared.generated.resources.dev_otp_hint
@@ -567,16 +568,21 @@ class PartnerHomeViewModel(
                         .filter { it.isActiveDelivery }
                     val offers = async { runCatching { api.availableOffers() }.getOrDefault(emptyList()) }
                         .await()
-                    accepted to offers
+                    val profile = async { runCatching { api.partnerProfile() }.getOrNull() }.await()
+                    Triple(accepted, offers, profile)
                 }
-            }.onSuccess { (accepted, offers) ->
-                val online = preferences.getPartnerOnlineDuty()
+            }.onSuccess { (accepted, offers, profile) ->
+                if (profile != null) {
+                    preferences.setCachedPartnerProfile(profile)
+                }
+                val online = profile?.online ?: preferences.getPartnerOnlineDuty()
                 applyOnlineState(online)
                 _state.update {
                     it.copy(
                         loading = false,
                         refreshing = false,
                         online = online,
+                        profile = profile ?: it.profile,
                         acceptedJobs = accepted,
                         availableOffers = offers,
                         error = null,
@@ -601,6 +607,20 @@ class PartnerHomeViewModel(
     fun pullRefresh() {
         if (_state.value.refreshing) return
         refresh()
+    }
+
+    fun syncCachedProfile() {
+        viewModelScope.launch {
+            preferences.getCachedPartnerProfile()?.let { cached ->
+                _state.update {
+                    it.copy(
+                        profile = cached,
+                        online = cached.online,
+                    )
+                }
+                applyOnlineState(cached.online)
+            }
+        }
     }
 
     fun offerSecondsRemaining(offer: DeliveryOffer): Int =
@@ -1074,12 +1094,14 @@ data class PartnerEarningsUiState(
     val profile: PartnerProfile? = null,
     val earnings: PartnerEarnings? = null,
     val loading: Boolean = true,
+    val uploadingPhoto: Boolean = false,
     val error: UiText? = null,
 )
 
 class PartnerEarningsViewModel(
     private val api: PansariApi,
     private val preferences: AppPreferences,
+    private val imagePicker: ImagePicker,
 ) : ViewModel() {
     private val _state = MutableStateFlow(PartnerEarningsUiState())
     val state: StateFlow<PartnerEarningsUiState> = _state.asStateFlow()
@@ -1111,6 +1133,55 @@ class PartnerEarningsViewModel(
                 error.rethrowIfStructuredCancellation()
                 _state.update { s -> s.copy(loading = false, error = error.toApiUiText()) }
             }
+        }
+    }
+
+    fun changeProfilePhoto() {
+        if (_state.value.uploadingPhoto) return
+        viewModelScope.launch {
+            val picked = imagePicker.pickImage() ?: return@launch
+            if (picked.bytes.isEmpty()) {
+                _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
+                return@launch
+            }
+            _state.update { it.copy(uploadingPhoto = true, error = null) }
+            val uploadedUrl = runCatching {
+                val mime = org.bhargav.pansariwala.media.normalizeImageMime(picked.mimeType, picked.displayName)
+                    ?: error("unsupported")
+                val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
+                    picked.bytes, mime, picked.displayName,
+                )
+                api.uploadImage(
+                    prefix = AppConstants.S3Prefix.PARTNERS_USER_IMAGE,
+                    fileName = compressed.displayName,
+                    bytes = compressed.bytes,
+                    contentType = compressed.mimeType,
+                ).url
+            }.getOrElse {
+                _state.update {
+                    it.copy(uploadingPhoto = false, error = UiText.res(Res.string.error_image_upload_failed))
+                }
+                return@launch
+            }
+            // Show URL immediately in UI + prefs; then persist on server.
+            val updated = (_state.value.profile ?: preferences.getCachedPartnerProfile())
+                ?.copy(profilePhoto = uploadedUrl)
+            if (updated != null) {
+                preferences.setCachedPartnerProfile(updated)
+                _state.update { it.copy(profile = updated) }
+            }
+            runCatching { api.updatePartnerProfilePhoto(uploadedUrl) }
+                .onSuccess {
+                    _state.update { it.copy(uploadingPhoto = false, error = null) }
+                }
+                .onFailure {
+                    _state.update {
+                        it.copy(
+                            uploadingPhoto = false,
+                            error = UiText.res(Res.string.error_profile_photo_save_failed),
+                        )
+                    }
+                }
         }
     }
 }

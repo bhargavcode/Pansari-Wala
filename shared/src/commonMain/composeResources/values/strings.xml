@@ -492,6 +492,7 @@
     <string name="error_otp_verify_failed">Could not verify the code. Try again.</string>
     <string name="error_photo_pick_failed">Could not read that photo. Try another image.</string>
     <string name="error_image_upload_failed">Image upload failed. Tap retry to try again.</string>
+    <string name="error_profile_photo_save_failed">Photo uploaded, but saving your profile failed. Please try again.</string>
     <string name="error_image_type_unsupported">Only PNG, JPEG, or WebP images are allowed.</string>
     <string name="product_images_hint">Add up to %1$d product photos (PNG / JPEG / WebP)</string>
     <string name="action_remove_photo">Remove photo</string>
@@ -650,6 +651,7 @@
     <string name="partner_action_login">Login</string>
     <string name="partner_signup_join">New Driver? Join Us</string>
     <string name="partner_profile_pic">Profile Pic</string>
+    <string name="partner_change_profile_photo">Change profile photo</string>
     <string name="partner_doc_dl">DL (Driver's License)</string>
     <string name="partner_doc_vehicle_plate">Vehicle Plate</string>
     <string name="partner_doc_id">ID</string>

@@ -858,6 +858,15 @@ class AppStore(
         partnerCol.updateOne(eq("_id", partnerId), set("online", online))
     }
 
+    fun updatePartnerProfilePhoto(partnerId: String, profilePhotoUrl: String) {
+        require(isImageUrl(profilePhotoUrl)) { "Invalid profile photo URL" }
+        val result = partnerCol.updateOne(
+            eq("_id", partnerId),
+            set("profilePhoto", profilePhotoUrl.trim().take(2_048)),
+        )
+        require(result.matchedCount > 0) { "Partner not found" }
+    }
+
     fun updatePartnerLocation(partnerId: String, lat: Double, lng: Double) {
         if (lat == 0.0 && lng == 0.0) return
         if (lat !in -90.0..90.0 || lng !in -180.0..180.0) return

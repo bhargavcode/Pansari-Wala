@@ -30,6 +30,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +41,7 @@ import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -115,6 +119,8 @@ import pansariwala.shared.generated.resources.partner_offline_banner
 import pansariwala.shared.generated.resources.partner_online_banner
 import pansariwala.shared.generated.resources.partner_otp_customer_hint
 import pansariwala.shared.generated.resources.partner_pending_verification
+import pansariwala.shared.generated.resources.partner_change_profile_photo
+import pansariwala.shared.generated.resources.partner_profile_pic
 import pansariwala.shared.generated.resources.partner_resume_job
 import pansariwala.shared.generated.resources.partner_verified
 import pansariwala.shared.generated.resources.pickup_photos_title
@@ -207,7 +213,11 @@ fun PartnerHomeTopBar(
                         modifier = Modifier.fillMaxSize().clip(CircleShape),
                     )
                 } else {
-                    Text("👤", style = MaterialTheme.typography.titleMedium)
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = title,
+                        tint = contentColor,
+                    )
                 }
             }
             Text(
@@ -944,26 +954,66 @@ fun PartnerProfileCircle(
     base64: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showEditBadge: Boolean = false,
+    uploading: Boolean = false,
 ) {
-    Box(
-        modifier = modifier
-            .size(80.dp)
-            .clip(CircleShape)
-            .then(
-                if (base64.isBlank()) Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
-                else Modifier,
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (base64.isNotBlank()) {
-            Base64ImageThumbnail(
-                base64 = base64,
-                contentDescription = "Profile",
-                modifier = Modifier.fillMaxSize().clip(CircleShape),
-            )
-        } else {
-            Text("👤", style = MaterialTheme.typography.headlineMedium)
+    Box(modifier = modifier.size(80.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .then(
+                    if (base64.isBlank()) Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
+                    else Modifier,
+                )
+                .clickable(enabled = !uploading, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (base64.isNotBlank()) {
+                Base64ImageThumbnail(
+                    base64 = base64,
+                    contentDescription = stringResource(Res.string.partner_profile_pic),
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = stringResource(Res.string.partner_change_profile_photo),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (uploading) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+        if (showEditBadge && !uploading) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = stringResource(Res.string.partner_change_profile_photo),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }

@@ -319,6 +319,9 @@ data class PartnerOnlineRequest(val online: Boolean)
 data class PartnerLocationRequest(val lat: Double, val lng: Double)
 
 @Serializable
+data class PartnerProfilePhotoRequest(val profilePhotoUrl: String)
+
+@Serializable
 data class PartnerProfileDto(
     val id: String,
     val name: String,
