@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
@@ -24,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.media.ProductImageCarousel
 import org.bhargav.pansariwala.ui.AsyncUiState
 import org.bhargav.pansariwala.ui.errorBannerOrNull
 import org.bhargav.pansariwala.ui.isBlockingLoad
@@ -79,8 +81,14 @@ private fun InventoryRow(product: Product, onEditProduct: (String) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        ProductImageCarousel(
+            imageUrls = product.imageUrls,
+            height = 72.dp,
+            modifier = Modifier.size(72.dp),
+        )
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
             Text(
                 text = product.name,
                 style = MaterialTheme.typography.bodyLarge,
@@ -96,7 +104,7 @@ private fun InventoryRow(product: Product, onEditProduct: (String) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Column(horizontalAlignment = Alignment.End) {
+        androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = "${product.stockQty.asQuantity()} ${product.unit.localizedLabel()}",
                 style = MaterialTheme.typography.bodyMedium,

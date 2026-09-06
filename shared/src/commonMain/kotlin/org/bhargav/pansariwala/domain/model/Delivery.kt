@@ -49,6 +49,7 @@ data class PartnerDashboard(
     val toEpochMs: Long,
 )
 
+@kotlinx.serialization.Serializable
 data class PartnerProfile(
     val id: String,
     val name: String,

@@ -37,12 +37,14 @@ import org.bhargav.pansariwala.feature.order.OrderEditorScreen
 import org.bhargav.pansariwala.feature.order.OrdersWorkspaceScreen
 import org.bhargav.pansariwala.feature.settings.SettingsScreen
 import org.bhargav.pansariwala.feature.splash.SplashScreen
+import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.notification.NotificationRouter
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_show
+import pansariwala.shared.generated.resources.error_session_expired_login
 
 private val navSavedStateConfiguration = SavedStateConfiguration {
     serializersModule = SerializersModule {
@@ -68,6 +70,7 @@ fun AppNavGraph(
     var previousScreen by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val openAction = stringResource(Res.string.action_show)
+    val sessionExpiredMessage = stringResource(Res.string.error_session_expired_login)
 
     fun replaceAll(route: AppRoute) {
         backStack.clear()
@@ -92,6 +95,17 @@ fun AppNavGraph(
                 ),
             )
             previousScreen = current
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        SessionExpiredBus.events.collect {
+            if (backStack.lastOrNull() is AppRoute.Login) return@collect
+            replaceAll(AppRoute.Login)
+            snackbarHostState.showSnackbar(
+                message = sessionExpiredMessage,
+                duration = SnackbarDuration.Short,
+            )
         }
     }
 

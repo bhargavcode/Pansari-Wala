@@ -18,30 +18,62 @@ import java.util.Locale
 import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import javax.imageio.IIOImage
 import javax.imageio.ImageIO
+import javax.imageio.ImageWriteParam
+import javax.imageio.ImageWriter
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 class AssetStore(private val config: ServerConfig) {
     private val http = HttpClient.newBuilder().build()
 
+    private val allowedPrefixes = setOf(
+        "master/product-images/",
+        "master/shop-images/",
+        "master/shop-verification/",
+        "users/user-image/",
+        "users/vehicle-image/",
+        "users/user-ids/",
+        "partners/user-image/",
+        "partners/vehicle-image/",
+        "partners/user-ids/",
+        "shops/delivery-packets/",
+        "shops/shop/",
+        "shops/product-images/",
+    )
+
+    private val allowedMime = setOf("image/jpeg", "image/jpg", "image/png", "image/webp")
+
     fun save(prefix: String, originalName: String, bytes: ByteArray, contentType: String): UploadResultDto {
-        val safePrefix = prefix.trim('/').ifBlank { "master/product-images" } + "/"
-        val ext = extension(originalName, contentType)
+        require(bytes.isNotEmpty()) { "Empty file" }
+        require(bytes.size <= 12_000_000) { "File too large" }
+        val mime = contentType.lowercase(Locale.US).substringBefore(';').trim()
+        require(mime in allowedMime) { "Only PNG, JPEG, or WebP images are allowed" }
+        val safePrefix = normalizePrefix(prefix)
+        val compressed = compressForUpload(bytes)
         val id = UUID.randomUUID().toString().replace("-", "")
-        val key = "$safePrefix$id$ext"
-        val thumbKey = "$safePrefix$id-thumb.jpg"
-        val thumbBytes = thumbnailJpeg(bytes)
+        val key = "${safePrefix}$id.jpg"
+        val thumbKey = "${safePrefix}$id-thumb.jpg"
+        val thumbBytes = thumbnailJpeg(compressed)
 
         return if (config.s3Configured) {
-            putS3(key, bytes, contentType)
+            putS3(key, compressed, "image/jpeg")
             putS3(thumbKey, thumbBytes, "image/jpeg")
             val base = "https://${config.s3Bucket}.s3.${config.s3Region}.amazonaws.com/"
             UploadResultDto(url = base + key, thumbnailUrl = base + thumbKey)
         } else {
-            writeLocal(key, bytes)
+            writeLocal(key, compressed)
             writeLocal(thumbKey, thumbBytes)
             val base = config.publicBaseUrl.trimEnd('/') + "/uploads/"
             UploadResultDto(url = base + key, thumbnailUrl = base + thumbKey)
         }
+    }
+
+    private fun normalizePrefix(prefix: String): String {
+        val normalized = prefix.trim().trim('/') + "/"
+        require(normalized in allowedPrefixes) { "Unsupported upload prefix: $prefix" }
+        return normalized
     }
 
     private fun writeLocal(key: String, bytes: ByteArray) {
@@ -50,14 +82,62 @@ class AssetStore(private val config: ServerConfig) {
         file.writeBytes(bytes)
     }
 
-    private fun extension(name: String, contentType: String): String {
-        val fromName = name.substringAfterLast('.', "").lowercase(Locale.US)
-        if (fromName in setOf("jpg", "jpeg", "png", "webp", "gif")) return ".$fromName"
-        return when {
-            contentType.contains("png") -> ".png"
-            contentType.contains("webp") -> ".webp"
-            contentType.contains("gif") -> ".gif"
-            else -> ".jpg"
+    /** WhatsApp-style: max edge 1600, JPEG ~82 down to 55, target ~100KB / ~90% reduction. */
+    private fun compressForUpload(bytes: ByteArray): ByteArray {
+        return try {
+            val src = ImageIO.read(ByteArrayInputStream(bytes)) ?: return bytes
+            val maxEdge = 1600
+            val scale = minOf(1.0, maxEdge.toDouble() / max(src.width, src.height))
+            var w = (src.width * scale).toInt().coerceAtLeast(1)
+            var h = (src.height * scale).toInt().coerceAtLeast(1)
+            var quality = 0.82f
+            val target = max(100_000, (bytes.size * 0.10).roundToInt()).coerceAtMost(200_000)
+            var out = encodeJpeg(scaleRgb(src, w, h), quality)
+            while (out.size > target && quality > 0.55f) {
+                quality -= 0.08f
+                out = encodeJpeg(scaleRgb(src, w, h), quality)
+            }
+            if (out.size > target * 1.4) {
+                w = (w * 0.8).roundToInt().coerceAtLeast(1)
+                h = (h * 0.8).roundToInt().coerceAtLeast(1)
+                out = encodeJpeg(scaleRgb(src, w, h), quality.coerceAtLeast(0.55f))
+            }
+            out
+        } catch (_: Exception) {
+            bytes
+        }
+    }
+
+    private fun scaleRgb(src: BufferedImage, w: Int, h: Int): BufferedImage {
+        val scaled = src.getScaledInstance(w, h, Image.SCALE_SMOOTH)
+        val out = BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
+        val g = out.createGraphics()
+        g.drawImage(scaled, 0, 0, null)
+        g.dispose()
+        return out
+    }
+
+    private fun encodeJpeg(image: BufferedImage, quality: Float): ByteArray {
+        val writers = ImageIO.getImageWritersByFormatName("jpg")
+        if (!writers.hasNext()) {
+            return ByteArrayOutputStream().use { bos ->
+                ImageIO.write(image, "jpg", bos)
+                bos.toByteArray()
+            }
+        }
+        val writer: ImageWriter = writers.next()
+        val param = writer.defaultWriteParam
+        if (param.canWriteCompressed()) {
+            param.compressionMode = ImageWriteParam.MODE_EXPLICIT
+            param.compressionQuality = quality.coerceIn(0.1f, 1f)
+        }
+        return ByteArrayOutputStream().use { bos ->
+            val ios = ImageIO.createImageOutputStream(bos)
+            writer.output = ios
+            writer.write(null, IIOImage(image, null, null), param)
+            ios.close()
+            writer.dispose()
+            bos.toByteArray()
         }
     }
 
@@ -65,18 +145,10 @@ class AssetStore(private val config: ServerConfig) {
         return try {
             val src = ImageIO.read(ByteArrayInputStream(bytes)) ?: return bytes
             val max = 256
-            val scale = minOf(1.0, max.toDouble() / maxOf(src.width, src.height))
+            val scale = minOf(1.0, max.toDouble() / max(src.width, src.height))
             val w = (src.width * scale).toInt().coerceAtLeast(1)
             val h = (src.height * scale).toInt().coerceAtLeast(1)
-            val scaled = src.getScaledInstance(w, h, Image.SCALE_SMOOTH)
-            val out = BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
-            val g = out.createGraphics()
-            g.drawImage(scaled, 0, 0, null)
-            g.dispose()
-            ByteArrayOutputStream().use { bos ->
-                ImageIO.write(out, "jpg", bos)
-                bos.toByteArray()
-            }
+            encodeJpeg(scaleRgb(src, w, h), 0.75f)
         } catch (_: Exception) {
             bytes
         }

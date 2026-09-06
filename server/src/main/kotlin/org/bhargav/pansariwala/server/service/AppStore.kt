@@ -18,6 +18,8 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.bson.Document
+import org.bson.conversions.Bson
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.db.AdminUserDoc
 import org.bhargav.pansariwala.server.db.CategoryDoc
@@ -129,8 +131,11 @@ class AppStore(
     private val productCol = mongo.db.getCollection<ProductDoc>("products")
     private val offerCol = mongo.db.getCollection<OfferDoc>("offers")
     private val orderCol = mongo.db.getCollection<OrderDoc>("orders")
+    /** Raw orders collection for id-only projections (OrderDoc codec rejects partial docs). */
+    private val orderIdCol = mongo.db.getCollection<Document>("orders")
     private val txnCol = mongo.db.getCollection<TxnDoc>("transactions")
     private val deliveryOfferCol = mongo.db.getCollection<DeliveryOfferDoc>("delivery_offers")
+    private val offerPayoutCol = mongo.db.getCollection<Document>("delivery_offers")
     private val otpCol = mongo.db.getCollection<OtpDoc>("otp_challenges")
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
     private val partnerLiteProjection = exclude(
@@ -140,6 +145,8 @@ class AppStore(
         "dlPhoto",
         "idPhoto",
     )
+    /** List endpoints: omit huge base64 pickup blobs. */
+    private val orderListProjection = exclude("pickupPhotos")
     /** Home/profile: keep avatar, drop other heavy base64 blobs. */
     private val partnerProfileProjection = exclude(
         "platePhoto",
@@ -693,7 +700,8 @@ class AppStore(
 
     fun availableOffersForPartner(partnerId: String): List<DeliveryOfferDto> {
         val partner = partnerCol.find(eq("_id", partnerId)).projection(partnerLiteProjection).firstOrNull() ?: return emptyList()
-        if (!partner.verified || !partner.online || !partner.hasGpsFix()) return emptyList()
+        // Online is only for push/socket fan-out; REST listing works while offline too.
+        if (!partner.verified || !partner.hasGpsFix()) return emptyList()
         val now = System.currentTimeMillis()
         val ringing = deliveryOfferCol.find(
             and(eq("status", "RINGING"), gte("expiresAt", now)),
@@ -768,7 +776,7 @@ class AppStore(
     fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse {
         val reg = Security.normalizeReg(request.vehicleReg)
         require(Security.vehicleRegRegex.matches(reg)) { "Invalid vehicle registration" }
-        require(request.vehiclePhotoBase64.length > 64) { "Vehicle photo required" }
+        require(isImageUrl(request.vehiclePhotoUrl)) { "Vehicle photo URL required" }
         require(request.name.isNotBlank() && request.email.contains("@") && request.address.isNotBlank()) { "Incomplete profile" }
         val phone = Security.normalizePhone(request.phone)
         require(partnerCol.find(eq("phone", phone)).firstOrNull() == null) { "Phone already registered as partner" }
@@ -783,11 +791,11 @@ class AppStore(
                 email = request.email,
                 address = request.address,
                 vehicleReg = reg,
-                platePhoto = request.platePhotoBase64.take(400_000).ifEmpty { "" },
-                vehiclePhoto = request.vehiclePhotoBase64.take(400_000),
-                profilePhoto = request.profilePhotoBase64.take(400_000),
-                dlPhoto = request.dlPhotoBase64.take(400_000),
-                idPhoto = request.idPhotoBase64.take(400_000),
+                platePhoto = request.platePhotoUrl.take(2_048).ifEmpty { "" },
+                vehiclePhoto = request.vehiclePhotoUrl.take(2_048),
+                profilePhoto = request.profilePhotoUrl.take(2_048),
+                dlPhoto = request.dlPhotoUrl.take(2_048),
+                idPhoto = request.idPhotoUrl.take(2_048),
                 lat = request.lat,
                 lng = request.lng,
                 verified = false,
@@ -807,15 +815,9 @@ class AppStore(
         val deliveredFilter = and(eq("partnerId", partnerId), `in`("status", deliveredStatuses))
         val todayFilter = and(deliveredFilter, gte("createdAt", start), lt("createdAt", end))
         val deliveredCount = orderCol.countDocuments(deliveredFilter).toInt()
-        val todayOrderIds = orderCol.find(todayFilter)
-            .projection(include("_id"))
-            .map { it.id }
-            .toList()
+        val todayOrderIds = orderIdsMatching(todayFilter)
         val todayEarnings = sumPartnerPayout(partnerId, todayOrderIds)
-        val allDeliveredIds = orderCol.find(deliveredFilter)
-            .projection(include("_id"))
-            .map { it.id }
-            .toList()
+        val allDeliveredIds = orderIdsMatching(deliveredFilter)
         val totalEarnings = sumPartnerPayout(partnerId, allDeliveredIds)
         return PartnerProfileDto(
             id = partner.id,
@@ -834,12 +836,22 @@ class AppStore(
         )
     }
 
+    private fun orderIdsMatching(filter: Bson): List<String> =
+        orderIdCol.find(filter)
+            .projection(include("_id"))
+            .toList()
+            .mapNotNull { it.getString("_id") }
+
     private fun sumPartnerPayout(partnerId: String, orderIds: List<String>): Double {
         if (orderIds.isEmpty()) return 0.0
-        return deliveryOfferCol.find(and(eq("acceptedBy", partnerId), `in`("orderId", orderIds)))
+        return offerPayoutCol.find(and(eq("acceptedBy", partnerId), `in`("orderId", orderIds)))
             .projection(include("payout"))
             .toList()
-            .sumOf { it.payout }
+            .sumOf { doc ->
+                doc.getDouble("payout")
+                    ?: doc.getInteger("payout")?.toDouble()
+                    ?: 0.0
+            }
     }
 
     fun setPartnerOnline(partnerId: String, online: Boolean) {
@@ -909,7 +921,7 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
         require(row.status == "PARTNER_ACCEPTED") { "Invalid status" }
-        val updates = if (photoOne.length > 64 && photoTwo.length > 64) {
+        val updates = if (isImageUrl(photoOne) && isImageUrl(photoTwo)) {
             combine(set("partnerProgress", "CAPTURE"), set("pickupPhotos", listOf(photoOne, photoTwo)))
         } else {
             set("partnerProgress", "CAPTURE")
@@ -956,6 +968,7 @@ class AppStore(
         }
         return mapOrders(
             orderCol.find(filter)
+                .projection(orderListProjection)
                 .sort(Sorts.descending("createdAt"))
                 .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
                 .toList(),
@@ -974,7 +987,7 @@ class AppStore(
     }
 
     fun submitPickup(partnerId: String, orderId: String, photoOne: String, photoTwo: String): OrderDto {
-        require(photoOne.length > 64 && photoTwo.length > 64) { "Two pickup photos required" }
+        require(isImageUrl(photoOne) && isImageUrl(photoTwo)) { "Two pickup photo URLs required" }
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
         orderCol.updateOne(
@@ -1055,6 +1068,7 @@ class AppStore(
     fun upsertMasterProduct(body: MasterProductUpsert): MasterProductDto {
         val id = body.id?.takeIf { it.isNotBlank() } ?: "mp_${UUID.randomUUID().toString().take(8)}"
         val existing = masterProductCol.find(eq("_id", id)).firstOrNull()
+        val urls = normalizeProductImageUrls(body.imageUrls, body.imageUrl, body.thumbnailUrl)
         val doc = MasterProductDoc(
             id = id,
             name = body.name.trim(),
@@ -1062,8 +1076,9 @@ class AppStore(
             categoryId = body.categoryId,
             unit = body.unit.ifBlank { "KG" },
             barcode = body.barcode?.takeIf { it.isNotBlank() },
-            imageUrl = body.imageUrl,
-            thumbnailUrl = body.thumbnailUrl,
+            imageUrl = urls.firstOrNull(),
+            thumbnailUrl = urls.firstOrNull(),
+            imageUrls = urls,
             brandName = body.brandName.trim(),
             companyName = body.companyName.trim(),
             subcategoryId = body.subcategoryId?.takeIf { it.isNotBlank() },
@@ -1436,8 +1451,9 @@ class AppStore(
         categoryId = categoryId,
         unit = unit,
         barcode = barcode,
-        imageUrl = imageUrl,
-        thumbnailUrl = thumbnailUrl,
+        imageUrl = imageUrls.firstOrNull() ?: imageUrl,
+        thumbnailUrl = imageUrls.firstOrNull() ?: thumbnailUrl,
+        imageUrls = normalizeProductImageUrls(imageUrls, imageUrl, thumbnailUrl),
         brandName = brandName,
         companyName = companyName,
         subcategoryId = subcategoryId,
@@ -1648,11 +1664,30 @@ class AppStore(
 
     private fun ProductDoc.toDto() = ProductDto(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
+        imageUrls = imageUrls.filter { isImageUrl(it) }.take(4),
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
+        imageUrls = imageUrls.filter { isImageUrl(it) }.take(4),
     )
+
+    private fun isImageUrl(value: String): Boolean {
+        val v = value.trim()
+        return v.startsWith("http://", ignoreCase = true) || v.startsWith("https://", ignoreCase = true)
+    }
+
+    private fun normalizeProductImageUrls(
+        imageUrls: List<String>,
+        imageUrl: String?,
+        thumbnailUrl: String?,
+    ): List<String> {
+        val merged = (imageUrls + listOfNotNull(imageUrl, thumbnailUrl))
+            .map { it.trim() }
+            .filter { isImageUrl(it) }
+            .distinct()
+        return merged.take(4)
+    }
 
     private fun refundAmountPaise(row: OrderDoc): Long {
         val quote = row.quote

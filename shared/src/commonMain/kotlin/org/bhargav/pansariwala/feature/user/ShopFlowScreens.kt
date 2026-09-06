@@ -296,6 +296,7 @@ fun ShopCatalogScreen(
                                     CatalogProductRow(
                                         name = product.name,
                                         price = product.sellingPrice.asMoney(),
+                                        imageUrls = product.imageUrls,
                                         quantity = viewModel.quantityOf(product.id),
                                         onIncrement = {
                                             if (viewModel.quantityOf(product.id) == 0) viewModel.add(product)
@@ -325,6 +326,7 @@ fun ShopCatalogScreen(
 private fun CatalogProductRow(
     name: String,
     price: String,
+    imageUrls: List<String>,
     quantity: Int,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
@@ -332,9 +334,14 @@ private fun CatalogProductRow(
 ) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        org.bhargav.pansariwala.media.ProductImageCarousel(
+            imageUrls = imageUrls,
+            modifier = Modifier.size(64.dp),
+            height = 64.dp,
+        )
         Column(Modifier.weight(1f)) {
             Text(name, fontWeight = FontWeight.Medium)
             Text(price, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)

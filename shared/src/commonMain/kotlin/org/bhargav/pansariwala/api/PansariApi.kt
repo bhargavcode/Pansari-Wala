@@ -74,4 +74,10 @@ interface PansariApi {
 
     suspend fun pullSync(): SyncPullResponse
     suspend fun pushSync(request: SyncPushRequest)
+
+    /** Multipart file upload to S3 (or local) URL. Prefix must be an allowed S3 prefix. */
+    suspend fun uploadImage(prefix: String, fileName: String, bytes: ByteArray, contentType: String): UploadResultDto
+
+    /** Pre-auth upload for partner/user onboarding photos (partners/ and users/ prefixes only). */
+    suspend fun uploadImageGuest(prefix: String, fileName: String, bytes: ByteArray, contentType: String): UploadResultDto
 }

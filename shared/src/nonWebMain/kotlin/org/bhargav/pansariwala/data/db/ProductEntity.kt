@@ -25,4 +25,6 @@ data class ProductEntity(
     val stockQty: Double,
     val lowStockThreshold: Double,
     val voiceAlias: String?,
+    /** Pipe-separated HTTPS image URLs (max 4). */
+    val imageUrls: String = "",
 )

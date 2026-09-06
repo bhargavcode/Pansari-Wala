@@ -58,11 +58,13 @@ import org.bhargav.pansariwala.feature.user.UserLanguageScreen
 import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
 import org.bhargav.pansariwala.feature.user.UserSettingsHub
 import org.bhargav.pansariwala.feature.user.UserThemeScreen
+import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.notification.NotificationRouter
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_show
+import pansariwala.shared.generated.resources.error_session_expired_login
 import pansariwala.shared.generated.resources.tab_home
 import pansariwala.shared.generated.resources.tab_orders
 import pansariwala.shared.generated.resources.tab_profile
@@ -96,11 +98,23 @@ fun UserNavGraph() {
     val backStack = rememberNavBackStack(userNavConfig, UserRoute.Splash)
     val snackbarHostState = remember { SnackbarHostState() }
     val openAction = stringResource(Res.string.action_show)
+    val sessionExpiredMessage = stringResource(Res.string.error_session_expired_login)
     fun replaceAll(route: UserRoute) { backStack.clear(); backStack.add(route) }
     fun push(route: UserRoute) { backStack.add(route) }
     fun pop() { if (backStack.size > 1) backStack.removeLastOrNull() }
     fun popOr(fallback: UserRoute) {
         if (backStack.size > 1) backStack.removeLastOrNull() else replaceAll(fallback)
+    }
+
+    LaunchedEffect(Unit) {
+        SessionExpiredBus.events.collect {
+            if (backStack.lastOrNull() is UserRoute.PhoneAuth) return@collect
+            replaceAll(UserRoute.PhoneAuth)
+            snackbarHostState.showSnackbar(
+                message = sessionExpiredMessage,
+                duration = SnackbarDuration.Short,
+            )
+        }
     }
 
     LaunchedEffect(Unit) {

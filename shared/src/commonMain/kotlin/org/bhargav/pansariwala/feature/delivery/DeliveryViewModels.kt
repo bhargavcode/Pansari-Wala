@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.api.JwtAuthCache
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.PartnerRegisterRequest
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
@@ -53,6 +54,7 @@ import pansariwala.shared.generated.resources.error_name_required
 import pansariwala.shared.generated.resources.error_not_a_partner
 import pansariwala.shared.generated.resources.error_phone_required
 import pansariwala.shared.generated.resources.error_photo_pick_failed
+import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_photos_required
 import pansariwala.shared.generated.resources.error_plate_mismatch
 import pansariwala.shared.generated.resources.location_unavailable
@@ -128,6 +130,7 @@ class PartnerLoginViewModel(
                     return@launch
                 }
                 preferences.saveToken(token)
+                JwtAuthCache.invalidate()
                 onDone()
             }.onFailure { error ->
                 _state.update { s -> s.copy(loading = false, error = mapPhoneAuthError(error, verifying = true)) }
@@ -269,21 +272,50 @@ class PartnerRegisterViewModel(
         _state.update { it.copy(showLocationDeniedDialog = false) }
     }
 
-    private fun attach(field: (RegisterUiState, String) -> RegisterUiState) {
+    private fun attach(prefix: String, field: (RegisterUiState, String) -> RegisterUiState) {
         viewModelScope.launch {
             val picked = imagePicker.pickImage() ?: return@launch
-            if (picked.base64.isBlank()) {
+            if (picked.bytes.isEmpty()) {
                 _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
                 return@launch
             }
-            _state.update { field(it, picked.base64).copy(error = null) }
+            _state.update { it.copy(loading = true, error = null) }
+            val result = runCatching {
+                val mime = org.bhargav.pansariwala.media.normalizeImageMime(picked.mimeType, picked.displayName)
+                    ?: error("unsupported")
+                val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
+                    picked.bytes, mime, picked.displayName,
+                )
+                if (prefix == AppConstants.S3Prefix.PARTNERS_VEHICLE_IMAGE) {
+                    vehiclePhotoBytes = compressed.bytes
+                }
+                val uploaded = api.uploadImageGuest(
+                    prefix = prefix,
+                    fileName = compressed.displayName,
+                    bytes = compressed.bytes,
+                    contentType = compressed.mimeType,
+                )
+                uploaded.url
+            }
+            result.onSuccess { url ->
+                _state.update { field(it, url).copy(loading = false, error = null) }
+            }.onFailure {
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        error = UiText.res(Res.string.error_image_upload_failed),
+                    )
+                }
+            }
         }
     }
 
-    fun attachProfile() = attach { s, v -> s.copy(profilePhoto = v) }
-    fun attachDl() = attach { s, v -> s.copy(dlPhoto = v) }
-    fun attachId() = attach { s, v -> s.copy(idPhoto = v) }
-    fun attachVehicle() = attach { s, v -> s.copy(vehiclePhoto = v) }
+    private var vehiclePhotoBytes: ByteArray = ByteArray(0)
+
+    fun attachProfile() = attach(AppConstants.S3Prefix.PARTNERS_USER_IMAGE) { s, v -> s.copy(profilePhoto = v) }
+    fun attachDl() = attach(AppConstants.S3Prefix.PARTNERS_USER_IDS) { s, v -> s.copy(dlPhoto = v) }
+    fun attachId() = attach(AppConstants.S3Prefix.PARTNERS_USER_IDS) { s, v -> s.copy(idPhoto = v) }
+    fun attachVehicle() = attach(AppConstants.S3Prefix.PARTNERS_VEHICLE_IMAGE) { s, v -> s.copy(vehiclePhoto = v) }
 
     fun save() {
         viewModelScope.launch {
@@ -321,10 +353,7 @@ class PartnerRegisterViewModel(
                 _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_vehicle_reg_invalid)) }
                 return@launch
             }
-            val photoBytes = runCatching {
-                @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-                kotlin.io.encoding.Base64.decode(_state.value.vehiclePhoto)
-            }.getOrNull() ?: ByteArray(0)
+            val photoBytes = vehiclePhotoBytes.takeIf { it.isNotEmpty() } ?: ByteArray(0)
             val ocrResult = ocr.readRegistration(photoBytes)
             val plateFromPhoto = ocrResult.getOrNull()?.let { normalizeVehicleReg(it) }.orEmpty()
             if (plateFromPhoto.isNotEmpty() && plateFromPhoto != entered) {
@@ -358,10 +387,10 @@ class PartnerRegisterViewModel(
                                 .joinToString(", "),
                             phone = digitsPhone(_state.value.phone),
                             vehicleReg = entered,
-                            vehiclePhotoBase64 = _state.value.vehiclePhoto,
-                            profilePhotoBase64 = _state.value.profilePhoto,
-                            dlPhotoBase64 = _state.value.dlPhoto,
-                            idPhotoBase64 = _state.value.idPhoto,
+                            vehiclePhotoUrl = _state.value.vehiclePhoto,
+                            profilePhotoUrl = _state.value.profilePhoto,
+                            dlPhotoUrl = _state.value.dlPhoto,
+                            idPhotoUrl = _state.value.idPhoto,
                             lat = geo.lat,
                             lng = geo.lng,
                         ),
@@ -424,6 +453,7 @@ class PartnerRegisterViewModel(
                 }
             }.onSuccess {
                 preferences.saveToken(it)
+                JwtAuthCache.invalidate()
                 onDone()
             }.onFailure { error ->
                 _state.update { s -> s.copy(loading = false, error = mapPhoneAuthError(error, verifying = true)) }
@@ -456,6 +486,7 @@ class PartnerHomeViewModel(
     private val api: PansariApi,
     private val location: DeviceLocation,
     private val locationTracker: PartnerLocationTracker,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
     private val _state = MutableStateFlow(PartnerHomeUiState())
     val state: StateFlow<PartnerHomeUiState> = _state.asStateFlow()
@@ -467,6 +498,19 @@ class PartnerHomeViewModel(
     fun dismissError() { _state.update { it.copy(error = null) } }
 
     init {
+        viewModelScope.launch {
+            val cached = preferences.getCachedPartnerProfile()
+            if (cached != null) {
+                _state.update {
+                    it.copy(
+                        profile = cached,
+                        online = cached.online,
+                        loading = false,
+                    )
+                }
+                applyOnlineState(cached.online)
+            }
+        }
         refresh()
         requestLocationAccessOnLanding()
     }
@@ -506,7 +550,9 @@ class PartnerHomeViewModel(
 
     fun refresh() {
         viewModelScope.launch {
-            val keepContent = _state.value.profile != null
+            val keepContent = _state.value.profile != null ||
+                _state.value.acceptedJobs.isNotEmpty() ||
+                _state.value.availableOffers.isNotEmpty()
             _state.update {
                 it.copy(
                     loading = !keepContent,
@@ -516,42 +562,35 @@ class PartnerHomeViewModel(
             }
             runCatching {
                 coroutineScope {
-                    val profileDef = async { api.partnerProfile() }
-                    val acceptedDef = async { api.acceptedJobs() }
-                    val profile = profileDef.await()
-                    val accepted = acceptedDef.await().filter { it.isActiveDelivery }
-                    val offers = if (profile.online) {
-                        runCatching { api.availableOffers() }.getOrDefault(emptyList())
-                    } else {
-                        emptyList()
-                    }
-                    Triple(profile, accepted, offers)
+                    val accepted = async { runCatching { api.acceptedJobs() }.getOrDefault(emptyList()) }
+                        .await()
+                        .filter { it.isActiveDelivery }
+                    val offers = async { runCatching { api.availableOffers() }.getOrDefault(emptyList()) }
+                        .await()
+                    accepted to offers
                 }
-            }.onSuccess { (profile, accepted, offers) ->
+            }.onSuccess { (accepted, offers) ->
+                val online = preferences.getPartnerOnlineDuty()
+                applyOnlineState(online)
                 _state.update {
                     it.copy(
                         loading = false,
                         refreshing = false,
-                        profile = profile,
-                        online = profile.online,
+                        online = online,
                         acceptedJobs = accepted,
                         availableOffers = offers,
                         error = null,
                     )
                 }
-                syncLocationDuty(profile.online)
-                if (profile.online) {
-                    startPolling()
-                } else {
-                    pollJob?.cancel()
-                    timerJob?.cancel()
-                }
             }.onFailure { e ->
                 e.rethrowIfStructuredCancellation()
+                val online = preferences.getPartnerOnlineDuty()
+                applyOnlineState(online)
                 _state.update {
                     it.copy(
                         loading = false,
                         refreshing = false,
+                        online = online,
                         error = e.toApiUiText(),
                     )
                 }
@@ -571,7 +610,13 @@ class PartnerHomeViewModel(
         viewModelScope.launch {
             runCatching { api.setPartnerOnline(online) }
                 .onSuccess {
-                    _state.update { it.copy(online = online) }
+                    val updatedProfile = _state.value.profile?.copy(online = online)
+                    if (updatedProfile != null) {
+                        preferences.setCachedPartnerProfile(updatedProfile)
+                    } else {
+                        preferences.setPartnerOnlineDuty(online)
+                    }
+                    _state.update { it.copy(online = online, profile = updatedProfile ?: it.profile) }
                     syncLocationDuty(online)
                     if (online) {
                         if (_state.value.locationPermissionGranted) {
@@ -584,7 +629,9 @@ class PartnerHomeViewModel(
                         pollJob?.cancel()
                         timerJob?.cancel()
                         flashedOfferIds.clear()
-                        _state.update { it.copy(incomingOffer = null, availableOffers = emptyList()) }
+                        // Keep jobs/offers from REST; stop only push-style polling.
+                        _state.update { it.copy(incomingOffer = null) }
+                        refreshAvailableOffers()
                     }
                 }
         }
@@ -624,6 +671,17 @@ class PartnerHomeViewModel(
 
     private fun syncLocationDuty(online: Boolean) {
         viewModelScope.launch { locationTracker.setOnlineDuty(online) }
+    }
+
+    /** Persist duty and start/stop offer polling to match online flag. */
+    private fun applyOnlineState(online: Boolean) {
+        syncLocationDuty(online)
+        if (online) {
+            startPolling()
+        } else {
+            pollJob?.cancel()
+            timerJob?.cancel()
+        }
     }
 
     private fun pushLocation() {
@@ -880,14 +938,33 @@ class PartnerJobViewModel(
     fun attachPhoto(slot: Int) {
         viewModelScope.launch {
             val picked = imagePicker.pickImage() ?: return@launch
-            if (picked.base64.isBlank()) {
+            if (picked.bytes.isEmpty()) {
                 _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
                 return@launch
             }
-            _state.update {
-                when (slot) {
-                    1 -> it.copy(photoOne = picked.base64, error = null)
-                    else -> it.copy(photoTwo = picked.base64, error = null)
+            _state.update { it.copy(submitting = true, error = null) }
+            runCatching {
+                val mime = org.bhargav.pansariwala.media.normalizeImageMime(picked.mimeType, picked.displayName)
+                    ?: error("unsupported")
+                val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
+                    picked.bytes, mime, picked.displayName,
+                )
+                api.uploadImage(
+                    prefix = AppConstants.S3Prefix.SHOPS_DELIVERY_PACKETS,
+                    fileName = compressed.displayName,
+                    bytes = compressed.bytes,
+                    contentType = compressed.mimeType,
+                ).url
+            }.onSuccess { url ->
+                _state.update {
+                    when (slot) {
+                        1 -> it.copy(photoOne = url, submitting = false, error = null)
+                        else -> it.copy(photoTwo = url, submitting = false, error = null)
+                    }
+                }
+            }.onFailure {
+                _state.update {
+                    it.copy(submitting = false, error = UiText.res(Res.string.error_image_upload_failed))
                 }
             }
         }
@@ -1002,11 +1079,19 @@ data class PartnerEarningsUiState(
 
 class PartnerEarningsViewModel(
     private val api: PansariApi,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
     private val _state = MutableStateFlow(PartnerEarningsUiState())
     val state: StateFlow<PartnerEarningsUiState> = _state.asStateFlow()
 
-    init { load() }
+    init {
+        viewModelScope.launch {
+            preferences.getCachedPartnerProfile()?.let { cached ->
+                _state.update { it.copy(profile = cached) }
+            }
+        }
+        load()
+    }
 
     fun dismissError() { _state.update { it.copy(error = null) } }
 
@@ -1020,6 +1105,7 @@ class PartnerEarningsViewModel(
                     profile.await() to earnings.await()
                 }
             }.onSuccess { (profile, earnings) ->
+                preferences.setCachedPartnerProfile(profile)
                 _state.update { it.copy(loading = false, profile = profile, earnings = earnings) }
             }.onFailure { error ->
                 error.rethrowIfStructuredCancellation()

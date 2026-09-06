@@ -23,6 +23,7 @@ fun OrderStatus.toFulfillmentStep(): FulfillmentStep = when (this) {
     OrderStatus.REJECTED, OrderStatus.CANCELLED -> FulfillmentStep.PLACED
 }
 
+@kotlinx.serialization.Serializable
 data class GeoPoint(
     val lat: Double,
     val lng: Double,
@@ -81,6 +82,7 @@ data class ShopOffer(
     val discountPercent: Double,
 )
 
+@kotlinx.serialization.Serializable
 data class SavedAddress(
     val id: String,
     val line: String,
@@ -89,6 +91,7 @@ data class SavedAddress(
     val isDefault: Boolean,
 )
 
+@kotlinx.serialization.Serializable
 data class CustomerProfile(
     val id: String,
     val phone: String,

@@ -319,6 +319,7 @@ data class ProductDto(
     val stockQty: Double,
     val lowStockThreshold: Double,
     val voiceAlias: String? = null,
+    val imageUrls: List<String> = emptyList(),
 )
 
 @Serializable
@@ -473,11 +474,11 @@ data class PartnerRegisterRequest(
     val address: String,
     val phone: String,
     val vehicleReg: String,
-    val platePhotoBase64: String = "",
-    val vehiclePhotoBase64: String,
-    val profilePhotoBase64: String = "",
-    val dlPhotoBase64: String = "",
-    val idPhotoBase64: String = "",
+    val platePhotoUrl: String = "",
+    val vehiclePhotoUrl: String,
+    val profilePhotoUrl: String = "",
+    val dlPhotoUrl: String = "",
+    val idPhotoUrl: String = "",
     val lat: Double? = null,
     val lng: Double? = null,
 )
@@ -518,7 +519,7 @@ data class PartnerEarningsDto(
 )
 
 @Serializable
-data class PickupRequest(val photoOneBase64: String, val photoTwoBase64: String)
+data class PickupRequest(val photoOneUrl: String, val photoTwoUrl: String)
 
 @Serializable
 data class DeliverRequest(val otp: String)
@@ -554,6 +555,7 @@ data class MasterProductDto(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
     val brandName: String = "",
     val companyName: String = "",
     val subcategoryId: String? = null,
@@ -581,6 +583,7 @@ data class MasterProductUpsert(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
     val brandName: String = "",
     val companyName: String = "",
     val subcategoryId: String? = null,

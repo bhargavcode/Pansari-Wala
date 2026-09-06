@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.serialization.kotlinx.json.json
@@ -11,6 +12,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.api.createPlatformHttpClient
+import org.bhargav.pansariwala.api.installPansariHttpLogging
+import org.bhargav.pansariwala.api.shouldInstallHttpLogging
 import org.bhargav.pansariwala.util.AppConstants
 
 data class PlacePrediction(
@@ -100,6 +103,9 @@ private fun placesHttpClient(): HttpClient = createPlatformHttpClient().config {
     }
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true; isLenient = true })
+    }
+    if (shouldInstallHttpLogging()) {
+        install(Logging) { installPansariHttpLogging() }
     }
 }
 

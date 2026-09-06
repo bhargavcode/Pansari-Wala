@@ -49,7 +49,7 @@ fun main() {
             anyHost()
             maxAgeInSeconds = 86_400
         }
-        install(CallLogging) { level = Level.INFO }
+        install(CallLogging) { level = Level.DEBUG }
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = false; isLenient = true })
         }

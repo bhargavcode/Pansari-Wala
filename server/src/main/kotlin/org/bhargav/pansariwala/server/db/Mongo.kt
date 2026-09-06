@@ -158,6 +158,7 @@ data class MasterProductDoc(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
     val brandName: String = "",
     val companyName: String = "",
     val subcategoryId: String? = null,
@@ -196,6 +197,7 @@ data class ProductDoc(
     val stockQty: Double,
     val lowStockThreshold: Double,
     val voiceAlias: String? = null,
+    val imageUrls: List<String> = emptyList(),
 )
 
 @Serializable

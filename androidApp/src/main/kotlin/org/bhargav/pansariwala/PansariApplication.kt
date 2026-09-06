@@ -25,6 +25,7 @@ class PansariApplication : Application(), KoinComponent {
         super.onCreate()
         AppProductHolder.current = AppProduct.fromName(BuildConfig.APP_PRODUCT)
         ApiRuntime.baseUrl = BuildConfig.API_BASE_URL
+        ApiRuntime.isDebugBuild = BuildConfig.DEBUG
         initKoin {
             androidLogger(Level.ERROR)
             androidContext(this@PansariApplication)

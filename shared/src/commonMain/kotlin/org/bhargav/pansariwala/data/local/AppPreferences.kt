@@ -3,6 +3,9 @@ package org.bhargav.pansariwala.data.local
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import org.bhargav.pansariwala.domain.model.CustomerProfile
+import org.bhargav.pansariwala.domain.model.PartnerProfile
 import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.platform.stopPartnerLocationTracking
 import org.bhargav.pansariwala.settings.AppUserSettings
@@ -13,6 +16,8 @@ import org.bhargav.pansariwala.util.AppConstants
 class AppPreferences(
     private val store: SessionStore,
 ) {
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
     private object Keys {
         const val accessToken = "access_token"
         const val refreshToken = "refresh_token"
@@ -28,7 +33,10 @@ class AppPreferences(
         const val role = "pref_auth_role"
         const val notifyOffers = "pref_notify_offers"
         const val notifyDelivery = "pref_notify_delivery"
-        const val partnerOnlineDuty = "pref_partner_online_duty"
+        const val cachedPartnerProfile = AppConstants.Prefs.CACHED_PARTNER_PROFILE
+        const val cachedCustomerProfile = AppConstants.Prefs.CACHED_CUSTOMER_PROFILE
+        /** Legacy duty flag — cleared on logout; online now lives in cached partner profile. */
+        const val legacyPartnerOnlineDuty = "pref_partner_online_duty"
     }
 
     val accessToken: Flow<String?> = store.observeString(Keys.accessToken)
@@ -124,11 +132,35 @@ class AppPreferences(
         store.putStrings(mapOf(Keys.notifyDelivery to enabled.toString()))
     }
 
-    suspend fun getPartnerOnlineDuty(): Boolean =
-        store.getString(Keys.partnerOnlineDuty).toBooleanPref(default = false)
+    suspend fun getCachedPartnerProfile(): PartnerProfile? =
+        store.getString(Keys.cachedPartnerProfile)?.let { raw ->
+            runCatching { json.decodeFromString(PartnerProfile.serializer(), raw) }.getOrNull()
+        }
+
+    suspend fun setCachedPartnerProfile(profile: PartnerProfile) {
+        store.putStrings(
+            mapOf(Keys.cachedPartnerProfile to json.encodeToString(PartnerProfile.serializer(), profile)),
+        )
+    }
+
+    suspend fun getCachedCustomerProfile(): CustomerProfile? =
+        store.getString(Keys.cachedCustomerProfile)?.let { raw ->
+            runCatching { json.decodeFromString(CustomerProfile.serializer(), raw) }.getOrNull()
+        }
+
+    suspend fun setCachedCustomerProfile(profile: CustomerProfile) {
+        store.putStrings(
+            mapOf(Keys.cachedCustomerProfile to json.encodeToString(CustomerProfile.serializer(), profile)),
+        )
+    }
+
+    /** Online duty is derived from the cached partner profile (no separate pref). */
+    suspend fun getPartnerOnlineDuty(): Boolean = getCachedPartnerProfile()?.online == true
 
     suspend fun setPartnerOnlineDuty(online: Boolean) {
-        store.putStrings(mapOf(Keys.partnerOnlineDuty to online.toString()))
+        val cached = getCachedPartnerProfile() ?: return
+        if (cached.online == online) return
+        setCachedPartnerProfile(cached.copy(online = online))
     }
 
     suspend fun saveSession(
@@ -161,7 +193,9 @@ class AppPreferences(
                 Keys.shopId,
                 Keys.userDisplayName,
                 Keys.role,
-                Keys.partnerOnlineDuty,
+                Keys.cachedPartnerProfile,
+                Keys.cachedCustomerProfile,
+                Keys.legacyPartnerOnlineDuty,
             ),
         )
     }

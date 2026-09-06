@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.master
 
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -9,17 +10,23 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLPathPart
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.api.ApiRuntime
 import org.bhargav.pansariwala.api.createPlatformHttpClient
+import org.bhargav.pansariwala.api.installPansariHttpLogging
+import org.bhargav.pansariwala.api.shouldInstallHttpLogging
 
 class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val client = createPlatformHttpClient().config {
         expectSuccess = true
         install(ContentNegotiation) { json(json) }
+        if (shouldInstallHttpLogging()) {
+            install(Logging) { installPansariHttpLogging() }
+        }
     }
 
     private fun url(path: String) = baseUrl.trimEnd('/') + path
@@ -57,6 +64,32 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             bearer(token)
             contentType(ContentType.Application.Json)
             setBody(body)
+        }.body()
+
+    suspend fun uploadFile(
+        token: String,
+        prefix: String,
+        fileName: String,
+        bytes: ByteArray,
+        contentType: String,
+    ): UploadResultDto =
+        client.post(url("/admin/uploads")) {
+            bearer(token)
+            parameter("prefix", prefix.trim('/'))
+            setBody(
+                io.ktor.client.request.forms.MultiPartFormDataContent(
+                    io.ktor.client.request.forms.formData {
+                        append(
+                            "file",
+                            bytes,
+                            io.ktor.http.Headers.build {
+                                append(io.ktor.http.HttpHeaders.ContentType, contentType)
+                                append(io.ktor.http.HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                            },
+                        )
+                    },
+                ),
+            )
         }.body()
 
     suspend fun deleteProduct(token: String, id: String) {
@@ -136,10 +169,10 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         }.body()
 
     suspend fun orderDetail(token: String, id: String): TxnDto =
-        client.get(url("/admin/orders/$id")) { bearer(token) }.body()
+        client.get(url("/admin/orders/${id.encodeURLPathPart()}")) { bearer(token) }.body()
 
     suspend fun cancelOrder(token: String, id: String, reason: String? = null) {
-        client.post(url("/admin/orders/$id/cancel")) {
+        client.post(url("/admin/orders/${id.encodeURLPathPart()}/cancel")) {
             bearer(token)
             contentType(ContentType.Application.Json)
             setBody(OrderActionBody(reason))
@@ -147,7 +180,7 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
     }
 
     suspend fun refundOrder(token: String, id: String) {
-        client.post(url("/admin/orders/$id/refund")) { bearer(token) }
+        client.post(url("/admin/orders/${id.encodeURLPathPart()}/refund")) { bearer(token) }
     }
 
     suspend fun users(token: String, from: Long? = null, to: Long? = null): List<UserDto> =
@@ -223,6 +256,7 @@ data class ProductDto(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
     val brandName: String = "",
     val companyName: String = "",
     val subcategoryId: String? = null,
@@ -250,6 +284,7 @@ data class ProductUpsert(
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
     val brandName: String = "",
     val companyName: String = "",
     val subcategoryId: String? = null,
@@ -264,6 +299,12 @@ data class ProductUpsert(
     val weightKg: Double = 0.0,
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
+)
+
+@Serializable
+data class UploadResultDto(
+    val url: String,
+    val thumbnailUrl: String,
 )
 
 @Serializable data class CategoryDto(val id: String, val name: String, val parentId: String? = null)

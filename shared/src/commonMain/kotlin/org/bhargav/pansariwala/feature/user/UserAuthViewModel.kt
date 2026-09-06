@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.api.JwtAuthCache
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.TokenResponse
 import org.bhargav.pansariwala.data.local.AppPreferences
@@ -93,6 +94,7 @@ class PhoneAuthViewModel(
                 }
             }.onSuccess { token ->
                 preferences.saveToken(token)
+                JwtAuthCache.invalidate()
                 _state.update { s -> s.copy(loading = false, profileComplete = token.profileComplete) }
                 onDone(token)
             }.onFailure { error ->
@@ -117,6 +119,7 @@ data class AddressUiState(
 class AddressViewModel(
     private val api: PansariApi,
     private val location: DeviceLocation,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
     private val _state = MutableStateFlow(AddressUiState())
     val state: StateFlow<AddressUiState> = _state.asStateFlow()
@@ -207,7 +210,10 @@ class AddressViewModel(
                 } else {
                     api.saveAddress(s.address, s.locality, lat, lng)
                 }
-            }.onSuccess { onDone() }
+            }.onSuccess { profile ->
+                preferences.setCachedCustomerProfile(profile)
+                onDone()
+            }
                 .onFailure { err ->
                     _state.update { st -> st.copy(error = UiText.Plain(err.message.orEmpty())) }
                 }

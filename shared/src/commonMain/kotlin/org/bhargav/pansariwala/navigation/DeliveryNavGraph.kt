@@ -3,10 +3,17 @@ package org.bhargav.pansariwala.navigation
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -16,6 +23,7 @@ import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
+import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.feature.delivery.PartnerCapturePhotosScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerCustomerPaymentScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerDeliverToCustomerScreen
@@ -34,6 +42,9 @@ import org.bhargav.pansariwala.feature.user.UserThemeScreen
 import org.bhargav.pansariwala.notification.NotificationRouter
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.util.AppConstants
+import org.jetbrains.compose.resources.stringResource
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_session_expired_login
 
 private val deliveryNavConfig = SavedStateConfiguration {
     serializersModule = SerializersModule {
@@ -71,9 +82,22 @@ private fun resumePartnerJob(order: Order): DeliveryRoute {
 @Composable
 fun DeliveryNavGraph() {
     val backStack = rememberNavBackStack(deliveryNavConfig, DeliveryRoute.Splash)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val sessionExpiredMessage = stringResource(Res.string.error_session_expired_login)
     fun replaceAll(route: DeliveryRoute) { backStack.clear(); backStack.add(route) }
     fun push(route: DeliveryRoute) { backStack.add(route) }
     fun pop() { if (backStack.size > 1) backStack.removeLastOrNull() }
+
+    LaunchedEffect(Unit) {
+        SessionExpiredBus.events.collect {
+            if (backStack.lastOrNull() is DeliveryRoute.Login) return@collect
+            replaceAll(DeliveryRoute.Login)
+            snackbarHostState.showSnackbar(
+                message = sessionExpiredMessage,
+                duration = SnackbarDuration.Short,
+            )
+        }
+    }
 
     LaunchedEffect(Unit) {
         NotificationRouter.events.collect { notification ->
@@ -192,6 +216,10 @@ fun DeliveryNavGraph() {
                     }
                 }
             },
+        )
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
         )
     }
 }

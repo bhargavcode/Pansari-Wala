@@ -82,17 +82,45 @@ object AppConstants {
         const val PARTNERS_USER_IDS: String = "partners/user-ids/"
         const val SHOPS_DELIVERY_PACKETS: String = "shops/delivery-packets/"
         const val SHOPS_SHOP: String = "shops/shop/"
+        const val SHOPS_PRODUCT_IMAGES: String = "shops/product-images/"
     }
+    /** Allowed S3 key prefixes for authenticated multipart uploads. */
+    val ALLOWED_UPLOAD_PREFIXES: Set<String> = setOf(
+        S3Prefix.MASTER_PRODUCT_IMAGES,
+        S3Prefix.MASTER_SHOP_IMAGES,
+        S3Prefix.MASTER_SHOP_VERIFICATION,
+        S3Prefix.USERS_USER_IMAGE,
+        S3Prefix.USERS_VEHICLE_IMAGE,
+        S3Prefix.USERS_USER_IDS,
+        S3Prefix.PARTNERS_USER_IMAGE,
+        S3Prefix.PARTNERS_VEHICLE_IMAGE,
+        S3Prefix.PARTNERS_USER_IDS,
+        S3Prefix.SHOPS_DELIVERY_PACKETS,
+        S3Prefix.SHOPS_SHOP,
+        S3Prefix.SHOPS_PRODUCT_IMAGES,
+    )
     const val HTTP_CONNECT_TIMEOUT_MS: Long = 5_000L
     const val HTTP_REQUEST_TIMEOUT_MS: Long = 12_000L
     const val HTTP_SOCKET_TIMEOUT_MS: Long = 12_000L
     const val HTTP_EXTERNAL_TIMEOUT_MS: Long = 5_000L
+    const val HTTP_UPLOAD_TIMEOUT_MS: Long = 60_000L
+    const val HTTP_LOG_TAG: String = "PansariHttp"
     const val REMOTE_LOGIN_TIMEOUT_MS: Long = 15_000L
     const val DEFAULT_PHONE_COUNTRY_CODE: String = "+91"
     const val PHONE_LOCAL_DIGITS: Int = 10
     const val OTP_TIMEOUT_SEC: Long = 60L
-    const val PHOTO_JPEG_QUALITY: Int = 70
-    const val PHOTO_MAX_EDGE_PX: Int = 1280
+    /** WhatsApp-style: high visual quality JPEG after downscale. */
+    const val PHOTO_JPEG_QUALITY: Int = 82
+    const val PHOTO_JPEG_QUALITY_MIN: Int = 55
+    const val PHOTO_MAX_EDGE_PX: Int = 1600
+    /** Soft cap after compress (~1MB camera shot → ~100KB). */
+    const val PHOTO_TARGET_MAX_BYTES: Int = 100_000
+    /** Aim for ~90% size reduction vs original when original is large. */
+    const val PHOTO_TARGET_RATIO: Double = 0.10
+    const val PHOTO_MAX_PRODUCT_IMAGES: Int = 4
+    const val IMAGE_CAROUSEL_INTERVAL_MS: Long = 2_000L
+    const val UPLOAD_AUTO_RETRY_COUNT: Int = 1
+    const val UPLOAD_MAX_RAW_BYTES: Int = 12_000_000
 
     object Prefs {
         const val SEARCH_RADIUS_KM: String = "pref_search_radius_km"
@@ -100,7 +128,8 @@ object AppConstants {
         const val CUSTOMER_NAME: String = "pref_customer_name"
         const val CUSTOMER_ADDRESS: String = "pref_customer_address"
         const val PARTNER_ID: String = "pref_partner_id"
-        const val PARTNER_ONLINE_DUTY: String = "pref_partner_online_duty"
+        const val CACHED_PARTNER_PROFILE: String = "pref_cached_partner_profile"
+        const val CACHED_CUSTOMER_PROFILE: String = "pref_cached_customer_profile"
         const val ROLE: String = "pref_auth_role"
         const val FCM_TOKEN: String = "pref_fcm_token"
         const val NOTIFY_OFFERS: String = "pref_notify_offers"

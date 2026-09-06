@@ -14,6 +14,7 @@ import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
+import org.bhargav.pansariwala.domain.model.CustomerProfile
 import org.bhargav.pansariwala.domain.model.ShopSortOption
 import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.i18n.UiText
@@ -86,17 +87,20 @@ class MarketViewModel(
 
     fun loadProfile() {
         viewModelScope.launch {
-            runCatching { api.me() }.onSuccess { profile ->
-                val label = buildString {
-                    if (profile.locality.isNotBlank()) append(profile.locality)
-                    if (profile.address.isNotBlank()) {
-                        if (isNotEmpty()) append(", ")
-                        append(profile.address)
-                    }
-                }.ifBlank { profile.address }
-                _state.update { it.copy(userName = profile.name, locationLabel = label) }
-            }
+            val profile = preferences.getCachedCustomerProfile() ?: return@launch
+            applyProfileToState(profile)
         }
+    }
+
+    private fun applyProfileToState(profile: CustomerProfile) {
+        val label = buildString {
+            if (profile.locality.isNotBlank()) append(profile.locality)
+            if (profile.address.isNotBlank()) {
+                if (isNotEmpty()) append(", ")
+                append(profile.address)
+            }
+        }.ifBlank { profile.address }
+        _state.update { it.copy(userName = profile.name, locationLabel = label) }
     }
 
     fun consumeLocationPermissionRequest() {

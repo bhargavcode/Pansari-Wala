@@ -84,6 +84,12 @@ fun AddEditInventoryScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            org.bhargav.pansariwala.media.ProductImageSlots(
+                slots = state.imageSlots,
+                onAdd = viewModel::addImage,
+                onRetry = viewModel::retryImage,
+                onClear = viewModel::clearImage,
+            )
 
         Text(
             text = stringResource(Res.string.inventory_lookup_hint),

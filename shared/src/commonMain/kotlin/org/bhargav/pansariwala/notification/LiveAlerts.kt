@@ -75,6 +75,8 @@ class LiveAlerts(
     }
 
     private suspend fun pollPartner(lastOfferId: String?, primed: Boolean): String? {
+        // New-offer push/notifications only while partner marked online.
+        if (!preferences.getPartnerOnlineDuty()) return lastOfferId
         val offer = api.incomingOffer()
         if (primed && offer != null && offer.id != lastOfferId) {
             gateway.show(

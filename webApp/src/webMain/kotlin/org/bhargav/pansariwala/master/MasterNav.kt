@@ -54,5 +54,5 @@ fun formatInr(amount: Double): String {
     val paise = (amount * 100).toLong()
     val whole = paise / 100
     val frac = (paise % 100).toString().padStart(2, '0')
-    return "₹$whole.$frac"
+    return "$whole.$frac"
 }

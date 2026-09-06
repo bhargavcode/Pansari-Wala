@@ -73,7 +73,7 @@ Four products share one Kotlin codebase and one Ktor backend.
 | `FCM_SERVER_KEY` | server env | For remote push (wire FCM HTTP v1 next). |
 | OTP hashes | Mongo `otp_challenges` | SHA-256 of code, 5 min TTL, deleted after use. |
 | Delivery OTP | order row | Shown to customer; partner must match. |
-| Photos | truncated base64 on partner/order rows | Replace with object storage + signed URLs for production. |
+| Photos | truncated base64 on partner/order rows | **Done:** multipart → S3 URLs (`AssetStore` + `/uploads`); clients store/fetch HTTPS URLs only.
 | Cleartext HTTP | not used for API | All clients use `https://api.pansariwala.shop`. |
 
 **Payment rules**

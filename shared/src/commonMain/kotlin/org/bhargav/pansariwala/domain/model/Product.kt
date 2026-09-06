@@ -41,7 +41,9 @@ data class Product(
     val stockQty: Double,
     val lowStockThreshold: Double,
     val voiceAlias: String?,
+    val imageUrls: List<String> = emptyList(),
 ) {
     val isLowStock: Boolean get() = stockQty <= lowStockThreshold
     val stockValue: Double get() = stockQty * costPrice
+    val primaryImageUrl: String? get() = imageUrls.firstOrNull { it.isNotBlank() }
 }

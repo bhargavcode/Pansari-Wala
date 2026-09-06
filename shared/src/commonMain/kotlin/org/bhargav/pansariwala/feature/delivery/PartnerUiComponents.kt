@@ -1,16 +1,23 @@
 package org.bhargav.pansariwala.feature.delivery
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +28,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,90 +45,79 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.decodeToImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import org.bhargav.pansariwala.designsystem.PansariElevation
 import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderItem
+import org.bhargav.pansariwala.platform.PartnerLiveMap
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
-import org.bhargav.pansariwala.platform.PartnerLiveMap
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_accept
-import pansariwala.shared.generated.resources.action_okay
 import pansariwala.shared.generated.resources.action_close
-import pansariwala.shared.generated.resources.pickup_photos_title
-import pansariwala.shared.generated.resources.partner_enter_delivery_otp
-import pansariwala.shared.generated.resources.partner_otp_customer_hint
+import pansariwala.shared.generated.resources.action_okay
+import pansariwala.shared.generated.resources.action_retry
 import pansariwala.shared.generated.resources.offer_already_taken
 import pansariwala.shared.generated.resources.offer_already_taken_title
 import pansariwala.shared.generated.resources.partner_accepted
 import pansariwala.shared.generated.resources.partner_accepted_empty_hint
 import pansariwala.shared.generated.resources.partner_accepted_empty_title
 import pansariwala.shared.generated.resources.partner_accepted_orders_title
+import pansariwala.shared.generated.resources.partner_action_back_home
 import pansariwala.shared.generated.resources.partner_action_decline
 import pansariwala.shared.generated.resources.partner_action_go_online
 import pansariwala.shared.generated.resources.partner_available_orders_title
+import pansariwala.shared.generated.resources.partner_bag_photo
 import pansariwala.shared.generated.resources.partner_brand_title
 import pansariwala.shared.generated.resources.partner_current_location
+import pansariwala.shared.generated.resources.partner_enter_delivery_otp
+import pansariwala.shared.generated.resources.partner_item_price
+import pansariwala.shared.generated.resources.partner_job_loading
 import pansariwala.shared.generated.resources.partner_jobs_empty_hint
 import pansariwala.shared.generated.resources.partner_jobs_empty_offline
 import pansariwala.shared.generated.resources.partner_jobs_empty_title
+import pansariwala.shared.generated.resources.partner_navigate
 import pansariwala.shared.generated.resources.partner_new_delivery_offer
 import pansariwala.shared.generated.resources.partner_offer_distance
 import pansariwala.shared.generated.resources.partner_offer_order
 import pansariwala.shared.generated.resources.partner_offer_payout
 import pansariwala.shared.generated.resources.partner_offer_timer
-import pansariwala.shared.generated.resources.partner_resume_job
-import pansariwala.shared.generated.resources.partner_navigate
-import pansariwala.shared.generated.resources.partner_item_price
-import pansariwala.shared.generated.resources.partner_bag_photo
 import pansariwala.shared.generated.resources.partner_offline_banner
 import pansariwala.shared.generated.resources.partner_online_banner
+import pansariwala.shared.generated.resources.partner_otp_customer_hint
 import pansariwala.shared.generated.resources.partner_pending_verification
+import pansariwala.shared.generated.resources.partner_resume_job
 import pansariwala.shared.generated.resources.partner_verified
-import pansariwala.shared.generated.resources.action_retry
-import pansariwala.shared.generated.resources.partner_action_back_home
-import pansariwala.shared.generated.resources.partner_job_loading
+import pansariwala.shared.generated.resources.pickup_photos_title
 
 @Composable
 private fun PartnerPrimary() = MaterialTheme.colorScheme.primary
@@ -330,7 +328,7 @@ fun PartnerJobErrorState(
             color = MaterialTheme.colorScheme.error,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         PartnerPrimaryButton(
             text = stringResource(Res.string.action_retry),
             onClick = onRetry,
@@ -754,6 +752,15 @@ fun Base64ImageThumbnail(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
+    if (base64.startsWith("http://", ignoreCase = true) || base64.startsWith("https://", ignoreCase = true)) {
+        org.bhargav.pansariwala.media.NetworkImage(
+            url = base64,
+            modifier = modifier,
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+        )
+        return
+    }
     val imageBitmap = remember(base64) {
         runCatching {
             @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
@@ -975,14 +982,14 @@ fun PartnerJobOfferCard(
     val totalKm = offer.totalDistanceKm.takeIf { it > 0 } ?: (offer.shopDistanceKm + offer.dropDistanceKm)
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.raisedCard),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🔔", style = MaterialTheme.typography.titleLarge)
+                Text("🔔 ", style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ))
                 Text(
                     stringResource(Res.string.partner_new_delivery_offer),
                     fontWeight = FontWeight.Bold,
@@ -994,7 +1001,7 @@ fun PartnerJobOfferCard(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
-            Text(stringResource(Res.string.partner_offer_order, offer.orderId.removePrefix("ord_").takeLast(4)))
+            Text(stringResource(Res.string.partner_offer_order, offer.orderId.takeLast(4)))
             Text(stringResource(Res.string.partner_offer_distance, ((totalKm * 10).toInt() / 10.0).toString()))
             if (secondsLeft > 0) {
                 Text(
@@ -1026,12 +1033,10 @@ fun PartnerAcceptedJobCard(
     val payout = order.partnerPayoutInr ?: 0.0
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.raisedCard),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("📦", style = MaterialTheme.typography.titleLarge)
                 Text(
@@ -1045,7 +1050,7 @@ fun PartnerAcceptedJobCard(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
-            Text(stringResource(Res.string.partner_offer_order, order.id.removePrefix("ord_").takeLast(4)))
+            Text(stringResource(Res.string.partner_offer_order, order.id.takeLast(4)))
             if (totalKm > 0) {
                 Text(stringResource(Res.string.partner_offer_distance, ((totalKm * 10).toInt() / 10.0).toString()))
             }
@@ -1079,9 +1084,7 @@ fun PartnerAcceptedOrdersSection(
     } else {
         Column(
             modifier = modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                .padding(16.dp),
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
@@ -1121,9 +1124,7 @@ fun PartnerAvailableOrdersSection(
     } else {
         Column(
             modifier = modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                .padding(16.dp),
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(

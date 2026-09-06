@@ -23,6 +23,7 @@ import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.ShopOffer
 import org.bhargav.pansariwala.domain.model.ShopType
+import org.bhargav.pansariwala.util.AppConstants
 
 @Serializable
 data class ApiErrorBody(val error: String, val code: String? = null)
@@ -143,6 +144,7 @@ data class ProductDto(
     val stockQty: Double,
     val lowStockThreshold: Double,
     val voiceAlias: String? = null,
+    val imageUrls: List<String> = emptyList(),
 )
 
 @Serializable
@@ -302,10 +304,10 @@ data class PartnerRegisterRequest(
     val address: String,
     val phone: String,
     val vehicleReg: String,
-    val vehiclePhotoBase64: String,
-    val profilePhotoBase64: String = "",
-    val dlPhotoBase64: String = "",
-    val idPhotoBase64: String = "",
+    val vehiclePhotoUrl: String,
+    val profilePhotoUrl: String = "",
+    val dlPhotoUrl: String = "",
+    val idPhotoUrl: String = "",
     val lat: Double? = null,
     val lng: Double? = null,
 )
@@ -346,7 +348,7 @@ data class PartnerEarningsDto(
 )
 
 @Serializable
-data class PickupRequest(val photoOneBase64: String, val photoTwoBase64: String)
+data class PickupRequest(val photoOneUrl: String, val photoTwoUrl: String)
 
 @Serializable
 data class DeliverRequest(val otp: String)
@@ -380,6 +382,12 @@ data class MasterProductDto(
     val categoryId: String,
     val unit: String,
     val barcode: String? = null,
+)
+
+@Serializable
+data class UploadResultDto(
+    val url: String,
+    val thumbnailUrl: String,
 )
 
 @Serializable
@@ -470,6 +478,7 @@ fun ProductDto.toModel() = Product(
     stockQty = stockQty,
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
+    imageUrls = imageUrls.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
 )
 
 fun Product.toDto() = ProductDto(
@@ -485,6 +494,7 @@ fun Product.toDto() = ProductDto(
     stockQty = stockQty,
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
+    imageUrls = imageUrls.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
 )
 
 fun OrderDto.toModel() = Order(

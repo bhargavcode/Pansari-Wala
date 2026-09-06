@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
@@ -16,8 +17,14 @@ import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.media.ImageSlotState
+import org.bhargav.pansariwala.media.LifecycleImageUploader
+import org.bhargav.pansariwala.media.UploadedImage
+import org.bhargav.pansariwala.platform.ImagePicker
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_product_name_required
 import pansariwala.shared.generated.resources.error_product_not_found
 import pansariwala.shared.generated.resources.msg_loaded_product
@@ -38,6 +45,7 @@ data class AddEditInventoryUiState(
     val stockQty: String = "",
     val lowStockThreshold: String = "",
     val voiceAlias: String = "",
+    val imageSlots: List<ImageSlotState> = List(AppConstants.PHOTO_MAX_PRODUCT_IMAGES) { ImageSlotState.Empty },
     val message: UiText? = null,
     val error: UiText? = null,
     val saved: Boolean = false,
@@ -47,10 +55,36 @@ class AddEditInventoryViewModel(
     private val shopRepository: ShopRepository,
     private val preferences: AppPreferences,
     private val analytics: Analytics,
+    private val api: PansariApi,
+    private val imagePicker: ImagePicker,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddEditInventoryUiState())
     val uiState: StateFlow<AddEditInventoryUiState> = _uiState.asStateFlow()
+
+    private val imageUploader = LifecycleImageUploader(
+        scope = viewModelScope,
+        picker = imagePicker,
+        upload = { prefix, compressed ->
+            val result = api.uploadImage(prefix, compressed.displayName, compressed.bytes, compressed.mimeType)
+            UploadedImage(result.url, result.thumbnailUrl)
+        },
+        slotCount = AppConstants.PHOTO_MAX_PRODUCT_IMAGES,
+    )
+
+    init {
+        viewModelScope.launch {
+            imageUploader.slots.collect { slots ->
+                _uiState.update { state ->
+                    val failed = slots.filterIsInstance<ImageSlotState.Failed>().isNotEmpty()
+                    state.copy(
+                        imageSlots = slots,
+                        error = if (failed) UiText.res(Res.string.error_image_upload_failed) else state.error,
+                    )
+                }
+            }
+        }
+    }
 
     fun dismissError() { _uiState.update { it.copy(error = null) } }
 
@@ -78,6 +112,10 @@ class AddEditInventoryViewModel(
     fun onStockQtyChange(value: String) = _uiState.update { it.copy(stockQty = value) }
     fun onThresholdChange(value: String) = _uiState.update { it.copy(lowStockThreshold = value) }
     fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value) }
+
+    fun addImage(slot: Int) = imageUploader.pickAndUpload(slot, AppConstants.S3Prefix.SHOPS_PRODUCT_IMAGES)
+    fun retryImage(slot: Int) = imageUploader.retry(slot)
+    fun clearImage(slot: Int) = imageUploader.clear(slot)
 
     fun onLookup() {
         val query = _uiState.value.lookupQuery.trim()
@@ -112,6 +150,14 @@ class AddEditInventoryViewModel(
             _uiState.update { it.copy(error = UiText.res(Res.string.error_product_name_required)) }
             return
         }
+        if (imageUploader.hasInFlight()) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_image_upload_failed)) }
+            return
+        }
+        if (imageUploader.hasFailures()) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_image_upload_failed)) }
+            return
+        }
         val product = Product(
             id = loadedProductId ?: generateId("prod"),
             shopId = shopId,
@@ -125,6 +171,7 @@ class AddEditInventoryViewModel(
             stockQty = state.stockQty.toDoubleOrNull() ?: 0.0,
             lowStockThreshold = state.lowStockThreshold.toDoubleOrNull() ?: 0.0,
             voiceAlias = state.voiceAlias.trim().ifBlank { null },
+            imageUrls = imageUploader.readyUrls(),
         )
         viewModelScope.launch {
             shopRepository.upsertProduct(product)
@@ -140,6 +187,7 @@ class AddEditInventoryViewModel(
 
     private fun fillFrom(product: Product) {
         loadedProductId = product.id
+        imageUploader.seedUrls(product.imageUrls)
         _uiState.update {
             it.copy(
                 isEditing = true,

@@ -1,10 +1,13 @@
 package org.bhargav.pansariwala.platform
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import platform.Foundation.base64EncodedStringWithOptions
+import org.bhargav.pansariwala.media.PickedImage
+import platform.Foundation.NSData
 import platform.UIKit.UIApplication
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
@@ -16,8 +19,8 @@ import platform.UIKit.UINavigationControllerDelegateProtocol
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
 import platform.darwin.NSObject
+import platform.posix.memcpy
 import kotlin.coroutines.resume
-import org.bhargav.pansariwala.util.AppConstants
 
 class IosImagePicker : ImagePicker {
     private var delegate: ImagePickerDelegate? = null
@@ -54,14 +57,14 @@ private class ImagePickerDelegate(
             onPicked(null)
             return
         }
-        val quality = AppConstants.PHOTO_JPEG_QUALITY / 100.0
-        val data = UIImageJPEGRepresentation(image, quality)
-        val base64 = data?.base64EncodedStringWithOptions(0u)
+        // High-quality capture; shared compressor does WhatsApp-style reduction before upload.
+        val data = UIImageJPEGRepresentation(image, 0.95)
+        val bytes = data?.toByteArray()
         onPicked(
-            if (base64.isNullOrBlank()) {
+            if (bytes == null || bytes.isEmpty()) {
                 null
             } else {
-                PickedImage(displayName = "photo.jpg", base64 = base64)
+                PickedImage(displayName = "photo.jpg", bytes = bytes, mimeType = "image/jpeg")
             },
         )
     }
@@ -70,6 +73,17 @@ private class ImagePickerDelegate(
         picker.dismissViewControllerAnimated(true, completion = null)
         onPicked(null)
     }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun NSData.toByteArray(): ByteArray {
+    val size = length.toInt()
+    if (size == 0) return ByteArray(0)
+    val out = ByteArray(size)
+    out.usePinned { pinned ->
+        memcpy(pinned.addressOf(0), bytes, size.toULong())
+    }
+    return out
 }
 
 private fun topViewController(): UIViewController? {

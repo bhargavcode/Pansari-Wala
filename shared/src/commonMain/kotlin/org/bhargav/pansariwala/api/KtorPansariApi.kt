@@ -10,14 +10,18 @@ import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
-import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
@@ -54,17 +58,24 @@ class KtorPansariApi(
             socketTimeoutMillis = AppConstants.HTTP_SOCKET_TIMEOUT_MS
         }
         install(ContentNegotiation) { json(json) }
-        install(Logging) { level = LogLevel.HEADERS }
+        if (shouldInstallHttpLogging()) {
+            install(Logging) { installPansariHttpLogging() }
+        }
         install(Auth) {
             bearer {
                 loadTokens { currentJwtTokens() }
-                refreshTokens { currentJwtTokens() }
+                refreshTokens {
+                    // No refresh-token API: a 401 means the JWT is unusable.
+                    SessionExpiredBus.onRefreshFailed(preferences)
+                    null
+                }
                 sendWithoutRequest { request ->
                     val path = request.url.pathSegments.joinToString("/")
                     val public = path.contains("auth/") ||
                         path.contains("config/public") ||
                         path.endsWith("health") ||
-                        path.contains("partners/register")
+                        path.contains("partners/register") ||
+                        path.contains("uploads/guest")
                     !public
                 }
             }
@@ -276,5 +287,49 @@ class KtorPansariApi(
 
     override suspend fun pushSync(request: SyncPushRequest) {
         client.post("sync/push") { setBody(request) }
+    }
+
+    override suspend fun uploadImage(
+        prefix: String,
+        fileName: String,
+        bytes: ByteArray,
+        contentType: String,
+    ): UploadResultDto = postUpload("uploads", prefix, fileName, bytes, contentType)
+
+    override suspend fun uploadImageGuest(
+        prefix: String,
+        fileName: String,
+        bytes: ByteArray,
+        contentType: String,
+    ): UploadResultDto = postUpload("uploads/guest", prefix, fileName, bytes, contentType)
+
+    private suspend fun postUpload(
+        path: String,
+        prefix: String,
+        fileName: String,
+        bytes: ByteArray,
+        contentType: String,
+    ): UploadResultDto {
+        return client.post(path) {
+            parameter("prefix", prefix.trim('/'))
+            timeout {
+                requestTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+                socketTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+            }
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            "file",
+                            bytes,
+                            Headers.build {
+                                append(HttpHeaders.ContentType, contentType)
+                                append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                            },
+                        )
+                    },
+                ),
+            )
+        }.body()
     }
 }

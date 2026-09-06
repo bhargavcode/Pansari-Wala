@@ -6,8 +6,6 @@ import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
-import io.ktor.client.plugins.logging.LogLevel
-import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.header
 import io.ktor.http.ContentType
@@ -15,6 +13,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import org.bhargav.pansariwala.api.installPansariHttpLogging
+import org.bhargav.pansariwala.api.shouldInstallHttpLogging
 import org.bhargav.pansariwala.data.local.AppPreferences
 
 object ApiConfig {
@@ -38,13 +38,8 @@ fun createHttpClient(preferences: AppPreferences): HttpClient {
                 },
             )
         }
-        install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String) {
-                    println("Ktor: $message")
-                }
-            }
-            level = LogLevel.INFO
+        if (shouldInstallHttpLogging()) {
+            install(Logging) { installPansariHttpLogging() }
         }
         install(Auth) {
             bearer {

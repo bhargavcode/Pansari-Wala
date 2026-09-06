@@ -1,9 +1,6 @@
 package org.bhargav.pansariwala.platform
 
-data class PickedImage(
-    val displayName: String,
-    val base64: String,
-)
+import org.bhargav.pansariwala.media.PickedImage
 
 interface ImagePicker {
     suspend fun pickImage(): PickedImage?

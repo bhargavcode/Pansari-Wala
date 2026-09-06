@@ -79,6 +79,12 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         val body = call.receive<AdminLoginRequest>()
         call.respond(store.adminLogin(body.username, body.password))
     }
+    post("/uploads/guest") {
+        val prefix = (call.request.queryParameters["prefix"] ?: "").trim().trim('/') + "/"
+        val allowed = prefix.startsWith("partners/") || prefix.startsWith("users/")
+        if (!allowed) error("Guest upload only allowed for partners/ or users/ prefixes")
+        call.respond(receiveUpload(call, store))
+    }
     post("/auth/user/firebase") {
         val body = call.receive<FirebaseAuthRequest>()
         call.respond(store.loginFirebase(body.idToken))
@@ -245,7 +251,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         }
         post("/partners/jobs/{id}/pickup") {
             val body = call.receive<PickupRequest>()
-            call.respond(store.submitPickup(call.userId(), call.parameters["id"]!!, body.photoOneBase64, body.photoTwoBase64))
+            call.respond(store.submitPickup(call.userId(), call.parameters["id"]!!, body.photoOneUrl, body.photoTwoUrl))
         }
         post("/partners/jobs/{id}/arrived-store") {
             call.respond(store.arrivedAtStore(call.userId(), call.parameters["id"]!!))
@@ -256,8 +262,8 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
                 store.verifyBags(
                     call.userId(),
                     call.parameters["id"]!!,
-                    body?.photoOneBase64.orEmpty(),
-                    body?.photoTwoBase64.orEmpty(),
+                    body?.photoOneUrl.orEmpty(),
+                    body?.photoTwoUrl.orEmpty(),
                 ),
             )
         }
@@ -421,21 +427,10 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         }
         post("/admin/uploads") {
             call.requireRole("ADMIN")
-            val prefix = call.request.queryParameters["prefix"] ?: "master/product-images"
-            val multipart = call.receiveMultipart()
-            var fileName = "upload.bin"
-            var bytes: ByteArray? = null
-            var contentType = "application/octet-stream"
-            while (true) {
-                val part = multipart.readPart() ?: break
-                if (part is PartData.FileItem) {
-                    fileName = part.originalFileName ?: fileName
-                    contentType = part.contentType?.toString() ?: contentType
-                    bytes = part.provider().readRemaining().readByteArray()
-                }
-            }
-            val data = bytes ?: error("file required")
-            call.respond(store.uploadAsset(prefix, fileName, data, contentType))
+            call.respond(receiveUpload(call, store))
+        }
+        post("/uploads") {
+            call.respond(receiveUpload(call, store))
         }
 
         webSocket("/ws/delivery") {
@@ -465,6 +460,27 @@ private fun ApplicationCall.requireShopId(): String =
 
 private fun ApplicationCall.requireRole(role: String) {
     if (payload().getClaim("role").asString() != role) error("Forbidden")
+}
+
+private suspend fun receiveUpload(call: ApplicationCall, store: AppStore): org.bhargav.pansariwala.server.dto.UploadResultDto {
+    val prefix = call.request.queryParameters["prefix"] ?: "master/product-images"
+    val multipart = call.receiveMultipart()
+    var fileName = "upload.bin"
+    var bytes: ByteArray? = null
+    var contentType = "application/octet-stream"
+    while (true) {
+        val part = multipart.readPart() ?: break
+        if (part is PartData.FileItem) {
+            fileName = part.originalFileName ?: fileName
+            contentType = part.contentType?.toString() ?: contentType
+            bytes = part.provider().readRemaining().readByteArray()
+            part.dispose()
+        } else {
+            part.dispose()
+        }
+    }
+    val data = bytes ?: error("file required")
+    return store.uploadAsset(prefix, fileName, data, contentType)
 }
 
 private fun startOfToday(): Long {

@@ -180,6 +180,7 @@ import pansariwala.shared.generated.resources.master_stars_label
 import pansariwala.shared.generated.resources.master_active
 import pansariwala.shared.generated.resources.master_sales_overview
 import pansariwala.shared.generated.resources.master_txn_trends
+import pansariwala.shared.generated.resources.master_upload_image
 import pansariwala.shared.generated.resources.action_edit
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -495,6 +496,7 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
                                                 barcode = p.barcode,
                                                 imageUrl = p.imageUrl,
                                                 thumbnailUrl = p.thumbnailUrl,
+                                                imageUrls = p.imageUrls,
                                                 brandName = p.brandName,
                                                 companyName = p.companyName,
                                                 subcategoryId = p.subcategoryId,
@@ -548,7 +550,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     var sale by rememberSaveable { mutableStateOf("0") }
     var cost by rememberSaveable { mutableStateOf("0") }
     var unit by rememberSaveable { mutableStateOf("KG") }
-    var imageUrl by rememberSaveable { mutableStateOf("") }
+    var imageUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var sku by rememberSaveable { mutableStateOf("") }
     var stock by rememberSaveable { mutableStateOf("0") }
     var lowStock by rememberSaveable { mutableStateOf("0") }
@@ -559,6 +561,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     var active by rememberSaveable { mutableStateOf(true) }
     var variants by remember { mutableStateOf<List<ProductVariantDto>>(emptyList()) }
     var loadedId by remember { mutableStateOf<String?>(null) }
+    var uploading by remember { mutableStateOf(false) }
     val saleVal = sale.toDoubleOrNull() ?: 0.0
     val effective = saleVal
     LaunchedEffect(productId) {
@@ -569,7 +572,8 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                 name = p.name; nameHi = p.nameHi; categoryId = p.categoryId
                 subcategoryId = p.subcategoryId.orEmpty(); brand = p.brandName; company = p.companyName
                 sale = p.salePrice.toString(); cost = p.cost.toString(); unit = p.unit
-                imageUrl = p.imageUrl.orEmpty(); sku = p.sku; stock = p.stockQty.toString()
+                imageUrls = (p.imageUrls.ifEmpty { listOfNotNull(p.imageUrl) }).take(4)
+                sku = p.sku; stock = p.stockQty.toString()
                 lowStock = p.lowStockThreshold.toString(); tags = p.tags; weight = p.weightKg.toString()
                 dimensions = p.dimensions; description = p.description; active = p.active
                 variants = p.variants
@@ -586,8 +590,55 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                 val cols = if (wc == WindowWidthClass.Compact) 1 else 3
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), maxItemsInEachRow = cols) {
                     Column(Modifier.widthIn(min = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ImageThumb(imageUrl.ifBlank { null }, Modifier.size(120.dp))
-                        OutlinedTextField(imageUrl, { imageUrl = it }, label = { Text(stringResource(Res.string.master_image_url)) }, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(Res.string.master_upload_image), fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            imageUrls.forEach { url ->
+                                Box {
+                                    ImageThumb(url, Modifier.size(72.dp))
+                                    TextButton(
+                                        onClick = { imageUrls = imageUrls - url },
+                                        modifier = Modifier.align(Alignment.TopEnd),
+                                    ) { Text("×") }
+                                }
+                            }
+                        }
+                        if (imageUrls.size < 4) {
+                            OutlinedButton(
+                                enabled = !uploading,
+                                onClick = {
+                                    scope.launch {
+                                        uploading = true
+                                        val result = runCatching {
+                                            val picked = pickWebImageFile()
+                                                ?: error("No file selected")
+                                            val mime = picked.mimeType.lowercase()
+                                            require(
+                                                mime.contains("png") || mime.contains("jpeg") ||
+                                                    mime.contains("jpg") || mime.contains("webp"),
+                                            ) { "Only PNG, JPEG, or WebP" }
+                                            val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
+                                                picked.bytes, picked.mimeType, picked.name,
+                                            )
+                                            api.uploadFile(
+                                                token,
+                                                org.bhargav.pansariwala.util.AppConstants.S3Prefix.MASTER_PRODUCT_IMAGES,
+                                                compressed.displayName,
+                                                compressed.bytes,
+                                                compressed.mimeType,
+                                            ).url
+                                        }
+                                        result.onSuccess { url ->
+                                            imageUrls = (imageUrls + url).distinct().take(4)
+                                        }.onFailure { onStatus(it.message ?: "Upload failed. Try again.") }
+                                        uploading = false
+                                    }
+                                },
+                            ) {
+                                Text(
+                                    if (uploading) "…" else stringResource(Res.string.master_upload_image),
+                                )
+                            }
+                        }
                         Text(stringResource(Res.string.master_general_info), fontWeight = FontWeight.SemiBold)
                         OutlinedTextField(name, { name = it }, label = { Text(stringResource(Res.string.master_product_name)) }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(nameHi, { nameHi = it }, label = { Text(stringResource(Res.string.field_name_hi)) }, modifier = Modifier.fillMaxWidth())
@@ -630,8 +681,9 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                                     nameHi = nameHi,
                                     categoryId = categoryId,
                                     unit = unit,
-                                    imageUrl = imageUrl.ifBlank { null },
-                                    thumbnailUrl = imageUrl.ifBlank { null },
+                                    imageUrl = imageUrls.firstOrNull(),
+                                    thumbnailUrl = imageUrls.firstOrNull(),
+                                    imageUrls = imageUrls,
                                     brandName = brand,
                                     companyName = company,
                                     subcategoryId = subcategoryId.ifBlank { null },

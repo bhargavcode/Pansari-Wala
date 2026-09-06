@@ -113,6 +113,7 @@ private fun Product.toEntity() = ProductEntity(
     stockQty = stockQty,
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
+    imageUrls = imageUrls.filter { it.isNotBlank() }.take(4).joinToString("|"),
 )
 
 private fun ProductEntity.toDomain() = Product(
@@ -128,6 +129,7 @@ private fun ProductEntity.toDomain() = Product(
     stockQty = stockQty,
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
+    imageUrls = imageUrls.split('|').map { it.trim() }.filter { it.isNotBlank() }.take(4),
 )
 
 private fun UserEntity.toUser() = ShopUser(

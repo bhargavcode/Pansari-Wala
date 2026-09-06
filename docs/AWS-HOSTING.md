@@ -115,9 +115,16 @@ partners/
 shops/
   delivery-packets/
   shop/
+  product-images/
 ```
 
 Constants: `AppConstants.S3Prefix.*`
+
+Upload API:
+- Authenticated `POST /uploads?prefix=…` (multipart `file`)
+- Guest (pre-login) `POST /uploads/guest?prefix=…` limited to `partners/*` and `users/*`
+- Admin also has `POST /admin/uploads`
+- Accepts PNG / JPEG / WebP only; server recompresses to JPEG and returns `{ url, thumbnailUrl }`
 
 CORS: allow `GET`/`PUT` from `https://pansariwala.shop`.  
 IAM: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on `pansariwala-assets/*`.

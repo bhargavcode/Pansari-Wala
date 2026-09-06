@@ -227,7 +227,8 @@ class CheckoutViewModel(
     fun load(shopId: String) {
         viewModelScope.launch {
             val geo = location.currentOrDefault()
-            val profile = runCatching { api.me() }.getOrNull()
+            val profile = preferences.getCachedCustomerProfile()
+                ?: runCatching { api.me() }.getOrNull()?.also { preferences.setCachedCustomerProfile(it) }
             val addresses = profile?.addresses.orEmpty()
             val selected = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
             val dropLat = selected?.location?.lat ?: profile?.location?.lat ?: geo.lat
@@ -264,6 +265,7 @@ class CheckoutViewModel(
     fun selectAddress(shopId: String, addressId: String) {
         viewModelScope.launch {
             runCatching { api.selectAddress(addressId) }
+                .onSuccess { preferences.setCachedCustomerProfile(it) }
             _state.update { it.copy(selectedAddressId = addressId) }
             load(shopId)
         }
@@ -294,7 +296,8 @@ class CheckoutViewModel(
                     userLng = _state.value.addresses.firstOrNull { it.id == selectedId }?.location?.lng,
                 )
                 api.validateOrder(request)
-                val profile = api.me()
+                val profile = preferences.getCachedCustomerProfile()
+                    ?: api.me().also { preferences.setCachedCustomerProfile(it) }
 
                 val amountPaise = (quote.payable * 100).toLong()
                 val rzp = api.createRazorpayOrder(shopId, amountPaise)
