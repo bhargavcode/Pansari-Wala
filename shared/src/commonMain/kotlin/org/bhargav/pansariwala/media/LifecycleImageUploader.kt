@@ -43,7 +43,7 @@ class LifecycleImageUploader(
         when (val state = _slots.value.getOrNull(slot)) {
             is ImageSlotState.Ready -> state.localPreviewBytes
             is ImageSlotState.Uploading -> state.previewBytes
-            is ImageSlotState.Failed -> state.compressed.bytes
+            is ImageSlotState.Failed -> state.compressed.previewBytes
             else -> null
         }
 
@@ -52,31 +52,18 @@ class LifecycleImageUploader(
 
     fun hasFailures(): Boolean = _slots.value.any { it is ImageSlotState.Failed }
 
-    fun pickAndUpload(slot: Int, prefix: String) {
+    fun pickAndUpload(slot: Int, prefix: String, source: ImageSource = ImageSource.GALLERY) {
         require(slot in 0 until slotCount)
         jobs[slot]?.cancel()
         jobs[slot] = scope.launch {
-            val picked = runCatching { picker.pickImage() }.getOrNull()
+            val picked = runCatching { picker.pickImage(source) }.getOrNull()
             if (picked == null) return@launch
-            val mime = normalizeImageMime(picked.mimeType, picked.displayName)
-            if (mime == null) {
-                _slots.updateSlot(slot) {
-                    ImageSlotState.Failed(
-                        message = "Only PNG, JPEG, or WebP images are allowed",
-                        compressed = CompressedImage(picked.displayName, picked.bytes, picked.mimeType, picked.bytes.size),
-                        prefix = prefix,
-                    )
-                }
-                return@launch
-            }
             _slots.updateSlot(slot) { ImageSlotState.Compressing(picked.displayName) }
-            val compressed = runCatching {
-                compressImageForUpload(picked.bytes, mime, picked.displayName)
-            }.getOrElse { err ->
+            val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse { err ->
                 _slots.updateSlot(slot) {
                     ImageSlotState.Failed(
                         message = err.message ?: "Compression failed",
-                        compressed = CompressedImage(picked.displayName, picked.bytes, mime, picked.bytes.size),
+                        compressed = CompressedImage(picked.displayName, picked.bytes, picked.mimeType, picked.bytes.size),
                         prefix = prefix,
                     )
                 }
@@ -107,7 +94,7 @@ class LifecycleImageUploader(
 
     private suspend fun uploadWithRetry(slot: Int, prefix: String, compressed: CompressedImage) {
         _slots.updateSlot(slot) {
-            ImageSlotState.Uploading(compressed.displayName, compressed.bytes)
+            ImageSlotState.Uploading(compressed.displayName, compressed.previewBytes)
         }
         var lastError: Throwable? = null
         var attempt = 0
@@ -119,7 +106,7 @@ class LifecycleImageUploader(
                     ImageSlotState.Ready(
                         url = uploaded.url,
                         thumbnailUrl = uploaded.thumbnailUrl,
-                        localPreviewBytes = compressed.bytes,
+                        localPreviewBytes = compressed.previewBytes,
                     )
                 }
                 return

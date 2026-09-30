@@ -7,7 +7,6 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
-import io.ktor.server.http.content.staticFiles
 import io.ktor.server.request.receive
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.respond
@@ -58,10 +57,8 @@ import org.bhargav.pansariwala.server.dto.SyncPushRequest
 import org.bhargav.pansariwala.server.dto.UpdateProfileRequest
 import org.bhargav.pansariwala.server.dto.VerifyPaymentRequest
 import org.bhargav.pansariwala.server.service.AppStore
-import java.io.File
 
 fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
-    staticFiles("/uploads", File(config.uploadDir))
     get("/health") { call.respond(OkResponse(true)) }
     get("/config/public") {
         call.respond(
@@ -475,10 +472,14 @@ private suspend fun receiveUpload(call: ApplicationCall, store: AppStore): org.b
     val multipart = call.receiveMultipart()
     var fileName = "upload.bin"
     var bytes: ByteArray? = null
+    var thumbnail: ByteArray? = null
     var contentType = "application/octet-stream"
     while (true) {
         val part = multipart.readPart() ?: break
-        if (part is PartData.FileItem) {
+        if (part is PartData.FileItem && part.name == "thumbnail") {
+            thumbnail = part.provider().readRemaining().readByteArray()
+            part.dispose()
+        } else if (part is PartData.FileItem) {
             fileName = part.originalFileName ?: fileName
             contentType = part.contentType?.toString() ?: contentType
             bytes = part.provider().readRemaining().readByteArray()
@@ -488,7 +489,7 @@ private suspend fun receiveUpload(call: ApplicationCall, store: AppStore): org.b
         }
     }
     val data = bytes ?: error("file required")
-    return store.uploadAsset(prefix, fileName, data, contentType)
+    return store.uploadAsset(prefix, fileName, data, contentType, thumbnail)
 }
 
 private fun startOfToday(): Long {

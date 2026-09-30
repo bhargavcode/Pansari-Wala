@@ -31,6 +31,10 @@ import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
 import org.bhargav.pansariwala.platform.LocationUnavailableException
 import org.bhargav.pansariwala.platform.FormatPlateOcr
 import org.bhargav.pansariwala.platform.ImagePicker
+import org.bhargav.pansariwala.media.ImageSource
+import org.bhargav.pansariwala.media.ImageUploadFeature
+import org.bhargav.pansariwala.media.PhotoUploadUi
+import org.bhargav.pansariwala.media.prepareImageForUpload
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.digitsPhone
@@ -38,6 +42,7 @@ import org.bhargav.pansariwala.platform.fetchPlaceDetails
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
 import org.bhargav.pansariwala.platform.normalizeVehicleReg
 import org.bhargav.pansariwala.platform.searchPlaces
+import org.bhargav.pansariwala.notification.NotificationRouter
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
@@ -54,6 +59,7 @@ import pansariwala.shared.generated.resources.error_name_required
 import pansariwala.shared.generated.resources.error_not_a_partner
 import pansariwala.shared.generated.resources.error_phone_required
 import pansariwala.shared.generated.resources.error_photo_pick_failed
+import pansariwala.shared.generated.resources.error_photo_upload_in_progress
 import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_photos_required
 import pansariwala.shared.generated.resources.error_profile_photo_save_failed
@@ -140,6 +146,13 @@ class PartnerLoginViewModel(
     }
 }
 
+enum class RegisterPhoto(val feature: ImageUploadFeature) {
+    PROFILE(ImageUploadFeature.PARTNER_REGISTER_PROFILE),
+    DL(ImageUploadFeature.PARTNER_REGISTER_DOCUMENT),
+    ID(ImageUploadFeature.PARTNER_REGISTER_DOCUMENT),
+    VEHICLE(ImageUploadFeature.PARTNER_REGISTER_VEHICLE),
+}
+
 data class RegisterUiState(
     val name: String = "",
     val email: String = "",
@@ -155,6 +168,7 @@ data class RegisterUiState(
     val dlPhoto: String = "",
     val idPhoto: String = "",
     val vehiclePhoto: String = "",
+    val photoUploads: Map<RegisterPhoto, PhotoUploadUi> = emptyMap(),
     val otp: String = "",
     val step: Int = 0,
     val loading: Boolean = false,
@@ -273,55 +287,62 @@ class PartnerRegisterViewModel(
         _state.update { it.copy(showLocationDeniedDialog = false) }
     }
 
-    private fun attach(prefix: String, field: (RegisterUiState, String) -> RegisterUiState) {
-        viewModelScope.launch {
-            val picked = imagePicker.pickImage() ?: return@launch
-            if (picked.bytes.isEmpty()) {
+    private val photoJobs = mutableMapOf<RegisterPhoto, Job>()
+
+    fun attachPhoto(photo: RegisterPhoto, source: ImageSource) {
+        photoJobs[photo]?.cancel()
+        photoJobs[photo] = viewModelScope.launch {
+            val picked = imagePicker.pickImage(source) ?: return@launch
+            setPhotoUpload(photo, PhotoUploadUi(uploading = true))
+            val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {
+                setPhotoUpload(photo, PhotoUploadUi(failed = true))
                 _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
                 return@launch
             }
-            _state.update { it.copy(loading = true, error = null) }
-            val result = runCatching {
-                val mime = org.bhargav.pansariwala.media.normalizeImageMime(picked.mimeType, picked.displayName)
-                    ?: error("unsupported")
-                val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
-                    picked.bytes, mime, picked.displayName,
-                )
-                if (prefix == AppConstants.S3Prefix.PARTNERS_VEHICLE_IMAGE) {
-                    vehiclePhotoBytes = compressed.bytes
-                }
-                val uploaded = api.uploadImageGuest(
-                    prefix = prefix,
+            setPhotoUpload(photo, PhotoUploadUi(previewBytes = compressed.previewBytes, uploading = true))
+            if (photo == RegisterPhoto.VEHICLE) vehiclePhotoBytes = compressed.bytes
+            runCatching {
+                api.uploadImageGuest(
+                    prefix = photo.feature.prefix,
                     fileName = compressed.displayName,
                     bytes = compressed.bytes,
                     contentType = compressed.mimeType,
-                )
-                uploaded.url
-            }
-            result.onSuccess { url ->
-                _state.update { field(it, url).copy(loading = false, error = null) }
-            }.onFailure {
-                _state.update {
-                    it.copy(
-                        loading = false,
-                        error = UiText.res(Res.string.error_image_upload_failed),
+                    thumbnailBytes = compressed.thumbnailBytes,
+                ).url
+            }.onSuccess { url ->
+                _state.update { s ->
+                    val withUrl = when (photo) {
+                        RegisterPhoto.PROFILE -> s.copy(profilePhoto = url)
+                        RegisterPhoto.DL -> s.copy(dlPhoto = url)
+                        RegisterPhoto.ID -> s.copy(idPhoto = url)
+                        RegisterPhoto.VEHICLE -> s.copy(vehiclePhoto = url)
+                    }
+                    withUrl.copy(
+                        photoUploads = s.photoUploads + (photo to PhotoUploadUi(previewBytes = compressed.previewBytes)),
                     )
                 }
+            }.onFailure { err ->
+                err.rethrowIfStructuredCancellation()
+                setPhotoUpload(photo, PhotoUploadUi(previewBytes = compressed.previewBytes, failed = true))
+                _state.update { it.copy(error = UiText.res(Res.string.error_image_upload_failed)) }
             }
         }
     }
 
-    private var vehiclePhotoBytes: ByteArray = ByteArray(0)
+    private fun setPhotoUpload(photo: RegisterPhoto, upload: PhotoUploadUi) {
+        _state.update { it.copy(photoUploads = it.photoUploads + (photo to upload)) }
+    }
 
-    fun attachProfile() = attach(AppConstants.S3Prefix.PARTNERS_USER_IMAGE) { s, v -> s.copy(profilePhoto = v) }
-    fun attachDl() = attach(AppConstants.S3Prefix.PARTNERS_USER_IDS) { s, v -> s.copy(dlPhoto = v) }
-    fun attachId() = attach(AppConstants.S3Prefix.PARTNERS_USER_IDS) { s, v -> s.copy(idPhoto = v) }
-    fun attachVehicle() = attach(AppConstants.S3Prefix.PARTNERS_VEHICLE_IMAGE) { s, v -> s.copy(vehiclePhoto = v) }
+    private var vehiclePhotoBytes: ByteArray = ByteArray(0)
 
     fun save() {
         viewModelScope.launch {
             val s = _state.value
             when {
+                s.photoUploads.values.any { it.uploading } -> {
+                    _state.update { it.copy(error = UiText.res(Res.string.error_photo_upload_in_progress)) }
+                    return@launch
+                }
                 s.name.isBlank() -> {
                     _state.update { it.copy(error = UiText.res(Res.string.error_name_required)) }
                     return@launch
@@ -483,6 +504,13 @@ data class PartnerHomeUiState(
     val locationPermissionGranted: Boolean = false,
 )
 
+private data class HomeRefreshPayload(
+    val accepted: List<Order>,
+    val offers: List<DeliveryOffer>,
+    val profile: PartnerProfile?,
+    val incoming: DeliveryOffer?,
+)
+
 class PartnerHomeViewModel(
     private val api: PansariApi,
     private val location: DeviceLocation,
@@ -491,7 +519,6 @@ class PartnerHomeViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(PartnerHomeUiState())
     val state: StateFlow<PartnerHomeUiState> = _state.asStateFlow()
-    private var pollJob: Job? = null
     private var timerJob: Job? = null
     /** Offers already shown in the accept flash — stay listable, do not re-popup. */
     private val flashedOfferIds = mutableSetOf<String>()
@@ -514,6 +541,13 @@ class PartnerHomeViewModel(
         }
         refresh()
         requestLocationAccessOnLanding()
+        viewModelScope.launch {
+            NotificationRouter.events.collect { notification ->
+                if (notification.type == AppConstants.Notification.TYPE_DELIVERY_OFFER) {
+                    refreshForNewOffer()
+                }
+            }
+        }
     }
 
     fun requestLocationAccessOnLanding() {
@@ -569,22 +603,27 @@ class PartnerHomeViewModel(
                     val offers = async { runCatching { api.availableOffers() }.getOrDefault(emptyList()) }
                         .await()
                     val profile = async { runCatching { api.partnerProfile() }.getOrNull() }.await()
-                    Triple(accepted, offers, profile)
+                    val incoming = async { runCatching { api.incomingOffer() }.getOrNull() }.await()
+                    HomeRefreshPayload(accepted, offers, profile, incoming)
                 }
-            }.onSuccess { (accepted, offers, profile) ->
-                if (profile != null) {
-                    preferences.setCachedPartnerProfile(profile)
+            }.onSuccess { payload ->
+                if (payload.profile != null) {
+                    preferences.setCachedPartnerProfile(payload.profile)
                 }
-                val online = profile?.online ?: preferences.getPartnerOnlineDuty()
+                val online = payload.profile?.online ?: preferences.getPartnerOnlineDuty()
                 applyOnlineState(online)
+                applyOfferLists(
+                    payload.accepted,
+                    payload.offers,
+                    payload.incoming,
+                    presentIncoming = true,
+                )
                 _state.update {
                     it.copy(
                         loading = false,
                         refreshing = false,
                         online = online,
-                        profile = profile ?: it.profile,
-                        acceptedJobs = accepted,
-                        availableOffers = offers,
+                        profile = payload.profile ?: it.profile,
                         error = null,
                     )
                 }
@@ -644,12 +683,11 @@ class PartnerHomeViewModel(
                         } else {
                             requestLocationAccessOnLanding()
                         }
-                        startPolling()
+                        // One-shot refresh when going online; no periodic polling.
+                        refreshJobsAndOffers(presentIncoming = true)
                     } else {
-                        pollJob?.cancel()
                         timerJob?.cancel()
                         flashedOfferIds.clear()
-                        // Keep jobs/offers from REST; stop only push-style polling.
                         _state.update { it.copy(incomingOffer = null) }
                         refreshAvailableOffers()
                     }
@@ -693,13 +731,10 @@ class PartnerHomeViewModel(
         viewModelScope.launch { locationTracker.setOnlineDuty(online) }
     }
 
-    /** Persist duty and start/stop offer polling to match online flag. */
+    /** Sync location duty only — offer discovery is push/notification driven, not polled. */
     private fun applyOnlineState(online: Boolean) {
         syncLocationDuty(online)
-        if (online) {
-            startPolling()
-        } else {
-            pollJob?.cancel()
+        if (!online) {
             timerJob?.cancel()
         }
     }
@@ -750,44 +785,63 @@ class PartnerHomeViewModel(
         return geo
     }
 
-    private fun startPolling() {
-        if (pollJob?.isActive == true) return
-        pollJob = viewModelScope.launch {
-            delay(AppConstants.LIVE_ALERT_POLL_MS)
-            while (true) {
-                val jobsResult = async { runCatching { api.acceptedJobs() } }
-                val offersResult = async { runCatching { api.availableOffers() } }
-                val incomingResult = async { runCatching { api.incomingOffer() } }
-                jobsResult.await().onSuccess { jobs ->
-                    _state.update { it.copy(acceptedJobs = jobs.filter { job -> job.isActiveDelivery }) }
-                }
-                offersResult.await().onSuccess { offers ->
-                    val incomingId = _state.value.incomingOffer?.id
-                    _state.update {
-                        it.copy(
-                            availableOffers = if (incomingId == null) {
-                                offers
-                            } else {
-                                offers.filterNot { offer -> offer.id == incomingId }
-                            },
-                        )
+    /** New offer push/notification → refresh lists and present dialog together. */
+    private fun refreshForNewOffer() {
+        refreshJobsAndOffers(presentIncoming = true)
+    }
+
+    private fun refreshJobsAndOffers(presentIncoming: Boolean) {
+        viewModelScope.launch {
+            runCatching {
+                coroutineScope {
+                    val accepted = async { runCatching { api.acceptedJobs() }.getOrDefault(emptyList()) }
+                    val offers = async { runCatching { api.availableOffers() }.getOrDefault(emptyList()) }
+                    val incoming = async {
+                        if (presentIncoming) runCatching { api.incomingOffer() }.getOrNull()
+                        else null
                     }
+                    Triple(
+                        accepted.await().filter { it.isActiveDelivery },
+                        offers.await(),
+                        incoming.await(),
+                    )
                 }
-                incomingResult.await().onSuccess { offer ->
-                    val currentId = _state.value.incomingOffer?.id
-                    when {
-                        offer == null -> Unit
-                        offer.id == currentId -> Unit
-                        offer.id in flashedOfferIds -> Unit
-                        else -> {
-                            flashedOfferIds.add(offer.id)
-                            _state.update { it.copy(incomingOffer = offer) }
-                            startOfferTimer(offer)
-                        }
-                    }
-                }
-                delay(AppConstants.LIVE_ALERT_POLL_MS)
+            }.onSuccess { (accepted, offers, incoming) ->
+                applyOfferLists(accepted, offers, incoming, presentIncoming = presentIncoming)
             }
+        }
+    }
+
+    private fun applyOfferLists(
+        accepted: List<Order>,
+        offers: List<DeliveryOffer>,
+        incoming: DeliveryOffer?,
+        presentIncoming: Boolean,
+    ) {
+        var presented: DeliveryOffer? = null
+        if (presentIncoming && incoming != null) {
+            val currentId = _state.value.incomingOffer?.id
+            when {
+                incoming.id == currentId -> Unit
+                incoming.id in flashedOfferIds -> Unit
+                else -> {
+                    flashedOfferIds.add(incoming.id)
+                    presented = incoming
+                    startOfferTimer(incoming)
+                }
+            }
+        }
+        val incomingId = presented?.id ?: _state.value.incomingOffer?.id
+        _state.update {
+            it.copy(
+                acceptedJobs = accepted,
+                availableOffers = if (incomingId == null) {
+                    offers
+                } else {
+                    offers.filterNot { offer -> offer.id == incomingId }
+                },
+                incomingOffer = presented ?: it.incomingOffer,
+            )
         }
     }
 
@@ -839,6 +893,7 @@ class PartnerHomeViewModel(
                                 )
                             }
                             timerJob?.cancel()
+                            refreshJobsAndOffers(presentIncoming = false)
                             onAccepted(result.orderId)
                         }
                     }
@@ -901,6 +956,8 @@ data class PartnerJobUiState(
     val order: Order? = null,
     val photoOne: String = "",
     val photoTwo: String = "",
+    val photoOneUpload: PhotoUploadUi = PhotoUploadUi(),
+    val photoTwoUpload: PhotoUploadUi = PhotoUploadUi(),
     val captureStep: Int = 0,
     val loading: Boolean = true,
     val submitting: Boolean = false,
@@ -955,38 +1012,46 @@ class PartnerJobViewModel(
         }
     }
 
-    fun attachPhoto(slot: Int) {
-        viewModelScope.launch {
-            val picked = imagePicker.pickImage() ?: return@launch
-            if (picked.bytes.isEmpty()) {
+    private val photoJobs = mutableMapOf<Int, Job>()
+
+    fun attachPhoto(slot: Int, source: ImageSource) {
+        photoJobs[slot]?.cancel()
+        photoJobs[slot] = viewModelScope.launch {
+            val picked = imagePicker.pickImage(source) ?: return@launch
+            setSlotUpload(slot, PhotoUploadUi(uploading = true))
+            val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {
+                setSlotUpload(slot, PhotoUploadUi(failed = true))
                 _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
                 return@launch
             }
-            _state.update { it.copy(submitting = true, error = null) }
+            setSlotUpload(slot, PhotoUploadUi(previewBytes = compressed.previewBytes, uploading = true))
             runCatching {
-                val mime = org.bhargav.pansariwala.media.normalizeImageMime(picked.mimeType, picked.displayName)
-                    ?: error("unsupported")
-                val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
-                    picked.bytes, mime, picked.displayName,
-                )
                 api.uploadImage(
-                    prefix = AppConstants.S3Prefix.SHOPS_DELIVERY_PACKETS,
+                    prefix = ImageUploadFeature.DELIVERY_PACKET.prefix,
                     fileName = compressed.displayName,
                     bytes = compressed.bytes,
                     contentType = compressed.mimeType,
+                    thumbnailBytes = compressed.thumbnailBytes,
                 ).url
             }.onSuccess { url ->
+                val done = PhotoUploadUi(previewBytes = compressed.previewBytes)
                 _state.update {
                     when (slot) {
-                        1 -> it.copy(photoOne = url, submitting = false, error = null)
-                        else -> it.copy(photoTwo = url, submitting = false, error = null)
+                        1 -> it.copy(photoOne = url, photoOneUpload = done, error = null)
+                        else -> it.copy(photoTwo = url, photoTwoUpload = done, error = null)
                     }
                 }
-            }.onFailure {
-                _state.update {
-                    it.copy(submitting = false, error = UiText.res(Res.string.error_image_upload_failed))
-                }
+            }.onFailure { err ->
+                err.rethrowIfStructuredCancellation()
+                setSlotUpload(slot, PhotoUploadUi(previewBytes = compressed.previewBytes, failed = true))
+                _state.update { it.copy(error = UiText.res(Res.string.error_image_upload_failed)) }
             }
+        }
+    }
+
+    private fun setSlotUpload(slot: Int, upload: PhotoUploadUi) {
+        _state.update {
+            if (slot == 1) it.copy(photoOneUpload = upload) else it.copy(photoTwoUpload = upload)
         }
     }
 
@@ -1095,6 +1160,7 @@ data class PartnerEarningsUiState(
     val earnings: PartnerEarnings? = null,
     val loading: Boolean = true,
     val uploadingPhoto: Boolean = false,
+    val profilePhotoPreviewBytes: ByteArray? = null,
     val error: UiText? = null,
 )
 
@@ -1136,30 +1202,34 @@ class PartnerEarningsViewModel(
         }
     }
 
-    fun changeProfilePhoto() {
+    fun changeProfilePhoto(source: ImageSource) {
         if (_state.value.uploadingPhoto) return
         viewModelScope.launch {
-            val picked = imagePicker.pickImage() ?: return@launch
-            if (picked.bytes.isEmpty()) {
-                _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
+            val picked = imagePicker.pickImage(source) ?: return@launch
+            _state.update { it.copy(uploadingPhoto = true, error = null) }
+            val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {
+                _state.update {
+                    it.copy(uploadingPhoto = false, error = UiText.res(Res.string.error_photo_pick_failed))
+                }
                 return@launch
             }
-            _state.update { it.copy(uploadingPhoto = true, error = null) }
+            _state.update { it.copy(profilePhotoPreviewBytes = compressed.previewBytes) }
             val uploadedUrl = runCatching {
-                val mime = org.bhargav.pansariwala.media.normalizeImageMime(picked.mimeType, picked.displayName)
-                    ?: error("unsupported")
-                val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
-                    picked.bytes, mime, picked.displayName,
-                )
                 api.uploadImage(
-                    prefix = AppConstants.S3Prefix.PARTNERS_USER_IMAGE,
+                    prefix = ImageUploadFeature.PARTNER_PROFILE_PHOTO.prefix,
                     fileName = compressed.displayName,
                     bytes = compressed.bytes,
                     contentType = compressed.mimeType,
+                    thumbnailBytes = compressed.thumbnailBytes,
                 ).url
             }.getOrElse {
+                it.rethrowIfStructuredCancellation()
                 _state.update {
-                    it.copy(uploadingPhoto = false, error = UiText.res(Res.string.error_image_upload_failed))
+                    it.copy(
+                        uploadingPhoto = false,
+                        profilePhotoPreviewBytes = null,
+                        error = UiText.res(Res.string.error_image_upload_failed),
+                    )
                 }
                 return@launch
             }

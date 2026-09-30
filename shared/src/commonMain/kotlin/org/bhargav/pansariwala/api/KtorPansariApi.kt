@@ -300,14 +300,16 @@ class KtorPansariApi(
         fileName: String,
         bytes: ByteArray,
         contentType: String,
-    ): UploadResultDto = postUpload("uploads", prefix, fileName, bytes, contentType)
+        thumbnailBytes: ByteArray?,
+    ): UploadResultDto = postUpload("uploads", prefix, fileName, bytes, contentType, thumbnailBytes)
 
     override suspend fun uploadImageGuest(
         prefix: String,
         fileName: String,
         bytes: ByteArray,
         contentType: String,
-    ): UploadResultDto = postUpload("uploads/guest", prefix, fileName, bytes, contentType)
+        thumbnailBytes: ByteArray?,
+    ): UploadResultDto = postUpload("uploads/guest", prefix, fileName, bytes, contentType, thumbnailBytes)
 
     private suspend fun postUpload(
         path: String,
@@ -315,6 +317,7 @@ class KtorPansariApi(
         fileName: String,
         bytes: ByteArray,
         contentType: String,
+        thumbnailBytes: ByteArray?,
     ): UploadResultDto {
         return client.post(path) {
             parameter("prefix", prefix.trim('/'))
@@ -333,6 +336,16 @@ class KtorPansariApi(
                                 append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
                             },
                         )
+                        if (thumbnailBytes != null && thumbnailBytes.isNotEmpty()) {
+                            append(
+                                "thumbnail",
+                                thumbnailBytes,
+                                Headers.build {
+                                    append(HttpHeaders.ContentType, "image/jpeg")
+                                    append(HttpHeaders.ContentDisposition, "filename=\"thumb.jpg\"")
+                                },
+                            )
+                        }
                     },
                 ),
             )

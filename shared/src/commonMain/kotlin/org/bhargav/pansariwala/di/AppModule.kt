@@ -47,6 +47,7 @@ import org.bhargav.pansariwala.feature.user.UserSettingsViewModel
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
 import org.bhargav.pansariwala.notification.LiveAlerts
 import org.bhargav.pansariwala.notification.NotificationGateway
+import org.bhargav.pansariwala.notification.PartnerOfferSocket
 import org.bhargav.pansariwala.notification.ShopNotifier
 import org.bhargav.pansariwala.notification.createNotificationGateway
 import org.bhargav.pansariwala.voice.SpeechToText
@@ -63,6 +64,7 @@ val appModule = module {
     single<NotificationGateway> { createNotificationGateway() }
     singleOf(::ShopNotifier)
     singleOf(::LiveAlerts)
+    singleOf(::PartnerOfferSocket)
     singleOf(::PartnerLocationTracker)
     single<SpeechToText> { createSpeechToText() }
 

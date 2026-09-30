@@ -22,16 +22,22 @@ import org.bhargav.pansariwala.server.dto.ApiErrorBody
 import org.bhargav.pansariwala.server.routing.apiRoutes
 import org.bhargav.pansariwala.server.security.Security
 import org.bhargav.pansariwala.server.service.AppStore
+import org.bhargav.pansariwala.server.storage.AssetKeyMigration
+import org.bhargav.pansariwala.server.storage.AssetRefs
+import org.bhargav.pansariwala.server.storage.AssetStorageFactory
 import org.slf4j.event.Level
-import java.io.File
 
 fun main() {
     val config = ServerConfig.fromEnv()
-    File(config.uploadDir).mkdirs()
+    val storage = AssetStorageFactory.create(config)
+    val assetRefs = AssetRefs(storage, config.legacyAssetBaseUrls)
+    println("Asset storage: ${storage.description}")
     val security = Security(config)
     val mongo = connectMongo(config, security)
     Runtime.getRuntime().addShutdownHook(Thread { mongo.client.close() })
-    val store = AppStore(config, security, mongo)
+    val migrated = AssetKeyMigration(mongo.db, assetRefs).run()
+    if (migrated > 0) println("Asset refs: normalized $migrated documents to storage keys")
+    val store = AppStore(config, security, mongo, storage, assetRefs)
 
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
         // CORS first so preflight + error responses always include ACAO (web localhost → API).

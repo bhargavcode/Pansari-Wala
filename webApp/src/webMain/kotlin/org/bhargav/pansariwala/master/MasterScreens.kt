@@ -295,8 +295,7 @@ private fun DashboardShopsTable(
 ) {
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
-    val scroll = rememberScrollState()
-    Column(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
+    ResponsiveTable(columns = 9) {
         TableHeader(
             stringResource(Res.string.master_shop_id),
             stringResource(Res.string.master_shop_name),
@@ -312,13 +311,13 @@ private fun DashboardShopsTable(
             TableRow {
                 CellText(s.id)
                 CellText(s.name)
-                RatingText(s.rating)
-                CellText(s.address.ifBlank { "Location" })
+                Cell { RatingText(s.rating) }
+                CellText(s.address.ifBlank { "—" })
                 CellText(formatEpochDate(s.joinedAtEpochMs))
                 CellText(shopTypeDisplayName(s.shopType))
-                StatusChip(s.active)
-                ImageThumb(s.imageUrl)
-                ViewMoreButton { onNavigate(MasterDest.ShopDetail(s.id)) }
+                Cell { StatusChip(s.active) }
+                Cell { ImageThumb(s.imageUrl) }
+                Cell { ViewMoreButton { onNavigate(MasterDest.ShopDetail(s.id)) } }
             }
         }
     }
@@ -459,8 +458,7 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
             }
             OutlinedTextField(query, { query = it }, label = { Text(stringResource(Res.string.master_search)) }, modifier = Modifier.fillMaxWidth())
             MasterSectionCard {
-                val scroll = rememberScrollState()
-                Column(Modifier.horizontalScroll(scroll)) {
+                ResponsiveTable(columns = 10) {
                     TableHeader(
                         stringResource(Res.string.master_product_id),
                         stringResource(Res.string.master_product_name),
@@ -482,7 +480,7 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
                             CellText(formatInr(p.salePrice))
                             CellText(formatInr(p.cost))
                             CellText(p.categoryId)
-                            OnOffToggle(p.active) {
+                            Cell { OnOffToggle(p.active) {
                                 scope.launch {
                                     runCatching {
                                         api.saveProduct(
@@ -515,9 +513,9 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
                                         )
                                     }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
                                 }
-                            }
+                            } }
                             CellText(formatEpochDate(p.addedAtEpochMs))
-                            Row {
+                            FlowRow(Modifier.weight(1f)) {
                                 TextButton(onClick = { onNavigate(MasterDest.ProductEdit(p.id)) }) {
                                     Text(stringResource(Res.string.action_edit))
                                 }
@@ -744,8 +742,7 @@ internal fun TransactionsScreen(token: String, onNavigate: (MasterDest) -> Unit,
 
 @Composable
 private fun TxnMiniTable(rows: List<TxnDto>, onOpen: (String) -> Unit) {
-    val scroll = rememberScrollState()
-    Column(Modifier.horizontalScroll(scroll)) {
+    ResponsiveTable(columns = 5) {
         TableHeader(
             stringResource(Res.string.master_order_id),
             stringResource(Res.string.master_transaction_no),
@@ -775,8 +772,7 @@ private fun TxnFullTable(
 ) {
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
-    val scroll = rememberScrollState()
-    Column(Modifier.horizontalScroll(scroll).widthIn(min = 1100.dp)) {
+    ResponsiveTable(columns = 13, minWidth = 1100.dp) {
         NestedTxnTableHeader()
         rows.forEach { t ->
             NestedTxnTableRow(
@@ -905,8 +901,7 @@ internal fun UsersScreen(token: String, onNavigate: (MasterDest) -> Unit, onStat
                 )
             }
             MasterSectionCard {
-                val scroll = rememberScrollState()
-                Column(Modifier.horizontalScroll(scroll)) {
+                ResponsiveTable(columns = 7) {
                     TableHeader(
                         stringResource(Res.string.master_user_id),
                         stringResource(Res.string.master_name),
@@ -922,16 +917,20 @@ internal fun UsersScreen(token: String, onNavigate: (MasterDest) -> Unit, onStat
                             CellText(u.name)
                             CellText(u.phone)
                             CellText(u.address)
-                            OnOffToggle(u.active) {
-                                scope.launch {
-                                    runCatching { api.patchUser(token, u.id, !u.active) }
-                                        .onSuccess { refresh() }
-                                        .onFailure { onStatus(it.message.orEmpty()) }
+                            Cell {
+                                OnOffToggle(u.active) {
+                                    scope.launch {
+                                        runCatching { api.patchUser(token, u.id, !u.active) }
+                                            .onSuccess { refresh() }
+                                            .onFailure { onStatus(it.message.orEmpty()) }
+                                    }
                                 }
                             }
                             CellText(formatEpochDate(u.joinedAtEpochMs))
-                            TextButton(onClick = { onNavigate(MasterDest.UserDetail(u.id)) }) {
-                                Text(stringResource(Res.string.master_view_more))
+                            Cell {
+                                TextButton(onClick = { onNavigate(MasterDest.UserDetail(u.id)) }) {
+                                    Text(stringResource(Res.string.master_view_more))
+                                }
                             }
                         }
                     }
@@ -1028,8 +1027,7 @@ internal fun PartnersScreen(token: String, onNavigate: (MasterDest) -> Unit, onS
                 )
             }
             MasterSectionCard {
-                val scroll = rememberScrollState()
-                Column(Modifier.horizontalScroll(scroll)) {
+                ResponsiveTable(columns = 12) {
                     TableHeader(
                         stringResource(Res.string.master_partner_id),
                         stringResource(Res.string.master_name),
@@ -1055,16 +1053,20 @@ internal fun PartnersScreen(token: String, onNavigate: (MasterDest) -> Unit, onS
                             CellText(p.vehicleBrand.ifBlank { "—" })
                             CellText(p.vehicleColor.ifBlank { "—" })
                             CellText(p.vehicleType)
-                            OnOffToggle(p.active) {
-                                scope.launch {
-                                    runCatching { api.patchPartner(token, p.id, !p.active) }
-                                        .onSuccess { refresh() }
-                                        .onFailure { onStatus(it.message.orEmpty()) }
+                            Cell {
+                                OnOffToggle(p.active) {
+                                    scope.launch {
+                                        runCatching { api.patchPartner(token, p.id, !p.active) }
+                                            .onSuccess { refresh() }
+                                            .onFailure { onStatus(it.message.orEmpty()) }
+                                    }
                                 }
                             }
                             CellText(formatEpochDate(p.joinedAtEpochMs))
-                            TextButton(onClick = { onNavigate(MasterDest.PartnerDetail(p.id)) }) {
-                                Text(stringResource(Res.string.master_view_more))
+                            Cell {
+                                TextButton(onClick = { onNavigate(MasterDest.PartnerDetail(p.id)) }) {
+                                    Text(stringResource(Res.string.master_view_more))
+                                }
                             }
                         }
                     }

@@ -28,9 +28,15 @@ data class CompressedImage(
     val bytes: ByteArray,
     val mimeType: String,
     val originalByteCount: Int,
+    /** Client-generated JPEG thumbnail; null means the server must derive one. */
+    val thumbnailBytes: ByteArray? = null,
 ) {
     val reductionRatio: Double
         get() = if (originalByteCount <= 0) 0.0 else 1.0 - (bytes.size.toDouble() / originalByteCount.toDouble())
+
+    /** Smallest bytes suitable for an on-screen preview. */
+    val previewBytes: ByteArray
+        get() = thumbnailBytes?.takeIf { it.isNotEmpty() } ?: bytes
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -38,7 +44,8 @@ data class CompressedImage(
         return displayName == other.displayName &&
             mimeType == other.mimeType &&
             originalByteCount == other.originalByteCount &&
-            bytes.contentEquals(other.bytes)
+            bytes.contentEquals(other.bytes) &&
+            thumbnailBytes.contentEquals(other.thumbnailBytes)
     }
 
     override fun hashCode(): Int {
@@ -46,6 +53,29 @@ data class CompressedImage(
         result = 31 * result + bytes.contentHashCode()
         result = 31 * result + mimeType.hashCode()
         result = 31 * result + originalByteCount
+        result = 31 * result + thumbnailBytes.contentHashCode()
+        return result
+    }
+}
+
+/** Inline upload status for a single photo field (local preview shown while uploading). */
+data class PhotoUploadUi(
+    val previewBytes: ByteArray? = null,
+    val uploading: Boolean = false,
+    val failed: Boolean = false,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is PhotoUploadUi) return false
+        return uploading == other.uploading &&
+            failed == other.failed &&
+            previewBytes.contentEquals(other.previewBytes)
+    }
+
+    override fun hashCode(): Int {
+        var result = previewBytes.contentHashCode()
+        result = 31 * result + uploading.hashCode()
+        result = 31 * result + failed.hashCode()
         return result
     }
 }

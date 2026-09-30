@@ -64,7 +64,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.decodeToImageBitmap
+import org.bhargav.pansariwala.media.NetworkImage
+import org.bhargav.pansariwala.media.PhotoUploadUi
+import org.bhargav.pansariwala.media.UploadingOverlay
+import org.bhargav.pansariwala.media.isHttpImageUrl
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
@@ -120,6 +123,8 @@ import pansariwala.shared.generated.resources.partner_online_banner
 import pansariwala.shared.generated.resources.partner_otp_customer_hint
 import pansariwala.shared.generated.resources.partner_pending_verification
 import pansariwala.shared.generated.resources.partner_change_profile_photo
+import pansariwala.shared.generated.resources.error_image_upload_failed
+import pansariwala.shared.generated.resources.photo_uploading
 import pansariwala.shared.generated.resources.partner_profile_pic
 import pansariwala.shared.generated.resources.partner_resume_job
 import pansariwala.shared.generated.resources.partner_verified
@@ -180,7 +185,7 @@ fun PartnerTopBar(
 @Composable
 fun PartnerHomeTopBar(
     title: String,
-    profilePhotoBase64: String?,
+    profilePhotoUrl: String?,
     onProfileClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -205,10 +210,10 @@ fun PartnerHomeTopBar(
                     .clickable(onClick = onProfileClick),
                 contentAlignment = Alignment.Center,
             ) {
-                val photo = profilePhotoBase64.orEmpty()
-                if (photo.isNotBlank()) {
-                    Base64ImageThumbnail(
-                        base64 = photo,
+                val photo = profilePhotoUrl.orEmpty()
+                if (isHttpImageUrl(photo)) {
+                    NetworkImage(
+                        url = photo,
                         contentDescription = title,
                         modifier = Modifier.fillMaxSize().clip(CircleShape),
                     )
@@ -629,13 +634,15 @@ fun PartnerProductRow(item: OrderItem, modifier: Modifier = Modifier) {
 @Composable
 fun PartnerDocumentRow(
     label: String,
-    imageBase64: String,
+    imageUrl: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    upload: PhotoUploadUi = PhotoUploadUi(),
 ) {
-    val attached = imageBase64.isNotBlank()
+    val attached = imageUrl.isNotBlank() && !upload.uploading
+    val hasPreview = imageUrl.isNotBlank() || upload.previewBytes != null
     Card(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth().clickable(enabled = !upload.uploading, onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (attached) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
@@ -647,12 +654,16 @@ fun PartnerDocumentRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (attached) {
-                Base64ImageThumbnail(
-                    base64 = imageBase64,
-                    contentDescription = label,
-                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
-                )
+            if (hasPreview) {
+                Box(Modifier.size(56.dp).clip(RoundedCornerShape(6.dp))) {
+                    NetworkImage(
+                        url = imageUrl,
+                        contentDescription = label,
+                        modifier = Modifier.fillMaxSize(),
+                        localPreviewBytes = upload.previewBytes,
+                    )
+                    if (upload.uploading) UploadingOverlay(Modifier.fillMaxSize())
+                }
             } else {
                 Box(
                     modifier = Modifier
@@ -664,7 +675,22 @@ fun PartnerDocumentRow(
                     Text("📷", style = MaterialTheme.typography.titleLarge)
                 }
             }
-            Text(label, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
+            Column(Modifier.weight(1f)) {
+                Text(label, fontWeight = FontWeight.Medium)
+                if (upload.uploading) {
+                    Text(
+                        stringResource(Res.string.photo_uploading),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (upload.failed) {
+                    Text(
+                        stringResource(Res.string.error_image_upload_failed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
             Text(
                 if (attached) "✓" else "›",
                 color = if (attached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -681,10 +707,11 @@ fun PartnerPhotoSlot(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     dark: Boolean = false,
-    imageBase64: String = "",
+    imageUrl: String = "",
+    upload: PhotoUploadUi = PhotoUploadUi(),
 ) {
-    val hasImage = imageBase64.isNotBlank()
-    val filled = attached || hasImage
+    val hasImage = imageUrl.isNotBlank() || upload.previewBytes != null
+    val filled = (attached || hasImage) && !upload.uploading
     val borderColor = when {
         filled -> MaterialTheme.colorScheme.primary
         dark -> Color.White.copy(alpha = 0.35f)
@@ -704,15 +731,17 @@ fun PartnerPhotoSlot(
             .clip(RoundedCornerShape(12.dp))
             .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(12.dp))
             .background(bg)
-            .clickable(onClick = onClick),
+            .clickable(enabled = !upload.uploading, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (hasImage) {
-            Base64ImageThumbnail(
-                base64 = imageBase64,
+            NetworkImage(
+                url = imageUrl,
                 contentDescription = label,
                 modifier = Modifier.fillMaxSize(),
+                localPreviewBytes = upload.previewBytes,
             )
+            if (upload.uploading) UploadingOverlay(Modifier.fillMaxSize())
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -756,48 +785,11 @@ fun PartnerVerificationBadge(verified: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun Base64ImageThumbnail(
-    base64: String,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Crop,
-) {
-    if (base64.startsWith("http://", ignoreCase = true) || base64.startsWith("https://", ignoreCase = true)) {
-        org.bhargav.pansariwala.media.NetworkImage(
-            url = base64,
-            modifier = modifier,
-            contentDescription = contentDescription,
-            contentScale = contentScale,
-        )
-        return
-    }
-    val imageBitmap = remember(base64) {
-        runCatching {
-            @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-            val bytes = kotlin.io.encoding.Base64.decode(base64)
-            bytes.decodeToImageBitmap()
-        }.getOrNull()
-    }
-    if (imageBitmap != null) {
-        Image(
-            bitmap = imageBitmap,
-            contentDescription = contentDescription,
-            modifier = modifier,
-            contentScale = contentScale,
-        )
-    } else {
-        Box(modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-            Text("📷")
-        }
-    }
-}
-
-@Composable
 fun PickupPhotoStrip(
     photos: List<String>,
     modifier: Modifier = Modifier,
 ) {
-    val visible = photos.filter { it.length > 64 }
+    val visible = photos.filter(::isHttpImageUrl)
     if (visible.isEmpty()) return
     var preview by remember { mutableStateOf<String?>(null) }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -809,8 +801,8 @@ fun PickupPhotoStrip(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             visible.forEachIndexed { index, photo ->
                 val label = stringResource(Res.string.partner_bag_photo, (index + 1).toString())
-                Base64ImageThumbnail(
-                    base64 = photo,
+                NetworkImage(
+                    url = photo,
                     contentDescription = label,
                     modifier = Modifier
                         .weight(1f)
@@ -822,8 +814,8 @@ fun PickupPhotoStrip(
         }
     }
     preview?.let { photo ->
-        FullscreenBase64Image(
-            base64 = photo,
+        FullscreenNetworkImage(
+            url = photo,
             contentDescription = stringResource(Res.string.pickup_photos_title),
             onDismiss = { preview = null },
         )
@@ -831,8 +823,8 @@ fun PickupPhotoStrip(
 }
 
 @Composable
-fun FullscreenBase64Image(
-    base64: String,
+fun FullscreenNetworkImage(
+    url: String,
     contentDescription: String,
     onDismiss: () -> Unit,
 ) {
@@ -851,8 +843,8 @@ fun FullscreenBase64Image(
                 .fillMaxSize()
                 .background(Color.Black),
         ) {
-            Base64ImageThumbnail(
-                base64 = base64,
+            NetworkImage(
+                url = url,
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
@@ -951,11 +943,12 @@ fun DeliveryOtpInput(
 
 @Composable
 fun PartnerProfileCircle(
-    base64: String,
+    imageUrl: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showEditBadge: Boolean = false,
     uploading: Boolean = false,
+    localPreviewBytes: ByteArray? = null,
 ) {
     Box(modifier = modifier.size(80.dp)) {
         Box(
@@ -963,17 +956,19 @@ fun PartnerProfileCircle(
                 .fillMaxSize()
                 .clip(CircleShape)
                 .then(
-                    if (base64.isBlank()) Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
-                    else Modifier,
+                    if (imageUrl.isBlank() && localPreviewBytes == null) {
+                        Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
+                    } else Modifier,
                 )
                 .clickable(enabled = !uploading, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            if (base64.isNotBlank()) {
-                Base64ImageThumbnail(
-                    base64 = base64,
+            if (imageUrl.isNotBlank() || localPreviewBytes != null) {
+                NetworkImage(
+                    url = imageUrl,
                     contentDescription = stringResource(Res.string.partner_profile_pic),
                     modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    localPreviewBytes = localPreviewBytes,
                 )
             } else {
                 Icon(

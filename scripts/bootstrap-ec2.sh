@@ -36,6 +36,10 @@ S3_BUCKET=pansariwala-assets
 AWS_REGION=ap-south-1
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+# Optional CloudFront / custom CDN origin (empty = https://BUCKET.s3.REGION.amazonaws.com)
+S3_PUBLIC_BASE_URL=
+# Fail startup if S3 keys missing (set true after keys are filled)
+REQUIRE_S3=false
 PUBLIC_BASE_URL=https://api.pansariwala.shop
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=

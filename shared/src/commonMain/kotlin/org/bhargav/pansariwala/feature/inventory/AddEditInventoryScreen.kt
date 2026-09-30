@@ -86,6 +86,7 @@ fun AddEditInventoryScreen(
         ) {
             org.bhargav.pansariwala.media.ProductImageSlots(
                 slots = state.imageSlots,
+                feature = org.bhargav.pansariwala.media.ImageUploadFeature.INVENTORY_PRODUCT,
                 onAdd = viewModel::addImage,
                 onRetry = viewModel::retryImage,
                 onClear = viewModel::clearImage,

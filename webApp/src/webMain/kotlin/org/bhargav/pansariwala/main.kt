@@ -23,12 +23,14 @@ fun main() {
     }
     val route = currentWebRoute()
     ComposeViewport {
-        when (route) {
-            WebRoute.Landing -> LandingApp()
-            WebRoute.MasterAdmin -> MasterAdminApp()
-            WebRoute.UserApp -> {
-                AppProductHolder.current = AppProduct.USER
-                App()
+        WithScriptFallbackFonts {
+            when (route) {
+                WebRoute.Landing -> LandingApp()
+                WebRoute.MasterAdmin -> MasterAdminApp()
+                WebRoute.UserApp -> {
+                    AppProductHolder.current = AppProduct.USER
+                    App()
+                }
             }
         }
     }

@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -41,7 +42,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
@@ -59,32 +62,67 @@ fun NetworkImage(
     contentScale: ContentScale = ContentScale.Crop,
     localPreviewBytes: ByteArray? = null,
 ) {
-    var bitmap by remember(url, localPreviewBytes?.size) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(url, localPreviewBytes?.size) {
-        bitmap = null
+    val target = url?.trim()?.takeIf { isHttpImageUrl(it) }
+    var bitmap by remember(target, localPreviewBytes) {
+        mutableStateOf(target?.let { ImageBitmapCache.get(it) })
+    }
+    var loading by remember(target, localPreviewBytes) { mutableStateOf(false) }
+    LaunchedEffect(target, localPreviewBytes) {
+        if (bitmap != null) return@LaunchedEffect
         localPreviewBytes?.takeIf { it.isNotEmpty() }?.let {
-            bitmap = runCatching { it.decodeToImageBitmap() }.getOrNull()
+            bitmap = decodeImageOffMain(it)
             if (bitmap != null) return@LaunchedEffect
         }
-        val target = url?.trim()?.takeIf { isHttpImageUrl(it) } ?: return@LaunchedEffect
+        if (target == null) return@LaunchedEffect
+        loading = true
         bitmap = runCatching {
-            createPlatformHttpClient().get(target).readRawBytes().decodeToImageBitmap()
+            val bytes = ImageBitmapCache.client.get(target).readRawBytes()
+            decodeImageOffMain(bytes)?.also { ImageBitmapCache.put(target, it) }
         }.getOrNull()
+        loading = false
     }
     Box(modifier, contentAlignment = Alignment.Center) {
         val bmp = bitmap
-        if (bmp != null) {
-            Image(
+        when {
+            bmp != null -> Image(
                 bitmap = bmp,
                 contentDescription = contentDescription,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = contentScale,
             )
-        } else {
-            Box(
-                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
-            )
+            loading -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            else -> Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
         }
+    }
+}
+
+suspend fun decodeImageOffMain(bytes: ByteArray): ImageBitmap? =
+    withContext(Dispatchers.Default) { runCatching { bytes.decodeToImageBitmap() }.getOrNull() }
+
+/** Main-thread-only LRU of decoded remote images, so lists don't re-download on recomposition. */
+private object ImageBitmapCache {
+    val client by lazy { createPlatformHttpClient() }
+    private val entries = LinkedHashMap<String, ImageBitmap>()
+
+    fun get(url: String): ImageBitmap? = entries.remove(url)?.also { entries[url] = it }
+
+    fun put(url: String, bitmap: ImageBitmap) {
+        entries.remove(url)
+        entries[url] = bitmap
+        while (entries.size > AppConstants.IMAGE_BITMAP_CACHE_SIZE) {
+            entries.remove(entries.keys.first())
+        }
+    }
+}
+
+/** Translucent spinner overlay drawn over a local preview while it uploads. */
+@Composable
+fun UploadingOverlay(modifier: Modifier = Modifier) {
+    Box(
+        modifier.background(Color.Black.copy(alpha = 0.4f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = Color.White)
     }
 }
 
@@ -125,11 +163,14 @@ fun ProductImageCarousel(
 @Composable
 fun ProductImageSlots(
     slots: List<ImageSlotState>,
-    onAdd: (Int) -> Unit,
+    feature: ImageUploadFeature,
+    onAdd: (Int, ImageSource) -> Unit,
     onRetry: (Int) -> Unit,
     onClear: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var pendingSlot by remember { mutableIntStateOf(0) }
+    val launchPicker = rememberImageSourceLauncher(feature) { source -> onAdd(pendingSlot, source) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(Res.string.product_images_hint, AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
@@ -143,7 +184,10 @@ fun ProductImageSlots(
             slots.forEachIndexed { index, state ->
                 ImageSlotTile(
                     state = state,
-                    onAdd = { onAdd(index) },
+                    onAdd = {
+                        pendingSlot = index
+                        launchPicker()
+                    },
                     onRetry = { onRetry(index) },
                     onClear = { onClear(index) },
                     modifier = Modifier.weight(1f),
@@ -190,10 +234,18 @@ private fun ImageSlotTile(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            is ImageSlotState.Compressing, is ImageSlotState.Uploading -> CircularProgressIndicator(
+            is ImageSlotState.Compressing -> CircularProgressIndicator(
                 Modifier.size(24.dp),
                 strokeWidth = 2.dp,
             )
+            is ImageSlotState.Uploading -> {
+                NetworkImage(
+                    url = null,
+                    localPreviewBytes = state.previewBytes,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                UploadingOverlay(Modifier.fillMaxSize())
+            }
             is ImageSlotState.Ready -> {
                 NetworkImage(
                     url = state.thumbnailUrl.ifBlank { state.url },

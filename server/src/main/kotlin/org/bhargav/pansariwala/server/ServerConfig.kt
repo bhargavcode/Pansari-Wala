@@ -20,18 +20,21 @@ data class ServerConfig(
     val smsApiUrl: String,
     val smsApiToken: String,
     val passwordSalt: String,
-    val uploadDir: String,
     val adminUsername: String,
     val adminPassword: String,
+    /** Asset backend id, see [org.bhargav.pansariwala.server.storage.StorageProvider]. */
+    val storageProvider: String,
+    /** Optional CDN / custom host for public object URLs (no trailing slash). Empty → backend default. */
+    val assetPublicBaseUrl: String,
+    /** Old public URL prefixes whose trailing path is an object key; inbound values are normalized to keys. */
+    val legacyAssetBaseUrls: List<String>,
     val s3Bucket: String,
     val s3Region: String,
     val awsAccessKeyId: String,
     val awsSecretAccessKey: String,
-    val publicBaseUrl: String,
 ) {
     val paymentsEnabled: Boolean get() = razorpayKeyId.isNotBlank() && razorpayKeySecret.isNotBlank()
     val smsConfigured: Boolean get() = smsApiUrl.isNotBlank()
-    val s3Configured: Boolean get() = awsAccessKeyId.isNotBlank() && awsSecretAccessKey.isNotBlank() && s3Bucket.isNotBlank()
 
     companion object {
         const val DEFAULT_PASSWORD_SALT = "pansari-local-salt"
@@ -55,14 +58,18 @@ data class ServerConfig(
             smsApiUrl = env("SMS_API_URL", ""),
             smsApiToken = env("SMS_API_TOKEN", ""),
             passwordSalt = env("PASSWORD_SALT", DEFAULT_PASSWORD_SALT),
-            uploadDir = env("UPLOAD_DIR", "./data/uploads"),
             adminUsername = env("ADMIN_USERNAME", "bhargav"),
             adminPassword = env("ADMIN_PASSWORD", ""),
+            storageProvider = env("STORAGE_PROVIDER", "s3"),
+            assetPublicBaseUrl = env("ASSET_PUBLIC_BASE_URL", env("S3_PUBLIC_BASE_URL", "")),
+            legacyAssetBaseUrls = env("LEGACY_ASSET_BASE_URLS", "https://api.pansariwala.shop/uploads")
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotBlank() },
             s3Bucket = env("S3_BUCKET", "pansariwala-assets"),
             s3Region = env("AWS_REGION", "ap-south-1"),
             awsAccessKeyId = env("AWS_ACCESS_KEY_ID", ""),
             awsSecretAccessKey = env("AWS_SECRET_ACCESS_KEY", ""),
-            publicBaseUrl = env("PUBLIC_BASE_URL", "https://api.pansariwala.shop"),
         )
 
         private fun mongoUriFromEnv(): String {

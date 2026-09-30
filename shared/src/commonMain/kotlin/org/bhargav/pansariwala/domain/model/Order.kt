@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.domain.model
 
+import org.bhargav.pansariwala.media.isHttpImageUrl
 import org.bhargav.pansariwala.util.AppConstants
 
 enum class OrderStatus {
@@ -98,7 +99,7 @@ data class Order(
             return "$shopPart$orderPart"
         }
     val visiblePickupPhotos: List<String>
-        get() = pickupPhotoUrls.filter { it.length > 64 }
+        get() = pickupPhotoUrls.filter(::isHttpImageUrl)
     val resumeProgress: String
         get() = partnerProgress.ifBlank {
             if (status == OrderStatus.ON_THE_WAY) AppConstants.PartnerProgress.TO_CUSTOMER

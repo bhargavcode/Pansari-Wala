@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
@@ -154,6 +156,33 @@ fun DateFilterBar(selected: String, onSelect: (String) -> Unit) {
     }
 }
 
+private val TableMinColumnWidth = 130.dp
+
+/**
+ * Weighted table cells need a bounded width; a bare `horizontalScroll` gives infinite width and
+ * collapses every weighted cell to zero. Fills the container, or scrolls when [columns] need more room.
+ */
+@Composable
+fun ResponsiveTable(
+    columns: Int,
+    modifier: Modifier = Modifier,
+    minWidth: Dp = TableMinColumnWidth * columns,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val tableWidth = if (maxWidth > minWidth) maxWidth else minWidth
+        Column(
+            Modifier.horizontalScroll(rememberScrollState()).width(tableWidth),
+            content = content,
+        )
+    }
+}
+
+@Composable
+fun RowScope.Cell(weight: Float = 1f, content: @Composable () -> Unit) {
+    Box(Modifier.weight(weight), contentAlignment = Alignment.CenterStart) { content() }
+}
+
 @Composable
 fun TableHeader(vararg labels: String) {
     Row(
@@ -169,7 +198,7 @@ fun TableHeader(vararg labels: String) {
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

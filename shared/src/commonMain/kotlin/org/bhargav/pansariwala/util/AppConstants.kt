@@ -30,6 +30,10 @@ object AppConstants {
     const val DELIVERY_RING_TIMEOUT_MS: Long = 15 * 60_000L
     const val PARTNER_OFFER_ACCEPT_MS: Long = 15_000L
     const val LIVE_ALERT_POLL_MS: Long = 5_000L
+    /** Idle wait while partner is offline / logged out before rechecking socket duty. */
+    const val PARTNER_OFFER_SOCKET_IDLE_MS: Long = 3_000L
+    /** Backoff after a delivery WebSocket disconnect before reconnect. */
+    const val PARTNER_OFFER_SOCKET_RETRY_MS: Long = 3_000L
     const val LOCATION_FETCH_TIMEOUT_MS: Long = 15_000L
     /** Partner GPS push to server (foreground + background). */
     const val PARTNER_LOCATION_UPDATE_MS: Long = 2 * 60_000L
@@ -118,6 +122,9 @@ object AppConstants {
     /** Aim for ~90% size reduction vs original when original is large. */
     const val PHOTO_TARGET_RATIO: Double = 0.10
     const val PHOTO_MAX_PRODUCT_IMAGES: Int = 4
+    const val PHOTO_THUMB_EDGE_PX: Int = 256
+    const val PHOTO_THUMB_JPEG_QUALITY: Int = 75
+    const val IMAGE_BITMAP_CACHE_SIZE: Int = 48
     const val IMAGE_CAROUSEL_INTERVAL_MS: Long = 2_000L
     const val UPLOAD_AUTO_RETRY_COUNT: Int = 1
     const val UPLOAD_MAX_RAW_BYTES: Int = 12_000_000

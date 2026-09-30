@@ -628,6 +628,8 @@ data class ShopTypeUpsert(
 data class UploadResultDto(
     val url: String,
     val thumbnailUrl: String,
+    val key: String = "",
+    val thumbnailKey: String = "",
 )
 
 @Serializable

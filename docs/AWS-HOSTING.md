@@ -97,6 +97,48 @@ sudo certbot --nginx -d pansariwala.shop -d www.pansariwala.shop -d api.pansariw
 
 ## S3 — `pansariwala-assets` (ap-south-1)
 
+All uploads go to object storage; there is no local-disk fallback. The backend is chosen by `STORAGE_PROVIDER` (currently `s3`). Mongo stores **object keys** (`partners/user-image/<id>.jpg`), and the API turns them into public URLs in every response, so switching backend or adding a CDN only needs a config change plus copying objects.
+
+### One-time setup
+
+```bash
+# From a machine with AWS CLI admin access:
+export AWS_REGION=ap-south-1
+export S3_BUCKET=pansariwala-assets
+bash scripts/setup-s3-bucket.sh
+```
+
+Creates the bucket, public `GetObject` policy, and CORS.
+
+### API host env (`/opt/pansari/env`)
+
+```bash
+STORAGE_PROVIDER=s3
+S3_BUCKET=pansariwala-assets
+AWS_REGION=ap-south-1
+# Credentials: prefer the EC2 instance role (pansariwala-s3-role). Static keys are optional:
+# AWS_ACCESS_KEY_ID=AKIA...
+# AWS_SECRET_ACCESS_KEY=...
+# optional CDN in front of the bucket:
+# ASSET_PUBLIC_BASE_URL=https://cdn.pansariwala.shop
+```
+
+Then `sudo systemctl restart pansari-server`. Logs should show `Asset storage: s3 bucket=... auth=instance-role`.
+The server refuses to start if the backend cannot authenticate.
+
+Public URLs look like:
+`https://pansariwala-assets.s3.ap-south-1.amazonaws.com/partners/user-image/<id>.jpg`
+
+On startup the server rewrites any stored asset URL from a known base (current bucket, CDN, or
+`LEGACY_ASSET_BASE_URLS`, default `https://api.pansariwala.shop/uploads`) into a plain key. Inbound
+URLs sent by clients are normalized the same way before saving.
+
+### Adding another backend
+
+1. Implement `AssetStorage` in `server/.../storage/` (`put`, `publicUrl`, `publicBaseUrls`).
+2. Add an entry to `StorageProvider` and a branch in `AssetStorageFactory`.
+3. Copy objects to the new backend with the same keys, add the old base to `LEGACY_ASSET_BASE_URLS`, set `STORAGE_PROVIDER`, and restart.
+
 Prefix layout (folders inside one bucket):
 
 ```text
@@ -124,10 +166,10 @@ Upload API:
 - Authenticated `POST /uploads?prefix=…` (multipart `file`)
 - Guest (pre-login) `POST /uploads/guest?prefix=…` limited to `partners/*` and `users/*`
 - Admin also has `POST /admin/uploads`
-- Accepts PNG / JPEG / WebP only; server recompresses to JPEG and returns `{ url, thumbnailUrl }`
+- Accepts PNG / JPEG / WebP only; server recompresses to JPEG and returns `{ url, thumbnailUrl, key, thumbnailKey }`
 
-CORS: allow `GET`/`PUT` from `https://pansariwala.shop`.  
-IAM: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on `pansariwala-assets/*`.
+IAM (EC2 role `pansariwala-s3-role`): `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on `pansariwala-assets/*`, `s3:ListBucket` on the bucket.  
+Public read is via **bucket policy** (not object ACLs).
 
 ## CI/CD
 

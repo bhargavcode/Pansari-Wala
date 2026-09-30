@@ -18,6 +18,8 @@ import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.media.ImageSlotState
+import org.bhargav.pansariwala.media.ImageSource
+import org.bhargav.pansariwala.media.ImageUploadFeature
 import org.bhargav.pansariwala.media.LifecycleImageUploader
 import org.bhargav.pansariwala.media.UploadedImage
 import org.bhargav.pansariwala.platform.ImagePicker
@@ -66,7 +68,13 @@ class AddEditInventoryViewModel(
         scope = viewModelScope,
         picker = imagePicker,
         upload = { prefix, compressed ->
-            val result = api.uploadImage(prefix, compressed.displayName, compressed.bytes, compressed.mimeType)
+            val result = api.uploadImage(
+                prefix,
+                compressed.displayName,
+                compressed.bytes,
+                compressed.mimeType,
+                compressed.thumbnailBytes,
+            )
             UploadedImage(result.url, result.thumbnailUrl)
         },
         slotCount = AppConstants.PHOTO_MAX_PRODUCT_IMAGES,
@@ -113,7 +121,8 @@ class AddEditInventoryViewModel(
     fun onThresholdChange(value: String) = _uiState.update { it.copy(lowStockThreshold = value) }
     fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value) }
 
-    fun addImage(slot: Int) = imageUploader.pickAndUpload(slot, AppConstants.S3Prefix.SHOPS_PRODUCT_IMAGES)
+    fun addImage(slot: Int, source: ImageSource) =
+        imageUploader.pickAndUpload(slot, ImageUploadFeature.INVENTORY_PRODUCT.prefix, source)
     fun retryImage(slot: Int) = imageUploader.retry(slot)
     fun clearImage(slot: Int) = imageUploader.clear(slot)
 

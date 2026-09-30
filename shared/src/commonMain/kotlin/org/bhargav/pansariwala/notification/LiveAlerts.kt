@@ -11,8 +11,6 @@ import org.jetbrains.compose.resources.getString
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.notify_delivered_body
 import pansariwala.shared.generated.resources.notify_delivered_title
-import pansariwala.shared.generated.resources.notify_delivery_offer_body
-import pansariwala.shared.generated.resources.notify_delivery_offer_title
 import pansariwala.shared.generated.resources.notify_new_order_body
 import pansariwala.shared.generated.resources.notify_new_order_title
 import pansariwala.shared.generated.resources.notify_on_the_way_body
@@ -26,21 +24,22 @@ class LiveAlerts(
     private val preferences: AppPreferences,
 ) {
     suspend fun run(product: AppProduct) {
+        // Delivery uses PartnerOfferSocket (/ws/delivery) — no REST poll loop.
+        if (product == AppProduct.DELIVERY) return
+
         val seenOrders = mutableSetOf<String>()
         val lastStatus = mutableMapOf<String, OrderStatus>()
-        var lastOfferId: String? = null
         var primed = false
         while (true) {
             if (!preferences.hasSession()) {
                 primed = false
                 seenOrders.clear()
                 lastStatus.clear()
-                lastOfferId = null
             } else {
                 runCatching {
                     when (product) {
                         AppProduct.POS -> pollShop(seenOrders, primed)
-                        AppProduct.DELIVERY -> lastOfferId = pollPartner(lastOfferId, primed)
+                        AppProduct.DELIVERY -> Unit
                         AppProduct.USER -> pollCustomer(lastStatus, primed)
                     }
                 }
@@ -72,29 +71,6 @@ class LiveAlerts(
             }
         }
         seen.addAll(orders.map { it.id })
-    }
-
-    private suspend fun pollPartner(lastOfferId: String?, primed: Boolean): String? {
-        // New-offer push/notifications only while partner marked online.
-        if (!preferences.getPartnerOnlineDuty()) return lastOfferId
-        val offer = api.incomingOffer()
-        if (primed && offer != null && offer.id != lastOfferId) {
-            gateway.show(
-                ShopNotification(
-                    id = generateId("notif"),
-                    title = getString(Res.string.notify_delivery_offer_title),
-                    body = getString(
-                        Res.string.notify_delivery_offer_body,
-                        offer.shop.name,
-                        offer.payoutInr.toInt().toString(),
-                    ),
-                    orderId = offer.orderId,
-                    offerId = offer.id,
-                    type = AppConstants.Notification.TYPE_DELIVERY_OFFER,
-                ),
-            )
-        }
-        return offer?.id
     }
 
     private suspend fun pollCustomer(lastStatus: MutableMap<String, OrderStatus>, primed: Boolean) {

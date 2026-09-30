@@ -496,6 +496,13 @@
     <string name="error_image_type_unsupported">Only PNG, JPEG, or WebP images are allowed.</string>
     <string name="product_images_hint">Add up to %1$d product photos (PNG / JPEG / WebP)</string>
     <string name="action_remove_photo">Remove photo</string>
+    <string name="image_source_title">Add photo</string>
+    <string name="image_source_camera">Take photo</string>
+    <string name="image_source_camera_hint">Use your camera</string>
+    <string name="image_source_gallery">Choose from gallery</string>
+    <string name="image_source_gallery_hint">Pick an existing photo</string>
+    <string name="photo_uploading">Uploading…</string>
+    <string name="error_photo_upload_in_progress">Please wait for photos to finish uploading.</string>
     <string name="field_phone">Mobile number</string>
     <string name="action_send_otp">Send OTP</string>
     <string name="field_otp">OTP</string>

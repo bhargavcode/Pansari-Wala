@@ -2,7 +2,10 @@ package org.bhargav.pansariwala.media
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import org.bhargav.pansariwala.util.AppConstants
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -12,10 +15,10 @@ actual fun compressImageForUpload(
     mimeType: String,
     displayName: String,
 ): CompressedImage {
-    val original = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        ?: error("Could not decode image")
+    val decoded = decodeSampled(bytes, AppConstants.PHOTO_MAX_EDGE_PX)
+    val oriented = applyExifOrientation(decoded, bytes)
+    val scaled = scaleDown(oriented, AppConstants.PHOTO_MAX_EDGE_PX)
     try {
-        val scaled = scaleDown(original, AppConstants.PHOTO_MAX_EDGE_PX)
         val targetBytes = targetByteBudget(bytes.size)
         var quality = AppConstants.PHOTO_JPEG_QUALITY
         var out = encodeJpeg(scaled, quality)
@@ -27,20 +30,59 @@ actual fun compressImageForUpload(
             val tighter = scaleDown(scaled, (AppConstants.PHOTO_MAX_EDGE_PX * 0.8).roundToInt())
             if (tighter !== scaled) {
                 out = encodeJpeg(tighter, quality.coerceAtLeast(AppConstants.PHOTO_JPEG_QUALITY_MIN))
-                if (tighter !== original) tighter.recycle()
+                tighter.recycle()
             }
         }
-        if (scaled !== original) scaled.recycle()
+        val thumb = scaleDown(scaled, AppConstants.PHOTO_THUMB_EDGE_PX)
+        val thumbBytes = encodeJpeg(thumb, AppConstants.PHOTO_THUMB_JPEG_QUALITY)
+        if (thumb !== scaled) thumb.recycle()
         val name = displayName.substringBeforeLast('.').ifBlank { "photo" } + ".jpg"
         return CompressedImage(
             displayName = name,
             bytes = out,
             mimeType = "image/jpeg",
             originalByteCount = bytes.size,
+            thumbnailBytes = thumbBytes,
         )
     } finally {
-        original.recycle()
+        if (scaled !== oriented) scaled.recycle()
+        if (oriented !== decoded) oriented.recycle()
+        decoded.recycle()
     }
+}
+
+/** Decodes at a power-of-two sample size so a 12MP camera shot never lands fully in memory. */
+private fun decodeSampled(bytes: ByteArray, maxEdge: Int): Bitmap {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Could not decode image" }
+    var sample = 1
+    while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxEdge) sample *= 2
+    val opts = BitmapFactory.Options().apply {
+        inSampleSize = sample
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+        ?: error("Could not decode image")
+}
+
+private fun applyExifOrientation(bitmap: Bitmap, bytes: ByteArray): Bitmap {
+    val orientation = runCatching {
+        ExifInterface(ByteArrayInputStream(bytes))
+            .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+    val matrix = Matrix()
+    when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+        ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+        ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
+        ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.postRotate(90f); matrix.preScale(-1f, 1f) }
+        ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.postRotate(270f); matrix.preScale(-1f, 1f) }
+        else -> return bitmap
+    }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
 private fun targetByteBudget(originalSize: Int): Int {

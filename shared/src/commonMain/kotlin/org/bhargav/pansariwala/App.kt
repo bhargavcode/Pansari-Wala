@@ -14,6 +14,7 @@ import org.bhargav.pansariwala.navigation.DeliveryNavGraph
 import org.bhargav.pansariwala.navigation.UserNavGraph
 import org.bhargav.pansariwala.notification.LiveAlerts
 import org.bhargav.pansariwala.notification.NotificationGateway
+import org.bhargav.pansariwala.notification.PartnerOfferSocket
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
 import org.bhargav.pansariwala.product.AppProduct
 import org.bhargav.pansariwala.product.currentAppProduct
@@ -27,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 fun App(
     preferences: AppPreferences = koinInject(),
     alerts: LiveAlerts = koinInject(),
+    offerSocket: PartnerOfferSocket = koinInject(),
     notifications: NotificationGateway = koinInject(),
     locationTracker: PartnerLocationTracker = koinInject(),
 ) {
@@ -43,10 +45,13 @@ fun App(
     LaunchedEffect(product) {
         notifications.ensureChannels()
         notifications.requestPermissionIfNeeded()
-        if (product == AppProduct.DELIVERY) {
-            locationTracker.restore()
+        when (product) {
+            AppProduct.DELIVERY -> {
+                locationTracker.restore()
+                offerSocket.run()
+            }
+            AppProduct.POS, AppProduct.USER -> alerts.run(product)
         }
-        alerts.run(product)
     }
 
     AppLocaleProvider(languageCode = settings.language.code) {

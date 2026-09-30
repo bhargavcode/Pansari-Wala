@@ -87,6 +87,8 @@ import org.bhargav.pansariwala.server.dto.TokenResponse
 import org.bhargav.pansariwala.server.dto.TxnDto
 import org.bhargav.pansariwala.server.dto.UploadResultDto
 import org.bhargav.pansariwala.server.security.Security
+import org.bhargav.pansariwala.server.storage.AssetRefs
+import org.bhargav.pansariwala.server.storage.AssetStorage
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -116,6 +118,8 @@ class AppStore(
     private val config: ServerConfig,
     private val security: Security,
     mongo: MongoApp,
+    storage: AssetStorage,
+    private val assets: AssetRefs,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val sockets = ConcurrentHashMap<String, WebSocketSession>()
@@ -127,7 +131,7 @@ class AppStore(
     private val categoryCol = mongo.db.getCollection<CategoryDoc>("master_categories")
     private val masterProductCol = mongo.db.getCollection<MasterProductDoc>("master_products")
     private val shopTypeCol = mongo.db.getCollection<ShopTypeDoc>("master_shop_types")
-    private val assetStore = AssetStore(config)
+    private val assetStore = AssetStore(storage)
     private val productCol = mongo.db.getCollection<ProductDoc>("products")
     private val offerCol = mongo.db.getCollection<OfferDoc>("offers")
     private val orderCol = mongo.db.getCollection<OrderDoc>("orders")
@@ -145,9 +149,9 @@ class AppStore(
         "dlPhoto",
         "idPhoto",
     )
-    /** List endpoints: omit huge base64 pickup blobs. */
+    /** List endpoints: pickup photo refs are only needed on the order detail. */
     private val orderListProjection = exclude("pickupPhotos")
-    /** Home/profile: keep avatar, drop other heavy base64 blobs. */
+    /** Home/profile: keep avatar, drop document/vehicle photo refs. */
     private val partnerProfileProjection = exclude(
         "platePhoto",
         "vehiclePhoto",
@@ -366,7 +370,7 @@ class AppStore(
             ShopDto(
                 id = row.id,
                 name = row.name,
-                imageUrl = row.imageUrl,
+                imageUrl = assets.toUrlOrNull(row.imageUrl),
                 rating = row.rating,
                 ratingCount = row.ratingCount,
                 distanceKm = dist,
@@ -776,7 +780,7 @@ class AppStore(
     fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse {
         val reg = Security.normalizeReg(request.vehicleReg)
         require(Security.vehicleRegRegex.matches(reg)) { "Invalid vehicle registration" }
-        require(isImageUrl(request.vehiclePhotoUrl)) { "Vehicle photo URL required" }
+        require(assets.isValidRef(request.vehiclePhotoUrl)) { "Vehicle photo URL required" }
         require(request.name.isNotBlank() && request.email.contains("@") && request.address.isNotBlank()) { "Incomplete profile" }
         val phone = Security.normalizePhone(request.phone)
         require(partnerCol.find(eq("phone", phone)).firstOrNull() == null) { "Phone already registered as partner" }
@@ -791,11 +795,11 @@ class AppStore(
                 email = request.email,
                 address = request.address,
                 vehicleReg = reg,
-                platePhoto = request.platePhotoUrl.take(2_048).ifEmpty { "" },
-                vehiclePhoto = request.vehiclePhotoUrl.take(2_048),
-                profilePhoto = request.profilePhotoUrl.take(2_048),
-                dlPhoto = request.dlPhotoUrl.take(2_048),
-                idPhoto = request.idPhotoUrl.take(2_048),
+                platePhoto = assets.toKey(request.platePhotoUrl).take(2_048),
+                vehiclePhoto = assets.toKey(request.vehiclePhotoUrl).take(2_048),
+                profilePhoto = assets.toKey(request.profilePhotoUrl).take(2_048),
+                dlPhoto = assets.toKey(request.dlPhotoUrl).take(2_048),
+                idPhoto = assets.toKey(request.idPhotoUrl).take(2_048),
                 lat = request.lat,
                 lng = request.lng,
                 verified = false,
@@ -832,7 +836,7 @@ class AppStore(
             todayEarnings = todayEarnings,
             totalEarnings = totalEarnings,
             deliveredCount = deliveredCount,
-            profilePhoto = partner.profilePhoto,
+            profilePhoto = assets.toUrl(partner.profilePhoto),
         )
     }
 
@@ -859,10 +863,10 @@ class AppStore(
     }
 
     fun updatePartnerProfilePhoto(partnerId: String, profilePhotoUrl: String) {
-        require(isImageUrl(profilePhotoUrl)) { "Invalid profile photo URL" }
+        require(assets.isValidRef(profilePhotoUrl)) { "Invalid profile photo URL" }
         val result = partnerCol.updateOne(
             eq("_id", partnerId),
-            set("profilePhoto", profilePhotoUrl.trim().take(2_048)),
+            set("profilePhoto", assets.toKey(profilePhotoUrl).take(2_048)),
         )
         require(result.matchedCount > 0) { "Partner not found" }
     }
@@ -930,8 +934,8 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
         require(row.status == "PARTNER_ACCEPTED") { "Invalid status" }
-        val updates = if (isImageUrl(photoOne) && isImageUrl(photoTwo)) {
-            combine(set("partnerProgress", "CAPTURE"), set("pickupPhotos", listOf(photoOne, photoTwo)))
+        val updates = if (assets.isValidRef(photoOne) && assets.isValidRef(photoTwo)) {
+            combine(set("partnerProgress", "CAPTURE"), set("pickupPhotos", assets.toKeys(listOf(photoOne, photoTwo))))
         } else {
             set("partnerProgress", "CAPTURE")
         }
@@ -996,14 +1000,14 @@ class AppStore(
     }
 
     fun submitPickup(partnerId: String, orderId: String, photoOne: String, photoTwo: String): OrderDto {
-        require(isImageUrl(photoOne) && isImageUrl(photoTwo)) { "Two pickup photo URLs required" }
+        require(assets.isValidRef(photoOne) && assets.isValidRef(photoTwo)) { "Two pickup photo URLs required" }
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
         orderCol.updateOne(
             eq("_id", orderId),
             combine(
                 set("status", "ON_THE_WAY"),
-                set("pickupPhotos", listOf(photoOne, photoTwo)),
+                set("pickupPhotos", assets.toKeys(listOf(photoOne, photoTwo))),
                 set("partnerProgress", "TO_CUSTOMER"),
             ),
         )
@@ -1127,8 +1131,13 @@ class AppStore(
         shopTypeCol.deleteOne(eq("_id", id))
     }
 
-    fun uploadAsset(prefix: String, fileName: String, bytes: ByteArray, contentType: String): UploadResultDto =
-        assetStore.save(prefix, fileName, bytes, contentType)
+    fun uploadAsset(
+        prefix: String,
+        fileName: String,
+        bytes: ByteArray,
+        contentType: String,
+        thumbnail: ByteArray? = null,
+    ): UploadResultDto = assetStore.save(prefix, fileName, bytes, contentType, thumbnail)
 
     fun createShopAdmin(
         name: String,
@@ -1161,7 +1170,7 @@ class AppStore(
             ShopDoc(
                 id = id,
                 name = name.trim(),
-                imageUrl = imageUrl,
+                imageUrl = assets.toKeyOrNull(imageUrl),
                 rating = 0.0,
                 ratingCount = 0,
                 lat = lat,
@@ -1234,7 +1243,7 @@ class AppStore(
                     inventoryAlerts = features.inventoryAlerts,
                 )))
             }
-            if (imageUrl != null) add(set("imageUrl", imageUrl))
+            if (imageUrl != null) add(set("imageUrl", assets.toKeyOrNull(imageUrl)))
             if (name != null) add(set("name", name.trim()))
             if (address != null) add(set("address", address.trim()))
             if (shopType != null) add(set("shopType", shopType.trim()))
@@ -1460,9 +1469,9 @@ class AppStore(
         categoryId = categoryId,
         unit = unit,
         barcode = barcode,
-        imageUrl = imageUrls.firstOrNull() ?: imageUrl,
-        thumbnailUrl = imageUrls.firstOrNull() ?: thumbnailUrl,
-        imageUrls = normalizeProductImageUrls(imageUrls, imageUrl, thumbnailUrl),
+        imageUrl = assets.toUrlOrNull(imageUrls.firstOrNull() ?: imageUrl),
+        thumbnailUrl = assets.toUrlOrNull(imageUrls.firstOrNull() ?: thumbnailUrl),
+        imageUrls = assets.toUrls(normalizeProductImageUrls(imageUrls, imageUrl, thumbnailUrl)),
         brandName = brandName,
         companyName = companyName,
         subcategoryId = subcategoryId,
@@ -1483,7 +1492,7 @@ class AppStore(
     private fun ShopDoc.toAdminDto() = AdminShopDto(
         id = id,
         name = name,
-        imageUrl = imageUrl,
+        imageUrl = assets.toUrlOrNull(imageUrl),
         rating = rating,
         ratingCount = ratingCount,
         lat = lat,
@@ -1541,7 +1550,7 @@ class AppStore(
         name = name.ifBlank { phone },
         phone = phone,
         address = address,
-        imageUrl = imageUrl,
+        imageUrl = assets.toUrlOrNull(imageUrl),
         active = active,
         joinedAtEpochMs = joinedAt,
     )
@@ -1552,9 +1561,9 @@ class AppStore(
         phone = phone,
         email = email,
         address = address,
-        idImageUrl = idPhoto.ifBlank { platePhoto },
-        vehicleImageUrl = vehiclePhoto,
-        profileImageUrl = profilePhoto,
+        idImageUrl = assets.toUrl(idPhoto.ifBlank { platePhoto }),
+        vehicleImageUrl = assets.toUrl(vehiclePhoto),
+        profileImageUrl = assets.toUrl(profilePhoto),
         vehicleNumber = vehicleReg,
         vehicleName = vehicleName,
         vehicleBrand = vehicleBrand,
@@ -1653,7 +1662,7 @@ class AppStore(
             orderId = offer.orderId,
             shopId = offer.shopId,
             shopName = shop.name,
-            shopImageUrl = shop.imageUrl,
+            shopImageUrl = assets.toUrlOrNull(shop.imageUrl),
             shopAddress = shop.address,
             shopDistanceKm = shopDist,
             dropAddress = offer.dropAddress,
@@ -1673,27 +1682,23 @@ class AppStore(
 
     private fun ProductDoc.toDto() = ProductDto(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
-        imageUrls = imageUrls.filter { isImageUrl(it) }.take(4),
+        imageUrls = assets.toUrls(imageUrls.filter { assets.isValidRef(it) }.take(4)),
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
-        imageUrls = imageUrls.filter { isImageUrl(it) }.take(4),
+        imageUrls = assets.toKeys(imageUrls.filter { assets.isValidRef(it) }).distinct().take(4),
     )
 
-    private fun isImageUrl(value: String): Boolean {
-        val v = value.trim()
-        return v.startsWith("http://", ignoreCase = true) || v.startsWith("https://", ignoreCase = true)
-    }
-
+    /** Keys for storage; call sites resolve to URLs when building DTOs. */
     private fun normalizeProductImageUrls(
         imageUrls: List<String>,
         imageUrl: String?,
         thumbnailUrl: String?,
     ): List<String> {
         val merged = (imageUrls + listOfNotNull(imageUrl, thumbnailUrl))
-            .map { it.trim() }
-            .filter { isImageUrl(it) }
+            .filter { assets.isValidRef(it) }
+            .map { assets.toKey(it) }
             .distinct()
         return merged.take(4)
     }
@@ -1742,7 +1747,7 @@ class AppStore(
             deliveryAddress = deliveryAddress,
             dropoffInstructions = dropoffInstructions,
             deliveryOtp = deliveryOtp,
-            pickupPhotoUrls = pickupPhotos,
+            pickupPhotoUrls = assets.toUrls(pickupPhotos),
             partnerId = partnerId,
             partnerName = partnerRow?.name,
             partnerPhone = partnerRow?.phone,

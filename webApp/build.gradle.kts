@@ -7,6 +7,10 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+compose.resources {
+    packageOfResClass = "org.bhargav.pansariwala.web.resources"
+}
+
 kotlin {
     js {
         browser()

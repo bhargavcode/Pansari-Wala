@@ -49,6 +49,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.domain.model.GeoPoint
+import org.bhargav.pansariwala.media.ImageUploadFeature
+import org.bhargav.pansariwala.media.PhotoUploadUi
+import org.bhargav.pansariwala.media.rememberImageSourceLauncher
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedDialog
 import org.bhargav.pansariwala.platform.RequestLocationPermission
@@ -259,11 +262,26 @@ fun PartnerRegisterScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (state.step == 0) {
+                val attachProfile = rememberImageSourceLauncher(RegisterPhoto.PROFILE.feature) {
+                    viewModel.attachPhoto(RegisterPhoto.PROFILE, it)
+                }
+                val attachDl = rememberImageSourceLauncher(RegisterPhoto.DL.feature) {
+                    viewModel.attachPhoto(RegisterPhoto.DL, it)
+                }
+                val attachVehicle = rememberImageSourceLauncher(RegisterPhoto.VEHICLE.feature) {
+                    viewModel.attachPhoto(RegisterPhoto.VEHICLE, it)
+                }
+                val attachId = rememberImageSourceLauncher(RegisterPhoto.ID.feature) {
+                    viewModel.attachPhoto(RegisterPhoto.ID, it)
+                }
+                val profileUpload = state.photoUploads[RegisterPhoto.PROFILE] ?: PhotoUploadUi()
                 PartnerProfileCircle(
-                    base64 = state.profilePhoto,
-                    onClick = viewModel::attachProfile,
+                    imageUrl = state.profilePhoto,
+                    onClick = attachProfile,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     showEditBadge = true,
+                    uploading = profileUpload.uploading,
+                    localPreviewBytes = profileUpload.previewBytes,
                 )
                 Text(
                     stringResource(Res.string.partner_profile_pic),
@@ -314,15 +332,30 @@ fun PartnerRegisterScreen(
                 }
                 OutlinedTextField(state.phone, viewModel::setPhone, label = { Text(stringResource(Res.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(state.vehicleReg, viewModel::setVehicleReg, label = { Text(stringResource(Res.string.field_vehicle_reg)) }, modifier = Modifier.fillMaxWidth())
-                PartnerDocumentRow(stringResource(Res.string.partner_doc_dl), state.dlPhoto, viewModel::attachDl)
+                PartnerDocumentRow(
+                    stringResource(Res.string.partner_doc_dl),
+                    state.dlPhoto,
+                    attachDl,
+                    upload = state.photoUploads[RegisterPhoto.DL] ?: PhotoUploadUi(),
+                )
                 Text(
                     stringResource(Res.string.hint_vehicle_photo),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-                PartnerDocumentRow(stringResource(Res.string.field_vehicle_photo), state.vehiclePhoto, viewModel::attachVehicle)
-                PartnerDocumentRow(stringResource(Res.string.partner_doc_id), state.idPhoto, viewModel::attachId)
+                PartnerDocumentRow(
+                    stringResource(Res.string.field_vehicle_photo),
+                    state.vehiclePhoto,
+                    attachVehicle,
+                    upload = state.photoUploads[RegisterPhoto.VEHICLE] ?: PhotoUploadUi(),
+                )
+                PartnerDocumentRow(
+                    stringResource(Res.string.partner_doc_id),
+                    state.idPhoto,
+                    attachId,
+                    upload = state.photoUploads[RegisterPhoto.ID] ?: PhotoUploadUi(),
+                )
                 Text(stringResource(Res.string.partner_verification_status), fontWeight = FontWeight.SemiBold)
                 PartnerVerificationBadge(verified = false)
                 PartnerPrimaryButton(text = stringResource(Res.string.partner_action_sign_up), onClick = viewModel::save, enabled = !state.loading)
@@ -385,7 +418,7 @@ fun PartnerHomeScreen(
         topBar = {
             PartnerHomeTopBar(
                 title = state.profile?.name ?: stringResource(Res.string.partner_driver_active),
-                profilePhotoBase64 = state.profile?.profilePhoto,
+                profilePhotoUrl = state.profile?.profilePhoto,
                 onProfileClick = onEarnings,
             )
         },
@@ -703,6 +736,12 @@ fun PartnerCapturePhotosScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (state.captureStep == 0) {
+                val attachOne = rememberImageSourceLauncher(ImageUploadFeature.DELIVERY_PACKET) {
+                    viewModel.attachPhoto(1, it)
+                }
+                val attachTwo = rememberImageSourceLauncher(ImageUploadFeature.DELIVERY_PACKET) {
+                    viewModel.attachPhoto(2, it)
+                }
                 Text(
                     stringResource(Res.string.partner_capture_hint),
                     color = Color.White.copy(alpha = 0.85f),
@@ -710,21 +749,24 @@ fun PartnerCapturePhotosScreen(
                 PartnerPhotoSlot(
                     stringResource(Res.string.partner_photo_slot, "1"),
                     state.photoOne.isNotBlank(),
-                    onClick = { viewModel.attachPhoto(1) },
+                    onClick = attachOne,
                     dark = true,
-                    imageBase64 = state.photoOne,
+                    imageUrl = state.photoOne,
+                    upload = state.photoOneUpload,
                 )
                 PartnerPhotoSlot(
                     stringResource(Res.string.partner_photo_slot, "2"),
                     state.photoTwo.isNotBlank(),
-                    onClick = { viewModel.attachPhoto(2) },
+                    onClick = attachTwo,
                     dark = true,
-                    imageBase64 = state.photoTwo,
+                    imageUrl = state.photoTwo,
+                    upload = state.photoTwoUpload,
                 )
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_take_photos),
                     onClick = { viewModel.verifyBags {} },
-                    enabled = state.photoOne.isNotBlank() && state.photoTwo.isNotBlank() && !state.submitting,
+                    enabled = state.photoOne.isNotBlank() && state.photoTwo.isNotBlank() && !state.submitting &&
+                        !state.photoOneUpload.uploading && !state.photoTwoUpload.uploading,
                 )
             } else {
                 PartnerPhotoSlot(
@@ -732,14 +774,14 @@ fun PartnerCapturePhotosScreen(
                     true,
                     onClick = {},
                     dark = true,
-                    imageBase64 = state.photoOne,
+                    imageUrl = state.photoOne,
                 )
                 PartnerPhotoSlot(
                     stringResource(Res.string.partner_bag_photo, "2"),
                     true,
                     onClick = {},
                     dark = true,
-                    imageBase64 = state.photoTwo,
+                    imageUrl = state.photoTwo,
                 )
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_start_delivery),
@@ -1067,6 +1109,10 @@ fun PartnerEarningsScreen(
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
 
+        val changeProfilePhoto = rememberImageSourceLauncher(
+            ImageUploadFeature.PARTNER_PROFILE_PHOTO,
+            viewModel::changeProfilePhoto,
+        )
         state.profile?.let { profile ->
             Row(
                 Modifier.padding(16.dp),
@@ -1074,10 +1120,11 @@ fun PartnerEarningsScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 PartnerProfileCircle(
-                    base64 = profile.profilePhoto,
-                    onClick = viewModel::changeProfilePhoto,
+                    imageUrl = profile.profilePhoto,
+                    onClick = changeProfilePhoto,
                     showEditBadge = true,
                     uploading = state.uploadingPhoto,
+                    localPreviewBytes = state.profilePhotoPreviewBytes,
                 )
                 Column {
                     Text(profile.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
