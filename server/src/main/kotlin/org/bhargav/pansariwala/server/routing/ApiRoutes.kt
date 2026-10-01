@@ -119,6 +119,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 role = payload.getClaim("role").asString().orEmpty(),
                 shopId = payload.getClaim("shopId").asString(),
                 platform = body.platform,
+                deviceId = body.deviceId,
             )
             call.respond(OkResponse())
         }

@@ -193,8 +193,8 @@ class KtorPansariApi(
     override suspend fun shopOnlineOrders(): List<Order> =
         client.get("shop/orders").body<List<OrderDto>>().map { it.toModel() }
 
-    override suspend fun registerPushToken(token: String, platform: String) {
-        client.post("push/register") { setBody(PushRegisterRequest(token, platform)) }.body<OkResponse>()
+    override suspend fun registerPushToken(token: String, platform: String, deviceId: String) {
+        client.post("push/register") { setBody(PushRegisterRequest(token, platform, deviceId)) }.body<OkResponse>()
     }
 
     override suspend fun unregisterPushToken(token: String) {

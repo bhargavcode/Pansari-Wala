@@ -276,6 +276,8 @@ data class DeviceTokenDoc(
     val shopId: String? = null,
     val platform: String,
     val updatedAt: Long,
+    /** Per-install id from the app; one live token per device. */
+    val deviceId: String? = null,
 )
 
 @Serializable

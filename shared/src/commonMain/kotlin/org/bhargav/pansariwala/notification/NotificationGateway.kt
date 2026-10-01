@@ -23,6 +23,9 @@ data class ShopNotification(
 interface NotificationGateway {
     fun ensureChannels()
     fun requestPermissionIfNeeded()
+
+    /** True when the OS would still show a notification permission prompt for this app. */
+    suspend fun needsPermissionPrompt(): Boolean
     fun show(notification: ShopNotification)
 
     /** Removes this order's notifications from the tray once its update is on screen (consumed). */

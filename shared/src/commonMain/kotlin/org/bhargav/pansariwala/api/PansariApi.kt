@@ -46,7 +46,7 @@ interface PansariApi {
     suspend fun rateOrder(orderId: String, stars: Int, comment: String?): Order
 
     suspend fun shopOnlineOrders(): List<Order>
-    suspend fun registerPushToken(token: String, platform: String)
+    suspend fun registerPushToken(token: String, platform: String, deviceId: String)
     suspend fun unregisterPushToken(token: String)
     suspend fun acceptOrder(orderId: String): Order
     suspend fun rejectOrder(orderId: String, rejectedProductIds: List<String>, reason: String?): Order

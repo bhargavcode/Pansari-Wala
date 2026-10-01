@@ -12,6 +12,8 @@ import org.bhargav.pansariwala.settings.AppUserSettings
 import org.bhargav.pansariwala.settings.CustomTheme
 import org.bhargav.pansariwala.settings.ThemeMode
 import org.bhargav.pansariwala.util.AppConstants
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 class AppPreferences(
     private val store: SessionStore,
@@ -37,6 +39,11 @@ class AppPreferences(
         const val cachedCustomerProfile = AppConstants.Prefs.CACHED_CUSTOMER_PROFILE
         /** FCM token last registered with the server; survives logout so it can be unregistered. */
         const val registeredPushToken = AppConstants.Prefs.FCM_TOKEN
+        const val registeredPushUserId = AppConstants.Prefs.FCM_TOKEN_USER_ID
+        /** Stable per-install id; survives logout so the server can replace this device's old FCM token. */
+        const val deviceId = AppConstants.Prefs.DEVICE_ID
+        /** "false" between OTP verify and finishing profile setup; absent for legacy sessions. */
+        const val profileComplete = AppConstants.Prefs.PROFILE_COMPLETE
         /** Legacy duty flag — cleared on logout; online now lives in cached partner profile. */
         const val legacyPartnerOnlineDuty = "pref_partner_online_duty"
     }
@@ -84,15 +91,30 @@ class AppPreferences(
             displayName = token.displayName,
             role = token.role,
         )
+        setProfileComplete(token.profileComplete)
     }
+
+    suspend fun isProfileComplete(): Boolean =
+        store.getString(Keys.profileComplete).toBooleanPref(default = true)
+
+    suspend fun setProfileComplete(complete: Boolean) {
+        store.putStrings(mapOf(Keys.profileComplete to complete.toString()))
+    }
+
+    @OptIn(ExperimentalUuidApi::class)
+    suspend fun getOrCreateDeviceId(): String =
+        store.getString(Keys.deviceId)?.takeIf { it.isNotBlank() }
+            ?: Uuid.random().toString().also { store.putStrings(mapOf(Keys.deviceId to it)) }
 
     suspend fun getDisplayName(): String? = store.getString(Keys.userDisplayName)
 
     suspend fun getRegisteredPushToken(): String? = store.getString(Keys.registeredPushToken)
 
-    suspend fun setRegisteredPushToken(token: String?) {
-        if (token == null) store.remove(setOf(Keys.registeredPushToken))
-        else store.putStrings(mapOf(Keys.registeredPushToken to token))
+    suspend fun getRegisteredPushUserId(): String? = store.getString(Keys.registeredPushUserId)
+
+    suspend fun setRegisteredPushToken(token: String?, userId: String? = null) {
+        if (token == null) store.remove(setOf(Keys.registeredPushToken, Keys.registeredPushUserId))
+        else store.putStrings(mapOf(Keys.registeredPushToken to token, Keys.registeredPushUserId to userId))
     }
 
     suspend fun hasSession(): Boolean = !getAccessToken().isNullOrBlank()
@@ -139,6 +161,13 @@ class AppPreferences(
 
     suspend fun setNotifyDelivery(enabled: Boolean) {
         store.putStrings(mapOf(Keys.notifyDelivery to enabled.toString()))
+    }
+
+    suspend fun isNotificationPromptShown(): Boolean =
+        store.getString(AppConstants.Prefs.NOTIFICATION_PROMPT_SHOWN).toBooleanPref(default = false)
+
+    suspend fun setNotificationPromptShown() {
+        store.putStrings(mapOf(AppConstants.Prefs.NOTIFICATION_PROMPT_SHOWN to true.toString()))
     }
 
     suspend fun getCachedPartnerProfile(): PartnerProfile? =
@@ -205,6 +234,7 @@ class AppPreferences(
                 Keys.cachedPartnerProfile,
                 Keys.cachedCustomerProfile,
                 Keys.legacyPartnerOnlineDuty,
+                Keys.profileComplete,
             ),
         )
     }

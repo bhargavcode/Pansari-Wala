@@ -13,6 +13,8 @@ import org.bhargav.pansariwala.domain.auth.ObserveSessionUseCase
 sealed interface SplashDestination {
     data object Login : SplashDestination
     data object Home : SplashDestination
+    /** Signed in but registration (profile setup) was never finished. */
+    data object CompleteProfile : SplashDestination
 }
 
 class SplashViewModel(
@@ -46,7 +48,12 @@ class SplashViewModel(
                 org.bhargav.pansariwala.product.AppProduct.DELIVERY ->
                     hasSession && role == org.bhargav.pansariwala.util.AppConstants.Roles.PARTNER
             }
-            _destination.value = if (home) SplashDestination.Home else SplashDestination.Login
+            _destination.value = when {
+                !home -> SplashDestination.Login
+                product == org.bhargav.pansariwala.product.AppProduct.USER &&
+                    !preferences.isProfileComplete() -> SplashDestination.CompleteProfile
+                else -> SplashDestination.Home
+            }
         }
     }
 

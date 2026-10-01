@@ -43,6 +43,10 @@ private class AndroidNotificationGateway(
         activity.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
     }
 
+    override suspend fun needsPermissionPrompt(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+
     override fun show(notification: ShopNotification) {
         ensureChannels()
         NotificationRouter.emit(notification)
@@ -96,6 +100,7 @@ private class AndroidNotificationGatewayFromKoin : NotificationGateway, KoinComp
     private val delegate by lazy { AndroidNotificationGateway(context) }
     override fun ensureChannels() = delegate.ensureChannels()
     override fun requestPermissionIfNeeded() = delegate.requestPermissionIfNeeded()
+    override suspend fun needsPermissionPrompt(): Boolean = delegate.needsPermissionPrompt()
     override fun show(notification: ShopNotification) = delegate.show(notification)
     override fun clearOrder(orderId: String) = delegate.clearOrder(orderId)
 }

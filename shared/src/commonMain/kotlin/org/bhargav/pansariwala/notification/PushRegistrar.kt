@@ -36,13 +36,16 @@ class PushRegistrar(
     }
 
     private suspend fun register(token: String, platform: String) {
+        val userId = preferences.getUserId()
         val previous = preferences.getRegisteredPushToken()
+        if (previous == token && preferences.getRegisteredPushUserId() == userId) return
         if (previous != null && previous != token) {
             runCatching { api.unregisterPushToken(previous) }
         }
+        val deviceId = preferences.getOrCreateDeviceId()
         while (true) {
-            if (runCatching { api.registerPushToken(token, platform) }.isSuccess) {
-                preferences.setRegisteredPushToken(token)
+            if (runCatching { api.registerPushToken(token, platform, deviceId) }.isSuccess) {
+                preferences.setRegisteredPushToken(token, userId)
                 return
             }
             delay(AppConstants.PUSH_REGISTER_RETRY_MS)

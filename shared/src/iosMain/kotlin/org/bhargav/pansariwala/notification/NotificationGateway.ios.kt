@@ -3,6 +3,9 @@ package org.bhargav.pansariwala.notification
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
+import platform.UserNotifications.UNAuthorizationStatusNotDetermined
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import platform.UserNotifications.UNMutableNotificationContent
 import platform.UserNotifications.UNNotification
 import platform.UserNotifications.UNNotificationRequest
@@ -17,6 +20,12 @@ private class IosNotificationGateway : NotificationGateway {
         UNUserNotificationCenter.currentNotificationCenter().requestAuthorizationWithOptions(
             UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge,
         ) { _, _ -> }
+    }
+
+    override suspend fun needsPermissionPrompt(): Boolean = suspendCoroutine { cont ->
+        UNUserNotificationCenter.currentNotificationCenter().getNotificationSettingsWithCompletionHandler { settings ->
+            cont.resume(settings?.authorizationStatus == UNAuthorizationStatusNotDetermined)
+        }
     }
 
     override fun show(notification: ShopNotification) {

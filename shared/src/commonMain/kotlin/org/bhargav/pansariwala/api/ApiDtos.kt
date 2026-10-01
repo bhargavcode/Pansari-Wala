@@ -53,7 +53,7 @@ data class ShopLoginRequest(val username: String, val password: String)
 data class FirebaseAuthRequest(val idToken: String)
 
 @Serializable
-data class PushRegisterRequest(val token: String, val platform: String)
+data class PushRegisterRequest(val token: String, val platform: String, val deviceId: String? = null)
 
 @Serializable
 data class PushUnregisterRequest(val token: String)

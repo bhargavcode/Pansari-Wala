@@ -149,6 +149,7 @@ fun UserNavGraph() {
                         SplashScreen(
                             onNavigateToLogin = { replaceAll(UserRoute.PhoneAuth) },
                             onNavigateToHome = { replaceAll(UserRoute.Shell) },
+                            onNavigateToCompleteProfile = { replaceAll(UserRoute.ProfileSetup) },
                         )
                     }
                     UserRoute.PhoneAuth -> NavEntry(route) {

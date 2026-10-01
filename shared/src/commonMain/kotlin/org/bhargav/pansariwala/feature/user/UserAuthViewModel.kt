@@ -15,6 +15,8 @@ import org.bhargav.pansariwala.api.TokenResponse
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.DeviceLocation
+import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
+import org.bhargav.pansariwala.platform.reverseGeocode
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.digitsPhone
@@ -26,6 +28,7 @@ import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_address_coordinates
 import pansariwala.shared.generated.resources.error_address_required
+import pansariwala.shared.generated.resources.error_location_address_not_found
 import pansariwala.shared.generated.resources.error_place_details_failed
 import pansariwala.shared.generated.resources.error_profile_required
 import pansariwala.shared.generated.resources.location_unavailable
@@ -114,6 +117,13 @@ data class AddressUiState(
     val lng: Double? = null,
     val loading: Boolean = false,
     val error: UiText? = null,
+    val searchingPlaces: Boolean = false,
+    val noPlaceResults: Boolean = false,
+    val locating: Boolean = false,
+    val locationFilled: Boolean = false,
+    val showLocationRationale: Boolean = false,
+    val requestLocationPermission: Boolean = false,
+    val showLocationDeniedDialog: Boolean = false,
 )
 
 class AddressViewModel(
@@ -129,25 +139,34 @@ class AddressViewModel(
 
     fun setName(value: String) { _state.update { it.copy(name = value, error = null) } }
     fun setAddress(value: String) {
-        _state.update { it.copy(address = value, error = null, lat = null, lng = null) }
+        _state.update { it.copy(address = value, error = null, lat = null, lng = null, locationFilled = false) }
     }
     fun setLocality(value: String) {
-        _state.update { it.copy(locality = value, error = null, lat = null, lng = null) }
+        _state.update { it.copy(locality = value, error = null, lat = null, lng = null, locationFilled = false) }
     }
 
     fun setPlaceQuery(value: String) {
-        _state.update { it.copy(placeQuery = value, error = null) }
         searchJob?.cancel()
+        if (value.isBlank()) {
+            _state.update {
+                it.copy(placeQuery = value, predictions = emptyList(), searchingPlaces = false, noPlaceResults = false)
+            }
+            return
+        }
+        _state.update { it.copy(placeQuery = value, error = null, searchingPlaces = true, noPlaceResults = false) }
         searchJob = viewModelScope.launch {
             delay(AppConstants.PLACE_SEARCH_DEBOUNCE_MS)
             val results = searchPlaces(value)
-            _state.update { it.copy(predictions = results) }
+            _state.update {
+                it.copy(predictions = results, searchingPlaces = false, noPlaceResults = results.isEmpty())
+            }
         }
     }
 
     fun selectPlace(placeId: String) {
+        searchJob?.cancel()
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            _state.update { it.copy(loading = true, error = null, searchingPlaces = false, locationFilled = false) }
             val details = fetchPlaceDetails(placeId)
             if (details == null) {
                 _state.update {
@@ -170,18 +189,73 @@ class AddressViewModel(
     }
 
     fun useCurrentLocation() {
+        if (_state.value.locating) return
+        searchJob?.cancel()
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-            runCatching { location.currentOrDefault() }
-                .onSuccess { geo ->
-                    _state.update { it.copy(lat = geo.lat, lng = geo.lng, loading = false) }
+            _state.update {
+                it.copy(locating = true, error = null, locationFilled = false, searchingPlaces = false)
+            }
+            val geo = try {
+                location.currentOrDefault()
+            } catch (_: LocationPermissionDeniedException) {
+                _state.update { it.copy(locating = false, showLocationRationale = true) }
+                return@launch
+            } catch (_: Throwable) {
+                _state.update { it.copy(locating = false, error = UiText.res(Res.string.location_unavailable)) }
+                return@launch
+            }
+            val details = reverseGeocode(geo.lat, geo.lng)
+            _state.update {
+                if (details == null || details.formattedAddress.isBlank()) {
+                    it.copy(
+                        locating = false,
+                        lat = geo.lat,
+                        lng = geo.lng,
+                        error = UiText.res(Res.string.error_location_address_not_found),
+                    )
+                } else {
+                    it.copy(
+                        locating = false,
+                        placeQuery = details.formattedAddress,
+                        predictions = emptyList(),
+                        noPlaceResults = false,
+                        address = details.formattedAddress,
+                        locality = details.locality.ifBlank { it.locality },
+                        lat = geo.lat,
+                        lng = geo.lng,
+                        locationFilled = true,
+                    )
                 }
-                .onFailure {
-                    _state.update {
-                        it.copy(loading = false, error = UiText.res(Res.string.location_unavailable))
-                    }
-                }
+            }
         }
+    }
+
+    fun acceptLocationRationale() {
+        _state.update { it.copy(showLocationRationale = false, requestLocationPermission = true) }
+    }
+
+    fun dismissLocationRationale() {
+        _state.update { it.copy(showLocationRationale = false) }
+    }
+
+    fun onLocationPermissionRequestConsumed() {
+        _state.update { it.copy(requestLocationPermission = false) }
+    }
+
+    fun onLocationPermissionResult(granted: Boolean) {
+        if (granted) {
+            useCurrentLocation()
+        } else {
+            _state.update { it.copy(showLocationDeniedDialog = true) }
+        }
+    }
+
+    fun retryLocationPermission() {
+        _state.update { it.copy(showLocationDeniedDialog = false, requestLocationPermission = true) }
+    }
+
+    fun dismissLocationDeniedDialog() {
+        _state.update { it.copy(showLocationDeniedDialog = false) }
     }
 
     fun save(requireName: Boolean, onDone: () -> Unit) {
@@ -212,6 +286,7 @@ class AddressViewModel(
                 }
             }.onSuccess { profile ->
                 preferences.setCachedCustomerProfile(profile)
+                if (requireName) preferences.setProfileComplete(true)
                 onDone()
             }
                 .onFailure { err ->

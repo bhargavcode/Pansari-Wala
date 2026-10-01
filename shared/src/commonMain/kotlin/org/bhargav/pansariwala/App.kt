@@ -23,6 +23,23 @@ import org.bhargav.pansariwala.settings.ThemeMode
 import org.bhargav.pansariwala.theme.PansariTheme
 import org.koin.compose.koinInject
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.designsystem.PermissionRationaleSheet
+import org.jetbrains.compose.resources.stringResource
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.notification_rationale_allow
+import pansariwala.shared.generated.resources.notification_rationale_footer
+import pansariwala.shared.generated.resources.notification_rationale_message
+import pansariwala.shared.generated.resources.notification_rationale_point_alerts
+import pansariwala.shared.generated.resources.notification_rationale_point_delivery
+import pansariwala.shared.generated.resources.notification_rationale_point_orders
+import pansariwala.shared.generated.resources.notification_rationale_title
 
 @Composable
 fun App(
@@ -42,9 +59,13 @@ fun App(
         ThemeMode.DARK -> true
     }
 
+    var showNotificationRationale by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(product) {
         notifications.ensureChannels()
-        notifications.requestPermissionIfNeeded()
+        showNotificationRationale = !preferences.isNotificationPromptShown() &&
+            notifications.needsPermissionPrompt()
         when (product) {
             AppProduct.DELIVERY -> {
                 locationTracker.restore()
@@ -64,6 +85,27 @@ fun App(
                     AppProduct.POS -> AppNavGraph()
                     AppProduct.USER -> UserNavGraph()
                     AppProduct.DELIVERY -> DeliveryNavGraph()
+                }
+                if (showNotificationRationale) {
+                    fun close(allow: Boolean) {
+                        showNotificationRationale = false
+                        scope.launch { preferences.setNotificationPromptShown() }
+                        if (allow) notifications.requestPermissionIfNeeded()
+                    }
+                    PermissionRationaleSheet(
+                        icon = Icons.Default.Notifications,
+                        title = stringResource(Res.string.notification_rationale_title),
+                        message = stringResource(Res.string.notification_rationale_message),
+                        points = listOf(
+                            stringResource(Res.string.notification_rationale_point_orders),
+                            stringResource(Res.string.notification_rationale_point_delivery),
+                            stringResource(Res.string.notification_rationale_point_alerts),
+                        ),
+                        footer = stringResource(Res.string.notification_rationale_footer),
+                        confirmLabel = stringResource(Res.string.notification_rationale_allow),
+                        onConfirm = { close(allow = true) },
+                        onDismiss = { close(allow = false) },
+                    )
                 }
             }
         }

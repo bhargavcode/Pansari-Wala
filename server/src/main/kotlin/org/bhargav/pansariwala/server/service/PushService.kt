@@ -5,6 +5,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.`in`
+import com.mongodb.client.model.Filters.ne
 import com.mongodb.client.model.ReplaceOptions
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -111,8 +112,19 @@ class PushService(
 
     val enabled: Boolean get() = account != null
 
-    fun register(token: String, principalId: String, role: String, shopId: String?, platform: String) {
+    fun register(
+        token: String,
+        principalId: String,
+        role: String,
+        shopId: String?,
+        platform: String,
+        deviceId: String? = null,
+    ) {
         require(token.isNotBlank() && token.length <= 4_096) { "Invalid push token" }
+        val device = deviceId?.takeIf { it.isNotBlank() }?.take(64)
+        if (device != null) {
+            tokenCol.deleteMany(and(eq("deviceId", device), ne("_id", token)))
+        }
         tokenCol.replaceOne(
             eq("_id", token),
             DeviceTokenDoc(
@@ -122,6 +134,7 @@ class PushService(
                 shopId = shopId,
                 platform = platform.take(16),
                 updatedAt = System.currentTimeMillis(),
+                deviceId = device,
             ),
             ReplaceOptions().upsert(true),
         )

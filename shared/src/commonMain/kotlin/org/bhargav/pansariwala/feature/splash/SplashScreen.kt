@@ -27,6 +27,7 @@ import pansariwala.shared.generated.resources.app_tagline
 fun SplashScreen(
     onNavigateToLogin: () -> Unit,
     onNavigateToHome: () -> Unit,
+    onNavigateToCompleteProfile: () -> Unit = onNavigateToLogin,
     viewModel: SplashViewModel = koinViewModel(),
 ) {
     val destination by viewModel.destination.collectAsState()
@@ -35,6 +36,7 @@ fun SplashScreen(
         when (destination) {
             SplashDestination.Login -> onNavigateToLogin()
             SplashDestination.Home -> onNavigateToHome()
+            SplashDestination.CompleteProfile -> onNavigateToCompleteProfile()
             null -> Unit
         }
     }

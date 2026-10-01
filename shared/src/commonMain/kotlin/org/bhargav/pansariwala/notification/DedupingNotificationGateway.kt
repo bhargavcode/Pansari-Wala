@@ -20,6 +20,8 @@ class DedupingNotificationGateway(
 
     override fun requestPermissionIfNeeded() = delegate.requestPermissionIfNeeded()
 
+    override suspend fun needsPermissionPrompt(): Boolean = delegate.needsPermissionPrompt()
+
     override fun show(notification: ShopNotification) {
         val key = notification.key
         if (key == null || markIfNew(key)) delegate.show(notification)

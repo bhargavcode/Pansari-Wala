@@ -21,6 +21,14 @@ object AppConstants {
     const val GOOGLE_PLACES_DETAILS_URL: String = "https://maps.googleapis.com/maps/api/place/details/json"
     const val GOOGLE_GEOCODE_URL: String = "https://maps.googleapis.com/maps/api/geocode/json"
     const val PLACE_SEARCH_DEBOUNCE_MS: Long = 350L
+    const val PHOTON_SEARCH_URL: String = "https://photon.komoot.io/api/"
+    const val PHOTON_REVERSE_URL: String = "https://photon.komoot.io/reverse"
+    const val PHOTON_REVERSE_RADIUS_KM: Int = 10
+    const val NOMINATIM_REVERSE_URL: String = "https://nominatim.openstreetmap.org/reverse"
+    const val NOMINATIM_USER_AGENT: String = "PansariWala/1.0 (org.bhargav.pansariwala)"
+    const val PHOTON_INDIA_BBOX: String = "68.1,6.5,97.4,35.7"
+    const val PHOTON_RESULT_LIMIT: Int = 6
+    const val PHOTON_PLACE_ID_PREFIX: String = "osm:"
     const val DEFAULT_SHOP_DELIVERY_RADIUS_KM: Double = 20.0
     const val OSRM_ROUTE_URL: String = "https://router.project-osrm.org/route/v1/driving"
     const val PARTNER_MAP_ROUTE_COLOR: Long = 0xFF0D7377
@@ -132,6 +140,7 @@ object AppConstants {
 
     object Prefs {
         const val SEARCH_RADIUS_KM: String = "pref_search_radius_km"
+        const val NOTIFICATION_PROMPT_SHOWN: String = "pref_notification_prompt_shown"
         const val CUSTOMER_PHONE: String = "pref_customer_phone"
         const val CUSTOMER_NAME: String = "pref_customer_name"
         const val CUSTOMER_ADDRESS: String = "pref_customer_address"
@@ -140,6 +149,9 @@ object AppConstants {
         const val CACHED_CUSTOMER_PROFILE: String = "pref_cached_customer_profile"
         const val ROLE: String = "pref_auth_role"
         const val FCM_TOKEN: String = "pref_fcm_token"
+        const val FCM_TOKEN_USER_ID: String = "pref_fcm_token_user_id"
+        const val DEVICE_ID: String = "pref_device_id"
+        const val PROFILE_COMPLETE: String = "pref_profile_complete"
         const val NOTIFY_OFFERS: String = "pref_notify_offers"
         const val NOTIFY_DELIVERY: String = "pref_notify_delivery"
     }
