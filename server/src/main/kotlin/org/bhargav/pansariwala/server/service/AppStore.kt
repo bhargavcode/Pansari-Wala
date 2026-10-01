@@ -103,7 +103,7 @@ import com.mongodb.client.model.Filters.lte
 private const val QUERY_MAX_MS = 8_000L
 private const val PARTNER_RING_KM = 8.0
 /** How long an unpicked job stays listable for partners in range (not the 15s accept UI flash). */
-private const val OFFER_TTL_MS = 15 * 60_000L
+private const val OFFER_TTL_MS = 5 * 60_000L
 private const val DELIVERY_BASE_PER_KM = 8.0
 private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
@@ -120,6 +120,7 @@ class AppStore(
     mongo: MongoApp,
     storage: AssetStorage,
     private val assets: AssetRefs,
+    private val push: PushService,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val sockets = ConcurrentHashMap<String, WebSocketSession>()
@@ -497,6 +498,7 @@ class AppStore(
             ),
         )
         txnCol.insertOne(TxnDoc(security.randomId("txn"), id, userId, q.payable, "Order $id", now))
+        publishOrderUpdate(id, previousStatus = null)
         if (config.paymentsEnabled) {
             runCatching {
                 security.transferToShopUpi(
@@ -513,6 +515,34 @@ class AppStore(
     fun getOrder(orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         return row.toDto()
+    }
+
+    /**
+     * Pushes the order's new state to its shop + customer (replaces client polling). No-op when the
+     * status did not change unless [always] (partner progress updates shown on the customer screen).
+     */
+    private fun publishOrderUpdate(
+        orderId: String,
+        previousStatus: String?,
+        partnerTimeout: Boolean = false,
+        always: Boolean = false,
+    ) {
+        if (!push.enabled) return
+        val row = orderCol.find(eq("_id", orderId)).projection(orderListProjection).firstOrNull() ?: return
+        if (row.channel != "ONLINE") return
+        if (row.status == previousStatus && !partnerTimeout && !always) return
+        push.orderUpdated(
+            OrderUpdate(
+                orderId = row.id,
+                shopId = row.shopId,
+                customerId = row.customerId,
+                previousStatus = previousStatus,
+                status = row.status,
+                shopName = shopCol.find(eq("_id", row.shopId)).firstOrNull()?.name.orEmpty(),
+                customerName = row.customerName.orEmpty(),
+                partnerTimeout = partnerTimeout,
+            ),
+        )
     }
 
     fun customerOrders(userId: String): List<OrderDto> =
@@ -584,6 +614,7 @@ class AppStore(
         require(row.shopId == shopId) { "Forbidden" }
         require(row.status == "RECEIVED" || row.status == "ACCEPTED") { "Cannot accept" }
         orderCol.updateOne(eq("_id", orderId), set("status", "ACCEPTED"))
+        publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
 
@@ -600,6 +631,7 @@ class AppStore(
             kept
         }
         orderCol.replaceOne(eq("_id", orderId), row.copy(status = status, items = items, cancelReason = reason))
+        publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
 
@@ -610,6 +642,7 @@ class AppStore(
         require(row.shopId == shopId) { "Forbidden" }
         if (status == "PACKING") require(row.status == "ACCEPTED" || row.status == "PACKING") { "Accept first" }
         orderCol.updateOne(eq("_id", orderId), set("status", status))
+        publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
 
@@ -657,6 +690,7 @@ class AppStore(
                 ),
             )
         }
+        publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
 
@@ -671,6 +705,7 @@ class AppStore(
         ).firstOrNull()
         if (existing != null && existing.expiresAt >= now) {
             orderCol.updateOne(eq("_id", orderId), set("status", "LOOKING_FOR_PARTNER"))
+            publishOrderUpdate(orderId, order.status)
             broadcastOffer(existing, shop, order.deliveryAddress.orEmpty())
             return toOfferDto(existing, dummyPartner())
         }
@@ -695,8 +730,39 @@ class AppStore(
         )
         orderCol.updateOne(eq("_id", orderId), set("status", "LOOKING_FOR_PARTNER"))
         deliveryOfferCol.insertOne(offer)
+        publishOrderUpdate(orderId, order.status)
         broadcastOffer(offer, shop, order.deliveryAddress.orEmpty())
         return toOfferDto(offer, dummyPartner())
+    }
+
+    /**
+     * Marks unpicked offers past [OFFER_TTL_MS] as EXPIRED and returns their orders to PACKING
+     * so the shop sees "Request delivery" again. Returns the number of offers expired.
+     */
+    fun expireStaleOffers(now: Long = System.currentTimeMillis()): Int {
+        val stale = deliveryOfferCol.find(
+            and(eq("status", "RINGING"), lt("expiresAt", now)),
+        ).toList()
+        stale.forEach { offer ->
+            val updated = deliveryOfferCol.updateOne(
+                and(eq("_id", offer.id), eq("status", "RINGING")),
+                set("status", "EXPIRED"),
+            )
+            if (updated.modifiedCount == 0L) return@forEach
+            val stillRinging = deliveryOfferCol.find(
+                and(eq("orderId", offer.orderId), eq("status", "RINGING"), gte("expiresAt", now)),
+            ).firstOrNull()
+            if (stillRinging == null) {
+                val reverted = orderCol.updateOne(
+                    and(eq("_id", offer.orderId), eq("status", "LOOKING_FOR_PARTNER")),
+                    set("status", "PACKING"),
+                )
+                if (reverted.modifiedCount > 0) {
+                    publishOrderUpdate(offer.orderId, "LOOKING_FOR_PARTNER", partnerTimeout = true)
+                }
+            }
+        }
+        return stale.size
     }
 
     fun incomingForPartner(partnerId: String): DeliveryOfferDto? =
@@ -765,6 +831,8 @@ class AppStore(
                 ),
             )
         }
+        val orderId = deliveryOfferCol.find(eq("_id", offerId)).firstOrNull()?.orderId
+        if (orderId != null) publishOrderUpdate(orderId, "LOOKING_FOR_PARTNER")
         return offerById(offerId, partnerId)
     }
 
@@ -926,6 +994,7 @@ class AppStore(
         require(row.status == "PARTNER_ACCEPTED") { "Invalid status" }
         if (row.partnerProgress != "AT_STORE" && row.partnerProgress != "CAPTURE") {
             orderCol.updateOne(eq("_id", orderId), set("partnerProgress", "AT_STORE"))
+            publishOrderUpdate(orderId, row.status, always = true)
         }
         return getOrder(orderId)
     }
@@ -949,6 +1018,7 @@ class AppStore(
         require(row.status == "ON_THE_WAY") { "Invalid status" }
         if (row.partnerProgress != "AT_CUSTOMER") {
             orderCol.updateOne(eq("_id", orderId), set("partnerProgress", "AT_CUSTOMER"))
+            publishOrderUpdate(orderId, row.status, always = true)
         }
         return getOrder(orderId)
     }
@@ -992,6 +1062,7 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
         orderCol.replaceOne(eq("_id", orderId), row.copy(status = "LOOKING_FOR_PARTNER", partnerId = null, partnerProgress = ""))
+        publishOrderUpdate(orderId, row.status)
         deliveryOfferCol.find(eq("orderId", orderId)).toList().forEach { offer ->
             deliveryOfferCol.replaceOne(eq("_id", offer.id), offer.copy(status = "CANCELLED", acceptedBy = null))
         }
@@ -1011,6 +1082,7 @@ class AppStore(
                 set("partnerProgress", "TO_CUSTOMER"),
             ),
         )
+        publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
 
@@ -1036,6 +1108,7 @@ class AppStore(
                 set("partnerPayoutInr", offer?.payout ?: row.partnerPayoutInr),
             ),
         )
+        publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
 

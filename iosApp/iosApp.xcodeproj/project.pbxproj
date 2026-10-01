@@ -12,6 +12,7 @@
 		FC32DCFD3015FC41005A4112 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FC32DCFE3015FC41005A4112 /* MapKit.framework */; };
 		FC8C588D303326B500AE7875 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A0002 /* FirebaseAuth */; };
 		FC8C588E303326B500AE7875 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A0003 /* FirebaseCore */; };
+		FC8C588F303326B500AE7875 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A0004 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +55,7 @@
 			files = (
 				FC8C588E303326B500AE7875 /* FirebaseCore in Frameworks */,
 				FC8C588D303326B500AE7875 /* FirebaseAuth in Frameworks */,
+				FC8C588F303326B500AE7875 /* FirebaseMessaging in Frameworks */,
 				FC32DCFA3015FC41005A4110 /* UIKit.framework in Frameworks */,
 				FC32DCFB3015FC41005A4111 /* CoreLocation.framework in Frameworks */,
 				FC32DCFD3015FC41005A4112 /* MapKit.framework in Frameworks */,
@@ -114,6 +116,7 @@
 			packageProductDependencies = (
 				A1B2C3D4E5F60718293A0002 /* FirebaseAuth */,
 				A1B2C3D4E5F60718293A0003 /* FirebaseCore */,
+				A1B2C3D4E5F60718293A0004 /* FirebaseMessaging */,
 			);
 			productName = iosApp;
 			productReference = 41AA27EFDF1608AED237045C /* Pansari Wala.app */;
@@ -184,7 +187,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\nif [ -z \"$JAVA_HOME\" ] || [ ! -x \"$JAVA_HOME/bin/java\" ]; then\n  STUDIO_JBR=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  if [ -x \"$STUDIO_JBR/bin/java\" ]; then\n    export JAVA_HOME=\"$STUDIO_JBR\"\n    export PATH=\"$JAVA_HOME/bin:$PATH\"\n  fi\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -205,6 +208,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 55T4BP9V2W;
@@ -239,6 +243,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 55T4BP9V2W;
@@ -436,6 +441,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4E5F60718293A0001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		A1B2C3D4E5F60718293A0004 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60718293A0001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

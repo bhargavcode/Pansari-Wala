@@ -84,6 +84,7 @@ logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "lo
 razorpay-checkout = { module = "com.razorpay:checkout", version.ref = "razorpay-checkout" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "maps-compose" }
 play-services-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "play-services-maps" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }

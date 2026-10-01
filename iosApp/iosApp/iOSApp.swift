@@ -3,9 +3,10 @@ import UIKit
 import UserNotifications
 import FirebaseCore
 import FirebaseAuth
+import FirebaseMessaging
 import Shared
 
-class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -14,6 +15,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         IosFirebaseAuthBridge.shared.host = FirebasePhoneOtpHost()
         IosRazorpayBridge.shared.host = RazorpayWebCheckoutHost()
         UNUserNotificationCenter.current().delegate = self
+        Messaging.messaging().delegate = self
         application.registerForRemoteNotifications()
         return true
     }
@@ -23,7 +25,19 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        // Server pushes in foreground: show the localized in-app version (deduped with the poll) instead.
+        if notification.request.trigger is UNPushNotificationTrigger {
+            IosPushBridge.shared.willPresent(userInfo: notification.request.content.userInfo)
+            completionHandler([])
+            return
+        }
         completionHandler([.banner, .sound, .badge])
+    }
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        if let fcmToken {
+            IosPushBridge.shared.onToken(token: fcmToken)
+        }
     }
 
     func application(
@@ -31,6 +45,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+        Messaging.messaging().apnsToken = deviceToken
     }
 
     func application(
@@ -42,7 +57,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             completionHandler(.noData)
             return
         }
-        completionHandler(.noData)
+        IosPushBridge.shared.didReceive(userInfo: userInfo, active: application.applicationState == .active)
+        completionHandler(.newData)
     }
 
     func application(

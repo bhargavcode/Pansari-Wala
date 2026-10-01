@@ -124,6 +124,7 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.auth)
+            implementation(libs.firebase.messaging)
             implementation(libs.razorpay.checkout)
             implementation(libs.maps.compose)
             implementation(libs.play.services.maps)

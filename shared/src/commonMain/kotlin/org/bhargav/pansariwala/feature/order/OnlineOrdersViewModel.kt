@@ -2,7 +2,6 @@ package org.bhargav.pansariwala.feature.order
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,8 +11,10 @@ import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.notification.NotificationGateway
+import org.bhargav.pansariwala.notification.OrderUpdate
+import org.bhargav.pansariwala.notification.OrderUpdates
 import org.bhargav.pansariwala.settings.CancelOrderReason
-import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_network
 import pansariwala.shared.generated.resources.error_session_expired
@@ -28,22 +29,44 @@ data class OnlineOrdersUiState(
     val customCancelReason: String = "",
 )
 
+/**
+ * Live via FCM ([OrderUpdates]) — no polling. Loads on screen resume (covers missed pushes / app
+ * returning to foreground); while visible, tray alerts for listed orders are cleared as consumed.
+ */
 class OnlineOrdersViewModel(
     private val api: PansariApi,
+    private val notifications: NotificationGateway,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OnlineOrdersUiState())
     val uiState: StateFlow<OnlineOrdersUiState> = _uiState.asStateFlow()
+    private var visible = false
+    private var loadedOnce = false
 
     fun dismissError() { _uiState.update { it.copy(error = null) } }
 
     init {
         viewModelScope.launch {
-            refresh()
-            while (true) {
-                delay(AppConstants.LIVE_ALERT_POLL_MS)
-                refresh(silent = true)
-            }
+            OrderUpdates.events.collect(::onOrderUpdate)
         }
+    }
+
+    fun onScreenVisible(isVisible: Boolean) {
+        visible = isVisible
+        if (isVisible) refresh(silent = loadedOnce)
+    }
+
+    private fun onOrderUpdate(update: OrderUpdate) {
+        val status = update.status
+        val known = _uiState.value.orders.any { it.id == update.orderId }
+        // Partner assignment brings partner details the payload doesn't carry.
+        if (!known || status == null || status == OrderStatus.PARTNER_ACCEPTED) {
+            refresh(silent = true)
+            return
+        }
+        _uiState.update { state ->
+            state.copy(orders = state.orders.map { if (it.id == update.orderId) it.copy(status = status) else it })
+        }
+        if (visible) notifications.clearOrder(update.orderId)
     }
 
     fun refresh(silent: Boolean = false) {
@@ -51,7 +74,9 @@ class OnlineOrdersViewModel(
             if (!silent) _uiState.update { it.copy(loading = true) }
             runCatching { api.shopOnlineOrders() }
                 .onSuccess { orders ->
+                    loadedOnce = true
                     _uiState.update { it.copy(orders = orders, error = null) }
+                    if (visible) orders.forEach { notifications.clearOrder(it.id) }
                 }
                 .onFailure { error ->
                     if (!silent) _uiState.update { it.copy(error = mapOnlineOrdersError(error)) }

@@ -75,6 +75,7 @@ class KtorPansariApi(
                         path.contains("config/public") ||
                         path.endsWith("health") ||
                         path.contains("partners/register") ||
+                        path.contains("push/unregister") ||
                         path.contains("uploads/guest")
                     !public
                 }
@@ -191,6 +192,14 @@ class KtorPansariApi(
 
     override suspend fun shopOnlineOrders(): List<Order> =
         client.get("shop/orders").body<List<OrderDto>>().map { it.toModel() }
+
+    override suspend fun registerPushToken(token: String, platform: String) {
+        client.post("push/register") { setBody(PushRegisterRequest(token, platform)) }.body<OkResponse>()
+    }
+
+    override suspend fun unregisterPushToken(token: String) {
+        client.post("push/unregister") { setBody(PushUnregisterRequest(token)) }.body<OkResponse>()
+    }
 
     override suspend fun acceptOrder(orderId: String): Order =
         client.post("shop/orders/$orderId/accept").body<OrderDto>().toModel()

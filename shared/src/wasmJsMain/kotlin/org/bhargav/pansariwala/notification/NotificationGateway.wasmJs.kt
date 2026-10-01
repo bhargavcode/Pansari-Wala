@@ -6,6 +6,7 @@ private class WasmNotificationGateway : NotificationGateway {
     override fun show(notification: ShopNotification) {
         NotificationRouter.emit(notification)
     }
+    override fun clearOrder(orderId: String) = Unit
 }
 
 actual fun createNotificationGateway(): NotificationGateway = WasmNotificationGateway()

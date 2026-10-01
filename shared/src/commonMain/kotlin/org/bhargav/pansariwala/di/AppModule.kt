@@ -45,9 +45,11 @@ import org.bhargav.pansariwala.feature.user.ShopCatalogViewModel
 import org.bhargav.pansariwala.feature.user.ThankYouViewModel
 import org.bhargav.pansariwala.feature.user.UserSettingsViewModel
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
-import org.bhargav.pansariwala.notification.LiveAlerts
+import org.bhargav.pansariwala.notification.DedupingNotificationGateway
 import org.bhargav.pansariwala.notification.NotificationGateway
 import org.bhargav.pansariwala.notification.PartnerOfferSocket
+import org.bhargav.pansariwala.notification.PushMessageHandler
+import org.bhargav.pansariwala.notification.PushRegistrar
 import org.bhargav.pansariwala.notification.ShopNotifier
 import org.bhargav.pansariwala.notification.createNotificationGateway
 import org.bhargav.pansariwala.voice.SpeechToText
@@ -61,9 +63,10 @@ import org.koin.dsl.module
 val appModule = module {
     single<Analytics> { createAnalytics() }
     single<CrashReporter> { createCrashReporter() }
-    single<NotificationGateway> { createNotificationGateway() }
+    single<NotificationGateway> { DedupingNotificationGateway(createNotificationGateway()) }
     singleOf(::ShopNotifier)
-    singleOf(::LiveAlerts)
+    singleOf(::PushRegistrar)
+    singleOf(::PushMessageHandler)
     singleOf(::PartnerOfferSocket)
     singleOf(::PartnerLocationTracker)
     single<SpeechToText> { createSpeechToText() }

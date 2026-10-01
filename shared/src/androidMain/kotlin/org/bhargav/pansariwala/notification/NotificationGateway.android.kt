@@ -52,9 +52,10 @@ private class AndroidNotificationGateway(
         if (notification.orderId != null) {
             launchIntent?.putExtra(EXTRA_ORDER_ID, notification.orderId)
         }
+        val notifyId = (notification.key ?: notification.id).hashCode()
         val pending = PendingIntent.getActivity(
             context,
-            notification.id.hashCode(),
+            notifyId,
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -73,9 +74,19 @@ private class AndroidNotificationGateway(
             .build()
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         try {
-            manager.notify(notification.id.hashCode(), built)
+            // Tag = order id so every alert for an order can be cleared together in clearOrder().
+            manager.notify(notification.orderId, notifyId, built)
         } catch (_: SecurityException) {
             // Missing POST_NOTIFICATIONS on API 33+ — in-app router still received the event.
+        }
+    }
+
+    override fun clearOrder(orderId: String) {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        runCatching {
+            manager.activeNotifications
+                .filter { it.tag == orderId }
+                .forEach { manager.cancel(it.tag, it.id) }
         }
     }
 }
@@ -86,6 +97,7 @@ private class AndroidNotificationGatewayFromKoin : NotificationGateway, KoinComp
     override fun ensureChannels() = delegate.ensureChannels()
     override fun requestPermissionIfNeeded() = delegate.requestPermissionIfNeeded()
     override fun show(notification: ShopNotification) = delegate.show(notification)
+    override fun clearOrder(orderId: String) = delegate.clearOrder(orderId)
 }
 
 actual fun createNotificationGateway(): NotificationGateway = AndroidNotificationGatewayFromKoin()

@@ -70,7 +70,7 @@ Four products share one Kotlin codebase and one Ktor backend.
 | `RAZORPAY_KEY_SECRET` | server env **only** | Used to create orders (Basic auth) and verify checkout signatures. |
 | `RAZORPAY_KEY_ID` | server + public `/config/public` | Safe to expose to the User Android SDK. |
 | `FIREBASE_PROJECT_ID` | server env | Token `aud`/`iss` must match. |
-| `FCM_SERVER_KEY` | server env | For remote push (wire FCM HTTP v1 next). |
+| `FCM_SERVICE_ACCOUNT_FILE` / `FCM_SERVICE_ACCOUNT_JSON` | server env **only** | Firebase service account for FCM HTTP v1 push (shop: new order, partner timeout; customer: accepted / on the way / delivered). Unset → push disabled, apps fall back to polling. |
 | OTP hashes | Mongo `otp_challenges` | SHA-256 of code, 5 min TTL, deleted after use. |
 | Delivery OTP | order row | Shown to customer; partner must match. |
 | Photos | truncated base64 on partner/order rows | **Done:** multipart → S3 URLs (`AssetStore` + `/uploads`); clients store/fetch HTTPS URLs only.
@@ -118,7 +118,7 @@ MONGODB_DB=pansariwala
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=
 FIREBASE_PROJECT_ID=
-FCM_SERVER_KEY=
+FCM_SERVICE_ACCOUNT_FILE=/etc/pansariwala/firebase-sa.json
 AUTH_DEV_MODE=true
 PASSWORD_SALT=
 ```

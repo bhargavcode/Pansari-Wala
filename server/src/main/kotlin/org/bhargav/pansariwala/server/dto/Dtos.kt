@@ -33,6 +33,12 @@ data class AdminLoginRequest(val username: String, val password: String)
 data class FirebaseAuthRequest(val idToken: String)
 
 @Serializable
+data class PushRegisterRequest(val token: String, val platform: String)
+
+@Serializable
+data class PushUnregisterRequest(val token: String)
+
+@Serializable
 data class OtpRequest(val phone: String)
 
 @Serializable

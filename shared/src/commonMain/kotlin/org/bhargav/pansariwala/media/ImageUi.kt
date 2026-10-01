@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -76,8 +77,9 @@ fun NetworkImage(
         if (target == null) return@LaunchedEffect
         loading = true
         bitmap = runCatching {
-            val bytes = ImageBitmapCache.client.get(target).readRawBytes()
-            decodeImageOffMain(bytes)?.also { ImageBitmapCache.put(target, it) }
+            val response = ImageBitmapCache.client.get(target)
+            if (!response.status.isSuccess()) return@runCatching null
+            decodeImageOffMain(response.readRawBytes())?.also { ImageBitmapCache.put(target, it) }
         }.getOrNull()
         loading = false
     }
@@ -97,7 +99,10 @@ fun NetworkImage(
 }
 
 suspend fun decodeImageOffMain(bytes: ByteArray): ImageBitmap? =
-    withContext(Dispatchers.Default) { runCatching { bytes.decodeToImageBitmap() }.getOrNull() }
+    withContext(Dispatchers.Default) {
+        // Android wraps a null Bitmap for undecodable bytes; touching width surfaces that as a failure.
+        runCatching { bytes.decodeToImageBitmap().takeIf { it.width > 0 && it.height > 0 } }.getOrNull()
+    }
 
 /** Main-thread-only LRU of decoded remote images, so lists don't re-download on recomposition. */
 private object ImageBitmapCache {

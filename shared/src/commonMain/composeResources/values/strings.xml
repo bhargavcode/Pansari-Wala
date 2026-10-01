@@ -642,6 +642,10 @@
     <string name="order_total_label">Total %1$s</string>
     <string name="notify_new_order_title">New online order</string>
     <string name="notify_new_order_body">Order %1$s from %2$s</string>
+    <string name="notify_order_cancelled_title">Order cancelled</string>
+    <string name="notify_order_cancelled_body">Your order from %1$s was cancelled.</string>
+    <string name="notify_partner_timeout_title">No delivery partner found</string>
+    <string name="notify_partner_timeout_body">No partner accepted order %1$s in 5 minutes. Request a delivery partner again.</string>
     <string name="notify_delivery_offer_title">New delivery job</string>
     <string name="notify_delivery_offer_body">Pickup at %1$s · ₹%2$s</string>
     <string name="notify_order_accepted_title">Order accepted</string>

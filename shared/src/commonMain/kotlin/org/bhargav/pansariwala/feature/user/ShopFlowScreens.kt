@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -549,6 +550,10 @@ fun OrderDetailsScreen(
     viewModel: OrderDetailsViewModel = koinViewModel(),
 ) {
     LaunchedEffect(orderId) { viewModel.load(orderId) }
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onScreenVisible(true)
+        onPauseOrDispose { viewModel.onScreenVisible(false) }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val order = state.order
     PansariScreen(

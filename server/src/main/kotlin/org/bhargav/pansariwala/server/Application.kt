@@ -16,16 +16,23 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.server.db.connectMongo
 import org.bhargav.pansariwala.server.dto.ApiErrorBody
 import org.bhargav.pansariwala.server.routing.apiRoutes
 import org.bhargav.pansariwala.server.security.Security
 import org.bhargav.pansariwala.server.service.AppStore
+import org.bhargav.pansariwala.server.service.PushService
 import org.bhargav.pansariwala.server.storage.AssetKeyMigration
 import org.bhargav.pansariwala.server.storage.AssetRefs
 import org.bhargav.pansariwala.server.storage.AssetStorageFactory
 import org.slf4j.event.Level
+
+private const val OFFER_SWEEP_INTERVAL_MS = 30_000L
 
 fun main() {
     val config = ServerConfig.fromEnv()
@@ -37,7 +44,9 @@ fun main() {
     Runtime.getRuntime().addShutdownHook(Thread { mongo.client.close() })
     val migrated = AssetKeyMigration(mongo.db, assetRefs).run()
     if (migrated > 0) println("Asset refs: normalized $migrated documents to storage keys")
-    val store = AppStore(config, security, mongo, storage, assetRefs)
+    val push = PushService(config, mongo)
+    println(if (push.enabled) "Push: FCM HTTP v1 enabled" else "Push: disabled (set FCM_SERVICE_ACCOUNT_FILE or FCM_SERVICE_ACCOUNT_JSON)")
+    val store = AppStore(config, security, mongo, storage, assetRefs, push)
 
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
         // CORS first so preflight + error responses always include ACAO (web localhost → API).
@@ -101,7 +110,15 @@ fun main() {
             }
         }
         routing {
-            apiRoutes(config, store)
+            apiRoutes(config, store, push)
+        }
+        launch(Dispatchers.IO) {
+            while (isActive) {
+                runCatching { store.expireStaleOffers() }
+                    .onSuccess { if (it > 0) println("Delivery offers: expired $it unpicked offers") }
+                    .onFailure { println("Delivery offer sweep failed: ${it.message}") }
+                delay(OFFER_SWEEP_INTERVAL_MS)
+            }
         }
     }.start(wait = true)
 }

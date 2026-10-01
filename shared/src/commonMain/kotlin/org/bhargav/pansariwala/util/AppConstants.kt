@@ -29,7 +29,8 @@ object AppConstants {
     const val THANK_YOU_DELAY_MS: Long = 800L
     const val DELIVERY_RING_TIMEOUT_MS: Long = 15 * 60_000L
     const val PARTNER_OFFER_ACCEPT_MS: Long = 15_000L
-    const val LIVE_ALERT_POLL_MS: Long = 5_000L
+    /** Retry backoff for registering the FCM token with the server. */
+    const val PUSH_REGISTER_RETRY_MS: Long = 15_000L
     /** Idle wait while partner is offline / logged out before rechecking socket duty. */
     const val PARTNER_OFFER_SOCKET_IDLE_MS: Long = 3_000L
     /** Backoff after a delivery WebSocket disconnect before reconnect. */
@@ -163,6 +164,26 @@ object AppConstants {
         const val TYPE_ORDER: String = "order"
         const val TYPE_ONLINE_ORDER: String = "online_order"
         const val TYPE_DELIVERY_OFFER: String = "delivery_offer"
+    }
+
+    /** FCM data payload contract with the server (`PushService`). */
+    object Push {
+        const val EVENT_ORDER_UPDATE: String = "ORDER_UPDATE"
+        const val ALERT_ORDER_NEW: String = "ORDER_NEW"
+        const val ALERT_PARTNER_TIMEOUT: String = "PARTNER_TIMEOUT"
+        const val ALERT_ACCEPTED: String = "ACCEPTED"
+        const val ALERT_ON_THE_WAY: String = "ON_THE_WAY"
+        const val ALERT_DELIVERED: String = "DELIVERED"
+        const val ALERT_CANCELLED: String = "CANCELLED"
+        const val KEY_PREFIX_STATUS: String = "ORDER_STATUS"
+        const val KEY_EVENT: String = "event"
+        const val KEY_ORDER_ID: String = "orderId"
+        const val KEY_STATUS: String = "status"
+        const val KEY_ALERT: String = "alert"
+        const val KEY_SHOP_NAME: String = "shopName"
+        const val KEY_CUSTOMER_NAME: String = "customerName"
+        const val PLATFORM_ANDROID: String = "android"
+        const val PLATFORM_IOS: String = "ios"
     }
 
     object Razorpay {

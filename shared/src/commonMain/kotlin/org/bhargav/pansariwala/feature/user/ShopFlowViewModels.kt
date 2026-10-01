@@ -35,6 +35,8 @@ import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.ui.AsyncUiState
 import org.bhargav.pansariwala.ui.beginLoad
 import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.notification.NotificationGateway
+import org.bhargav.pansariwala.notification.OrderUpdates
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_checkout_address_required
 import pansariwala.shared.generated.resources.error_checkout_empty_cart
@@ -386,20 +388,56 @@ data class OrderDetailsUiState(
     val error: UiText? = null,
 )
 
+/**
+ * Live via FCM ([OrderUpdates]) — no polling. Status is applied from the payload instantly, then the
+ * order is re-read once for partner/OTP details. Tray alerts for this order clear while it's on screen.
+ */
 class OrderDetailsViewModel(
     private val api: PansariApi,
+    private val notifications: NotificationGateway,
 ) : ViewModel() {
     private val _state = MutableStateFlow(OrderDetailsUiState())
     val state: StateFlow<OrderDetailsUiState> = _state.asStateFlow()
-    private var pollJob: Job? = null
+    private var loadJob: Job? = null
+    private var orderId: String? = null
+    private var visible = false
 
     fun dismissError() { _state.update { it.copy(error = null) } }
 
+    init {
+        viewModelScope.launch {
+            OrderUpdates.events.collect { update ->
+                if (update.orderId != orderId) return@collect
+                update.status?.let { status ->
+                    _state.update { s ->
+                        s.copy(order = s.order?.copy(status = status), step = status.toFulfillmentStep())
+                    }
+                }
+                if (visible) notifications.clearOrder(update.orderId)
+                fetch(update.orderId)
+            }
+        }
+    }
+
+    /** Resume after the first load re-reads once (app back to foreground / missed pushes). */
+    fun onScreenVisible(isVisible: Boolean) {
+        visible = isVisible
+        val id = orderId ?: return
+        if (!isVisible) return
+        notifications.clearOrder(id)
+        if (_state.value.order != null) fetch(id)
+    }
+
     fun load(orderId: String) {
-        pollJob?.cancel()
-        pollJob = viewModelScope.launch {
-            while (true) {
-                runCatching { api.order(orderId) }
+        this.orderId = orderId
+        if (visible) notifications.clearOrder(orderId)
+        fetch(orderId)
+    }
+
+    private fun fetch(orderId: String) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            runCatching { api.order(orderId) }
                     .onSuccess { order ->
                         _state.update {
                             it.copy(
@@ -418,8 +456,6 @@ class OrderDetailsViewModel(
                             _state.update { it.copy(error = err.toApiUiText()) }
                         }
                     }
-                delay(AppConstants.LIVE_ALERT_POLL_MS)
-            }
         }
     }
 

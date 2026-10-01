@@ -6,6 +6,7 @@ private class JsNotificationGateway : NotificationGateway {
     override fun show(notification: ShopNotification) {
         NotificationRouter.emit(notification)
     }
+    override fun clearOrder(orderId: String) = Unit
 }
 
 actual fun createNotificationGateway(): NotificationGateway = JsNotificationGateway()

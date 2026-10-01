@@ -267,6 +267,17 @@ data class DeliveryOfferDoc(
     val dropAddress: String,
 )
 
+/** One FCM registration token per device; re-registering moves it to the latest signed-in principal. */
+@Serializable
+data class DeviceTokenDoc(
+    @SerialName("_id") val token: String,
+    val principalId: String,
+    val role: String,
+    val shopId: String? = null,
+    val platform: String,
+    val updatedAt: Long,
+)
+
 @Serializable
 data class OtpDoc(
     @SerialName("_id") val sessionId: String,
@@ -463,6 +474,11 @@ private fun ensureIndexes(db: MongoDatabase) {
     db.getCollection<DeliveryOfferDoc>("delivery_offers").apply {
         createIndex(Indexes.ascending("orderId"))
         createIndex(Indexes.ascending("status"))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("status"), Indexes.ascending("expiresAt")))
+    }
+    db.getCollection<DeviceTokenDoc>("device_tokens").apply {
+        createIndex(Indexes.compoundIndex(Indexes.ascending("role"), Indexes.ascending("shopId")))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("role"), Indexes.ascending("principalId")))
     }
 }
 

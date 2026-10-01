@@ -16,6 +16,7 @@ import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.MoneyTxn
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.CustomerProfile
+import org.bhargav.pansariwala.notification.OrderUpdates
 import org.bhargav.pansariwala.ui.AsyncUiState
 import org.bhargav.pansariwala.ui.beginLoad
 import org.bhargav.pansariwala.util.AppConstants
@@ -44,6 +45,21 @@ class AccountViewModel(
             }
         }
         refresh()
+        viewModelScope.launch {
+            OrderUpdates.events.collect { update ->
+                val current = _state.value as? AsyncUiState.Success ?: return@collect
+                val status = update.status
+                if (status == null || current.data.orders.none { it.id == update.orderId }) {
+                    refresh()
+                    return@collect
+                }
+                _state.value = current.copy(
+                    data = current.data.copy(
+                        orders = current.data.orders.map { if (it.id == update.orderId) it.copy(status = status) else it },
+                    ),
+                )
+            }
+        }
     }
 
     fun dismissError() {

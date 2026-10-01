@@ -47,6 +47,8 @@ import org.bhargav.pansariwala.server.dto.PartnerRegisterRequest
 import org.bhargav.pansariwala.server.dto.PickupRequest
 import org.bhargav.pansariwala.server.dto.PlaceOrderRequest
 import org.bhargav.pansariwala.server.dto.PublicConfigDto
+import org.bhargav.pansariwala.server.dto.PushRegisterRequest
+import org.bhargav.pansariwala.server.dto.PushUnregisterRequest
 import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RateOrderRequest
 import org.bhargav.pansariwala.server.dto.SaveAddressRequest
@@ -57,8 +59,9 @@ import org.bhargav.pansariwala.server.dto.SyncPushRequest
 import org.bhargav.pansariwala.server.dto.UpdateProfileRequest
 import org.bhargav.pansariwala.server.dto.VerifyPaymentRequest
 import org.bhargav.pansariwala.server.service.AppStore
+import org.bhargav.pansariwala.server.service.PushService
 
-fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
+fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
     get("/health") { call.respond(OkResponse(true)) }
     get("/config/public") {
         call.respond(
@@ -99,8 +102,26 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore) {
         val body = call.receive<PartnerRegisterRequest>()
         call.respond(store.registerPartner(body))
     }
+    // Public: called after logout/session expiry when no JWT remains; the FCM token itself identifies the device.
+    post("/push/unregister") {
+        val body = call.receive<PushUnregisterRequest>()
+        push.unregister(body.token)
+        call.respond(OkResponse())
+    }
 
     authenticate("auth-jwt") {
+        post("/push/register") {
+            val body = call.receive<PushRegisterRequest>()
+            val payload = call.payload()
+            push.register(
+                token = body.token,
+                principalId = payload.subject,
+                role = payload.getClaim("role").asString().orEmpty(),
+                shopId = payload.getClaim("shopId").asString(),
+                platform = body.platform,
+            )
+            call.respond(OkResponse())
+        }
         get("/me") { call.respond(store.me(call.userId())) }
         put("/me/profile") {
             val body = call.receive<UpdateProfileRequest>()

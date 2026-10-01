@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
@@ -79,6 +80,10 @@ fun OnlineOrdersScreen(
     viewModel: OnlineOrdersViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onScreenVisible(true)
+        onPauseOrDispose { viewModel.onScreenVisible(false) }
+    }
     PansariScreen(
         title = stringResource(Res.string.online_orders_title),
         onBack = onBack,

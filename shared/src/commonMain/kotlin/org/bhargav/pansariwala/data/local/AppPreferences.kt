@@ -35,6 +35,8 @@ class AppPreferences(
         const val notifyDelivery = "pref_notify_delivery"
         const val cachedPartnerProfile = AppConstants.Prefs.CACHED_PARTNER_PROFILE
         const val cachedCustomerProfile = AppConstants.Prefs.CACHED_CUSTOMER_PROFILE
+        /** FCM token last registered with the server; survives logout so it can be unregistered. */
+        const val registeredPushToken = AppConstants.Prefs.FCM_TOKEN
         /** Legacy duty flag — cleared on logout; online now lives in cached partner profile. */
         const val legacyPartnerOnlineDuty = "pref_partner_online_duty"
     }
@@ -85,6 +87,13 @@ class AppPreferences(
     }
 
     suspend fun getDisplayName(): String? = store.getString(Keys.userDisplayName)
+
+    suspend fun getRegisteredPushToken(): String? = store.getString(Keys.registeredPushToken)
+
+    suspend fun setRegisteredPushToken(token: String?) {
+        if (token == null) store.remove(setOf(Keys.registeredPushToken))
+        else store.putStrings(mapOf(Keys.registeredPushToken to token))
+    }
 
     suspend fun hasSession(): Boolean = !getAccessToken().isNullOrBlank()
 

@@ -14,7 +14,8 @@ data class ServerConfig(
     val razorpayXAccountNumber: String,
     val defaultShopUpi: String,
     val firebaseProjectId: String,
-    val fcmServerKey: String,
+    /** Firebase service-account JSON (inline or loaded from file) for FCM HTTP v1. Empty → push disabled. */
+    val fcmServiceAccountJson: String,
     val devAuth: Boolean,
     /** Optional HTTP endpoint that accepts JSON `{ "phone": "10digits", "otp": "123456" }`. */
     val smsApiUrl: String,
@@ -53,7 +54,7 @@ data class ServerConfig(
             razorpayXAccountNumber = env("RAZORPAYX_ACCOUNT_NUMBER", ""),
             defaultShopUpi = env("RAZORPAY_TEST_UPI", "success@razorpay"),
             firebaseProjectId = env("FIREBASE_PROJECT_ID", "pansariwala-5f4b4"),
-            fcmServerKey = env("FCM_SERVER_KEY", ""),
+            fcmServiceAccountJson = fcmServiceAccountFromEnv(),
             devAuth = env("AUTH_DEV_MODE", "true").toBooleanStrict(),
             smsApiUrl = env("SMS_API_URL", ""),
             smsApiToken = env("SMS_API_TOKEN", ""),
@@ -78,6 +79,14 @@ data class ServerConfig(
                 ?: error("Set MONGODB_URI or MONGODB_PASSWORD for Atlas cluster pansariwala")
             val encoded = URLEncoder.encode(password, StandardCharsets.UTF_8).replace("+", "%20")
             return "mongodb+srv://$ATLAS_USER:$encoded@$ATLAS_HOST/?appName=$ATLAS_APP"
+        }
+
+        private fun fcmServiceAccountFromEnv(): String {
+            env("FCM_SERVICE_ACCOUNT_JSON", "").takeIf { it.isNotBlank() }?.let { return it }
+            val path = env("FCM_SERVICE_ACCOUNT_FILE", env("GOOGLE_APPLICATION_CREDENTIALS", ""))
+            if (path.isBlank()) return ""
+            val file = java.io.File(path)
+            return if (file.isFile) file.readText() else ""
         }
 
         private fun env(key: String, default: String): String =

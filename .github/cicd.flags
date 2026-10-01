@@ -3,5 +3,5 @@
 
 android_enabled = false
 ios_enabled = false
-web_enabled = true
+web_enabled = false
 server_enabled = true

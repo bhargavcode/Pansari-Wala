@@ -13,12 +13,20 @@ data class ShopNotification(
     val orderId: String? = null,
     val offerId: String? = null,
     val type: String = AppConstants.Notification.TYPE_ORDER,
+    /**
+     * Stable event key (e.g. `ORDER_NEW:<orderId>`). Push and in-app poll build the same key, so the
+     * same event shows once and replaces the earlier system notification.
+     */
+    val key: String? = null,
 )
 
 interface NotificationGateway {
     fun ensureChannels()
     fun requestPermissionIfNeeded()
     fun show(notification: ShopNotification)
+
+    /** Removes this order's notifications from the tray once its update is on screen (consumed). */
+    fun clearOrder(orderId: String)
 }
 
 expect fun createNotificationGateway(): NotificationGateway
