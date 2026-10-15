@@ -1,7 +1,9 @@
 # Toggle CI jobs. true/1/yes = run; anything else = skip.
 # Edit this file and push (or re-run workflow).
 
-android_enabled = false
+android_enabled = true
+# Push release APKs to Firebase App Distribution (needs android_enabled = true)
+android_distribute = true
 ios_enabled = false
 web_enabled = false
 server_enabled = true

@@ -7,13 +7,13 @@ import org.bhargav.pansariwala.platform.NoOpRazorpayCheckout
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.RazorpayCheckout
 import org.bhargav.pansariwala.platform.ServerPhoneAuthGateway
-import org.bhargav.pansariwala.platform.UnavailableImagePicker
+import org.bhargav.pansariwala.platform.JsImagePicker
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
 actual val platformModule: Module = module {
     single<DeviceLocation> { JsDeviceLocation() }
     single<PhoneAuthGateway> { ServerPhoneAuthGateway(get()) }
-    single<ImagePicker> { UnavailableImagePicker() }
+    single<ImagePicker> { JsImagePicker() }
     single<RazorpayCheckout> { NoOpRazorpayCheckout() }
 }

@@ -491,6 +491,7 @@
     <string name="error_otp_send_failed">Could not send the code. Check the number and try again.</string>
     <string name="error_otp_verify_failed">Could not verify the code. Try again.</string>
     <string name="error_photo_pick_failed">Could not read that photo. Try another image.</string>
+    <string name="error_camera_permission_denied">Camera access is off. Allow it in Settings or choose from gallery.</string>
     <string name="error_image_upload_failed">Image upload failed. Tap retry to try again.</string>
     <string name="error_profile_photo_save_failed">Photo uploaded, but saving your profile failed. Please try again.</string>
     <string name="error_image_type_unsupported">Only PNG, JPEG, or WebP images are allowed.</string>

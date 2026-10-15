@@ -31,6 +31,8 @@ import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
 import org.bhargav.pansariwala.platform.LocationUnavailableException
 import org.bhargav.pansariwala.platform.FormatPlateOcr
 import org.bhargav.pansariwala.platform.ImagePicker
+import org.bhargav.pansariwala.platform.CameraPermissionDeniedException
+import org.bhargav.pansariwala.platform.pickImageCatching
 import org.bhargav.pansariwala.media.ImageSource
 import org.bhargav.pansariwala.media.ImageUploadFeature
 import org.bhargav.pansariwala.media.PhotoUploadUi
@@ -59,6 +61,7 @@ import pansariwala.shared.generated.resources.error_name_required
 import pansariwala.shared.generated.resources.error_not_a_partner
 import pansariwala.shared.generated.resources.error_phone_required
 import pansariwala.shared.generated.resources.error_photo_pick_failed
+import pansariwala.shared.generated.resources.error_camera_permission_denied
 import pansariwala.shared.generated.resources.error_photo_upload_in_progress
 import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_photos_required
@@ -292,7 +295,10 @@ class PartnerRegisterViewModel(
     fun attachPhoto(photo: RegisterPhoto, source: ImageSource) {
         photoJobs[photo]?.cancel()
         photoJobs[photo] = viewModelScope.launch {
-            val picked = imagePicker.pickImage(source) ?: return@launch
+            val picked = imagePicker.pickImageCatching(source).getOrElse { err ->
+                _state.update { it.copy(error = err.toPickErrorText()) }
+                return@launch
+            } ?: return@launch
             setPhotoUpload(photo, PhotoUploadUi(uploading = true))
             val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {
                 setPhotoUpload(photo, PhotoUploadUi(failed = true))
@@ -1017,7 +1023,10 @@ class PartnerJobViewModel(
     fun attachPhoto(slot: Int, source: ImageSource) {
         photoJobs[slot]?.cancel()
         photoJobs[slot] = viewModelScope.launch {
-            val picked = imagePicker.pickImage(source) ?: return@launch
+            val picked = imagePicker.pickImageCatching(source).getOrElse { err ->
+                _state.update { it.copy(error = err.toPickErrorText()) }
+                return@launch
+            } ?: return@launch
             setSlotUpload(slot, PhotoUploadUi(uploading = true))
             val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {
                 setSlotUpload(slot, PhotoUploadUi(failed = true))
@@ -1205,7 +1214,10 @@ class PartnerEarningsViewModel(
     fun changeProfilePhoto(source: ImageSource) {
         if (_state.value.uploadingPhoto) return
         viewModelScope.launch {
-            val picked = imagePicker.pickImage(source) ?: return@launch
+            val picked = imagePicker.pickImageCatching(source).getOrElse { err ->
+                _state.update { it.copy(error = err.toPickErrorText()) }
+                return@launch
+            } ?: return@launch
             _state.update { it.copy(uploadingPhoto = true, error = null) }
             val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {
                 _state.update {
@@ -1255,3 +1267,11 @@ class PartnerEarningsViewModel(
         }
     }
 }
+
+private fun Throwable.toPickErrorText(): UiText = UiText.res(
+    if (this is CameraPermissionDeniedException) {
+        Res.string.error_camera_permission_denied
+    } else {
+        Res.string.error_photo_pick_failed
+    },
+)

@@ -32,8 +32,9 @@ android {
         applicationId = "org.bhargav.pansariwala"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        val ciVersionCode = providers.environmentVariable("VERSION_CODE").orNull?.toIntOrNull()
+        versionCode = ciVersionCode ?: 1
+        versionName = if (ciVersionCode != null) "1.0.$ciVersionCode" else "1.0"
     }
     packaging {
         resources {

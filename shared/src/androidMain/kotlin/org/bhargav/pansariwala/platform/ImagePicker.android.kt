@@ -1,109 +1,224 @@
 package org.bhargav.pansariwala.platform
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
-import androidx.activity.ComponentActivity
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.bhargav.pansariwala.media.ImageSource
 import org.bhargav.pansariwala.media.PickedImage
 import org.bhargav.pansariwala.media.normalizeImageMime
 import org.bhargav.pansariwala.util.AppConstants
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 import java.util.UUID
-import kotlin.coroutines.resume
+import kotlin.math.max
 
 /** Must match the `<provider>` authority declared in the app manifest. */
 private const val FILE_PROVIDER_SUFFIX = ".pansari.fileprovider"
 private const val CAMERA_CACHE_DIR = "camera"
 
+/** Stable keys so results are re-delivered after activity recreation. */
+private const val KEY_GALLERY = "pansari_image_gallery"
+private const val KEY_GALLERY_FALLBACK = "pansari_image_gallery_fallback"
+private const val KEY_CAMERA = "pansari_image_camera"
+private const val KEY_CAMERA_PERMISSION = "pansari_image_camera_permission"
+
+/** Files this size or smaller in a supported format are passed through untouched. */
+private const val PASSTHROUGH_MAX_BYTES = 4_000_000
+private const val TRANSCODE_JPEG_QUALITY = 92
+
 class AndroidImagePicker : ImagePicker {
     override suspend fun pickImage(source: ImageSource): PickedImage? {
-        val activity = AndroidActivityHolder.activity ?: return null
+        val context = AndroidActivityHolder.activity?.applicationContext ?: return null
         return when (source) {
-            ImageSource.GALLERY -> pickFromGallery(activity)
-            ImageSource.CAMERA -> captureWithCamera(activity)
+            ImageSource.GALLERY -> pickFromGallery(context)
+            ImageSource.CAMERA -> captureWithCamera(context)
         }
     }
 
-    private suspend fun pickFromGallery(activity: ComponentActivity): PickedImage? {
-        val uri = launchForResult(
-            activity,
-            ActivityResultContracts.PickVisualMedia(),
-            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-        ) ?: return null
-        return withContext(Dispatchers.IO) { runCatching { readPicked(activity, uri) }.getOrNull() }
-    }
-
-    private suspend fun captureWithCamera(activity: ComponentActivity): PickedImage? {
-        if (!ensureCameraPermission(activity)) return null
-        val file = withContext(Dispatchers.IO) {
-            File(activity.cacheDir, CAMERA_CACHE_DIR).apply { mkdirs() }
-                .let { File(it, "capture_${UUID.randomUUID()}.jpg") }
-        }
-        val uri = FileProvider.getUriForFile(activity, activity.packageName + FILE_PROVIDER_SUFFIX, file)
-        val saved = launchForResult(activity, ActivityResultContracts.TakePicture(), uri) == true
+    private suspend fun pickFromGallery(context: Context): PickedImage? {
+        val uri = try {
+            ActivityResultBridge.launch(
+                KEY_GALLERY,
+                ActivityResultContracts.PickVisualMedia(),
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+            )
+        } catch (_: ActivityNotFoundException) {
+            // Devices without the system photo picker or DocumentsUI (some Go / OEM builds).
+            ActivityResultBridge.launch(KEY_GALLERY_FALLBACK, ActivityResultContracts.GetContent(), "image/*")
+        } ?: return null
         return withContext(Dispatchers.IO) {
-            try {
-                if (!saved || file.length() == 0L) return@withContext null
-                require(file.length() <= AppConstants.UPLOAD_MAX_RAW_BYTES) { "Image is too large" }
-                PickedImage(displayName = file.name, bytes = file.readBytes(), mimeType = "image/jpeg")
-            } finally {
-                file.delete()
-            }
+            wrapReadErrors { readFromUri(context, uri) }
         }
     }
 
-    private suspend fun ensureCameraPermission(activity: ComponentActivity): Boolean {
-        val granted = ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA) ==
+    private suspend fun captureWithCamera(context: Context): PickedImage? {
+        if (!ensureCameraPermission(context)) throw CameraPermissionDeniedException()
+        val file = withContext(Dispatchers.IO) {
+            val dir = File(context.cacheDir, CAMERA_CACHE_DIR).apply { mkdirs() }
+            // Leftovers from a capture interrupted by process death.
+            dir.listFiles()?.forEach { it.delete() }
+            File(dir, "capture_${UUID.randomUUID()}.jpg")
+        }
+        val uri = FileProvider.getUriForFile(context, context.packageName + FILE_PROVIDER_SUFFIX, file)
+        try {
+            try {
+                ActivityResultBridge.launch(KEY_CAMERA, ActivityResultContracts.TakePicture(), uri)
+            } catch (e: ActivityNotFoundException) {
+                throw ImagePickException("No camera app available", e)
+            }
+            return withContext(Dispatchers.IO) {
+                // Trust the file, not the result code: some OEM camera apps report cancel after saving.
+                if (file.length() == 0L) return@withContext null
+                wrapReadErrors { readFromFile(file) }
+            }
+        } finally {
+            withContext(Dispatchers.IO) { file.delete() }
+        }
+    }
+
+    private suspend fun ensureCameraPermission(context: Context): Boolean {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) return true
-        return launchForResult(
-            activity,
+        return ActivityResultBridge.launch(
+            KEY_CAMERA_PERMISSION,
             ActivityResultContracts.RequestPermission(),
             Manifest.permission.CAMERA,
         ) == true
     }
 }
 
-private suspend fun <I, O> launchForResult(
-    activity: ComponentActivity,
-    contract: ActivityResultContract<I, O>,
-    input: I,
-): O? = withContext(Dispatchers.Main.immediate) {
-    suspendCancellableCoroutine { cont ->
-        val key = "pansari_image_${UUID.randomUUID()}"
-        lateinit var launcher: ActivityResultLauncher<I>
-        launcher = activity.activityResultRegistry.register(key, contract) { result ->
-            launcher.unregister()
-            if (cont.isActive) cont.resume(result)
-        }
-        cont.invokeOnCancellation { launcher.unregister() }
-        runCatching { launcher.launch(input) }.onFailure {
-            launcher.unregister()
-            if (cont.isActive) cont.resume(null)
+private inline fun wrapReadErrors(block: () -> PickedImage): PickedImage =
+    try {
+        block()
+    } catch (e: ImagePickException) {
+        throw e
+    } catch (e: OutOfMemoryError) {
+        throw ImagePickException("Image is too large", e)
+    } catch (e: Exception) {
+        throw ImagePickException("Could not read photo", e)
+    }
+
+private fun readFromUri(context: Context, uri: Uri): PickedImage {
+    val resolver = context.contentResolver
+    val name = runCatching {
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull() ?: "photo.jpg"
+    val mime = normalizeImageMime(resolver.getType(uri).orEmpty(), name)
+    val open = { resolver.openInputStream(uri) ?: error("Could not open photo") }
+    if (mime != null) {
+        open().use { readUpTo(it, PASSTHROUGH_MAX_BYTES) }?.let {
+            return PickedImage(displayName = name, bytes = it, mimeType = mime)
         }
     }
+    val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        decodeWithImageDecoder(ImageDecoder.createSource(resolver, uri))
+    } else {
+        decodeWithBitmapFactory(open)
+    }
+    return bitmap.toPickedJpeg(name)
 }
 
-private fun readPicked(activity: ComponentActivity, uri: Uri): PickedImage {
-    val name = activity.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-        ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-        ?: "photo.jpg"
-    val mimeRaw = activity.contentResolver.getType(uri).orEmpty()
-    val mime = normalizeImageMime(mimeRaw, name)
-        ?: error("Only PNG, JPEG, or WebP images are allowed")
-    val bytes = activity.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        ?: error("Could not read photo")
-    require(bytes.size <= AppConstants.UPLOAD_MAX_RAW_BYTES) { "Image is too large" }
-    return PickedImage(displayName = name, bytes = bytes, mimeType = mime)
+private fun readFromFile(file: File): PickedImage {
+    if (file.length() <= PASSTHROUGH_MAX_BYTES) {
+        return PickedImage(displayName = file.name, bytes = file.readBytes(), mimeType = "image/jpeg")
+    }
+    val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        decodeWithImageDecoder(ImageDecoder.createSource(file))
+    } else {
+        decodeWithBitmapFactory { file.inputStream() }
+    }
+    return bitmap.toPickedJpeg(file.name)
+}
+
+/** Returns all bytes, or null if the stream is longer than [limit]. */
+private fun readUpTo(input: InputStream, limit: Int): ByteArray? {
+    val out = ByteArrayOutputStream()
+    val buffer = ByteArray(64 * 1024)
+    var total = 0
+    while (true) {
+        val n = input.read(buffer)
+        if (n < 0) break
+        total += n
+        if (total > limit) return null
+        out.write(buffer, 0, n)
+    }
+    return out.toByteArray()
+}
+
+/** API 28+: decodes HEIC/HEIF too and applies EXIF orientation automatically. */
+@RequiresApi(Build.VERSION_CODES.P)
+private fun decodeWithImageDecoder(source: ImageDecoder.Source): Bitmap =
+    ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        decoder.memorySizePolicy = ImageDecoder.MEMORY_POLICY_LOW_RAM
+        decoder.setTargetSampleSize(sampleSizeFor(info.size.width, info.size.height))
+    }
+
+private fun decodeWithBitmapFactory(open: () -> InputStream): Bitmap {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    open().use { BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw ImagePickException("Unsupported image")
+    val opts = BitmapFactory.Options().apply {
+        inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight)
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    val decoded = open().use { BitmapFactory.decodeStream(it, null, opts) }
+        ?: throw ImagePickException("Unsupported image")
+    val orientation = runCatching {
+        open().use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
+    }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+    return decoded.rotatedFor(orientation)
+}
+
+private fun sampleSizeFor(width: Int, height: Int): Int {
+    var sample = 1
+    while (max(width, height) / (sample * 2) >= AppConstants.PHOTO_MAX_EDGE_PX) sample *= 2
+    return sample
+}
+
+private fun Bitmap.rotatedFor(orientation: Int): Bitmap {
+    val matrix = Matrix()
+    when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+        ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+        ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
+        ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.postRotate(90f); matrix.preScale(-1f, 1f) }
+        ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.postRotate(270f); matrix.preScale(-1f, 1f) }
+        else -> return this
+    }
+    val rotated = Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
+    if (rotated !== this) recycle()
+    return rotated
+}
+
+private fun Bitmap.toPickedJpeg(sourceName: String): PickedImage {
+    try {
+        val out = ByteArrayOutputStream()
+        compress(Bitmap.CompressFormat.JPEG, TRANSCODE_JPEG_QUALITY, out)
+        val name = sourceName.substringBeforeLast('.').ifBlank { "photo" } + ".jpg"
+        return PickedImage(displayName = name, bytes = out.toByteArray(), mimeType = "image/jpeg")
+    } finally {
+        recycle()
+    }
 }

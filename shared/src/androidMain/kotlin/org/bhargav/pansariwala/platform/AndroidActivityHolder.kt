@@ -11,5 +11,6 @@ object AndroidActivityHolder {
         get() = ref?.get()
         set(value) {
             ref = value?.let { WeakReference(it) }
+            value?.let(ActivityResultBridge::reattach)
         }
 }

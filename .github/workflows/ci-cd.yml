@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       android_enabled: ${{ steps.read.outputs.android_enabled }}
+      android_distribute: ${{ steps.read.outputs.android_distribute }}
       ios_enabled: ${{ steps.read.outputs.ios_enabled }}
       web_enabled: ${{ steps.read.outputs.web_enabled }}
       server_enabled: ${{ steps.read.outputs.server_enabled }}
@@ -47,6 +48,7 @@ jobs:
           }
           {
             echo "android_enabled=$(flag android_enabled)"
+            echo "android_distribute=$(flag android_distribute)"
             echo "ios_enabled=$(flag ios_enabled)"
             echo "web_enabled=$(flag web_enabled)"
             echo "server_enabled=$(flag server_enabled)"
@@ -93,6 +95,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
         run: |
           ./gradlew \
             :androidApp:assemblePosDebug \
@@ -110,6 +113,119 @@ jobs:
           path: androidApp/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 90
+
+  distribute-android:
+    name: Distribute Android → Firebase App Distribution
+    needs: [flags, android]
+    runs-on: ubuntu-latest
+    if: |
+      needs.flags.outputs.android_distribute == 'true' &&
+      (
+        (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+        github.event_name == 'workflow_dispatch'
+      )
+    steps:
+      - name: Download Android APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apks-${{ github.run_id }}
+          path: apks
+
+      - name: Check Firebase secrets
+        id: fb
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON missing — skipping Firebase distribution"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node
+        if: steps.fb.outputs.skip == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Upload release APKs to Firebase
+        if: steps.fb.outputs.skip == 'false'
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_APP_ID_POS: ${{ secrets.FIREBASE_APP_ID_POS }}
+          FIREBASE_APP_ID_USER: ${{ secrets.FIREBASE_APP_ID_USER }}
+          FIREBASE_APP_ID_DELIVERY: ${{ secrets.FIREBASE_APP_ID_DELIVERY }}
+          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS || 'testers' }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || 'Manual build' }}
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="${RUNNER_TEMP}/firebase-sa.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          npm install -g firebase-tools >/dev/null
+
+          NOTES="Build #${{ github.run_number }} (${GITHUB_SHA::7})
+          ${COMMIT_MSG}"
+
+          distribute() {
+            local flavor="$1" app_id="$2"
+            if [ -z "$app_id" ]; then
+              echo "No Firebase app id for $flavor — skipping"
+              return 0
+            fi
+            local apk
+            apk="$(find apks -path "*/${flavor}/release/*.apk" | head -1)"
+            if [ -z "$apk" ]; then
+              echo "::error::Release APK for $flavor not found"
+              return 1
+            fi
+            echo "Distributing $apk → $app_id (groups: $FIREBASE_TESTER_GROUPS)"
+            firebase appdistribution:distribute "$apk" \
+              --app "$app_id" \
+              --groups "$FIREBASE_TESTER_GROUPS" \
+              --release-notes "$NOTES"
+          }
+
+          distribute pos "$FIREBASE_APP_ID_POS"
+          distribute user "$FIREBASE_APP_ID_USER"
+          distribute delivery "$FIREBASE_APP_ID_DELIVERY"
+
+      - name: Prune Firebase releases (keep latest 2 per app)
+        if: steps.fb.outputs.skip == 'false'
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_APP_ID_POS: ${{ secrets.FIREBASE_APP_ID_POS }}
+          FIREBASE_APP_ID_USER: ${{ secrets.FIREBASE_APP_ID_USER }}
+          FIREBASE_APP_ID_DELIVERY: ${{ secrets.FIREBASE_APP_ID_DELIVERY }}
+          KEEP: "2"
+        run: |
+          KEY_FILE="${RUNNER_TEMP}/firebase-sa.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$KEY_FILE"
+          gcloud auth activate-service-account --key-file="$KEY_FILE" --quiet
+          TOKEN="$(gcloud auth print-access-token)"
+          API="https://firebaseappdistribution.googleapis.com/v1"
+
+          prune() {
+            local app_id="$1"
+            [ -z "$app_id" ] && return 0
+            local project_number
+            project_number="$(echo "$app_id" | cut -d: -f2)"
+            local parent="projects/${project_number}/apps/${app_id}"
+            local stale
+            stale="$(curl -sf -H "Authorization: Bearer $TOKEN" \
+              "${API}/${parent}/releases?pageSize=100&orderBy=createTime%20desc" \
+              | jq -c --argjson keep "$KEEP" '[.releases // [] | .[$keep:][] | .name]')"
+            if [ "$stale" = "[]" ]; then
+              echo "$app_id: nothing to prune"
+              return 0
+            fi
+            echo "$app_id: deleting $(echo "$stale" | jq length) old release(s)"
+            curl -sf -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              -d "{\"names\": $stale}" "${API}/${parent}/releases:batchDelete" >/dev/null
+          }
+
+          prune "$FIREBASE_APP_ID_POS"
+          prune "$FIREBASE_APP_ID_USER"
+          prune "$FIREBASE_APP_ID_DELIVERY"
 
   web:
     name: Web (JS distribution)

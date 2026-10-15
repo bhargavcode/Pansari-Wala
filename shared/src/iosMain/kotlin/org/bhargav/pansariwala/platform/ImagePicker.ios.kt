@@ -14,6 +14,9 @@ import platform.UIKit.UIImagePickerController
 import platform.UIKit.UIImagePickerControllerDelegateProtocol
 import platform.UIKit.UIImagePickerControllerOriginalImage
 import platform.UIKit.UIImagePickerControllerSourceType
+import platform.UIKit.UIModalPresentationFullScreen
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 import platform.UIKit.UINavigationControllerDelegateProtocol
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
@@ -40,6 +43,8 @@ class IosImagePicker : ImagePicker {
             val picker = UIImagePickerController()
             picker.sourceType = resolveSourceType(source)
             picker.allowsEditing = false
+            // Page sheets can be swiped away without any delegate callback, leaving the request hanging.
+            picker.modalPresentationStyle = UIModalPresentationFullScreen
             val nextDelegate = ImagePickerDelegate { picked ->
                 delegate = null
                 if (cont.isActive) cont.resume(picked)
@@ -47,6 +52,12 @@ class IosImagePicker : ImagePicker {
             delegate = nextDelegate
             picker.delegate = nextDelegate
             presenter.presentViewController(picker, animated = true, completion = null)
+            cont.invokeOnCancellation {
+                dispatch_async(dispatch_get_main_queue()) {
+                    if (delegate === nextDelegate) delegate = null
+                    picker.dismissViewControllerAnimated(true, completion = null)
+                }
+            }
         }
     }
 }
