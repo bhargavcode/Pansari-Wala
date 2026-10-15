@@ -142,6 +142,9 @@ data class AdminShopCreate(
     val taxId: String = "",
     val operatingHours: List<ShopHoursDayDto> = emptyList(),
     val features: ShopFeaturesDto? = null,
+    /** POS login for the owner; defaults to [ownerPhone] when blank. */
+    val loginUsername: String = "",
+    val loginPassword: String = "",
 )
 
 @Serializable
@@ -182,6 +185,7 @@ data class AdminShopDto(
     val registrationNumber: String = "",
     val taxId: String = "",
     val operatingHours: List<ShopHoursDayDto> = emptyList(),
+    val loginUsername: String = "",
 )
 
 @Serializable
@@ -391,6 +395,9 @@ data class VerifyPaymentRequest(
 data class OkResponse(val ok: Boolean = true)
 
 @Serializable
+data class ShopPaymentInfoDto(val shopName: String, val upiId: String = "")
+
+@Serializable
 data class OrderItemDto(
     val productId: String,
     val productName: String,
@@ -437,6 +444,7 @@ data class OrderDto(
     val partnerProgress: String = "",
     val refundId: String? = null,
     val packedProductIds: List<String> = emptyList(),
+    val deliveryMode: String = "PARTNER",
 )
 
 @Serializable
@@ -485,7 +493,7 @@ data class PartnerRegisterRequest(
     val phone: String,
     val vehicleReg: String,
     val platePhotoUrl: String = "",
-    val vehiclePhotoUrl: String,
+    val vehiclePhotoUrl: String = "",
     val profilePhotoUrl: String = "",
     val dlPhotoUrl: String = "",
     val idPhotoUrl: String = "",
@@ -676,4 +684,6 @@ data class AdminShopPatch(
     val lat: Double? = null,
     val lng: Double? = null,
     val operatingHours: List<ShopHoursDayDto>? = null,
+    val loginUsername: String? = null,
+    val loginPassword: String? = null,
 )

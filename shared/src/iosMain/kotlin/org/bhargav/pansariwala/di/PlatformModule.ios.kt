@@ -10,6 +10,8 @@ import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.RazorpayCheckout
 import org.bhargav.pansariwala.printer.IosPrinterTransports
 import org.bhargav.pansariwala.printer.PrinterManager
+import org.bhargav.pansariwala.printer.encoder.EscPosEncoder
+import org.bhargav.pansariwala.printer.text.IosTextRasterizer
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -18,5 +20,11 @@ actual val platformModule: Module = module {
     single<PhoneAuthGateway> { IosPhoneAuthGateway(get()) }
     single<ImagePicker> { IosImagePicker() }
     single<RazorpayCheckout> { IosRazorpayCheckout() }
-    single { PrinterManager(IosPrinterTransports.create(), get()) }
+    single {
+        PrinterManager(
+            transports = IosPrinterTransports.create(),
+            store = get(),
+            encoder = EscPosEncoder(textRasterizer = IosTextRasterizer()),
+        )
+    }
 }

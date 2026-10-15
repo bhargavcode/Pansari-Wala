@@ -16,6 +16,9 @@ interface ProductDao {
     @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): ProductEntity?
 
+    @Query("SELECT * FROM products WHERE id IN (:ids)")
+    suspend fun findByIds(ids: List<String>): List<ProductEntity>
+
     @Query("SELECT * FROM products WHERE barcode = :barcode LIMIT 1")
     suspend fun findByBarcode(barcode: String): ProductEntity?
 

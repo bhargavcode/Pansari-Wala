@@ -46,12 +46,15 @@ interface PansariApi {
     suspend fun rateOrder(orderId: String, stars: Int, comment: String?): Order
 
     suspend fun shopOnlineOrders(): List<Order>
+    suspend fun shopPaymentInfo(): ShopPaymentInfoDto
     suspend fun registerPushToken(token: String, platform: String, deviceId: String)
     suspend fun unregisterPushToken(token: String)
     suspend fun acceptOrder(orderId: String): Order
     suspend fun rejectOrder(orderId: String, rejectedProductIds: List<String>, reason: String?): Order
     suspend fun setOrderStatus(orderId: String, status: String): Order
     suspend fun requestDelivery(orderId: String, packedProductIds: List<String>): DeliveryOffer
+    suspend fun startSelfDelivery(orderId: String, packedProductIds: List<String>): Order
+    suspend fun completeSelfDelivery(orderId: String, otp: String): Order
     suspend fun cancelShopOrder(orderId: String, reason: String?): Order
 
     suspend fun registerPartner(request: PartnerRegisterRequest): String

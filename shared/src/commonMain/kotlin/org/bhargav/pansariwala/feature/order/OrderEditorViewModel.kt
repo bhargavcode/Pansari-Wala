@@ -12,14 +12,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.util.AppClock
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.i18n.WALK_IN_CUSTOMER_KEY
@@ -32,6 +36,7 @@ import org.bhargav.pansariwala.voice.VoiceIntentParser
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_mic_permission
 import pansariwala.shared.generated.resources.error_order_empty
+import pansariwala.shared.generated.resources.error_shop_upi_missing
 import pansariwala.shared.generated.resources.error_speech_unavailable
 import pansariwala.shared.generated.resources.voice_not_understood
 import pansariwala.shared.generated.resources.voice_out_of_stock
@@ -52,6 +57,11 @@ data class OrderEditorUiState(
     val catalog: List<Product> = emptyList(),
     val cart: List<CartLine> = emptyList(),
     val saved: Boolean = false,
+    val showPaymentPicker: Boolean = false,
+    val showUpiQr: Boolean = false,
+    val pendingPrint: Boolean = false,
+    val shopUpiId: String = "",
+    val shopName: String = "",
     val error: UiText? = null,
     val voiceMessages: List<UiText> = emptyList(),
     val isListening: Boolean = false,
@@ -80,6 +90,7 @@ class OrderEditorViewModel(
     private val speechToText: SpeechToText,
     private val shopNotifier: ShopNotifier,
     private val printService: PosPrintService,
+    private val api: PansariApi,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrderEditorUiState())
@@ -251,6 +262,21 @@ class OrderEditorViewModel(
                 _uiState.update { it.copy(loading = false, catalog = catalog) }
             }
         }
+        loadShopPaymentInfo()
+    }
+
+    private fun loadShopPaymentInfo() {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(shopUpiId = preferences.getShopUpiId(), shopName = preferences.getShopName())
+            }
+            runCatching { api.shopPaymentInfo() }
+                .onSuccess { info ->
+                    preferences.setShopPaymentInfo(info.shopName, info.upiId)
+                    _uiState.update { it.copy(shopUpiId = info.upiId, shopName = info.shopName) }
+                }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
     }
 
     fun onSearchChange(value: String) = _uiState.update { it.copy(searchQuery = value) }
@@ -328,6 +354,43 @@ class OrderEditorViewModel(
     }
 
     fun save(print: Boolean = false) {
+        if (_uiState.value.cart.isEmpty()) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_order_empty)) }
+            return
+        }
+        _uiState.update { it.copy(showPaymentPicker = true, pendingPrint = print, error = null) }
+    }
+
+    fun dismissPaymentPicker() {
+        _uiState.update { it.copy(showPaymentPicker = false, showUpiQr = false) }
+    }
+
+    fun selectPayment(method: String) {
+        when (method) {
+            AppConstants.PosPayment.UPI -> {
+                if (_uiState.value.shopUpiId.isBlank()) {
+                    _uiState.update { it.copy(error = UiText.res(Res.string.error_shop_upi_missing)) }
+                } else {
+                    _uiState.update { it.copy(showUpiQr = true) }
+                }
+            }
+            AppConstants.PosPayment.CASH, AppConstants.PosPayment.CARD -> completePayment(method)
+        }
+    }
+
+    fun backFromUpiQr() {
+        _uiState.update { it.copy(showUpiQr = false) }
+    }
+
+    fun confirmUpiReceived() = completePayment(AppConstants.PosPayment.UPI)
+
+    private fun completePayment(method: String) {
+        val print = _uiState.value.pendingPrint
+        _uiState.update { it.copy(showPaymentPicker = false, showUpiQr = false) }
+        commitSale(print, method)
+    }
+
+    private fun commitSale(print: Boolean, paymentMethod: String) {
         val state = _uiState.value
         if (state.cart.isEmpty()) {
             _uiState.update { it.copy(error = UiText.res(Res.string.error_order_empty)) }
@@ -343,13 +406,10 @@ class OrderEditorViewModel(
             id = editingOrderId ?: generateId("order"),
             shopId = shopId,
             createdAtEpochMs = createdAt,
-            status = if (state.isEditing) {
-                // Keep existing status when editing; default received for brand-new.
-                OrderStatus.RECEIVED
-            } else {
-                OrderStatus.RECEIVED
-            },
+            status = OrderStatus.COMPLETED,
             customerName = state.customerName.trim().ifBlank { WALK_IN_CUSTOMER_KEY },
+            channel = OrderChannel.POS,
+            paymentMethod = paymentMethod,
             items = state.cart.map { line ->
                 OrderItem(
                     productId = line.product.id,
@@ -363,20 +423,19 @@ class OrderEditorViewModel(
         viewModelScope.launch {
             if (_uiState.value.isListening) speechToText.cancel()
             val existing = editingOrderId?.let { shopRepository.getOrder(it) }
-            val toSave = if (existing != null) {
-                order.copy(status = existing.status, cancelReason = existing.cancelReason)
+            val toSave = if (existing?.status == OrderStatus.CANCELLED) {
+                order.copy(status = OrderStatus.CANCELLED, cancelReason = existing.cancelReason)
             } else {
-                order
+                order.copy(cancelReason = existing?.cancelReason)
             }
             shopRepository.saveOrder(toSave)
-            val catalogAfter = shopRepository.observeProducts(shopId).first()
-            if (existing == null) {
-                shopNotifier.onOrderSaved(toSave, catalogAfter)
+            if (toSave.status != OrderStatus.CANCELLED) shopNotifier.onPosSaleSaved(toSave)
+            if (existing == null || print) {
                 printService.onOrderSaved(toSave, printRequested = print)
-            } else if (print) {
-                printService.onOrderSaved(toSave, printRequested = true)
             }
-            _uiState.update { it.copy(saved = true, error = null, isListening = false) }
+            _uiState.update {
+                it.copy(saved = true, error = null, isListening = false, showPaymentPicker = false)
+            }
         }
     }
 

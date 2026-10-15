@@ -17,6 +17,21 @@ enum class PrintFontSize(val widthScale: Int, val heightScale: Int, val condense
     EXTRA_LARGE(2, 2, false),
 }
 
+/**
+ * Typeface for receipt text. Printer built-in fonts only cover ASCII, so every other option is
+ * drawn with the device font engine and sent as an image, which prints all Indian scripts.
+ */
+@Serializable
+enum class PrintFont {
+    /** Built-in font for English lines; device font for lines with Indian-language text. */
+    AUTO,
+    /** Built-in printer font only. Fastest, but non-English text is replaced. */
+    PRINTER,
+    SANS,
+    SERIF,
+    MONOSPACE,
+}
+
 @Serializable
 enum class PrintAlignment { LEFT, CENTER, RIGHT }
 
@@ -60,6 +75,7 @@ data class PrinterSettings(
     /** Overrides [PaperWidth.charsPerLine] when > 0 (some printers use 42 / 46 / 64 columns). */
     val customCharsPerLine: Int = 0,
     val fontSize: PrintFontSize = PrintFontSize.NORMAL,
+    val font: PrintFont = PrintFont.AUTO,
     val boldTitles: Boolean = true,
     /** Extra dots between lines (0..60); 0 keeps printer default. */
     val lineSpacing: Int = 0,

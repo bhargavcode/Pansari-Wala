@@ -34,20 +34,23 @@ class LocalAuthRepository(
 
     override suspend fun login(credentials: LoginCredentials): Result<Session> {
         return runCatching {
+            val identifier = credentials.identifier.trim()
+            require(identifier.isNotEmpty() && credentials.password.isNotBlank()) {
+                "Invalid username or password."
+            }
             shopRepository.ensureSeeded()
-            val user = shopRepository.authenticate(credentials.identifier, credentials.password)
-                ?: throw IllegalStateException("Invalid username or password.")
+            // Server first: shops/users created from the master portal never exist in the local seed DB.
             val remoteResult = withTimeoutOrNull(AppConstants.REMOTE_LOGIN_TIMEOUT_MS) {
-                runCatching { api.shopLogin(credentials.identifier, credentials.password) }
+                runCatching { api.shopLogin(identifier, credentials.password) }
             }
             val remote = remoteResult?.getOrNull()
             val remoteError = remoteResult?.exceptionOrNull()
+            val remoteMessage = remoteError?.message.orEmpty()
+            if (remoteMessage.contains("Invalid credentials", ignoreCase = true)) {
+                throw IllegalStateException("Invalid username or password.")
+            }
             val requireServerJwt = currentAppProduct() == AppProduct.POS
             if (remote == null && requireServerJwt) {
-                val remoteMessage = remoteError?.message.orEmpty()
-                if (remoteMessage.contains("Invalid credentials", ignoreCase = true)) {
-                    throw IllegalStateException("Invalid username or password.")
-                }
                 throw IllegalStateException(
                     remoteMessage.takeIf { it.isNotBlank() }
                         ?: "Cannot reach the shop server.",
@@ -61,9 +64,11 @@ class LocalAuthRepository(
                     refreshToken = remote.refreshToken,
                     userId = remote.userId,
                     shopId = remote.shopId,
-                    displayName = remote.displayName ?: user.displayName,
+                    displayName = remote.displayName ?: identifier,
                 )
             } else {
+                val user = shopRepository.authenticate(identifier, credentials.password)
+                    ?: throw IllegalStateException("Invalid username or password.")
                 val local = Session(
                     accessToken = generateId("session"),
                     refreshToken = null,

@@ -312,7 +312,10 @@ fun MarketScreen(
             onDismissRequest = viewModel::hideFilterSheet,
             sheetState = filterSheetState,
         ) {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(stringResource(Res.string.market_filter_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 listOf(
                     ShopSortOption.DISTANCE_ASC to Res.string.market_sort_distance_asc,
@@ -425,7 +428,8 @@ fun MarketScreen(
                     onClick = viewModel::selectAllShopTypes,
                     label = { Text(stringResource(Res.string.market_shop_type_all)) },
                 )
-                ShopType.entries.forEach { type ->
+                val nearbyTypes = state.allShops.map { it.shopType }.toSet() + state.selectedShopTypes
+                ShopType.entries.filter { it in nearbyTypes }.forEach { type ->
                     FilterChip(
                         selected = type in state.selectedShopTypes,
                         onClick = { viewModel.toggleShopType(type) },

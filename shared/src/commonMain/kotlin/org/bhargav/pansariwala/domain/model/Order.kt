@@ -78,6 +78,8 @@ data class Order(
     val partnerProgress: String = "",
     /** Items the shop checked into the delivery packet; empty means all items (legacy orders). */
     val packedProductIds: Set<String> = emptySet(),
+    /** Shop delivers this order itself instead of a platform partner. */
+    val isSelfDelivery: Boolean = false,
 ) {
     val deliveringItems: List<OrderItem>
         get() = if (packedProductIds.isEmpty()) items else items.filter { it.productId in packedProductIds }

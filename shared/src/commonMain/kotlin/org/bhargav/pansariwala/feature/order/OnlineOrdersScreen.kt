@@ -12,7 +12,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.ui.text.input.KeyboardType
+import pansariwala.shared.generated.resources.action_cancel
+import pansariwala.shared.generated.resources.action_mark_delivered
+import pansariwala.shared.generated.resources.action_self_delivery
+import pansariwala.shared.generated.resources.online_order_self_delivering
+import pansariwala.shared.generated.resources.self_delivery_complete_hint
+import pansariwala.shared.generated.resources.self_delivery_complete_title
+import pansariwala.shared.generated.resources.self_delivery_otp_label
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -144,6 +154,8 @@ fun OnlineOrdersScreen(
                         onAccept = { viewModel.accept(order.id) },
                         onPacking = { viewModel.markPacking(order.id) },
                         onRequestPartner = { viewModel.requestDeliveryPartner(order.id) },
+                        onSelfDeliver = { viewModel.startSelfDelivery(order.id) },
+                        onCompleteSelfDelivery = { viewModel.openSelfDeliverComplete(order.id) },
                         onCancel = { viewModel.openCancel(order.id) },
                     )
                 }
@@ -160,6 +172,45 @@ fun OnlineOrdersScreen(
                 busy = state.busyId == state.cancelOrderId,
             )
         }
+        state.selfDeliverOrderId?.let { orderId ->
+            AlertDialog(
+                onDismissRequest = viewModel::dismissSelfDeliverComplete,
+                title = { Text(stringResource(Res.string.self_delivery_complete_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(Res.string.self_delivery_complete_hint))
+                        OutlinedTextField(
+                            value = state.selfDeliverOtp,
+                            onValueChange = viewModel::onSelfDeliverOtpChange,
+                            label = { Text(stringResource(Res.string.self_delivery_otp_label)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            isError = state.selfDeliverError != null,
+                        )
+                        state.selfDeliverError?.let {
+                            Text(it.asString(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = viewModel::confirmSelfDeliverComplete,
+                        enabled = state.busyId != orderId,
+                    ) {
+                        if (state.busyId == orderId) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(stringResource(Res.string.action_mark_delivered))
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissSelfDeliverComplete) {
+                        Text(stringResource(Res.string.action_cancel))
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -168,6 +219,7 @@ private fun OnlineOrderStatusNote(order: Order) {
     val note = when (order.status) {
         OrderStatus.LOOKING_FOR_PARTNER -> stringResource(Res.string.online_order_looking_partner)
         OrderStatus.PARTNER_ACCEPTED -> stringResource(Res.string.online_order_waiting_pickup)
+        OrderStatus.ON_THE_WAY -> if (order.isSelfDelivery) stringResource(Res.string.online_order_self_delivering) else null
         else -> null
     }
     note?.let { Text(it) }
@@ -196,8 +248,32 @@ private fun OnlineOrderActions(
     onAccept: () -> Unit,
     onPacking: () -> Unit,
     onRequestPartner: () -> Unit,
+    onSelfDeliver: () -> Unit,
+    onCompleteSelfDelivery: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val canSelfDeliver = !order.hasAssignedPartner && (
+        (order.status == OrderStatus.PACKING && packedCount > 0) ||
+            order.status == OrderStatus.LOOKING_FOR_PARTNER
+        )
+    val selfOnTheWay = order.isSelfDelivery && order.status == OrderStatus.ON_THE_WAY
+    if (canSelfDeliver || selfOnTheWay) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (canSelfDeliver) {
+                OutlinedButton(onClick = onSelfDeliver, enabled = !busy) {
+                    Text(stringResource(Res.string.action_self_delivery))
+                }
+            }
+            if (selfOnTheWay) {
+                Button(onClick = onCompleteSelfDelivery, enabled = !busy) {
+                    Text(stringResource(Res.string.action_mark_delivered))
+                }
+            }
+        }
+    }
     val nextLabel = when (order.status) {
         OrderStatus.RECEIVED -> stringResource(Res.string.action_accept_order)
         OrderStatus.ACCEPTED -> stringResource(Res.string.action_packing)

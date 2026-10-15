@@ -7,14 +7,25 @@ import org.bhargav.pansariwala.printer.document.PrintElement
 import org.bhargav.pansariwala.printer.document.TextStyle
 import org.bhargav.pansariwala.printer.model.MonoBitmap
 import org.bhargav.pansariwala.printer.model.PrintAlignment
+import org.bhargav.pansariwala.printer.model.PrintFont
 import org.bhargav.pansariwala.printer.model.PrinterSettings
+import org.bhargav.pansariwala.printer.text.RasterCell
+import org.bhargav.pansariwala.printer.text.RasterFont
+import org.bhargav.pansariwala.printer.text.RasterTypeface
+import org.bhargav.pansariwala.printer.text.TextRasterizer
+import org.bhargav.pansariwala.printer.text.inverted
+import org.bhargav.pansariwala.printer.text.needsDeviceFont
+import org.bhargav.pansariwala.printer.text.wrapByWidth
 
 /**
  * ESC/POS encoder (Epson-compatible). Works with the vast majority of 58/80 mm thermal printers.
- * Text outside ASCII is transliterated via [transliterate] since code pages differ per printer.
+ * With [textRasterizer], text is drawn with the device font (per [PrinterSettings.font]) and sent as
+ * raster so any script prints; otherwise non-ASCII is transliterated via [transliterate] since code
+ * pages differ per printer.
  */
 class EscPosEncoder(
     private val transliterate: (Char) -> String = ::defaultTransliteration,
+    private val textRasterizer: TextRasterizer? = null,
 ) : PrinterCommandEncoder {
 
     override fun encode(document: PrintDocument, settings: PrinterSettings): ByteArray {
@@ -54,6 +65,12 @@ class EscPosEncoder(
     private fun encodeElement(out: ByteBuffer, element: PrintElement, settings: PrinterSettings) {
         when (element) {
             is PrintElement.Text -> {
+                val typeface = rasterTypeface(element.text, settings)
+                if (typeface != null) {
+                    val column = Column(element.text, alignment = element.style.alignment)
+                    rasterText(out, listOf(column), element.style, typeface, settings)
+                    return
+                }
                 val cols = columnsFor(element.style, settings)
                 applyStyle(out, element.style, settings)
                 wrap(element.text, cols).forEach { line ->
@@ -63,6 +80,11 @@ class EscPosEncoder(
             }
 
             is PrintElement.Row -> {
+                val typeface = rasterTypeface(element.columns.joinToString(" ") { it.text }, settings)
+                if (typeface != null) {
+                    rasterText(out, element.columns, element.style, typeface, settings)
+                    return
+                }
                 val cols = columnsFor(element.style, settings)
                 applyStyle(out, element.style.copy(alignment = PrintAlignment.LEFT), settings)
                 layoutRow(element.columns, cols).forEach { line ->
@@ -87,6 +109,59 @@ class EscPosEncoder(
 
     private fun columnsFor(style: TextStyle, settings: PrinterSettings): Int =
         maxOf(8, settings.charsPerLine / style.widthScale.coerceIn(1, 8))
+
+    private fun rasterTypeface(text: String, settings: PrinterSettings): RasterTypeface? {
+        if (textRasterizer == null) return null
+        return when (settings.font) {
+            PrintFont.PRINTER -> null
+            PrintFont.AUTO -> RasterTypeface.SANS.takeIf { needsDeviceFont(text) }
+            PrintFont.SANS -> RasterTypeface.SANS
+            PrintFont.SERIF -> RasterTypeface.SERIF
+            PrintFont.MONOSPACE -> RasterTypeface.MONOSPACE
+        }
+    }
+
+    /** Lays [columns] out on the same character grid as text mode, then draws each line as raster. */
+    private fun rasterText(
+        out: ByteBuffer,
+        columns: List<Column>,
+        style: TextStyle,
+        typeface: RasterTypeface,
+        settings: PrinterSettings,
+    ) {
+        val rasterizer = textRasterizer ?: return
+        val paperDots = settings.paperWidth.dots
+        val cols = columnsFor(style, settings)
+        val dotsPerChar = paperDots.toFloat() / cols
+        val scale = maxOf(
+            settings.fontSize.widthScale * style.widthScale,
+            settings.fontSize.heightScale * style.heightScale,
+        ).coerceIn(1, 8)
+        val basePx = if (settings.fontSize.condensed) RASTER_TEXT_PX_CONDENSED else RASTER_TEXT_PX
+        val font = RasterFont(typeface, basePx * scale, style.bold, style.underline)
+
+        val widths = columnWidths(columns, cols)
+        var cursor = 0f
+        val spans = widths.map { chars ->
+            val left = cursor.toInt()
+            val width = (chars * dotsPerChar).toInt()
+            cursor += (chars + 1) * dotsPerChar
+            left to width
+        }
+        val cells = columns.mapIndexed { i, col ->
+            wrapByWidth(col.text, spans[i].second.toFloat()) { rasterizer.measure(it, font) }
+        }
+        val height = cells.maxOf { it.size }
+        for (line in 0 until height) {
+            val lineCells = columns.mapIndexedNotNull { i, col ->
+                cells[i].getOrNull(line)?.takeIf { it.isNotEmpty() }
+                    ?.let { RasterCell(it, spans[i].first, spans[i].second, col.alignment) }
+            }
+            val bitmap = rasterizer.renderLine(lineCells, paperDots, font)
+            raster(out, if (style.inverted) bitmap.inverted() else bitmap, PrintAlignment.LEFT, paperDots)
+            if (settings.lineSpacing > 0) out.put(ESC.toInt(), 'J'.code, settings.lineSpacing.coerceIn(0, 255))
+        }
+    }
 
     private fun applyStyle(out: ByteBuffer, style: TextStyle, settings: PrinterSettings) {
         out.put(ESC.toInt(), 'a'.code, style.alignment.ordinal)
@@ -205,6 +280,8 @@ class EscPosEncoder(
         private const val LF: Byte = 0x0A
         private const val RASTER_BAND_ROWS = 48
         private const val DEFAULT_DENSITY = 4
+        private const val RASTER_TEXT_PX = 22f
+        private const val RASTER_TEXT_PX_CONDENSED = 18f
 
         fun defaultTransliteration(c: Char): String = when (c) {
             '\u20B9' -> "Rs."
@@ -250,6 +327,27 @@ class EscPosEncoder(
         /** Lays out columns into fixed-width text lines; cells wrap and the row grows to the tallest cell. */
         fun layoutRow(columns: List<Column>, width: Int): List<String> {
             if (columns.isEmpty()) return emptyList()
+            val widths = columnWidths(columns, width)
+            val cells = columns.mapIndexed { i, col -> wrap(col.text, widths[i]) }
+            val height = cells.maxOf { it.size }
+            return (0 until height).map { line ->
+                buildString {
+                    columns.forEachIndexed { i, col ->
+                        if (i > 0) append(' ')
+                        val text = cells[i].getOrElse(line) { "" }
+                        val pad = (widths[i] - text.length).coerceAtLeast(0)
+                        when (col.alignment) {
+                            PrintAlignment.LEFT -> append(text).append(" ".repeat(pad))
+                            PrintAlignment.RIGHT -> append(" ".repeat(pad)).append(text)
+                            PrintAlignment.CENTER -> append(" ".repeat(pad / 2)).append(text).append(" ".repeat(pad - pad / 2))
+                        }
+                    }
+                }.trimEnd()
+            }
+        }
+
+        /** Character width of each column, leaving one space between neighbours. */
+        fun columnWidths(columns: List<Column>, width: Int): IntArray {
             val gaps = columns.size - 1
             val fixed = columns.sumOf { it.fixedChars.coerceAtLeast(0) }
             val flexible = columns.filter { it.fixedChars <= 0 }
@@ -268,22 +366,7 @@ class EscPosEncoder(
                 }
             }
             if (lastFlexible >= 0) widths[lastFlexible] += remaining - assigned
-            val cells = columns.mapIndexed { i, col -> wrap(col.text, widths[i]) }
-            val height = cells.maxOf { it.size }
-            return (0 until height).map { line ->
-                buildString {
-                    columns.forEachIndexed { i, col ->
-                        if (i > 0) append(' ')
-                        val text = cells[i].getOrElse(line) { "" }
-                        val pad = (widths[i] - text.length).coerceAtLeast(0)
-                        when (col.alignment) {
-                            PrintAlignment.LEFT -> append(text).append(" ".repeat(pad))
-                            PrintAlignment.RIGHT -> append(" ".repeat(pad)).append(text)
-                            PrintAlignment.CENTER -> append(" ".repeat(pad / 2)).append(text).append(" ".repeat(pad - pad / 2))
-                        }
-                    }
-                }.trimEnd()
-            }
+            return widths
         }
     }
 }

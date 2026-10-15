@@ -1,8 +1,10 @@
 package org.bhargav.pansariwala.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import org.bhargav.pansariwala.util.AppConstants
 
 @Entity(
     tableName = "orders",
@@ -20,6 +22,8 @@ data class OrderEntity(
     val totalValue: Double,
     val itemCount: Int,
     val cancelReason: String? = null,
+    @ColumnInfo(defaultValue = AppConstants.PosPayment.CASH)
+    val paymentMethod: String = AppConstants.PosPayment.CASH,
 )
 
 @Entity(

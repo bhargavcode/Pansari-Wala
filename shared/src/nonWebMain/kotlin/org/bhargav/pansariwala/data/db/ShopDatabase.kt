@@ -12,7 +12,7 @@ import androidx.room.RoomDatabaseConstructor
         OrderEntity::class,
         OrderItemEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @ConstructedBy(ShopDatabaseConstructor::class)

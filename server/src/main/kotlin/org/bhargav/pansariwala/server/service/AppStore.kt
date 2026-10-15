@@ -83,6 +83,7 @@ import org.bhargav.pansariwala.server.dto.ShopTypeDto
 import org.bhargav.pansariwala.server.dto.ShopTypeUpsert
 import org.bhargav.pansariwala.server.dto.SyncPullResponse
 import org.bhargav.pansariwala.server.dto.SyncPushRequest
+import org.bhargav.pansariwala.server.dto.ShopPaymentInfoDto
 import org.bhargav.pansariwala.server.dto.TokenResponse
 import org.bhargav.pansariwala.server.dto.TxnDto
 import org.bhargav.pansariwala.server.dto.UploadResultDto
@@ -99,6 +100,8 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import com.mongodb.client.model.Filters.lte
+import com.mongodb.client.model.Accumulators
+import com.mongodb.client.model.Aggregates
 
 private const val QUERY_MAX_MS = 8_000L
 private const val PARTNER_RING_KM = 8.0
@@ -107,6 +110,9 @@ private const val OFFER_TTL_MS = 5 * 60_000L
 private const val DELIVERY_BASE_PER_KM = 8.0
 private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
+private const val MIN_SHOP_PASSWORD = 4
+private val LOGIN_USERNAME_REGEX = Regex("^[a-z0-9._@-]{3,40}$")
+private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 
 private fun PartnerDoc.hasGpsFix(): Boolean {
     val latitude = lat ?: return false
@@ -135,6 +141,7 @@ class AppStore(
     private val assetStore = AssetStore(storage)
     private val productCol = mongo.db.getCollection<ProductDoc>("products")
     private val offerCol = mongo.db.getCollection<OfferDoc>("offers")
+    private val offerCountCol = mongo.db.getCollection<Document>("offers")
     private val orderCol = mongo.db.getCollection<OrderDoc>("orders")
     /** Raw orders collection for id-only projections (OrderDoc codec rejects partial docs). */
     private val orderIdCol = mongo.db.getCollection<Document>("orders")
@@ -169,7 +176,12 @@ class AppStore(
     }
 
     fun shopLogin(username: String, password: String): TokenResponse {
-        val row = shopUserCol.find(usernameFilter(username)).firstOrNull() ?: error("Invalid credentials")
+        val key = username.trim()
+        require(key.isNotEmpty() && password.isNotBlank()) { "Username and password are required" }
+        val row = shopUserCol.find(eq("username", key)).firstOrNull()
+            ?: shopUserCol.find(eq("username", key.lowercase())).firstOrNull()
+            ?: shopUserCol.find(usernameFilter(key)).firstOrNull()
+            ?: error("Invalid credentials")
         verifyAndMigratePassword(row.passwordHash, password) { hash ->
             shopUserCol.updateOne(eq("_id", row.id), set("passwordHash", hash))
         }
@@ -178,7 +190,11 @@ class AppStore(
     }
 
     fun adminLogin(username: String, password: String): TokenResponse {
-        val row = adminUserCol.find(usernameFilter(username)).firstOrNull() ?: error("Invalid credentials")
+        val key = username.trim()
+        require(key.isNotEmpty() && password.isNotBlank()) { "Username and password are required" }
+        val row = adminUserCol.find(eq("username", key)).firstOrNull()
+            ?: adminUserCol.find(usernameFilter(key)).firstOrNull()
+            ?: error("Invalid credentials")
         verifyAndMigratePassword(row.passwordHash, password) { hash ->
             adminUserCol.updateOne(eq("_id", row.id), set("passwordHash", hash))
         }
@@ -297,6 +313,11 @@ class AppStore(
         lat: Double?,
         lng: Double?,
     ): CustomerDto {
+        require(name.trim().length >= 2) { "Full name is required" }
+        require(address.isNotBlank()) { "Address is required" }
+        if (lat != null || lng != null) {
+            require((lat ?: 0.0) in -90.0..90.0 && (lng ?: 0.0) in -180.0..180.0) { "Invalid location" }
+        }
         val current = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
         val loc = locality.orEmpty()
         val addresses = upsertDefaultAddress(current.addresses, address, loc, lat, lng)
@@ -364,9 +385,19 @@ class AppStore(
         )
     }
 
-    fun nearbyShops(lat: Double, lng: Double, radiusKm: Double, query: String): List<ShopDto> {
-        val offerCounts = offerCol.find().toList().groupBy { it.shopId }.mapValues { it.value.size }
-        return shopCol.find(eq("active", true)).toList().map { row ->
+    fun nearbyShops(
+        lat: Double,
+        lng: Double,
+        radiusKm: Double,
+        query: String,
+        categories: Set<String> = emptySet(),
+    ): List<ShopDto> {
+        val shopFilter = if (categories.isEmpty()) eq("active", true)
+        else and(eq("active", true), `in`("shopType", categories))
+        val offerCounts = offerCountCol.aggregate(
+            listOf(Aggregates.group("\$shopId", Accumulators.sum("n", 1))),
+        ).toList().associate { it.getString("_id") to (it.getInteger("n") ?: 0) }
+        return shopCol.find(shopFilter).toList().map { row ->
             val dist = haversine(lat, lng, row.lat, row.lng)
             ShopDto(
                 id = row.id,
@@ -745,6 +776,56 @@ class AppStore(
         return toOfferDto(offer, dummyPartner())
     }
 
+    /** Shop delivers the order itself: withdraws any partner offer and marks the order on the way. */
+    fun startSelfDelivery(shopId: String, orderId: String, packedProductIds: List<String>?): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        require(row.partnerId == null) { "A delivery partner already accepted this order" }
+        require(row.status in setOf("ACCEPTED", "PACKING", "LOOKING_FOR_PARTNER")) { "Accept and pack the order first" }
+        val packed = packedProductIds?.let { ids ->
+            val orderItemIds = row.items.map { it.productId }.toSet()
+            ids.filter { it in orderItemIds }.distinct().also {
+                require(it.isNotEmpty()) { "Pack at least one item" }
+            }
+        }
+        deliveryOfferCol.updateMany(
+            and(eq("orderId", orderId), eq("status", "RINGING")),
+            set("status", "CANCELLED"),
+        )
+        val updates = buildList {
+            add(set("status", "ON_THE_WAY"))
+            add(set("deliveryMode", "SELF"))
+            add(set("partnerProgress", "SELF_DELIVERY"))
+            if (packed != null) add(set("packedProductIds", packed))
+            if (row.deliveryOtp.isNullOrBlank()) add(set("deliveryOtp", security.deliveryOtp()))
+        }
+        orderCol.updateOne(eq("_id", orderId), combine(updates))
+        publishOrderUpdate(orderId, row.status)
+        return getOrder(orderId)
+    }
+
+    /** Completes a self-delivered order with the customer's 4-digit delivery OTP. */
+    fun completeSelfDelivery(shopId: String, orderId: String, otp: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        require(row.deliveryMode == "SELF" && row.status == "ON_THE_WAY") { "Order is not out for self delivery" }
+        require(otp.trim().length == 4 && row.deliveryOtp == otp.trim()) { "Invalid delivery OTP" }
+        val shop = shopById(shopId)
+        val distanceKm = haversine(shop.lat, shop.lng, row.customerLat ?: shop.lat, row.customerLng ?: shop.lng)
+        val durationMin = ((System.currentTimeMillis() - row.createdAt) / 60_000).toInt().coerceAtLeast(1)
+        orderCol.updateOne(
+            eq("_id", orderId),
+            combine(
+                set("status", "DELIVERED"),
+                set("totalDistanceKm", distanceKm),
+                set("deliveryDurationMin", durationMin),
+                set("partnerPayoutInr", 0.0),
+            ),
+        )
+        publishOrderUpdate(orderId, row.status)
+        return getOrder(orderId)
+    }
+
     /**
      * Marks unpicked offers past [OFFER_TTL_MS] as EXPIRED and returns their orders to PACKING
      * so the shop sees "Request delivery" again. Returns the number of offers expired.
@@ -856,34 +937,55 @@ class AppStore(
     }
 
     fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse {
-        val reg = Security.normalizeReg(request.vehicleReg)
-        require(Security.vehicleRegRegex.matches(reg)) { "Invalid vehicle registration" }
-        require(assets.isValidRef(request.vehiclePhotoUrl)) { "Vehicle photo URL required" }
-        require(request.name.isNotBlank() && request.email.contains("@") && request.address.isNotBlank()) { "Incomplete profile" }
+        val name = request.name.trim()
+        val email = request.email.trim()
+        val address = request.address.trim()
         val phone = Security.normalizePhone(request.phone)
-        require(partnerCol.find(eq("phone", phone)).firstOrNull() == null) { "Phone already registered as partner" }
-        customerCol.deleteMany(eq("phone", phone))
-        val id = security.randomId("ptr")
-        val now = System.currentTimeMillis()
-        partnerCol.insertOne(
-            PartnerDoc(
-                id = id,
-                phone = phone,
-                name = request.name,
-                email = request.email,
-                address = request.address,
-                vehicleReg = reg,
-                platePhoto = assets.toKey(request.platePhotoUrl).take(2_048),
-                vehiclePhoto = assets.toKey(request.vehiclePhotoUrl).take(2_048),
-                profilePhoto = assets.toKey(request.profilePhotoUrl).take(2_048),
-                dlPhoto = assets.toKey(request.dlPhotoUrl).take(2_048),
-                idPhoto = assets.toKey(request.idPhotoUrl).take(2_048),
-                lat = request.lat,
-                lng = request.lng,
-                verified = false,
-                joinedAt = now,
-            ),
+        val reg = Security.normalizeReg(request.vehicleReg)
+        require(name.length >= 2) { "Full name is required" }
+        require(phone.length == 10) { "Enter a valid 10-digit mobile number" }
+        require(EMAIL_REGEX.matches(email)) { "Enter a valid email address" }
+        require(address.isNotEmpty()) { "Address is required" }
+        require(Security.isValidVehicleReg(reg)) { "Invalid vehicle registration number (e.g. DL01AB1234)" }
+        // Photos are optional; when sent they must be uploaded asset refs, not inline blobs.
+        fun photo(label: String, value: String): String {
+            val v = value.trim()
+            if (v.isEmpty()) return ""
+            require(assets.isValidRef(v)) { "$label upload is invalid, please re-upload" }
+            return assets.toKey(v).take(2_048)
+        }
+        val plate = photo("Number plate photo", request.platePhotoUrl)
+        val vehicle = photo("Vehicle photo", request.vehiclePhotoUrl)
+        val profile = photo("Profile photo", request.profilePhotoUrl)
+        val dl = photo("Driving licence photo", request.dlPhotoUrl)
+        val idDoc = photo("ID proof photo", request.idPhotoUrl)
+        if (request.lat != null || request.lng != null) {
+            require((request.lat ?: 0.0) in -90.0..90.0 && (request.lng ?: 0.0) in -180.0..180.0) { "Invalid location" }
+        }
+        val existing = partnerCol.find(eq("phone", phone)).firstOrNull()
+        // Verified partners must log in; an unverified row is a previous attempt whose OTP never completed.
+        require(existing == null || !existing.verified) { "Phone already registered as partner, please log in" }
+        val takenReg = partnerCol.find(eq("vehicleReg", reg)).firstOrNull()
+        require(takenReg == null || takenReg.phone == phone) { "Vehicle already registered with another partner" }
+        val doc = PartnerDoc(
+            id = existing?.id ?: security.randomId("ptr"),
+            phone = phone,
+            name = name,
+            email = email,
+            address = address,
+            vehicleReg = reg,
+            platePhoto = plate,
+            vehiclePhoto = vehicle,
+            profilePhoto = profile,
+            dlPhoto = dl,
+            idPhoto = idDoc,
+            lat = request.lat,
+            lng = request.lng,
+            verified = false,
+            joinedAt = existing?.joinedAt ?: System.currentTimeMillis(),
         )
+        partnerCol.replaceOne(eq("_id", doc.id), doc, ReplaceOptions().upsert(true))
+        customerCol.deleteMany(eq("phone", phone))
         return requestOtp(phone)
     }
 
@@ -1241,7 +1343,24 @@ class AppStore(
         taxId: String = "",
         operatingHours: List<ShopHoursDayDto> = emptyList(),
         features: ShopFeaturesDto? = null,
+        loginUsername: String = "",
+        loginPassword: String = "",
     ): AdminShopDto {
+        require(name.isNotBlank()) { "Shop name is required" }
+        require(shopType.isNotBlank()) { "Shop category is required" }
+        require(address.isNotBlank() || city.isNotBlank()) { "Shop address is required" }
+        validateShopLocation(lat, lng)
+        val phone = ownerPhone.trim().takeIf { it.isNotEmpty() }?.let { Security.normalizePhone(it) }
+        require(phone == null || phone.length == 10) { "Owner phone must be a 10-digit mobile number" }
+        require(ownerEmail.isBlank() || EMAIL_REGEX.matches(ownerEmail.trim())) { "Owner email is invalid" }
+        val username = normalizeLoginUsername(loginUsername.ifBlank { phone.orEmpty() })
+        require(username.isNotEmpty()) { "Login username (or owner phone) is required" }
+        require(loginPassword.trim().length >= MIN_SHOP_PASSWORD) {
+            "Login password must be at least $MIN_SHOP_PASSWORD characters"
+        }
+        require(shopUserCol.find(eq("username", username)).firstOrNull() == null) {
+            "Login username '$username' is already taken"
+        }
         val id = "shop_${UUID.randomUUID().toString().take(8)}"
         val now = System.currentTimeMillis()
         val composedAddress = listOf(address, city, state, zip, country)
@@ -1276,7 +1395,7 @@ class AppStore(
                     )
                 } ?: ShopFeaturesDoc(),
                 ownerName = ownerName.trim(),
-                ownerPhone = ownerPhone.trim(),
+                ownerPhone = phone ?: ownerPhone.trim(),
                 ownerEmail = ownerEmail.trim(),
                 city = city.trim(),
                 state = state.trim(),
@@ -1289,8 +1408,69 @@ class AppStore(
                 },
             ),
         )
-        return listAdminShops().first { it.id == id }
+        runCatching {
+            shopUserCol.insertOne(
+                ShopUserDoc(
+                    id = security.randomId("user"),
+                    shopId = id,
+                    username = username,
+                    passwordHash = security.hashPassword(loginPassword),
+                    displayName = ownerName.trim().ifBlank { name.trim() },
+                    role = "SHOP",
+                ),
+            )
+        }.onFailure {
+            shopCol.deleteOne(eq("_id", id))
+            throw it
+        }
+        return shopById(id).toAdminDto(username)
     }
+
+    private fun validateShopLocation(lat: Double, lng: Double) {
+        require(lat in -90.0..90.0 && lng in -180.0..180.0) { "Shop location is invalid" }
+        require(lat != 0.0 || lng != 0.0) { "Pick the shop location on the map" }
+    }
+
+    private fun normalizeLoginUsername(raw: String): String {
+        val key = raw.trim().lowercase()
+        require(key.isEmpty() || LOGIN_USERNAME_REGEX.matches(key)) {
+            "Login username may use 3-40 letters, digits, '.', '_', '-' or '@'"
+        }
+        return key
+    }
+
+    /** Creates or updates the owner POS login of [shopId]; password is optional on update. */
+    private fun upsertShopOwnerLogin(shopId: String, rawUsername: String?, password: String?, displayName: String) {
+        val pwd = password?.trim().orEmpty()
+        val username = rawUsername?.let(::normalizeLoginUsername).orEmpty()
+        if (username.isEmpty() && pwd.isEmpty()) return
+        if (pwd.isNotEmpty()) {
+            require(pwd.length >= MIN_SHOP_PASSWORD) { "Login password must be at least $MIN_SHOP_PASSWORD characters" }
+        }
+        val current = shopUserCol.find(and(eq("shopId", shopId), eq("role", "SHOP"))).firstOrNull()
+        if (username.isNotEmpty()) {
+            val taken = shopUserCol.find(eq("username", username)).firstOrNull()
+            require(taken == null || taken.id == current?.id) { "Login username '$username' is already taken" }
+        }
+        if (current == null) {
+            require(username.isNotEmpty()) { "Login username is required" }
+            require(pwd.isNotEmpty()) { "Login password is required" }
+            shopUserCol.insertOne(
+                ShopUserDoc(security.randomId("user"), shopId, username, security.hashPassword(pwd), displayName, "SHOP"),
+            )
+            return
+        }
+        val updates = buildList {
+            if (username.isNotEmpty()) add(set("username", username))
+            if (pwd.isNotEmpty()) add(set("passwordHash", security.hashPassword(pwd)))
+        }
+        if (updates.isNotEmpty()) shopUserCol.updateOne(eq("_id", current.id), combine(updates))
+    }
+
+    private fun shopLoginUsernames(): Map<String, String> =
+        shopUserCol.find(eq("role", "SHOP")).toList()
+            .groupBy { it.shopId }
+            .mapValues { (_, users) -> users.first().username }
 
     fun patchShop(
         shopId: String,
@@ -1313,7 +1493,16 @@ class AppStore(
         lat: Double? = null,
         lng: Double? = null,
         operatingHours: List<ShopHoursDayDto>? = null,
+        loginUsername: String? = null,
+        loginPassword: String? = null,
     ) {
+        val shop = shopById(shopId)
+        if (name != null) require(name.isNotBlank()) { "Shop name is required" }
+        if (lat != null || lng != null) validateShopLocation(lat ?: shop.lat, lng ?: shop.lng)
+        val phone = ownerPhone?.trim()?.takeIf { it.isNotEmpty() }?.let { Security.normalizePhone(it) }
+        require(phone == null || phone.length == 10) { "Owner phone must be a 10-digit mobile number" }
+        require(ownerEmail.isNullOrBlank() || EMAIL_REGEX.matches(ownerEmail.trim())) { "Owner email is invalid" }
+        upsertShopOwnerLogin(shopId, loginUsername, loginPassword, (ownerName ?: shop.ownerName).ifBlank { shop.name })
         val updates = buildList {
             if (active != null) add(set("active", active))
             if (payments != null) add(set("paymentsEnabled", payments))
@@ -1331,7 +1520,7 @@ class AppStore(
             if (address != null) add(set("address", address.trim()))
             if (shopType != null) add(set("shopType", shopType.trim()))
             if (ownerName != null) add(set("ownerName", ownerName.trim()))
-            if (ownerPhone != null) add(set("ownerPhone", ownerPhone.trim()))
+            if (ownerPhone != null) add(set("ownerPhone", phone ?: ownerPhone.trim()))
             if (ownerEmail != null) add(set("ownerEmail", ownerEmail.trim()))
             if (city != null) add(set("city", city.trim()))
             if (state != null) add(set("state", state.trim()))
@@ -1352,18 +1541,17 @@ class AppStore(
 
     fun listShopsAdmin(): List<ShopDto> = listAdminShops().map { it.toLegacyShopDto() }
 
-    fun listAdminShops(): List<AdminShopDto> =
-        shopCol.find().toList().map { it.toAdminDto() }
+    fun listAdminShops(): List<AdminShopDto> {
+        val logins = shopLoginUsernames()
+        return shopCol.find().toList().map { it.toAdminDto(logins[it.id].orEmpty()) }
             .sortedWith(compareBy({ it.id.toIntOrNull() ?: Int.MAX_VALUE }, { it.name }))
+    }
 
     fun adminShopDetail(shopId: String): AdminShopDetailDto {
-        val shop = shopById(shopId).toAdminDto()
+        val login = shopUserCol.find(and(eq("shopId", shopId), eq("role", "SHOP"))).firstOrNull()?.username.orEmpty()
+        val shop = shopById(shopId).toAdminDto(login)
         val txns = listAdminTransactions(shopId = shopId).transactions
-        val uniqueCustomers = orderCol.find(eq("shopId", shopId))
-            .toList()
-            .mapNotNull { it.customerId }
-            .distinct()
-            .size
+        val uniqueCustomers = txns.mapNotNull { it.customerId }.distinct().size
         return AdminShopDetailDto(
             shop = shop,
             transactions = txns,
@@ -1373,48 +1561,46 @@ class AppStore(
     }
 
     fun adminDashboard(fromEpochMs: Long? = null, toEpochMs: Long? = null): AdminDashboardDto {
-        val txnSummary = listAdminTransactions(fromEpochMs, toEpochMs)
-        val charts = buildAdminCharts(fromEpochMs, toEpochMs)
-        return AdminDashboardDto(
-            shopCount = shopCol.countDocuments().toInt(),
-            productCount = masterProductCol.countDocuments().toInt(),
-            transactionAmount = txnSummary.amount,
-            transactionCount = txnSummary.count,
-            userCount = customerCol.countDocuments().toInt(),
-            partnerCount = partnerCol.countDocuments().toInt(),
-            salesByWeekday = charts.first,
-            txnTrendByMonth = charts.second,
-        )
-    }
-
-    private fun buildAdminCharts(
-        fromEpochMs: Long?,
-        toEpochMs: Long?,
-    ): Pair<List<AdminChartPointDto>, List<AdminChartPointDto>> {
         val filters = buildList {
             if (fromEpochMs != null) add(gte("createdAt", fromEpochMs))
             if (toEpochMs != null) add(lte("createdAt", toEpochMs))
         }
-        val rows = if (filters.isEmpty()) orderCol.find().toList()
-        else orderCol.find(and(filters)).toList()
+        // Only the fields needed for totals/charts — full order docs are large and Atlas is remote.
+        val rows = orderIdCol.find(if (filters.isEmpty()) Document() else and(filters))
+            .projection(include("createdAt", "quote.payable", "items.quantity", "items.unitPrice", "paymentId", "status"))
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
         val weekdayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
         val monthLabels = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
         val byWeekday = DoubleArray(7)
         val byMonth = DoubleArray(12)
+        var paidSum = 0.0
+        val cal = java.util.Calendar.getInstance()
         rows.forEach { row ->
-            val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = row.createdAt
-            val dow = (cal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7
-            val month = cal.get(java.util.Calendar.MONTH)
-            val paid = row.quote?.payable ?: row.items.sumOf { it.quantity * it.unitPrice }
-            byWeekday[dow] += paid
-            byMonth[month] += paid
+            val createdAt = (row["createdAt"] as? Number)?.toLong() ?: 0L
+            val quotePayable = ((row["quote"] as? Document)?.get("payable") as? Number)?.toDouble()
+            val total = quotePayable ?: (row["items"] as? List<*>).orEmpty().sumOf { item ->
+                val doc = item as? Document ?: return@sumOf 0.0
+                ((doc["quantity"] as? Number)?.toDouble() ?: 0.0) * ((doc["unitPrice"] as? Number)?.toDouble() ?: 0.0)
+            }
+            val status = row.getString("status").orEmpty()
+            if (!row.getString("paymentId").isNullOrBlank() && status !in setOf("CANCELLED", "REJECTED")) {
+                paidSum += total
+            }
+            cal.timeInMillis = createdAt
+            byWeekday[(cal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7] += total
+            byMonth[cal.get(java.util.Calendar.MONTH)] += total
         }
-        return weekdayLabels.mapIndexed { i, label ->
-            AdminChartPointDto(label, byWeekday[i])
-        } to monthLabels.mapIndexed { i, label ->
-            AdminChartPointDto(label, byMonth[i])
-        }
+        return AdminDashboardDto(
+            shopCount = shopCol.estimatedDocumentCount().toInt(),
+            productCount = masterProductCol.estimatedDocumentCount().toInt(),
+            transactionAmount = paidSum,
+            transactionCount = rows.size,
+            userCount = customerCol.estimatedDocumentCount().toInt(),
+            partnerCount = partnerCol.estimatedDocumentCount().toInt(),
+            salesByWeekday = weekdayLabels.mapIndexed { i, label -> AdminChartPointDto(label, byWeekday[i]) },
+            txnTrendByMonth = monthLabels.mapIndexed { i, label -> AdminChartPointDto(label, byMonth[i]) },
+        )
     }
 
     fun listAdminTransactions(
@@ -1427,11 +1613,11 @@ class AppStore(
             if (toEpochMs != null) add(lte("createdAt", toEpochMs))
             if (shopId != null) add(eq("shopId", shopId))
         }
-        val rows = if (filters.isEmpty()) {
-            orderCol.find().sort(Sorts.descending("createdAt")).toList()
-        } else {
-            orderCol.find(and(filters)).sort(Sorts.descending("createdAt")).toList()
-        }
+        val rows = orderCol.find(if (filters.isEmpty()) Document() else and(filters))
+            .projection(orderListProjection)
+            .sort(Sorts.descending("createdAt"))
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
         val mapped = mapOrders(rows).map { it.toAdminTxn() }
         return AdminTxnSummaryDto(
             amount = mapped.sumOf { it.paid },
@@ -1542,6 +1728,11 @@ class AppStore(
         )
     }
 
+    fun shopPaymentInfo(shopId: String): ShopPaymentInfoDto {
+        val shop = shopById(shopId)
+        return ShopPaymentInfoDto(shopName = shop.name, upiId = shop.upiId.trim())
+    }
+
     private fun shopById(shopId: String): ShopDoc =
         shopCol.find(eq("_id", shopId)).firstOrNull() ?: error("Shop not found")
 
@@ -1572,7 +1763,8 @@ class AppStore(
         variants = variants.map { MasterProductVariantDto(it.name, it.sku, it.price) },
     )
 
-    private fun ShopDoc.toAdminDto() = AdminShopDto(
+    private fun ShopDoc.toAdminDto(loginUsername: String = "") = AdminShopDto(
+        loginUsername = loginUsername,
         id = id,
         name = name,
         imageUrl = assets.toUrlOrNull(imageUrl),
@@ -1843,6 +2035,7 @@ class AppStore(
             shopLng = shopRow?.lng,
             customerLat = customerLat,
             customerLng = customerLng,
+            deliveryMode = deliveryMode,
             totalDistanceKm = totalDistanceKm,
             deliveryDurationMin = deliveryDurationMin,
             partnerPayoutInr = partnerPayoutInr,

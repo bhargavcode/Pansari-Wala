@@ -64,7 +64,6 @@ import pansariwala.shared.generated.resources.error_photo_pick_failed
 import pansariwala.shared.generated.resources.error_camera_permission_denied
 import pansariwala.shared.generated.resources.error_photo_upload_in_progress
 import pansariwala.shared.generated.resources.error_image_upload_failed
-import pansariwala.shared.generated.resources.error_photos_required
 import pansariwala.shared.generated.resources.error_profile_photo_save_failed
 import pansariwala.shared.generated.resources.error_plate_mismatch
 import pansariwala.shared.generated.resources.location_unavailable
@@ -73,7 +72,9 @@ import pansariwala.shared.generated.resources.otp_sent_partner
 import pansariwala.shared.generated.resources.otp_sent_partner_login
 import pansariwala.shared.generated.resources.partner_register_location_required
 
-private val VEHICLE_REG_PATTERN = Regex("^[A-Z]{2}\\d{1,2}[A-Z]{0,3}\\d{4}$")
+/** Keep in sync with server `Security.isValidVehicleReg` (state series + Bharat series). */
+private val VEHICLE_REG_PATTERN = Regex("^([A-Z]{2}\\d{1,2}[A-Z]{0,3}\\d{1,4}|\\d{2}BH\\d{4}[A-Z]{1,2})$")
+private val EMAIL_PATTERN = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 
 data class PartnerLoginUiState(
     val phone: String = "",
@@ -349,11 +350,11 @@ class PartnerRegisterViewModel(
                     _state.update { it.copy(error = UiText.res(Res.string.error_photo_upload_in_progress)) }
                     return@launch
                 }
-                s.name.isBlank() -> {
+                s.name.trim().length < 2 -> {
                     _state.update { it.copy(error = UiText.res(Res.string.error_name_required)) }
                     return@launch
                 }
-                !s.email.contains("@") -> {
+                !EMAIL_PATTERN.matches(s.email.trim()) -> {
                     _state.update { it.copy(error = UiText.res(Res.string.error_email_invalid)) }
                     return@launch
                 }
@@ -361,12 +362,8 @@ class PartnerRegisterViewModel(
                     _state.update { it.copy(error = UiText.res(Res.string.error_address_required)) }
                     return@launch
                 }
-                s.phone.length < 10 -> {
+                s.phone.filter { it.isDigit() }.length < AppConstants.PHONE_LOCAL_DIGITS -> {
                     _state.update { it.copy(error = UiText.res(Res.string.error_phone_required)) }
-                    return@launch
-                }
-                s.dlPhoto.isBlank() || s.vehiclePhoto.isBlank() || s.idPhoto.isBlank() -> {
-                    _state.update { it.copy(error = UiText.res(Res.string.error_photos_required)) }
                     return@launch
                 }
             }

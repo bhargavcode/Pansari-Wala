@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.map
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.auth.Credentials
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.OrderSummary
@@ -15,6 +16,8 @@ import org.bhargav.pansariwala.domain.model.SalesSnapshot
 import org.bhargav.pansariwala.domain.model.ShopUser
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.generateId
+
+private const val SQLITE_MAX_BIND_ARGS = 900
 
 class RoomShopRepository(
     private val database: ShopDatabase,
@@ -80,6 +83,11 @@ class RoomShopRepository(
         val query = idOrBarcode.trim()
         return (productDao.findById(query) ?: productDao.findByBarcode(query))?.toDomain()
     }
+
+    override suspend fun productsByIds(ids: Collection<String>): List<Product> =
+        ids.distinct().chunked(SQLITE_MAX_BIND_ARGS).flatMap { chunk ->
+            productDao.findByIds(chunk).map { it.toDomain() }
+        }
 
     override suspend fun upsertProduct(product: Product) {
         productDao.upsert(product.toEntity())
@@ -151,6 +159,7 @@ private fun Order.toEntity() = OrderEntity(
     totalValue = totalValue,
     itemCount = itemCount,
     cancelReason = cancelReason,
+    paymentMethod = paymentMethod,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -180,6 +189,8 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
     status = OrderStatus.fromName(status),
     customerName = customerName,
     cancelReason = cancelReason,
+    channel = OrderChannel.POS,
+    paymentMethod = paymentMethod,
     items = items.map {
         OrderItem(
             productId = it.productId,

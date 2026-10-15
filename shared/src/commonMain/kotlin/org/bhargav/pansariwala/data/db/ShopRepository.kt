@@ -24,6 +24,7 @@ interface ShopRepository {
 
     suspend fun productCount(shopId: String): Int
     suspend fun findProduct(idOrBarcode: String): Product?
+    suspend fun productsByIds(ids: Collection<String>): List<Product>
     suspend fun upsertProduct(product: Product)
 
     suspend fun getOrder(orderId: String): Order?

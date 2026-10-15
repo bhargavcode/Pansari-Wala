@@ -80,6 +80,11 @@ class InMemoryShopRepository : ShopRepository {
         return productsFlow.value.firstOrNull { it.id == query || it.barcode == query }
     }
 
+    override suspend fun productsByIds(ids: Collection<String>): List<Product> {
+        val wanted = ids.toSet()
+        return productsFlow.value.filter { it.id in wanted }
+    }
+
     override suspend fun upsertProduct(product: Product) {
         mutex.withLock {
             val current = productsFlow.value.toMutableList()

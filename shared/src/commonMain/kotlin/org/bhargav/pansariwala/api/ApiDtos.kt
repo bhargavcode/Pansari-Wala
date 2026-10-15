@@ -207,6 +207,9 @@ data class IncomingOfferResponse(val offer: DeliveryOfferDto? = null)
 data class OkResponse(val ok: Boolean = true)
 
 @Serializable
+data class ShopPaymentInfoDto(val shopName: String, val upiId: String = "")
+
+@Serializable
 data class OtpSessionResponse(
     val sessionId: String,
     val devOtp: String? = null,
@@ -263,6 +266,7 @@ data class OrderDto(
     val cancelReason: String? = null,
     val partnerProgress: String = "",
     val packedProductIds: List<String> = emptyList(),
+    val deliveryMode: String = AppConstants.DELIVERY_MODE_PARTNER,
 )
 
 @Serializable
@@ -553,6 +557,7 @@ fun OrderDto.toModel() = Order(
     partnerPayoutInr = partnerPayoutInr,
     partnerProgress = partnerProgress,
     packedProductIds = packedProductIds.toSet(),
+    isSelfDelivery = deliveryMode == AppConstants.DELIVERY_MODE_SELF,
 )
 
 fun OfferDto.toModel() = ShopOffer(id, title, description, discountPercent)

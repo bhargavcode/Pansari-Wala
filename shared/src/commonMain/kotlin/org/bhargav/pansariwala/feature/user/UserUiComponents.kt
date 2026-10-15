@@ -65,6 +65,33 @@ import pansariwala.shared.generated.resources.shop_type_hardware
 import pansariwala.shared.generated.resources.shop_type_medical_store
 import pansariwala.shared.generated.resources.shop_type_stationery
 import pansariwala.shared.generated.resources.shop_type_sweet_shop
+import pansariwala.shared.generated.resources.shop_type_auto_parts
+import pansariwala.shared.generated.resources.shop_type_ayurvedic
+import pansariwala.shared.generated.resources.shop_type_bakery
+import pansariwala.shared.generated.resources.shop_type_books
+import pansariwala.shared.generated.resources.shop_type_boutique
+import pansariwala.shared.generated.resources.shop_type_clothing
+import pansariwala.shared.generated.resources.shop_type_cosmetics
+import pansariwala.shared.generated.resources.shop_type_dairy
+import pansariwala.shared.generated.resources.shop_type_electrical
+import pansariwala.shared.generated.resources.shop_type_flowers
+import pansariwala.shared.generated.resources.shop_type_footwear
+import pansariwala.shared.generated.resources.shop_type_fruits_vegetables
+import pansariwala.shared.generated.resources.shop_type_furniture
+import pansariwala.shared.generated.resources.shop_type_gas_water
+import pansariwala.shared.generated.resources.shop_type_grocery
+import pansariwala.shared.generated.resources.shop_type_home_kitchen
+import pansariwala.shared.generated.resources.shop_type_jewellery
+import pansariwala.shared.generated.resources.shop_type_meat_fish
+import pansariwala.shared.generated.resources.shop_type_mobile
+import pansariwala.shared.generated.resources.shop_type_organic
+import pansariwala.shared.generated.resources.shop_type_other
+import pansariwala.shared.generated.resources.shop_type_paan_shop
+import pansariwala.shared.generated.resources.shop_type_pet_supplies
+import pansariwala.shared.generated.resources.shop_type_restaurant
+import pansariwala.shared.generated.resources.shop_type_sports
+import pansariwala.shared.generated.resources.shop_type_supermarket
+import pansariwala.shared.generated.resources.shop_type_toys_gifts
 import pansariwala.shared.generated.resources.shop_closed
 import pansariwala.shared.generated.resources.status_accepted
 import pansariwala.shared.generated.resources.status_cancelled
@@ -83,12 +110,39 @@ import kotlin.math.roundToInt
 @Composable
 fun shopTypeLabel(type: ShopType): String = stringResource(
     when (type) {
+        ShopType.GROCERY -> Res.string.shop_type_grocery
+        ShopType.SUPERMARKET -> Res.string.shop_type_supermarket
         ShopType.GENERAL_STORE -> Res.string.shop_type_general_store
-        ShopType.HARDWARE -> Res.string.shop_type_hardware
-        ShopType.MEDICAL_STORE -> Res.string.shop_type_medical_store
+        ShopType.FRUITS_VEGETABLES -> Res.string.shop_type_fruits_vegetables
+        ShopType.DAIRY -> Res.string.shop_type_dairy
+        ShopType.BAKERY -> Res.string.shop_type_bakery
+        ShopType.MEAT_FISH -> Res.string.shop_type_meat_fish
         ShopType.SWEET_SHOP -> Res.string.shop_type_sweet_shop
-        ShopType.STATIONERY -> Res.string.shop_type_stationery
+        ShopType.RESTAURANT -> Res.string.shop_type_restaurant
+        ShopType.MEDICAL_STORE -> Res.string.shop_type_medical_store
+        ShopType.AYURVEDIC -> Res.string.shop_type_ayurvedic
+        ShopType.ORGANIC -> Res.string.shop_type_organic
+        ShopType.HARDWARE -> Res.string.shop_type_hardware
+        ShopType.ELECTRICAL -> Res.string.shop_type_electrical
         ShopType.ELECTRONICS -> Res.string.shop_type_electronics
+        ShopType.MOBILE -> Res.string.shop_type_mobile
+        ShopType.STATIONERY -> Res.string.shop_type_stationery
+        ShopType.BOOKS -> Res.string.shop_type_books
+        ShopType.CLOTHING -> Res.string.shop_type_clothing
+        ShopType.BOUTIQUE -> Res.string.shop_type_boutique
+        ShopType.FOOTWEAR -> Res.string.shop_type_footwear
+        ShopType.COSMETICS -> Res.string.shop_type_cosmetics
+        ShopType.JEWELLERY -> Res.string.shop_type_jewellery
+        ShopType.HOME_KITCHEN -> Res.string.shop_type_home_kitchen
+        ShopType.FURNITURE -> Res.string.shop_type_furniture
+        ShopType.TOYS_GIFTS -> Res.string.shop_type_toys_gifts
+        ShopType.SPORTS -> Res.string.shop_type_sports
+        ShopType.PET_SUPPLIES -> Res.string.shop_type_pet_supplies
+        ShopType.FLOWERS -> Res.string.shop_type_flowers
+        ShopType.PAAN_SHOP -> Res.string.shop_type_paan_shop
+        ShopType.GAS_WATER -> Res.string.shop_type_gas_water
+        ShopType.AUTO_PARTS -> Res.string.shop_type_auto_parts
+        ShopType.OTHER -> Res.string.shop_type_other
     },
 )
 

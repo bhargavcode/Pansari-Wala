@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.feature.order.paymentMethodLabelRes
 import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.Product
@@ -162,7 +163,7 @@ class PosPrintService(
                     billToName = customerName(order.customerName),
                     billToAddress = order.deliveryAddress,
                     billToPhone = order.customerPhone,
-                    paymentMode = order.paymentMethod.takeIf { order.channel == OrderChannel.ONLINE },
+                    paymentMode = paymentLabel(order.paymentMethod),
                 ),
                 settings,
                 labels(),
@@ -256,7 +257,7 @@ class PosPrintService(
             total = totalValue,
             subtotal = subtotal,
             discount = (subtotal - totalValue).coerceAtLeast(0.0),
-            paymentMode = paymentMethod.takeIf { channel == OrderChannel.ONLINE },
+            paymentMode = paymentLabel(paymentMethod),
             customerName = customerName(customerName),
         )
     }
@@ -276,6 +277,9 @@ class PosPrintService(
             else -> trimmed
         }
     }
+
+    private suspend fun paymentLabel(method: String): String? =
+        method.takeIf { it.isNotBlank() }?.let { getString(paymentMethodLabelRes(it)) }
 
     private suspend fun channelName(channel: OrderChannel): String = when (channel) {
         OrderChannel.POS -> getString(Res.string.print_channel_pos)

@@ -9,6 +9,8 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionException
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
@@ -27,9 +29,13 @@ class AssetStore(private val storage: AssetStorage) {
         clientThumbnail: ByteArray? = null,
     ): UploadResultDto {
         require(bytes.isNotEmpty()) { "Empty file" }
-        require(bytes.size <= 12_000_000) { "File too large" }
+        require(bytes.size <= 12_000_000) { "Image too large (max 12 MB)" }
         val mime = contentType.lowercase(Locale.US).substringBefore(';').trim()
-        require(mime in allowedMime) { "Only PNG, JPEG, or WebP images are allowed" }
+        // Mobile pickers often send octet-stream / blank; trust the file signature over the header.
+        require(mime in allowedMime || sniffImage(bytes)) {
+            if (isHeic(bytes)) "HEIC photos are not supported, please choose a JPEG or PNG"
+            else "Only PNG, JPEG, or WebP images are allowed"
+        }
         val safePrefix = normalizePrefix(prefix)
         val id = UUID.randomUUID().toString().replace("-", "")
         val key = "${safePrefix}$id.jpg"
@@ -41,8 +47,13 @@ class AssetStore(private val storage: AssetStorage) {
         val compressed = if (preCompressed) bytes else compressForUpload(bytes)
         val thumbBytes = if (preCompressed) clientThumbnail!! else thumbnailJpeg(compressed)
 
+        val thumbUpload = CompletableFuture.runAsync { storage.put(thumbKey, thumbBytes, "image/jpeg") }
         storage.put(key, compressed, "image/jpeg")
-        storage.put(thumbKey, thumbBytes, "image/jpeg")
+        try {
+            thumbUpload.join()
+        } catch (e: CompletionException) {
+            throw e.cause ?: e
+        }
         return UploadResultDto(
             url = storage.publicUrl(key),
             thumbnailUrl = storage.publicUrl(thumbKey),
@@ -53,6 +64,20 @@ class AssetStore(private val storage: AssetStorage) {
 
     private fun isJpeg(data: ByteArray): Boolean =
         data.size > 3 && data[0] == 0xFF.toByte() && data[1] == 0xD8.toByte() && data[2] == 0xFF.toByte()
+
+    private fun isPng(data: ByteArray): Boolean =
+        data.size > 8 && data[0] == 0x89.toByte() && data[1] == 'P'.code.toByte() &&
+            data[2] == 'N'.code.toByte() && data[3] == 'G'.code.toByte()
+
+    private fun isWebp(data: ByteArray): Boolean =
+        data.size > 12 && String(data, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+            String(data, 8, 4, Charsets.US_ASCII) == "WEBP"
+
+    private fun isHeic(data: ByteArray): Boolean =
+        data.size > 12 && String(data, 4, 4, Charsets.US_ASCII) == "ftyp" &&
+            String(data, 8, 4, Charsets.US_ASCII).lowercase(Locale.US) in setOf("heic", "heix", "mif1", "msf1", "hevc")
+
+    private fun sniffImage(data: ByteArray): Boolean = isJpeg(data) || isPng(data) || isWebp(data)
 
     private fun normalizePrefix(prefix: String): String {
         val normalized = prefix.trim().trim('/') + "/"

@@ -13,6 +13,8 @@ object AppConstants {
     const val DELIVERY_BASE_PER_KM_INR: Double = 8.0
     const val DELIVERY_SURCHARGE_RATIO: Double = 0.30
 
+    const val DELIVERY_MODE_PARTNER: String = "PARTNER"
+    const val DELIVERY_MODE_SELF: String = "SELF"
     const val DEFAULT_MAP_LAT: Double = 28.6139
     const val DEFAULT_MAP_LNG: Double = 77.2090
     const val GOOGLE_MAPS_API_KEY: String = "AIzaSyCd8M0FflE0xOkx_Yy3LwHAHR6CyY0JpRI"
@@ -158,6 +160,8 @@ object AppConstants {
         const val PROFILE_COMPLETE: String = "pref_profile_complete"
         const val NOTIFY_OFFERS: String = "pref_notify_offers"
         const val NOTIFY_DELIVERY: String = "pref_notify_delivery"
+        const val SHOP_UPI_ID: String = "pref_shop_upi_id"
+        const val SHOP_NAME: String = "pref_shop_name"
     }
 
     object Roles {
@@ -202,6 +206,13 @@ object AppConstants {
         const val PLATFORM_IOS: String = "ios"
     }
 
+    object PosPayment {
+        const val CASH: String = "CASH"
+        const val UPI: String = "UPI"
+        const val CARD: String = "CARD"
+        const val UPI_CURRENCY: String = "INR"
+    }
+
     object Razorpay {
         const val MERCHANT_NAME: String = "Pansari Wala"
         const val CURRENCY: String = "INR"
@@ -227,6 +238,10 @@ object AppConstants {
     object MasterWeb {
         const val TOKEN_STORAGE_KEY: String = "master_admin_token"
         const val REMEMBER_USER_KEY: String = "master_admin_username"
+        const val LOGIN_PATH: String = "/auth/admin/login"
+        /** Admin lists can be large; still bounded so the UI never spins forever. */
+        const val REQUEST_TIMEOUT_MS: Long = 30_000L
+        const val CONNECT_TIMEOUT_MS: Long = 10_000L
         const val SIDEBAR_WIDTH_DP: Int = 220
         const val COMPACT_BREAKPOINT_DP: Int = 840
     }

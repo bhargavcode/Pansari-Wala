@@ -221,10 +221,25 @@ class AppPreferences(
         )
     }
 
+    suspend fun getShopUpiId(): String = store.getString(AppConstants.Prefs.SHOP_UPI_ID).orEmpty()
+
+    suspend fun getShopName(): String = store.getString(AppConstants.Prefs.SHOP_NAME).orEmpty()
+
+    suspend fun setShopPaymentInfo(shopName: String, upiId: String) {
+        store.putStrings(
+            mapOf(
+                AppConstants.Prefs.SHOP_NAME to shopName,
+                AppConstants.Prefs.SHOP_UPI_ID to upiId,
+            ),
+        )
+    }
+
     suspend fun clearSession() {
         stopPartnerLocationTracking()
         store.remove(
             setOf(
+                AppConstants.Prefs.SHOP_UPI_ID,
+                AppConstants.Prefs.SHOP_NAME,
                 Keys.accessToken,
                 Keys.refreshToken,
                 Keys.userId,

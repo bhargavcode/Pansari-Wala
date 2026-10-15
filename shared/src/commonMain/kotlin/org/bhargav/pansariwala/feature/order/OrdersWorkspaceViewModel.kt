@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
-import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.OrderSummary
@@ -34,7 +33,6 @@ class OrdersWorkspaceViewModel(
     private val shopRepository: ShopRepository,
     private val preferences: AppPreferences,
     private val shopNotifier: ShopNotifier,
-    private val api: PansariApi,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OrdersWorkspaceUiState())
     val uiState: StateFlow<OrdersWorkspaceUiState> = _uiState.asStateFlow()
@@ -119,36 +117,18 @@ class OrdersWorkspaceViewModel(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(cancellingOrder = true) }
-            runCatching { api.cancelShopOrder(order.id, reasonText) }
-                .onSuccess { serverUpdated ->
-                    shopRepository.saveOrder(serverUpdated)
-                    shopNotifier.onOrderCancelled(serverUpdated)
-                    selectedOrderId = serverUpdated.id
-                    _uiState.update {
-                        it.copy(
-                            selectedOrder = serverUpdated,
-                            showCancelDialog = false,
-                            customCancelReason = "",
-                            cancellingOrder = false,
-                        )
-                    }
-                }
-                .onFailure {
-                    // Fallback to local cancellation so the shop UI still updates
-                    // even if the network/server is temporarily unavailable.
-                    val cancelled = order.copy(status = OrderStatus.CANCELLED, cancelReason = reasonText)
-                    shopRepository.saveOrder(cancelled)
-                    shopNotifier.onOrderCancelled(cancelled)
-                    selectedOrderId = cancelled.id
-                    _uiState.update {
-                        it.copy(
-                            selectedOrder = cancelled,
-                            showCancelDialog = false,
-                            customCancelReason = "",
-                            cancellingOrder = false,
-                        )
-                    }
-                }
+            val cancelled = order.copy(status = OrderStatus.CANCELLED, cancelReason = reasonText)
+            shopRepository.saveOrder(cancelled)
+            shopNotifier.onOrderCancelled(cancelled)
+            selectedOrderId = cancelled.id
+            _uiState.update {
+                it.copy(
+                    selectedOrder = cancelled,
+                    showCancelDialog = false,
+                    customCancelReason = "",
+                    cancellingOrder = false,
+                )
+            }
         }
     }
 }

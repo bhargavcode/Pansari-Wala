@@ -16,8 +16,8 @@ private var koinStarted = false
 fun main() {
     if (!koinStarted) {
         ApiRuntime.baseUrl = AppConstants.API_BASE_URL
-        // Local web / wasm runs are treated as debug for HTTP tracing.
-        ApiRuntime.isDebugBuild = true
+        // Body logging of large admin payloads stalls the browser; only trace on localhost.
+        ApiRuntime.isDebugBuild = isLocalWebHost()
         initKoin()
         koinStarted = true
     }

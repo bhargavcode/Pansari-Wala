@@ -97,12 +97,31 @@ import pansariwala.shared.generated.resources.master_tax_id
 import pansariwala.shared.generated.resources.master_upload_shop_image
 import pansariwala.shared.generated.resources.master_zip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import org.bhargav.pansariwala.domain.model.ShopType
+import org.bhargav.pansariwala.util.AppConstants
+import pansariwala.shared.generated.resources.master_err_login_password
+import pansariwala.shared.generated.resources.master_err_login_username
+import pansariwala.shared.generated.resources.master_err_owner_email
+import pansariwala.shared.generated.resources.master_err_owner_phone
+import pansariwala.shared.generated.resources.master_err_shop_address
+import pansariwala.shared.generated.resources.master_err_shop_location
+import pansariwala.shared.generated.resources.master_err_shop_name
+import pansariwala.shared.generated.resources.master_login_password
+import pansariwala.shared.generated.resources.master_login_password_reset
+import pansariwala.shared.generated.resources.master_login_username
+import pansariwala.shared.generated.resources.master_shop_login
+import pansariwala.shared.generated.resources.master_shop_login_hint
 
-private val DefaultShopTypeChoices = listOf(
-    ShopTypeDto("SUPERMARKET", "Supermarket"),
-    ShopTypeDto("GROCERY", "Grocery"),
-    ShopTypeDto("BOUTIQUE", "Boutique"),
-)
+/** Offline fallback; the live list comes from `/master/shop-types`. */
+private val DefaultShopTypeChoices = ShopType.entries.map {
+    ShopTypeDto(it.apiValue, it.apiValue.lowercase().split('_').joinToString(" ") { w -> w.replaceFirstChar(Char::uppercase) })
+}
+
+private const val MIN_SHOP_PASSWORD = 4
+private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -119,7 +138,11 @@ internal fun ShopEditorScreen(
     var ownerName by rememberSaveable { mutableStateOf("") }
     var ownerPhone by rememberSaveable { mutableStateOf("") }
     var ownerEmail by rememberSaveable { mutableStateOf("") }
-    var shopType by rememberSaveable { mutableStateOf("SUPERMARKET") }
+    var shopType by rememberSaveable { mutableStateOf(ShopType.GROCERY.apiValue) }
+    var loginUsername by rememberSaveable { mutableStateOf("") }
+    var loginPassword by rememberSaveable { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var formError by remember { mutableStateOf<String?>(null) }
     var address by rememberSaveable { mutableStateOf("") }
     var city by rememberSaveable { mutableStateOf("") }
     var state by rememberSaveable { mutableStateOf("") }
@@ -128,8 +151,8 @@ internal fun ShopEditorScreen(
     var registration by rememberSaveable { mutableStateOf("") }
     var taxId by rememberSaveable { mutableStateOf("") }
     var imageUrl by rememberSaveable { mutableStateOf("") }
-    var lat by rememberSaveable { mutableStateOf(41.0149426) }
-    var lng by rememberSaveable { mutableStateOf(-55.4878477) }
+    var lat by rememberSaveable { mutableStateOf(AppConstants.DEFAULT_MAP_LAT) }
+    var lng by rememberSaveable { mutableStateOf(AppConstants.DEFAULT_MAP_LNG) }
     var active by rememberSaveable { mutableStateOf(true) }
     var voice by rememberSaveable { mutableStateOf(true) }
     var barcode by rememberSaveable { mutableStateOf(true) }
@@ -153,12 +176,7 @@ internal fun ShopEditorScreen(
     LaunchedEffect(token, shopId) {
         runCatching {
             val types = api.shopTypes(token)
-            if (types.isNotEmpty()) {
-                shopTypes = types.filter {
-                    it.id in setOf("SUPERMARKET", "GROCERY", "BOUTIQUE") ||
-                        it.name in setOf("Supermarket", "Grocery", "Boutique")
-                }.ifEmpty { DefaultShopTypeChoices }
-            }
+            shopTypes = types.filter { it.active }.ifEmpty { DefaultShopTypeChoices }
         }
         if (shopId != null && !loaded) {
             runCatching {
@@ -168,7 +186,8 @@ internal fun ShopEditorScreen(
                 ownerName = s.ownerName
                 ownerPhone = s.ownerPhone
                 ownerEmail = s.ownerEmail
-                shopType = s.shopType.ifBlank { "SUPERMARKET" }
+                shopType = s.shopType.ifBlank { ShopType.GROCERY.apiValue }
+                loginUsername = s.loginUsername
                 address = s.address
                 city = s.city
                 state = s.state
@@ -245,6 +264,29 @@ internal fun ShopEditorScreen(
                         LabeledField(stringResource(Res.string.master_owner_email), ownerEmail, stringResource(Res.string.master_placeholder_email)) { ownerEmail = it }
                         SectionTitle(stringResource(Res.string.master_shop_type))
                         ShopTypePicker(types = shopTypes, selected = shopType, onSelect = { shopType = it })
+                        SectionTitle(stringResource(Res.string.master_shop_login))
+                        Text(
+                            stringResource(Res.string.master_shop_login_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LabeledField(stringResource(Res.string.master_login_username), loginUsername, ownerPhone.ifBlank { stringResource(Res.string.master_placeholder_phone) }) {
+                            loginUsername = it.trim()
+                        }
+                        OutlinedTextField(
+                            value = loginPassword,
+                            onValueChange = { loginPassword = it },
+                            label = {
+                                Text(
+                                    if (isEdit) stringResource(Res.string.master_login_password_reset)
+                                    else stringResource(Res.string.master_login_password),
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                        )
                     }
                     // Column 2 — address + map
                     MasterSectionCard(modifier = Modifier.widthIn(min = 260.dp)) {
@@ -279,9 +321,37 @@ internal fun ShopEditorScreen(
                     }
                 }
             }
+            val errNameRequired = stringResource(Res.string.master_err_shop_name)
+            val errAddressRequired = stringResource(Res.string.master_err_shop_address)
+            val errPhone = stringResource(Res.string.master_err_owner_phone)
+            val errEmail = stringResource(Res.string.master_err_owner_email)
+            val errLocation = stringResource(Res.string.master_err_shop_location)
+            val errLogin = stringResource(Res.string.master_err_login_username)
+            val errPassword = stringResource(Res.string.master_err_login_password, MIN_SHOP_PASSWORD)
+            fun validate(): String? {
+                val phoneDigits = ownerPhone.filter(Char::isDigit).takeLast(10)
+                return when {
+                    name.isBlank() -> errNameRequired
+                    address.isBlank() && city.isBlank() -> errAddressRequired
+                    ownerPhone.isNotBlank() && phoneDigits.length != 10 -> errPhone
+                    ownerEmail.isNotBlank() && !EMAIL_REGEX.matches(ownerEmail.trim()) -> errEmail
+                    lat !in -90.0..90.0 || lng !in -180.0..180.0 || (lat == 0.0 && lng == 0.0) -> errLocation
+                    !isEdit && loginUsername.isBlank() && phoneDigits.length != 10 -> errLogin
+                    !isEdit && loginPassword.length < MIN_SHOP_PASSWORD -> errPassword
+                    isEdit && loginPassword.isNotEmpty() && loginPassword.length < MIN_SHOP_PASSWORD -> errPassword
+                    else -> null
+                }
+            }
+            formError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 Button(
+                    enabled = !saving,
                     onClick = {
+                        formError = validate()
+                        if (formError != null) return@Button
+                        saving = true
                         scope.launch {
                             runCatching {
                                 if (isEdit && shopId != null) {
@@ -306,6 +376,8 @@ internal fun ShopEditorScreen(
                                         lat = lat,
                                         lng = lng,
                                         operatingHours = hours(),
+                                        loginUsername = loginUsername.ifBlank { null },
+                                        loginPassword = loginPassword.ifBlank { null },
                                     )
                                 } else {
                                     api.createShop(
@@ -329,19 +401,30 @@ internal fun ShopEditorScreen(
                                             taxId = taxId,
                                             operatingHours = hours(),
                                             features = features(),
+                                            loginUsername = loginUsername,
+                                            loginPassword = loginPassword,
                                         ),
                                     )
                                 }
                             }.onSuccess {
+                                saving = false
                                 onNavigate(if (isEdit && shopId != null) MasterDest.ShopDetail(shopId) else MasterDest.Shops)
-                            }.onFailure { onStatus(it.message.orEmpty()) }
+                            }.onFailure {
+                                saving = false
+                                formError = it.message
+                                onStatus(it.message.orEmpty())
+                            }
                         }
                     },
                 ) {
-                    Text(
-                        if (isEdit) stringResource(Res.string.master_save_changes)
-                        else stringResource(Res.string.master_create_shop),
-                    )
+                    if (saving) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(
+                            if (isEdit) stringResource(Res.string.master_save_changes)
+                            else stringResource(Res.string.master_create_shop),
+                        )
+                    }
                 }
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(
@@ -374,25 +457,23 @@ private fun LabeledField(label: String, value: String, placeholder: String, onCh
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ShopTypePicker(types: List<ShopTypeDto>, selected: String, onSelect: (String) -> Unit) {
-    Column(
+    FlowRow(
         Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-            .clip(RoundedCornerShape(8.dp)),
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         types.forEach { t ->
             val isSelected = t.id == selected || t.name.equals(selected, ignoreCase = true)
-            Text(
-                t.name,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
-                    .clickable { onSelect(t.id) }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(t.id) },
+                label = { Text(t.name, style = MaterialTheme.typography.bodySmall) },
             )
         }
     }

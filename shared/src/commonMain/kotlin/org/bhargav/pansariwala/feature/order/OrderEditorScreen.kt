@@ -14,6 +14,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.CurrencyRupee
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import io.github.alexzhirkevich.qrose.rememberQrCodePainter
+import pansariwala.shared.generated.resources.pos_upi_payee
+import pansariwala.shared.generated.resources.pos_upi_received
+import pansariwala.shared.generated.resources.pos_upi_scan_title
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import pansariwala.shared.generated.resources.update_and_print_order
 import pansariwala.shared.generated.resources.save_and_print_order
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +57,7 @@ import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.i18n.localizedLabel
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.bhargav.pansariwala.voice.RequestMicrophonePermission
@@ -55,12 +73,14 @@ import pansariwala.shared.generated.resources.create_order
 import pansariwala.shared.generated.resources.customer_name
 import pansariwala.shared.generated.resources.edit_order
 import pansariwala.shared.generated.resources.in_stock
+import pansariwala.shared.generated.resources.pos_payment_title
 import pansariwala.shared.generated.resources.save_order
 import pansariwala.shared.generated.resources.search_products
 import pansariwala.shared.generated.resources.total_label
 import pansariwala.shared.generated.resources.update_order
 import pansariwala.shared.generated.resources.voice_hint_example
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderEditorScreen(
     orderId: String?,
@@ -72,6 +92,9 @@ fun OrderEditorScreen(
 
     LaunchedEffect(orderId) { viewModel.load(orderId) }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
+    if (state.showPaymentPicker) {
+        PosPaymentSheet(state = state, viewModel = viewModel)
+    }
 
     RequestMicrophonePermission(
         trigger = state.requestMicPermission,
@@ -296,6 +319,131 @@ private fun SearchOrSuggestedItems(
                 }
                 HorizontalDivider()
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = viewModel::dismissPaymentPicker, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (state.showUpiQr) {
+                UpiQrContent(state, viewModel)
+            } else {
+                Text(
+                    stringResource(Res.string.pos_payment_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    stringResource(Res.string.total_label, state.total.asMoney()),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    posPaymentOptions.forEach { (method, icon) ->
+                        PaymentOptionCard(
+                            label = stringResource(paymentMethodLabelRes(method)),
+                            icon = icon,
+                            onClick = { viewModel.selectPayment(method) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                state.error?.let { error ->
+                    Text(
+                        error.asString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val posPaymentOptions: List<Pair<String, ImageVector>> = listOf(
+    AppConstants.PosPayment.CASH to Icons.Filled.CurrencyRupee,
+    AppConstants.PosPayment.UPI to Icons.Filled.QrCode2,
+    AppConstants.PosPayment.CARD to Icons.Filled.CreditCard,
+)
+
+@Composable
+private fun PaymentOptionCard(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedCard(onClick = onClick, modifier = modifier) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp),
+            )
+            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.UpiQrContent(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    val amount = state.total.asMoney()
+    val uri = remember(state.shopUpiId, state.shopName, state.total) {
+        buildUpiUri(state.shopUpiId, state.shopName, state.total)
+    }
+    val qrPainter = rememberQrCodePainter(uri)
+    Text(
+        stringResource(Res.string.pos_upi_scan_title, amount),
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+    )
+    Box(
+        modifier = Modifier
+            .size(240.dp)
+            .background(Color.White)
+            .padding(12.dp),
+    ) {
+        Image(painter = qrPainter, contentDescription = null, modifier = Modifier.fillMaxSize())
+    }
+    Text(
+        stringResource(Res.string.pos_upi_payee, state.shopName.ifBlank { state.shopUpiId }),
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Text(
+        state.shopUpiId,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        OutlinedButton(onClick = viewModel::backFromUpiQr, modifier = Modifier.weight(1f)) {
+            Text(stringResource(Res.string.action_back))
+        }
+        Button(onClick = viewModel::confirmUpiReceived, modifier = Modifier.weight(1f)) {
+            Text(stringResource(Res.string.pos_upi_received))
         }
     }
 }

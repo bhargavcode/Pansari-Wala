@@ -1,42 +1,41 @@
 package org.bhargav.pansariwala.notification
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.Order
-import org.bhargav.pansariwala.domain.model.Product
-import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.generateId
+import org.jetbrains.compose.resources.getString
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.notif_low_stock_body
+import pansariwala.shared.generated.resources.notif_low_stock_title
 
 class ShopNotifier(
     private val gateway: NotificationGateway,
     private val preferences: AppPreferences,
+    private val shopRepository: ShopRepository,
 ) {
-    suspend fun onOrderSaved(order: Order, catalogAfter: List<Product>) {
-        val settings = preferences.getUserSettings()
-        if (settings.notifyOrderEvents) {
+    private val background = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Counter sales need no "new order" alert; only the sold items are re-checked for low stock. */
+    fun onPosSaleSaved(order: Order) {
+        val productIds = order.items.map { it.productId }
+        if (productIds.isEmpty()) return
+        background.launch {
+            if (!preferences.getUserSettings().notifyLowStock) return@launch
+            val low = shopRepository.productsByIds(productIds)
+                .filter { it.stockQty <= 0.0 || it.isLowStock }
+            if (low.isEmpty()) return@launch
             gateway.show(
                 ShopNotification(
                     id = generateId("notif"),
-                    title = "Order received",
-                    body = "New order ${order.id.takeLast(6)} · ${order.totalValue.asMoney()}",
-                    orderId = order.id,
+                    title = getString(Res.string.notif_low_stock_title),
+                    body = getString(Res.string.notif_low_stock_body, low.joinToString { it.name }),
                 ),
             )
-        }
-        if (settings.notifyLowStock) {
-            order.items.mapNotNull { line ->
-                catalogAfter.firstOrNull { it.id == line.productId }
-            }.filter { it.stockQty <= 0.0 || it.isLowStock }
-                .distinctBy { it.id }
-                .forEach { product ->
-                    gateway.show(
-                        ShopNotification(
-                            id = generateId("notif"),
-                            title = "Low stock alert",
-                            body = "${product.name} is low or out of stock",
-                            orderId = order.id,
-                        ),
-                    )
-                }
         }
     }
 

@@ -4,7 +4,12 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.install
+import io.ktor.server.plugins.compression.Compression
+import io.ktor.server.plugins.compression.deflate
+import io.ktor.server.plugins.compression.gzip
+import io.ktor.server.plugins.compression.minimumSize
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.engine.embeddedServer
@@ -20,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.server.db.connectMongo
 import org.bhargav.pansariwala.server.dto.ApiErrorBody
@@ -63,6 +69,14 @@ fun main() {
             allowNonSimpleContentTypes = true
             anyHost()
             maxAgeInSeconds = 86_400
+        }
+        // Store uses the blocking Mongo driver; keep Netty's small call group free for I/O.
+        intercept(ApplicationCallPipeline.Setup) {
+            withContext(Dispatchers.IO) { proceed() }
+        }
+        install(Compression) {
+            gzip { priority = 1.0; minimumSize(1024) }
+            deflate { priority = 0.9; minimumSize(1024) }
         }
         install(CallLogging) { level = Level.DEBUG }
         install(ContentNegotiation) {

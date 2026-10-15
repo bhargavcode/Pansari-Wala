@@ -11,7 +11,14 @@ import org.bhargav.pansariwala.printer.image.ImageProcessor
 import org.bhargav.pansariwala.printer.model.ArgbImage
 import org.bhargav.pansariwala.printer.model.DitherMode
 import org.bhargav.pansariwala.printer.model.PrintAlignment
+import org.bhargav.pansariwala.printer.model.MonoBitmap
+import org.bhargav.pansariwala.printer.model.PrintFont
 import org.bhargav.pansariwala.printer.model.PrinterSettings
+import org.bhargav.pansariwala.printer.text.RasterCell
+import org.bhargav.pansariwala.printer.text.RasterFont
+import org.bhargav.pansariwala.printer.text.TextRasterizer
+import org.bhargav.pansariwala.printer.text.monoBitmapOf
+import org.bhargav.pansariwala.printer.text.wrapByWidth
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -60,6 +67,40 @@ class PrinterCoreTest {
     fun nonAsciiIsTransliterated() {
         val bytes = EscPosEncoder().encode(printDocument { text("\u20B95") }, PrinterSettings(autoCut = false, feedLinesAfterPrint = 0))
         assertTrue(bytes.decodeToString().contains("Rs.5"))
+    }
+
+    private class FakeRasterizer : TextRasterizer {
+        val rendered = mutableListOf<List<RasterCell>>()
+        override fun measure(text: String, font: RasterFont): Float = text.length * 10f
+        override fun renderLine(cells: List<RasterCell>, widthPx: Int, font: RasterFont): MonoBitmap {
+            rendered += cells
+            return monoBitmapOf(widthPx, 4) { _, _ -> false }
+        }
+    }
+
+    @Test
+    fun autoFontRastersOnlyIndianText() {
+        val rasterizer = FakeRasterizer()
+        val encoder = EscPosEncoder(textRasterizer = rasterizer)
+        val settings = PrinterSettings(autoCut = false, feedLinesAfterPrint = 0)
+        encoder.encode(printDocument { text("Sugar") }, settings)
+        assertTrue(rasterizer.rendered.isEmpty())
+        encoder.encode(printDocument { keyValue("चीनी", "45.00") }, settings)
+        assertEquals(listOf("चीनी", "45.00"), rasterizer.rendered.single().map { it.text })
+    }
+
+    @Test
+    fun printerFontNeverRasters() {
+        val rasterizer = FakeRasterizer()
+        EscPosEncoder(textRasterizer = rasterizer)
+            .encode(printDocument { text("चीनी") }, PrinterSettings(font = PrintFont.PRINTER))
+        assertTrue(rasterizer.rendered.isEmpty())
+    }
+
+    @Test
+    fun widthWrapKeepsCombiningMarksWithBaseLetter() {
+        val lines = wrapByWidth("चीनी", 20f) { it.length * 10f }
+        assertEquals(listOf("ची", "नी"), lines)
     }
 
     @Test

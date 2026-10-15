@@ -14,4 +14,4 @@ class FormatPlateOcr : PlateOcr {
 }
 
 fun normalizeVehicleReg(value: String): String =
-    value.uppercase().replace(" ", "").replace("-", "")
+    value.uppercase().filter { it.isLetterOrDigit() }

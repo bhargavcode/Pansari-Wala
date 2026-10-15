@@ -213,8 +213,11 @@ class Security(
     }
 
     companion object {
-        val vehicleRegRegex = Regex("^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$")
-        fun normalizeReg(value: String): String = value.uppercase().replace(" ", "").replace("-", "")
+        val vehicleRegRegex = Regex("^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{1,4}$")
+        /** Bharat series, e.g. 22BH1234AA. */
+        private val bhSeriesRegex = Regex("^[0-9]{2}BH[0-9]{4}[A-Z]{1,2}$")
+        fun normalizeReg(value: String): String = value.uppercase().filter { it.isLetterOrDigit() }
+        fun isValidVehicleReg(reg: String): Boolean = vehicleRegRegex.matches(reg) || bhSeriesRegex.matches(reg)
         fun normalizePhone(phone: String): String {
             val digits = phone.filter { it.isDigit() }
             return if (digits.length >= 10) digits.takeLast(10) else digits

@@ -65,6 +65,7 @@ import pansariwala.shared.generated.resources.cancel_reason_custom_hint
 import pansariwala.shared.generated.resources.cancel_reason_label
 import pansariwala.shared.generated.resources.no_orders_yet
 import pansariwala.shared.generated.resources.order_details_title
+import pansariwala.shared.generated.resources.order_payment_label
 import pansariwala.shared.generated.resources.order_items_summary
 import pansariwala.shared.generated.resources.order_status_label
 import pansariwala.shared.generated.resources.orders_workspace_title
@@ -308,6 +309,16 @@ private fun OrderDetailsPane(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (order.paymentMethod.isNotBlank()) {
+            Text(
+                stringResource(
+                    Res.string.order_payment_label,
+                    stringResource(paymentMethodLabelRes(order.paymentMethod)),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Text(
             stringResource(Res.string.total_label, itemsTotal.asMoney()),
             style = MaterialTheme.typography.titleMedium,

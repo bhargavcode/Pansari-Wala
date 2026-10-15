@@ -29,18 +29,46 @@ data class GeoPoint(
     val lng: Double,
 )
 
+/** Ids must match server `defaultShopTypes()` (server/db/Mongo.kt). */
 enum class ShopType(val apiValue: String) {
+    GROCERY("GROCERY"),
+    SUPERMARKET("SUPERMARKET"),
     GENERAL_STORE("GENERAL_STORE"),
-    HARDWARE("HARDWARE"),
-    MEDICAL_STORE("MEDICAL_STORE"),
+    FRUITS_VEGETABLES("FRUITS_VEGETABLES"),
+    DAIRY("DAIRY"),
+    BAKERY("BAKERY"),
+    MEAT_FISH("MEAT_FISH"),
     SWEET_SHOP("SWEET_SHOP"),
-    STATIONERY("STATIONERY"),
+    RESTAURANT("RESTAURANT"),
+    MEDICAL_STORE("MEDICAL_STORE"),
+    AYURVEDIC("AYURVEDIC"),
+    ORGANIC("ORGANIC"),
+    HARDWARE("HARDWARE"),
+    ELECTRICAL("ELECTRICAL"),
     ELECTRONICS("ELECTRONICS"),
+    MOBILE("MOBILE"),
+    STATIONERY("STATIONERY"),
+    BOOKS("BOOKS"),
+    CLOTHING("CLOTHING"),
+    BOUTIQUE("BOUTIQUE"),
+    FOOTWEAR("FOOTWEAR"),
+    COSMETICS("COSMETICS"),
+    JEWELLERY("JEWELLERY"),
+    HOME_KITCHEN("HOME_KITCHEN"),
+    FURNITURE("FURNITURE"),
+    TOYS_GIFTS("TOYS_GIFTS"),
+    SPORTS("SPORTS"),
+    PET_SUPPLIES("PET_SUPPLIES"),
+    FLOWERS("FLOWERS"),
+    PAAN_SHOP("PAAN_SHOP"),
+    GAS_WATER("GAS_WATER"),
+    AUTO_PARTS("AUTO_PARTS"),
+    OTHER("OTHER"),
     ;
 
     companion object {
         fun fromApi(value: String): ShopType =
-            entries.firstOrNull { it.apiValue.equals(value, ignoreCase = true) } ?: GENERAL_STORE
+            entries.firstOrNull { it.apiValue.equals(value.trim(), ignoreCase = true) } ?: OTHER
     }
 }
 

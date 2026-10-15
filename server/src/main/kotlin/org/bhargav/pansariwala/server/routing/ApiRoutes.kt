@@ -149,7 +149,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             val lng = call.parameters["lng"]?.toDoubleOrNull() ?: error("lng required")
             val radius = call.parameters["radiusKm"]?.toDoubleOrNull() ?: 20.0
             val query = call.parameters["query"].orEmpty()
-            call.respond(store.nearbyShops(lat, lng, radius, query))
+            val categories = call.parameters["category"].orEmpty()
+                .split(',').map { it.trim().uppercase() }.filter { it.isNotEmpty() }.toSet()
+            call.respond(store.nearbyShops(lat, lng, radius, query, categories))
         }
         get("/shops/{id}/catalog") {
             call.respond(store.catalog(call.parameters["id"]!!))
@@ -188,6 +190,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(store.rateOrder(call.userId(), call.parameters["id"]!!, body.stars, body.comment))
         }
 
+        get("/shop/payment-info") {
+            call.respond(withContext(Dispatchers.IO) { store.shopPaymentInfo(call.requireShopId()) })
+        }
         get("/shop/orders") {
             call.respond(withContext(Dispatchers.IO) { store.shopOrders(call.requireShopId()) })
         }
@@ -205,6 +210,14 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         post("/shop/orders/{id}/delivery") {
             val body = runCatching { call.receive<DeliveryRequest>() }.getOrNull()
             call.respond(store.requestDelivery(call.requireShopId(), call.parameters["id"]!!, body?.packedProductIds))
+        }
+        post("/shop/orders/{id}/self-delivery") {
+            val body = runCatching { call.receive<DeliveryRequest>() }.getOrNull()
+            call.respond(store.startSelfDelivery(call.requireShopId(), call.parameters["id"]!!, body?.packedProductIds))
+        }
+        post("/shop/orders/{id}/self-delivery/complete") {
+            val body = call.receive<DeliverRequest>()
+            call.respond(store.completeSelfDelivery(call.requireShopId(), call.parameters["id"]!!, body.otp))
         }
         post("/shop/orders/{id}/cancel") {
             val body = call.receive<ShopActionRequest>()
@@ -331,6 +344,8 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                     taxId = body.taxId,
                     operatingHours = body.operatingHours,
                     features = body.features,
+                    loginUsername = body.loginUsername,
+                    loginPassword = body.loginPassword,
                 ),
             )
         }
@@ -362,6 +377,8 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 lat = body.lat,
                 lng = body.lng,
                 operatingHours = body.operatingHours,
+                loginUsername = body.loginUsername,
+                loginPassword = body.loginPassword,
             )
             call.respond(OkResponse())
         }

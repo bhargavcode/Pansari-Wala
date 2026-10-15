@@ -2,7 +2,10 @@ package org.bhargav.pansariwala.api
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.plugins.auth.authProviders
 import io.ktor.client.plugins.auth.providers.BearerAuthProvider
 import io.ktor.client.plugins.auth.providers.BearerTokens
@@ -58,6 +61,17 @@ class KtorPansariApi(
             socketTimeoutMillis = AppConstants.HTTP_SOCKET_TIMEOUT_MS
         }
         install(ContentNegotiation) { json(json) }
+        HttpResponseValidator {
+            handleResponseExceptionWithRequest { cause, _ ->
+                val response = (cause as? ResponseException)?.response ?: return@handleResponseExceptionWithRequest
+                val text = runCatching { response.bodyAsText() }.getOrDefault("")
+                val serverMessage = runCatching { json.decodeFromString<ApiErrorBody>(text).error }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: response.status.description
+                throw ApiException(response.status.value, serverMessage)
+            }
+        }
         if (shouldInstallHttpLogging()) {
             install(Logging) { installPansariHttpLogging() }
         }
@@ -193,6 +207,9 @@ class KtorPansariApi(
     override suspend fun shopOnlineOrders(): List<Order> =
         client.get("shop/orders").body<List<OrderDto>>().map { it.toModel() }
 
+    override suspend fun shopPaymentInfo(): ShopPaymentInfoDto =
+        client.get("shop/payment-info").body()
+
     override suspend fun registerPushToken(token: String, platform: String, deviceId: String) {
         client.post("push/register") { setBody(PushRegisterRequest(token, platform, deviceId)) }.body<OkResponse>()
     }
@@ -217,6 +234,16 @@ class KtorPansariApi(
         client.post("shop/orders/$orderId/delivery") {
             setBody(DeliveryRequestDto(packedProductIds))
         }.body<DeliveryOfferDto>().toModel()
+
+    override suspend fun startSelfDelivery(orderId: String, packedProductIds: List<String>): Order =
+        client.post("shop/orders/$orderId/self-delivery") {
+            setBody(DeliveryRequestDto(packedProductIds))
+        }.body<OrderDto>().toModel()
+
+    override suspend fun completeSelfDelivery(orderId: String, otp: String): Order =
+        client.post("shop/orders/$orderId/self-delivery/complete") {
+            setBody(DeliverRequest(otp))
+        }.body<OrderDto>().toModel()
 
     override suspend fun cancelShopOrder(orderId: String, reason: String?): Order =
         client.post("shop/orders/$orderId/cancel") {

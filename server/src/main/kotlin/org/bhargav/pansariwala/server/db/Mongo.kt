@@ -241,6 +241,8 @@ data class OrderDoc(
     val partnerPayoutInr: Double? = null,
     val partnerProgress: String = "",
     val packedProductIds: List<String> = emptyList(),
+    /** PARTNER (platform delivery partner) or SELF (shop delivers itself). */
+    val deliveryMode: String = "PARTNER",
 )
 
 @Serializable
@@ -310,8 +312,8 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
             it.connectTimeout(5, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS)
         }
         .applyToConnectionPoolSettings {
-            it.minSize(2)
-                .maxSize(20)
+            it.minSize(5)
+                .maxSize(50)
                 .maxWaitTime(5, TimeUnit.SECONDS)
                 .maxConnectionIdleTime(10, TimeUnit.MINUTES)
         }
@@ -371,14 +373,41 @@ private fun ensureMasterAdmin(db: MongoDatabase, security: Security, config: Ser
     admins.deleteMany(and(eq("username", username), ne("_id", targetId)))
 }
 
+/** Keep ids in sync with client `ShopType` enum (shared/domain/model/Marketplace.kt). */
 private fun defaultShopTypes(): List<ShopTypeDoc> = listOf(
+    ShopTypeDoc("GROCERY", "Grocery / Kirana"),
     ShopTypeDoc("SUPERMARKET", "Supermarket"),
-    ShopTypeDoc("GROCERY", "Grocery"),
-    ShopTypeDoc("BOUTIQUE", "Boutique"),
     ShopTypeDoc("GENERAL_STORE", "General Store"),
-    ShopTypeDoc("MEDICAL_STORE", "Medical Store"),
-    ShopTypeDoc("HARDWARE", "Hardware"),
+    ShopTypeDoc("FRUITS_VEGETABLES", "Fruits & Vegetables"),
+    ShopTypeDoc("DAIRY", "Dairy & Milk"),
+    ShopTypeDoc("BAKERY", "Bakery"),
+    ShopTypeDoc("MEAT_FISH", "Meat & Fish"),
     ShopTypeDoc("SWEET_SHOP", "Sweet Shop"),
+    ShopTypeDoc("RESTAURANT", "Restaurant & Food"),
+    ShopTypeDoc("MEDICAL_STORE", "Medical / Pharmacy"),
+    ShopTypeDoc("AYURVEDIC", "Ayurvedic & Herbal"),
+    ShopTypeDoc("ORGANIC", "Organic Store"),
+    ShopTypeDoc("HARDWARE", "Hardware"),
+    ShopTypeDoc("ELECTRICAL", "Electrical"),
+    ShopTypeDoc("ELECTRONICS", "Electronics"),
+    ShopTypeDoc("MOBILE", "Mobile & Accessories"),
+    ShopTypeDoc("STATIONERY", "Stationery"),
+    ShopTypeDoc("BOOKS", "Books"),
+    ShopTypeDoc("CLOTHING", "Clothing"),
+    ShopTypeDoc("BOUTIQUE", "Boutique"),
+    ShopTypeDoc("FOOTWEAR", "Footwear"),
+    ShopTypeDoc("COSMETICS", "Cosmetics & Beauty"),
+    ShopTypeDoc("JEWELLERY", "Jewellery"),
+    ShopTypeDoc("HOME_KITCHEN", "Home & Kitchen"),
+    ShopTypeDoc("FURNITURE", "Furniture"),
+    ShopTypeDoc("TOYS_GIFTS", "Toys & Gifts"),
+    ShopTypeDoc("SPORTS", "Sports & Fitness"),
+    ShopTypeDoc("PET_SUPPLIES", "Pet Supplies"),
+    ShopTypeDoc("FLOWERS", "Flowers & Plants"),
+    ShopTypeDoc("PAAN_SHOP", "Paan Shop"),
+    ShopTypeDoc("GAS_WATER", "Gas & Water"),
+    ShopTypeDoc("AUTO_PARTS", "Auto Parts"),
+    ShopTypeDoc("OTHER", "Other"),
 )
 
 /** Prototype master-portal shops (ids match mockup table). */
@@ -432,11 +461,9 @@ private fun prototypeAdminShops(): List<ShopDoc> {
 
 private fun ensureShopTypes(db: MongoDatabase) {
     val col = db.getCollection<ShopTypeDoc>("master_shop_types")
-    defaultShopTypes().forEach { row ->
-        if (col.find(eq("_id", row.id)).firstOrNull() == null) {
-            col.insertOne(row)
-        }
-    }
+    val existing = col.find().toList().map { it.id }.toSet()
+    val missing = defaultShopTypes().filter { it.id !in existing }
+    if (missing.isNotEmpty()) col.insertMany(missing)
 }
 
 private fun ensurePrototypeShops(db: MongoDatabase) {
@@ -456,12 +483,21 @@ private fun ensureShopUpis(db: MongoDatabase) {
 }
 
 private fun ensureIndexes(db: MongoDatabase) {
-    db.getCollection<ShopUserDoc>("shop_users")
-        .createIndex(Indexes.ascending("username"), IndexOptions().unique(true))
-    db.getCollection<CustomerDoc>("customers")
-        .createIndex(Indexes.ascending("phone"), IndexOptions().unique(true))
-    db.getCollection<PartnerDoc>("partners")
-        .createIndex(Indexes.ascending("phone"), IndexOptions().unique(true))
+    db.getCollection<ShopUserDoc>("shop_users").apply {
+        createIndex(Indexes.ascending("username"), IndexOptions().unique(true))
+        createIndex(Indexes.ascending("shopId"))
+    }
+    db.getCollection<CustomerDoc>("customers").apply {
+        createIndex(Indexes.ascending("phone"), IndexOptions().unique(true))
+        createIndex(Indexes.descending("joinedAt"))
+    }
+    db.getCollection<PartnerDoc>("partners").apply {
+        createIndex(Indexes.ascending("phone"), IndexOptions().unique(true))
+        createIndex(Indexes.descending("joinedAt"))
+    }
+    db.getCollection<ShopDoc>("shops").createIndex(Indexes.ascending("active"))
+    db.getCollection<OfferDoc>("offers").createIndex(Indexes.ascending("shopId"))
+    db.getCollection<OtpDoc>("otp_challenges").createIndex(Indexes.ascending("phone"))
     db.getCollection<AdminUserDoc>("admin_users")
         .createIndex(Indexes.ascending("username"), IndexOptions().unique(true))
     db.getCollection<OrderDoc>("orders").apply {
@@ -469,6 +505,8 @@ private fun ensureIndexes(db: MongoDatabase) {
         createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.ascending("channel"), Indexes.descending("createdAt")))
         createIndex(Indexes.ascending("partnerId"))
         createIndex(Indexes.compoundIndex(Indexes.ascending("partnerId"), Indexes.ascending("status")))
+        createIndex(Indexes.descending("createdAt"))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.descending("createdAt")))
     }
     db.getCollection<TxnDoc>("transactions")
         .createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))
@@ -476,6 +514,7 @@ private fun ensureIndexes(db: MongoDatabase) {
         .createIndex(Indexes.ascending("shopId"))
     db.getCollection<DeliveryOfferDoc>("delivery_offers").apply {
         createIndex(Indexes.ascending("orderId"))
+        createIndex(Indexes.ascending("acceptedBy"))
         createIndex(Indexes.ascending("status"))
         createIndex(Indexes.compoundIndex(Indexes.ascending("status"), Indexes.ascending("expiresAt")))
     }

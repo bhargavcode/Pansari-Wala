@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.JwtAuthCache
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.TokenResponse
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.DeviceLocation
@@ -262,7 +264,7 @@ class AddressViewModel(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             val s = _state.value
-            if (requireName && s.name.isBlank()) {
+            if (requireName && s.name.trim().length < 2) {
                 _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_profile_required)) }
                 return@launch
             }
@@ -290,7 +292,8 @@ class AddressViewModel(
                 onDone()
             }
                 .onFailure { err ->
-                    _state.update { st -> st.copy(error = UiText.Plain(err.message.orEmpty())) }
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { st -> st.copy(error = err.toApiUiText()) }
                 }
             _state.update { it.copy(loading = false, lat = lat, lng = lng) }
         }

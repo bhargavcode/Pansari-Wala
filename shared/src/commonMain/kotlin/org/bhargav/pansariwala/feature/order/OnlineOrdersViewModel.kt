@@ -8,6 +8,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.userFacingServerMessage
+import org.bhargav.pansariwala.util.AppConstants
+import pansariwala.shared.generated.resources.error_otp_invalid
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.i18n.UiText
@@ -29,6 +33,10 @@ data class OnlineOrdersUiState(
     val customCancelReason: String = "",
     /** orderId → productIds checked into the delivery packet while PACKING. */
     val packedChecks: Map<String, Set<String>> = emptyMap(),
+    /** Order whose self-delivery is being completed; shows the OTP dialog. */
+    val selfDeliverOrderId: String? = null,
+    val selfDeliverOtp: String = "",
+    val selfDeliverError: UiText? = null,
 )
 
 /**
@@ -116,6 +124,53 @@ class OnlineOrdersViewModel(
         }
     }
 
+    fun startSelfDelivery(id: String) {
+        val order = _uiState.value.orders.firstOrNull { it.id == id } ?: return
+        // LOOKING_FOR_PARTNER: packet already confirmed server-side; checks were cleared on request.
+        val packed = _uiState.value.packedChecks[id].orEmpty()
+            .ifEmpty { order.packedProductIds }
+            .ifEmpty { order.items.map { it.productId }.toSet() }
+        runOrderAction(id) {
+            api.startSelfDelivery(id, packed.toList())
+            _uiState.update { it.copy(packedChecks = it.packedChecks - id) }
+        }
+    }
+
+    fun openSelfDeliverComplete(id: String) {
+        _uiState.update { it.copy(selfDeliverOrderId = id, selfDeliverOtp = "", selfDeliverError = null) }
+    }
+
+    fun dismissSelfDeliverComplete() {
+        _uiState.update { it.copy(selfDeliverOrderId = null, selfDeliverOtp = "", selfDeliverError = null) }
+    }
+
+    fun onSelfDeliverOtpChange(value: String) {
+        val digits = value.filter { it.isDigit() }.take(AppConstants.DELIVERY_OTP_LENGTH)
+        _uiState.update { it.copy(selfDeliverOtp = digits, selfDeliverError = null) }
+    }
+
+    fun confirmSelfDeliverComplete() {
+        val state = _uiState.value
+        val id = state.selfDeliverOrderId ?: return
+        if (state.selfDeliverOtp.length != AppConstants.DELIVERY_OTP_LENGTH) {
+            _uiState.update { it.copy(selfDeliverError = UiText.res(Res.string.error_otp_invalid)) }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(busyId = id) }
+            runCatching { api.completeSelfDelivery(id, state.selfDeliverOtp) }
+                .onSuccess {
+                    _uiState.update { it.copy(selfDeliverOrderId = null, selfDeliverOtp = "", selfDeliverError = null) }
+                }
+                .onFailure { error ->
+                    error.rethrowIfStructuredCancellation()
+                    _uiState.update { it.copy(selfDeliverError = mapOnlineOrdersError(error)) }
+                }
+            _uiState.update { it.copy(busyId = null) }
+            refresh(silent = true)
+        }
+    }
+
     fun openCancel(id: String) {
         _uiState.update {
             it.copy(
@@ -164,6 +219,7 @@ class OnlineOrdersViewModel(
 
     private fun mapOnlineOrdersError(error: Throwable): UiText {
         val message = error.message.orEmpty()
+        error.userFacingServerMessage()?.let { return UiText.Plain(it) }
         return if (message.contains("401") || message.contains("Unauthorized")) {
             UiText.res(Res.string.error_session_expired)
         } else {

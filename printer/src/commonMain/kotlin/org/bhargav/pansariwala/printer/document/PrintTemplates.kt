@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.printer.document
 
 import org.bhargav.pansariwala.printer.model.PrintAlignment
+import org.bhargav.pansariwala.printer.model.PrintFont
 import org.bhargav.pansariwala.printer.model.PrinterSettings
 import kotlin.math.abs
 import kotlin.math.roundToLong
@@ -184,6 +185,7 @@ object PrintTemplates {
         title(labels.testPrintTitle, scale = 1)
         divider()
         text(CHARSET_SAMPLE)
+        if (settings.font != PrintFont.PRINTER) text(INDIC_SAMPLE)
         sampleLines.forEachIndexed { index, line ->
             text(line, TEST_PAGE_STYLES[index % TEST_PAGE_STYLES.size])
         }
@@ -195,6 +197,10 @@ object PrintTemplates {
     }
 
     private const val CHARSET_SAMPLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789"
+
+    /** One word per major Indian script, to check the selected font on paper. */
+    private const val INDIC_SAMPLE =
+        "हिन्दी मराठी বাংলা ਪੰਜਾਬੀ ગુજરાતી ଓଡ଼ିଆ தமிழ் తెలుగు ಕನ್ನಡ മലയാളം اردو ₹"
 
     private val TEST_PAGE_STYLES = listOf(
         TextStyle(),

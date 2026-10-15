@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.platform
 
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.userFacingServerMessage
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
@@ -63,6 +64,9 @@ fun e164Phone(phone: String): String {
 
 fun mapPhoneAuthError(error: Throwable, verifying: Boolean): UiText {
     val msg = error.message.orEmpty()
+    error.userFacingServerMessage()
+        ?.takeUnless { containsAny(it, "Invalid OTP", "OTP expired") }
+        ?.let { return UiText.Plain(it) }
     return when {
         containsAny(msg, "invalid-phone", "ERROR_INVALID_PHONE_NUMBER", "Invalid format") ->
             UiText.res(Res.string.error_phone_invalid)

@@ -1,7 +1,15 @@
 package org.bhargav.pansariwala.master
 
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpResponseValidator
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
+import org.bhargav.pansariwala.util.AppConstants
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -19,15 +27,53 @@ import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.api.installPansariHttpLogging
 import org.bhargav.pansariwala.api.shouldInstallHttpLogging
 
-class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val client = createPlatformHttpClient().config {
+/** Server error with the API's `{"error": "..."}` message instead of Ktor's raw request dump. */
+class MasterApiException(message: String, val status: Int) : Exception(message)
+
+/** Session hooks shared by every screen; the shell sets [onExpired] to drop back to login on 401. */
+object MasterSession {
+    var onExpired: (() -> Unit)? = null
+}
+
+@Serializable private data class ApiErrorBody(val error: String = "")
+
+private val masterJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+/** One client for all screens: avoids a fresh connection pool per screen. */
+private val masterClient: HttpClient by lazy {
+    createPlatformHttpClient().config {
         expectSuccess = true
-        install(ContentNegotiation) { json(json) }
+        install(ContentNegotiation) { json(masterJson) }
+        install(HttpTimeout) {
+            connectTimeoutMillis = AppConstants.MasterWeb.CONNECT_TIMEOUT_MS
+            requestTimeoutMillis = AppConstants.MasterWeb.REQUEST_TIMEOUT_MS
+            socketTimeoutMillis = AppConstants.MasterWeb.REQUEST_TIMEOUT_MS
+        }
+        HttpResponseValidator {
+            handleResponseExceptionWithRequest { cause, request ->
+                val response = (cause as? ResponseException)?.response ?: return@handleResponseExceptionWithRequest
+                val status = response.status
+                if (status == HttpStatusCode.Unauthorized &&
+                    !request.url.encodedPath.endsWith(AppConstants.MasterWeb.LOGIN_PATH)
+                ) {
+                    MasterSession.onExpired?.invoke()
+                }
+                val text = runCatching { response.bodyAsText() }.getOrDefault("")
+                val message = runCatching { masterJson.decodeFromString<ApiErrorBody>(text).error }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: status.description
+                throw MasterApiException(message, status.value)
+            }
+        }
         if (shouldInstallHttpLogging()) {
             install(Logging) { installPansariHttpLogging() }
         }
     }
+}
+
+class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
+    private val client get() = masterClient
 
     private fun url(path: String) = baseUrl.trimEnd('/') + path
 
@@ -75,6 +121,10 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
     ): UploadResultDto =
         client.post(url("/admin/uploads")) {
             bearer(token)
+            timeout {
+                requestTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+                socketTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+            }
             parameter("prefix", prefix.trim('/'))
             setBody(
                 io.ktor.client.request.forms.MultiPartFormDataContent(
@@ -140,6 +190,8 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         lat: Double? = null,
         lng: Double? = null,
         operatingHours: List<ShopHoursDayDto>? = null,
+        loginUsername: String? = null,
+        loginPassword: String? = null,
     ) {
         client.post(url("/admin/shops/$id")) {
             bearer(token)
@@ -148,7 +200,7 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
                 ShopPatch(
                     active, paymentsEnabled, features, imageUrl, name, address, shopType,
                     ownerName, ownerPhone, ownerEmail, city, state, zip, country,
-                    registrationNumber, taxId, lat, lng, operatingHours,
+                    registrationNumber, taxId, lat, lng, operatingHours, loginUsername, loginPassword,
                 ),
             )
         }
@@ -354,6 +406,7 @@ data class ShopDto(
     val registrationNumber: String = "",
     val taxId: String = "",
     val operatingHours: List<ShopHoursDayDto> = emptyList(),
+    val loginUsername: String = "",
 )
 
 @Serializable
@@ -385,6 +438,8 @@ data class ShopPatch(
     val lat: Double? = null,
     val lng: Double? = null,
     val operatingHours: List<ShopHoursDayDto>? = null,
+    val loginUsername: String? = null,
+    val loginPassword: String? = null,
 )
 
 @Serializable
@@ -407,6 +462,8 @@ data class ShopCreate(
     val taxId: String = "",
     val operatingHours: List<ShopHoursDayDto> = emptyList(),
     val features: ShopFeaturesDto? = null,
+    val loginUsername: String = "",
+    val loginPassword: String = "",
 )
 
 @Serializable

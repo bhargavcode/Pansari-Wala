@@ -45,8 +45,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -66,9 +70,15 @@ import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.bhargav.pansariwala.navigateToLanding
 import org.bhargav.pansariwala.theme.PansariTheme
 import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.webSessionGet
+import org.bhargav.pansariwala.webSessionRemove
+import org.bhargav.pansariwala.webSessionSet
 import org.bhargav.pansariwala.webStorageGet
 import org.bhargav.pansariwala.webStorageRemove
 import org.bhargav.pansariwala.webStorageSet
+import pansariwala.shared.generated.resources.master_login_required
+import pansariwala.shared.generated.resources.master_network_error
+import pansariwala.shared.generated.resources.master_session_expired
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.login_password
@@ -94,37 +104,51 @@ import pansariwala.shared.generated.resources.master_request_access
 
 @Composable
 fun MasterAdminApp() {
-    var token by rememberSaveable {
-        mutableStateOf(webStorageGet(AppConstants.MasterWeb.TOKEN_STORAGE_KEY))
+    val tokenKey = AppConstants.MasterWeb.TOKEN_STORAGE_KEY
+    var token by remember {
+        mutableStateOf(webStorageGet(tokenKey) ?: webSessionGet(tokenKey))
+    }
+    var sessionExpired by remember { mutableStateOf(false) }
+    fun clearSession() {
+        webStorageRemove(tokenKey)
+        webSessionRemove(tokenKey)
+        token = null
+    }
+    DisposableEffect(Unit) {
+        MasterSession.onExpired = {
+            if (token != null) sessionExpired = true
+            clearSession()
+        }
+        onDispose { MasterSession.onExpired = null }
     }
     PansariTheme {
         if (token.isNullOrBlank()) {
             MasterLoginScreen(
+                sessionExpired = sessionExpired,
                 onLoggedIn = { access, rememberMe, username ->
                     if (rememberMe) {
-                        webStorageSet(AppConstants.MasterWeb.TOKEN_STORAGE_KEY, access)
+                        webStorageSet(tokenKey, access)
+                        webSessionRemove(tokenKey)
                         webStorageSet(AppConstants.MasterWeb.REMEMBER_USER_KEY, username)
                     } else {
-                        webStorageRemove(AppConstants.MasterWeb.TOKEN_STORAGE_KEY)
+                        webStorageRemove(tokenKey)
+                        webSessionSet(tokenKey, access)
                         webStorageRemove(AppConstants.MasterWeb.REMEMBER_USER_KEY)
                     }
+                    sessionExpired = false
                     token = access
                 },
             )
         } else {
-            MasterShell(
-                token = token!!,
-                onLogout = {
-                    webStorageRemove(AppConstants.MasterWeb.TOKEN_STORAGE_KEY)
-                    token = null
-                },
-            )
+            key(token) {
+                MasterShell(token = token!!, onLogout = ::clearSession)
+            }
         }
     }
 }
 
 @Composable
-private fun MasterLoginScreen(onLoggedIn: (String, Boolean, String) -> Unit) {
+private fun MasterLoginScreen(sessionExpired: Boolean, onLoggedIn: (String, Boolean, String) -> Unit) {
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
     var username by rememberSaveable {
@@ -177,26 +201,51 @@ private fun MasterLoginScreen(onLoggedIn: (String, Boolean, String) -> Unit) {
                     Checkbox(rememberMe, { rememberMe = it })
                     Text(stringResource(Res.string.master_remember_me))
                 }
+                if (sessionExpired && error == null) {
+                    Text(
+                        stringResource(Res.string.master_session_expired),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 if (error != null) {
                     Text(error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
                 if (hint != null) {
                     Text(hint!!, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 }
+                val requiredMsg = stringResource(Res.string.master_login_required)
+                val networkMsg = stringResource(Res.string.master_network_error)
                 Button(
                     enabled = !busy,
                     onClick = {
+                        if (username.isBlank() || password.isBlank()) {
+                            error = requiredMsg
+                            return@Button
+                        }
                         busy = true
                         error = null
                         scope.launch {
-                            runCatching { api.login(username.trim(), password) }
-                                .onSuccess { onLoggedIn(it.accessToken, rememberMe, username.trim()) }
-                                .onFailure { error = it.message ?: "error" }
-                            busy = false
+                            try {
+                                val res = api.login(username.trim(), password)
+                                onLoggedIn(res.accessToken, rememberMe, username.trim())
+                            } catch (e: MasterApiException) {
+                                error = e.message
+                            } catch (e: Exception) {
+                                error = networkMsg
+                            } finally {
+                                busy = false
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.login_sign_in)) }
+                ) {
+                    if (busy) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(stringResource(Res.string.login_sign_in))
+                    }
+                }
                 val loginHint = stringResource(Res.string.master_login_hint)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = { hint = loginHint }) {

@@ -35,6 +35,13 @@ if [[ ! -f "$DIST_DIR/index.html" ]]; then
   fi
 fi
 
+# Bust browser caches per deploy: webApp.js has no content hash in its filename.
+BUILD_STAMP="${GITHUB_SHA:-$(date +%s)}"
+BUILD_STAMP="${BUILD_STAMP:0:12}"
+sed -i.bak -E "s#src=\"webApp\.js(\?v=[^\"]*)?\"#src=\"webApp.js?v=${BUILD_STAMP}\"#" "$DIST_DIR/index.html"
+sed -i.bak -E "s#href=\"styles\.css(\?v=[^\"]*)?\"#href=\"styles.css?v=${BUILD_STAMP}\"#" "$DIST_DIR/index.html"
+rm -f "$DIST_DIR/index.html.bak"
+
 echo "Trusting host key for ${EC2_HOST}"
 : > "$KNOWN_HOSTS"
 ssh-keyscan -T 20 -H "$EC2_HOST" >> "$KNOWN_HOSTS" 2>/dev/null || true

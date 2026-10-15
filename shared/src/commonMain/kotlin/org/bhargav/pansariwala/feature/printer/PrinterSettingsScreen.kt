@@ -70,6 +70,7 @@ import org.bhargav.pansariwala.printer.model.DitherMode
 import org.bhargav.pansariwala.printer.model.MonoBitmap
 import org.bhargav.pansariwala.printer.model.PaperWidth
 import org.bhargav.pansariwala.printer.model.PrintAlignment
+import org.bhargav.pansariwala.printer.model.PrintFont
 import org.bhargav.pansariwala.printer.model.PrintFontSize
 import org.bhargav.pansariwala.printer.model.PrintHeaderFooter
 import org.bhargav.pansariwala.printer.model.PrinterConnectionState
@@ -115,7 +116,16 @@ import pansariwala.shared.generated.resources.printer_dither_threshold
 import pansariwala.shared.generated.resources.printer_feed_lines
 import pansariwala.shared.generated.resources.printer_find_section
 import pansariwala.shared.generated.resources.printer_find_subtitle
+import pansariwala.shared.generated.resources.printer_font
+import pansariwala.shared.generated.resources.printer_font_auto
+import pansariwala.shared.generated.resources.printer_font_builtin
+import pansariwala.shared.generated.resources.printer_font_hint_auto
+import pansariwala.shared.generated.resources.printer_font_hint_builtin
+import pansariwala.shared.generated.resources.printer_font_hint_device
 import pansariwala.shared.generated.resources.printer_font_large
+import pansariwala.shared.generated.resources.printer_font_mono
+import pansariwala.shared.generated.resources.printer_font_sans
+import pansariwala.shared.generated.resources.printer_font_serif
 import pansariwala.shared.generated.resources.printer_font_normal
 import pansariwala.shared.generated.resources.printer_font_size
 import pansariwala.shared.generated.resources.printer_font_small
@@ -502,6 +512,32 @@ private fun PaperSection(settings: PrinterSettings, viewModel: PrinterSettingsVi
                 }
             },
             onSelect = { size -> viewModel.update { it.copy(fontSize = size) } },
+        )
+        Label(Res.string.printer_font)
+        Choices(
+            options = PrintFont.entries,
+            selected = settings.font,
+            label = {
+                when (it) {
+                    PrintFont.AUTO -> Res.string.printer_font_auto
+                    PrintFont.PRINTER -> Res.string.printer_font_builtin
+                    PrintFont.SANS -> Res.string.printer_font_sans
+                    PrintFont.SERIF -> Res.string.printer_font_serif
+                    PrintFont.MONOSPACE -> Res.string.printer_font_mono
+                }
+            },
+            onSelect = { font -> viewModel.update { it.copy(font = font) } },
+        )
+        Text(
+            text = stringResource(
+                when (settings.font) {
+                    PrintFont.AUTO -> Res.string.printer_font_hint_auto
+                    PrintFont.PRINTER -> Res.string.printer_font_hint_builtin
+                    else -> Res.string.printer_font_hint_device
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         SliderRow(
             label = stringResource(Res.string.printer_chars_per_line),
