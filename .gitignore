@@ -22,3 +22,4 @@ node_modules/
 server/data/
 *.jks
 *.keystore
+scripts/.catalog-cache/

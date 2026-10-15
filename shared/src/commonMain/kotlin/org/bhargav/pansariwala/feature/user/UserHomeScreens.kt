@@ -93,9 +93,6 @@ import pansariwala.shared.generated.resources.market_radius_range
 import pansariwala.shared.generated.resources.market_search_products
 import pansariwala.shared.generated.resources.market_shop_type_all
 import pansariwala.shared.generated.resources.market_shop_types
-import pansariwala.shared.generated.resources.market_sort_by
-import pansariwala.shared.generated.resources.market_sort_nearest
-import pansariwala.shared.generated.resources.market_sort_top_rated
 import pansariwala.shared.generated.resources.market_sort_distance_asc
 import pansariwala.shared.generated.resources.market_sort_distance_desc
 import pansariwala.shared.generated.resources.market_sort_name_asc
@@ -108,6 +105,7 @@ import pansariwala.shared.generated.resources.profile_setup_title
 import pansariwala.shared.generated.resources.settings_language_card
 import pansariwala.shared.generated.resources.settings_notification_card
 import pansariwala.shared.generated.resources.settings_radius
+import pansariwala.shared.generated.resources.settings_radius_value
 import pansariwala.shared.generated.resources.settings_theme_card
 import pansariwala.shared.generated.resources.user_location_access_action
 import pansariwala.shared.generated.resources.user_location_access_continue
@@ -428,35 +426,13 @@ fun MarketScreen(
                     onClick = viewModel::selectAllShopTypes,
                     label = { Text(stringResource(Res.string.market_shop_type_all)) },
                 )
-                val nearbyTypes = state.allShops.map { it.shopType }.toSet() + state.selectedShopTypes
-                ShopType.entries.filter { it in nearbyTypes }.forEach { type ->
+                ShopType.entries.forEach { type ->
                     FilterChip(
                         selected = type in state.selectedShopTypes,
                         onClick = { viewModel.toggleShopType(type) },
                         label = { Text(shopTypeLabel(type)) },
                     )
                 }
-            }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(Res.string.market_sort_by),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                FilterChip(
-                    selected = state.sortOption == ShopSortOption.DISTANCE_ASC,
-                    onClick = { viewModel.setSortOption(ShopSortOption.DISTANCE_ASC) },
-                    label = { Text(stringResource(Res.string.market_sort_nearest)) },
-                )
-                FilterChip(
-                    selected = state.sortOption == ShopSortOption.RATING_DESC,
-                    onClick = { viewModel.setSortOption(ShopSortOption.RATING_DESC) },
-                    label = { Text(stringResource(Res.string.market_sort_top_rated)) },
-                )
             }
           } }
             if (state.shops.isEmpty() && !state.loading) {
@@ -554,6 +530,11 @@ fun UserSettingsHub(
     viewModel: UserSettingsViewModel = koinViewModel(),
 ) {
     val radius by viewModel.radius.collectAsStateWithLifecycle(AppConstants.DEFAULT_SEARCH_RADIUS_KM)
+    var draftRadius by remember(radius) { mutableStateOf(radius.toFloat()) }
+    val radiusSteps = remember {
+        ((AppConstants.MAX_SEARCH_RADIUS_KM - AppConstants.MIN_SEARCH_RADIUS_KM) / AppConstants.SEARCH_RADIUS_STEP_KM)
+            .roundToInt() - 1
+    }
     val settings by viewModel.settings.collectAsStateWithLifecycle(org.bhargav.pansariwala.settings.AppUserSettings())
     PansariScreen {
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
@@ -563,12 +544,24 @@ fun UserSettingsHub(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 12.dp),
         )
-        SectionCard(title = stringResource(Res.string.settings_radius)) {
+        SectionCard(
+            title = stringResource(Res.string.settings_radius),
+            action = {
+                Text(
+                    stringResource(Res.string.settings_radius_value, draftRadius.roundToInt().toString()),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            },
+        ) {
             Text(stringResource(Res.string.market_radius_range, AppConstants.MIN_SEARCH_RADIUS_KM.roundToInt().toString(), AppConstants.MAX_SEARCH_RADIUS_KM.roundToInt().toString()))
             Slider(
-                value = radius.toFloat(),
-                onValueChange = { viewModel.setRadius(it.toDouble()) },
+                value = draftRadius,
+                onValueChange = { draftRadius = it.roundToInt().toFloat() },
+                onValueChangeFinished = { viewModel.setRadius(draftRadius.toDouble()) },
                 valueRange = AppConstants.MIN_SEARCH_RADIUS_KM.toFloat()..AppConstants.MAX_SEARCH_RADIUS_KM.toFloat(),
+                steps = radiusSteps,
             )
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

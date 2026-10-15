@@ -4,7 +4,9 @@ import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.exists
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.regex
+import com.mongodb.client.model.Filters.gt
 import com.mongodb.client.model.Filters.gte
+import com.mongodb.client.model.Updates.inc
 import com.mongodb.client.model.Filters.`in`
 import com.mongodb.client.model.Filters.or
 import com.mongodb.client.model.Filters.lt
@@ -27,7 +29,7 @@ import org.bhargav.pansariwala.server.db.CustomerAddressDoc
 import org.bhargav.pansariwala.server.db.CustomerDoc
 import org.bhargav.pansariwala.server.db.DeliveryOfferDoc
 import org.bhargav.pansariwala.server.db.MasterProductDoc
-import org.bhargav.pansariwala.server.db.MasterProductVariantDoc
+import org.bhargav.pansariwala.server.db.ProductVariantDoc
 import org.bhargav.pansariwala.server.db.MongoApp
 import org.bhargav.pansariwala.server.db.OfferDoc
 import org.bhargav.pansariwala.server.db.OrderDoc
@@ -64,7 +66,8 @@ import org.bhargav.pansariwala.server.dto.MasterCategoryDto
 import org.bhargav.pansariwala.server.dto.MasterCategoryUpsert
 import org.bhargav.pansariwala.server.dto.MasterProductDto
 import org.bhargav.pansariwala.server.dto.MasterProductUpsert
-import org.bhargav.pansariwala.server.dto.MasterProductVariantDto
+import org.bhargav.pansariwala.server.dto.ProductVariantDto
+import org.bhargav.pansariwala.server.dto.MasterProductPageDto
 import org.bhargav.pansariwala.server.dto.OfferDto
 import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
@@ -78,6 +81,9 @@ import org.bhargav.pansariwala.server.dto.PartnerRegisterRequest
 import org.bhargav.pansariwala.server.dto.PlaceOrderItemDto
 import org.bhargav.pansariwala.server.dto.PlaceOrderRequest
 import org.bhargav.pansariwala.server.dto.ProductDto
+import org.bhargav.pansariwala.server.dto.CatalogSectionDto
+import org.bhargav.pansariwala.server.dto.ProductDetailDto
+import org.bhargav.pansariwala.server.dto.ProductPageDto
 import org.bhargav.pansariwala.server.dto.QuoteDto
 import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RazorpayOrderDto
@@ -88,8 +94,11 @@ import org.bhargav.pansariwala.server.dto.ShopFeaturesDto
 import org.bhargav.pansariwala.server.dto.ShopReviewDto
 import org.bhargav.pansariwala.server.dto.ShopTypeDto
 import org.bhargav.pansariwala.server.dto.ShopTypeUpsert
+import org.bhargav.pansariwala.server.dto.OfflineOrderAck
 import org.bhargav.pansariwala.server.dto.SyncPullResponse
 import org.bhargav.pansariwala.server.dto.SyncPushRequest
+import org.bhargav.pansariwala.server.dto.SyncPushResponse
+import org.bhargav.pansariwala.server.dto.SyncOrdersPage
 import org.bhargav.pansariwala.server.dto.ShopPaymentInfoDto
 import org.bhargav.pansariwala.server.dto.TokenResponse
 import org.bhargav.pansariwala.server.dto.TxnDto
@@ -111,6 +120,16 @@ import com.mongodb.client.model.Accumulators
 import com.mongodb.client.model.Aggregates
 
 private const val QUERY_MAX_MS = 8_000L
+private const val POS_SYNC_PAGE_MAX = 500
+private const val MAX_CATALOG_PAGE_SIZE = 50
+private const val MAX_MASTER_PAGE_SIZE = 100
+private const val VARIANT_PACK = "PACK"
+private const val VARIANT_LOOSE = "LOOSE"
+private const val VARIANT_BUNDLE = "BUNDLE"
+private val VARIANT_SELL_MODES = setOf(VARIANT_PACK, VARIANT_LOOSE, VARIANT_BUNDLE)
+private const val DEFAULT_LOOSE_STEP = 0.05
+private const val QTY_EPSILON = 1e-6
+private val LOOSE_UNITS = setOf("KG", "LITRE", "GRAM")
 private const val PARTNER_RING_KM = 8.0
 /** How long an unpicked job stays listable for partners in range (not the 15s accept UI flash). */
 private const val OFFER_TTL_MS = 5 * 60_000L
@@ -411,31 +430,123 @@ class AppStore(
         val offerCounts = offerCountCol.aggregate(
             listOf(Aggregates.group("\$shopId", Accumulators.sum("n", 1))),
         ).toList().associate { it.getString("_id") to (it.getInteger("n") ?: 0) }
-        return shopCol.find(shopFilter).toList().map { row ->
-            val dist = haversine(lat, lng, row.lat, row.lng)
-            ShopDto(
-                id = row.id,
-                name = row.name,
-                imageUrl = assets.toUrlOrNull(row.imageUrl),
-                rating = row.rating,
-                ratingCount = row.ratingCount,
-                distanceKm = dist,
-                isOpen = row.isOpen,
-                lat = row.lat,
-                lng = row.lng,
-                offerCount = offerCounts[row.id] ?: 0,
-                discountPercent = row.discountPercent,
-                upiId = row.upiId.ifBlank { config.defaultShopUpi },
-                deliveryRadiusKm = row.deliveryRadiusKm,
-                shopType = row.shopType,
-            )
-        }.filter { it.distanceKm <= radiusKm && it.distanceKm <= it.deliveryRadiusKm }
+        // Customer radius decides visibility; the shop's own delivery radius only flags deliverability,
+        // otherwise a shop with a small delivery radius silently disappears from a wider search.
+        return shopCol.find(shopFilter).toList()
+            .map { it.toCustomerDto(lat, lng, offerCounts[it.id] ?: 0) }
+            .filter { it.distanceKm <= radiusKm }
             .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
             .sortedBy { it.distanceKm }
     }
 
+    fun shopForCustomer(shopId: String, lat: Double, lng: Double): ShopDto {
+        val offerCount = offerCol.countDocuments(eq("shopId", shopId)).toInt()
+        return shopById(shopId).toCustomerDto(lat, lng, offerCount)
+    }
+
+    private fun ShopDoc.toCustomerDto(lat: Double, lng: Double, offerCount: Int): ShopDto {
+        val dist = haversine(lat, lng, this.lat, this.lng)
+        return ShopDto(
+            id = id,
+            name = name,
+            imageUrl = assets.toUrlOrNull(imageUrl),
+            rating = rating,
+            ratingCount = ratingCount,
+            distanceKm = dist,
+            isOpen = isOpen,
+            lat = this.lat,
+            lng = this.lng,
+            offerCount = offerCount,
+            discountPercent = discountPercent,
+            upiId = upiId.ifBlank { config.defaultShopUpi },
+            deliveryRadiusKm = deliveryRadiusKm,
+            shopType = shopType,
+            deliversToYou = dist <= deliveryRadiusKm,
+        )
+    }
+
     fun catalog(shopId: String): List<ProductDto> =
         productCol.find(eq("shopId", shopId)).toList().map { it.toDto() }
+
+    private fun productFilter(shopId: String, category: String?, query: String): Bson {
+        val parts = mutableListOf(eq("shopId", shopId))
+        if (!category.isNullOrBlank()) parts += eq("category", category)
+        val q = query.trim()
+        if (q.isNotEmpty()) {
+            val pattern = java.util.regex.Pattern.quote(q)
+            parts += or(
+                regex("name", pattern, "i"),
+                regex("nameHi", pattern, "i"),
+                regex("voiceAlias", pattern, "i"),
+                eq("barcode", q),
+            )
+        }
+        return and(parts)
+    }
+
+    /** Per-category totals with a small preview, so the shop home never loads the full catalog. */
+    fun catalogSections(shopId: String, query: String, previewSize: Int): List<CatalogSectionDto> {
+        val filter = productFilter(shopId, null, query)
+        val limit = previewSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
+        return productCol.aggregate(
+            listOf(Aggregates.match(filter), Aggregates.group("\$category", Accumulators.sum("n", 1))),
+            Document::class.java,
+        ).toList().mapNotNull { row ->
+            val category = row.getString("_id") ?: return@mapNotNull null
+            val preview = productCol.find(productFilter(shopId, category, query))
+                .sort(Sorts.ascending("name", "_id"))
+                .limit(limit)
+                .toList()
+                .map { it.toDto() }
+            CatalogSectionDto(category, row.getInteger("n") ?: preview.size, preview)
+        }.sortedByDescending { it.totalCount }
+    }
+
+    fun catalogPage(shopId: String, category: String?, query: String, page: Int, pageSize: Int): ProductPageDto {
+        val size = pageSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
+        val safePage = page.coerceAtLeast(0)
+        val filter = productFilter(shopId, category, query)
+        val total = productCol.countDocuments(filter).toInt()
+        val items = productCol.find(filter)
+            .sort(Sorts.ascending("name", "_id"))
+            .skip(safePage * size)
+            .limit(size)
+            .toList()
+            .map { it.toDto() }
+        return ProductPageDto(
+            items = items,
+            page = safePage,
+            pageSize = size,
+            totalCount = total,
+            hasMore = (safePage + 1) * size < total,
+        )
+    }
+
+    fun shopProductDetail(shopId: String, productId: String): ProductDetailDto {
+        val product = productCol.find(and(eq("_id", productId), eq("shopId", shopId))).firstOrNull()
+            ?: error("Product not found")
+        val master = product.barcode?.takeIf { it.isNotBlank() }
+            ?.let { masterProductCol.find(eq("barcode", it)).firstOrNull() }
+            ?: masterProductCol.find(
+                regex("name", "^${java.util.regex.Pattern.quote(product.name.trim())}$", "i"),
+            ).firstOrNull()
+        val dto = product.toDto()
+        val images = dto.imageUrls.ifEmpty {
+            master?.let { assets.toUrls(normalizeProductImageUrls(it.imageUrls, it.imageUrl, it.thumbnailUrl)) }
+                .orEmpty()
+        }
+        return ProductDetailDto(
+            product = dto.copy(imageUrls = images),
+            brandName = master?.brandName.orEmpty(),
+            companyName = master?.companyName.orEmpty(),
+            description = master?.description.orEmpty(),
+            sku = master?.sku.orEmpty(),
+            tags = master?.tags.orEmpty(),
+            weightKg = master?.weightKg ?: 0.0,
+            dimensions = master?.dimensions.orEmpty(),
+            variants = dto.variants,
+        )
+    }
 
     fun offers(shopId: String): List<OfferDto> =
         liveOffers(shopId).map {
@@ -448,11 +559,7 @@ class AppStore(
     fun quote(userId: String, request: QuoteRequest): QuoteDto {
         me(userId)
         val shop = shopById(request.shopId)
-        val catalog = catalog(request.shopId).associateBy { it.id }
-        val lines = request.items.map { line ->
-            val product = catalog[line.productId] ?: error("Unknown product")
-            line.productId to product.sellingPrice * line.quantity
-        }
+        val lines = resolveLines(request.shopId, request.items).map { it.product.id to it.lineTotal }
         val subtotal = lines.sumOf { it.second }
         val dist = haversine(request.userLat, request.userLng, shop.lat, shop.lng)
         val discount = offerDiscount(liveOffers(request.shopId), lines, subtotal, shop.discountPercent)
@@ -471,12 +578,62 @@ class AppStore(
         val drop = resolveDrop(customer, request)
         val dist = haversine(drop.lat, drop.lng, shop.lat, shop.lng)
         require(dist <= shop.deliveryRadiusKm) { "Out of shop delivery range" }
-        val catalog = catalog(request.shopId).associateBy { it.id }
-        request.items.forEach { line ->
-            val product = catalog[line.productId] ?: error("Unknown product")
-            require(product.stockQty >= line.quantity) { "${product.name} is out of stock" }
-        }
+        resolveLines(request.shopId, request.items)
+            .groupBy { it.product.id to it.variant?.id }
+            .values
+            .forEach { group ->
+                val first = group.first()
+                require(first.available + QTY_EPSILON >= group.sumOf { it.quantity }) { "${first.displayName} is out of stock" }
+            }
         return customer
+    }
+
+    private data class ResolvedLine(val product: ProductDoc, val variant: ProductVariantDoc?, val quantity: Double) {
+        val unitPrice: Double get() = variant?.price ?: product.sellingPrice
+        val lineTotal: Double get() = unitPrice * quantity
+        val available: Double get() = variant?.stockQty ?: product.stockQty
+        val displayName: String get() = variant?.let { "${product.name} (${it.name})" } ?: product.name
+    }
+
+    /** Prices every cart line from the shop's own catalog; [PlaceOrderItemDto.variantId] picks the option. */
+    private fun resolveLines(shopId: String, items: List<PlaceOrderItemDto>): List<ResolvedLine> {
+        val ids = items.map { it.productId }.distinct()
+        val products = productCol.find(and(eq("shopId", shopId), `in`("_id", ids))).toList().associateBy { it.id }
+        return items.map { line ->
+            val product = products[line.productId] ?: error("Unknown product")
+            val variant = line.variantId?.takeIf { it.isNotBlank() }?.let { vid ->
+                product.variants.firstOrNull { it.id == vid && it.active } ?: error("${product.name}: option unavailable")
+            }
+            require(line.quantity > 0) { "Invalid quantity" }
+            val loose = variant?.sellMode == VARIANT_LOOSE || (variant == null && isLooseUnit(product.unit))
+            if (loose && variant != null) {
+                require(line.quantity + QTY_EPSILON >= variant.minQty) { "${product.name}: below minimum quantity" }
+                require(variant.maxQty <= 0 || line.quantity <= variant.maxQty + QTY_EPSILON) {
+                    "${product.name}: above maximum quantity"
+                }
+            } else if (!loose) {
+                require(kotlin.math.abs(line.quantity - kotlin.math.round(line.quantity)) < QTY_EPSILON) { "Invalid quantity" }
+            }
+            ResolvedLine(product, variant, line.quantity)
+        }
+    }
+
+    private fun isLooseUnit(unit: String): Boolean = unit.uppercase() in LOOSE_UNITS
+
+    private fun deductStock(lines: List<ResolvedLine>) {
+        lines.groupBy { it.product.id to it.variant?.id }.values.forEach { group ->
+            val first = group.first()
+            val left = (first.available - group.sumOf { it.quantity }).coerceAtLeast(0.0)
+            val variant = first.variant
+            if (variant == null) {
+                productCol.updateOne(eq("_id", first.product.id), set("stockQty", left))
+            } else {
+                productCol.updateOne(
+                    and(eq("_id", first.product.id), eq("variants.id", variant.id)),
+                    set("variants.$.stockQty", left),
+                )
+            }
+        }
     }
 
     suspend fun createRazorpay(userId: String, request: CreateRazorpayRequest): RazorpayOrderDto {
@@ -512,19 +669,26 @@ class AppStore(
         val shop = shopById(request.shopId)
         val shopUpi = shop.upiId.ifBlank { config.defaultShopUpi }
         val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng))
-        val catalog = catalog(request.shopId).associateBy { it.id }
-        val items = request.items.map { line ->
-            val product = catalog[line.productId]!!
-            OrderItemDto(product.id, product.name, product.unit, line.quantity, product.sellingPrice)
+        val resolved = resolveLines(request.shopId, request.items)
+        val items = resolved.map { line ->
+            val image = (line.variant?.imageUrls.orEmpty() + line.product.imageUrls).firstOrNull { assets.isValidRef(it) }
+            OrderItemDto(
+                productId = line.product.id,
+                productName = line.product.name,
+                unit = line.variant?.baseUnit?.takeIf { line.variant.sellMode == VARIANT_LOOSE } ?: line.product.unit,
+                quantity = line.quantity,
+                unitPrice = line.unitPrice,
+                imageUrl = image?.let { assets.toUrl(it) },
+                variantId = line.variant?.id,
+                variantLabel = line.variant?.name,
+                sellMode = line.variant?.sellMode,
+            )
         }
         val id = security.newOrderId()
         val otp = security.deliveryOtp()
         val now = System.currentTimeMillis()
         val paymentMethod = if (request.razorpayPaymentId.isNullOrBlank()) "COD" else "ONLINE"
-        request.items.forEach { line ->
-            val left = (catalog[line.productId]!!.stockQty - line.quantity).coerceAtLeast(0.0)
-            productCol.updateOne(eq("_id", line.productId), set("stockQty", left))
-        }
+        deductStock(resolved)
         orderCol.insertOne(
             OrderDoc(
                 id = id,
@@ -1267,7 +1431,7 @@ class AppStore(
         masterProducts = masterProducts(),
     )
 
-    fun pushSync(shopId: String, request: SyncPushRequest) {
+    fun pushSync(shopId: String, request: SyncPushRequest): SyncPushResponse {
         request.products.filter { it.shopId == shopId }.forEach { product ->
             productCol.replaceOne(
                 eq("_id", product.id),
@@ -1275,13 +1439,126 @@ class AppStore(
                 ReplaceOptions().upsert(true),
             )
         }
+        // Bills before products: a pushed product carries the device stock, which already includes its bills.
+        val accepted = ArrayList<OfflineOrderAck>(request.offlineOrders.size)
+        for (envelope in request.offlineOrders) {
+            val order = envelope.order
+            if (envelope.revision <= 0L || order.id.isBlank() || order.shopId != shopId) continue
+            if (order.channel != "POS") continue
+            val existing = orderCol.find(eq("_id", order.id)).firstOrNull()
+            if (existing != null && (existing.channel != "POS" || existing.shopId != shopId)) continue
+            val stored = orderCol.replaceOne(
+                eq("_id", order.id),
+                order.toPosDoc(System.currentTimeMillis()),
+                ReplaceOptions().upsert(true),
+            )
+            if (stored.wasAcknowledged()) {
+                applyPosStockDelta(shopId, existing, order)
+                accepted += OfflineOrderAck(order.id, envelope.revision)
+            }
+        }
+        val acceptedProducts = ArrayList<OfflineOrderAck>(request.offlineProducts.size)
+        for (envelope in request.offlineProducts) {
+            val product = envelope.product
+            if (envelope.revision <= 0L || product.id.isBlank() || product.shopId != shopId) continue
+            val existing = productCol.find(eq("_id", product.id)).firstOrNull()
+            if (existing != null && existing.shopId != shopId) continue
+            val stored = productCol.replaceOne(eq("_id", product.id), product.toDoc(), ReplaceOptions().upsert(true))
+            if (stored.wasAcknowledged()) acceptedProducts += OfflineOrderAck(product.id, envelope.revision)
+        }
+        return SyncPushResponse(accepted, acceptedProducts)
     }
+
+    /** POS bills (any device) changed after [since]/[afterId], oldest write first. */
+    fun posOrdersSince(shopId: String, since: Long, afterId: String, limit: Int): SyncOrdersPage {
+        val size = limit.coerceIn(1, POS_SYNC_PAGE_MAX)
+        val rows = orderCol.find(
+            and(
+                eq("shopId", shopId),
+                eq("channel", "POS"),
+                or(gt("syncedAt", since), and(eq("syncedAt", since), gt("_id", afterId))),
+            ),
+        )
+            .sort(Sorts.ascending("syncedAt", "_id"))
+            .limit(size + 1)
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
+        val page = rows.take(size)
+        val last = page.lastOrNull()
+        return SyncOrdersPage(
+            orders = page.map { it.toDto() },
+            nextSince = last?.syncedAt ?: since,
+            nextAfterId = last?.id ?: afterId,
+            hasMore = rows.size > size,
+        )
+    }
+
+    private fun applyPosStockDelta(shopId: String, previous: OrderDoc?, next: OrderDto) {
+        fun qty(items: List<OrderItemDto>, cancelled: Boolean): Map<String, Double> =
+            if (cancelled) emptyMap() else items.groupBy { it.productId }.mapValues { (_, l) -> l.sumOf { it.quantity } }
+        val before = previous?.let { qty(it.items, it.status == "CANCELLED") }.orEmpty()
+        val after = qty(next.items, next.status == "CANCELLED")
+        (before.keys + after.keys).forEach { productId ->
+            val delta = (after[productId] ?: 0.0) - (before[productId] ?: 0.0)
+            if (delta != 0.0) {
+                productCol.updateOne(and(eq("_id", productId), eq("shopId", shopId)), inc("stockQty", -delta))
+            }
+        }
+    }
+
+    private fun OrderDto.toPosDoc(syncedAt: Long) = OrderDoc(
+        id = id,
+        shopId = shopId,
+        customerId = customerId,
+        status = status,
+        channel = "POS",
+        customerName = customerName,
+        customerPhone = customerPhone,
+        paymentId = paymentId,
+        paymentMethod = paymentMethod.ifBlank { "CASH" },
+        createdAt = createdAtEpochMs,
+        items = items,
+        quote = quote,
+        cancelReason = cancelReason,
+        discount = discount,
+        syncedAt = syncedAt,
+    )
 
     fun masterCategories(): List<MasterCategoryDto> =
         categoryCol.find().toList().map { MasterCategoryDto(it.id, it.name, it.parentId) }
 
     fun masterProducts(): List<MasterProductDto> =
         masterProductCol.find().toList().map { it.toDto() }
+
+    fun masterProduct(id: String): MasterProductDto =
+        masterProductCol.find(eq("_id", id)).firstOrNull()?.toDto() ?: error("Product not found")
+
+    fun masterProductPage(query: String, categoryId: String?, page: Int, pageSize: Int): MasterProductPageDto {
+        val size = pageSize.coerceIn(1, MAX_MASTER_PAGE_SIZE)
+        val safePage = page.coerceAtLeast(0)
+        val parts = mutableListOf<Bson>()
+        if (!categoryId.isNullOrBlank()) parts += or(eq("categoryId", categoryId), eq("subcategoryId", categoryId))
+        val q = query.trim()
+        if (q.isNotEmpty()) {
+            val pattern = java.util.regex.Pattern.quote(q)
+            parts += or(
+                regex("name", pattern, "i"),
+                regex("nameHi", pattern, "i"),
+                regex("brandName", pattern, "i"),
+                eq("barcode", q),
+                eq("variants.barcode", q),
+            )
+        }
+        val filter = if (parts.isEmpty()) Document() else and(parts)
+        val total = masterProductCol.countDocuments(filter).toInt()
+        val items = masterProductCol.find(filter)
+            .sort(Sorts.ascending("name", "_id"))
+            .skip(safePage * size)
+            .limit(size)
+            .toList()
+            .map { it.toDto() }
+        return MasterProductPageDto(items, safePage, size, total, (safePage + 1) * size < total)
+    }
 
     fun upsertMasterCategory(body: MasterCategoryUpsert): MasterCategoryDto {
         val id = body.id?.takeIf { it.isNotBlank() } ?: "cat_${UUID.randomUUID().toString().take(8)}"
@@ -1328,7 +1605,7 @@ class AppStore(
             tags = body.tags.trim(),
             weightKg = body.weightKg,
             dimensions = body.dimensions.trim(),
-            variants = body.variants.map { MasterProductVariantDoc(it.name, it.sku, it.price) },
+            variants = body.variants.toVariantDocs(),
         )
         masterProductCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
         return doc.toDto()
@@ -2042,7 +2319,7 @@ class AppStore(
         tags = tags,
         weightKg = weightKg,
         dimensions = dimensions,
-        variants = variants.map { MasterProductVariantDto(it.name, it.sku, it.price) },
+        variants = variants.map { it.toDto() },
     )
 
     private fun ShopDoc.toAdminDto(loginUsername: String = "") = AdminShopDto(
@@ -2240,12 +2517,62 @@ class AppStore(
     private fun ProductDoc.toDto() = ProductDto(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
         imageUrls = assets.toUrls(imageUrls.filter { assets.isValidRef(it) }.take(4)),
+        variants = variants.filter { it.active }.map { it.toDto() },
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
         imageUrls = assets.toKeys(imageUrls.filter { assets.isValidRef(it) }).distinct().take(4),
+        variants = variants.toVariantDocs(),
     )
+
+    private fun ProductVariantDoc.toDto() = ProductVariantDto(
+        name = name,
+        sku = sku,
+        price = price,
+        id = id,
+        sellMode = sellMode,
+        attributes = attributes,
+        mrp = mrp,
+        baseUnit = baseUnit,
+        minQty = minQty,
+        maxQty = maxQty,
+        stepQty = stepQty,
+        quickPicks = quickPicks,
+        bundleCount = bundleCount,
+        imageUrls = assets.toUrls(imageUrls.filter { assets.isValidRef(it) }),
+        stockQty = stockQty,
+        barcode = barcode,
+        active = active,
+    )
+
+    /** Assigns stable ids to new variants and validates loose/bundle settings. */
+    private fun List<ProductVariantDto>.toVariantDocs(): List<ProductVariantDoc> = mapNotNull { v ->
+        val label = v.name.trim()
+        if (label.isBlank()) return@mapNotNull null
+        val mode = v.sellMode.uppercase().takeIf { it in VARIANT_SELL_MODES } ?: VARIANT_PACK
+        val loose = mode == VARIANT_LOOSE
+        ProductVariantDoc(
+            name = label,
+            sku = v.sku.trim(),
+            price = v.price.coerceAtLeast(0.0),
+            id = v.id.trim().ifBlank { "v_${UUID.randomUUID().toString().take(8)}" },
+            sellMode = mode,
+            attributes = v.attributes.mapKeys { it.key.trim() }.mapValues { it.value.trim() }
+                .filter { it.key.isNotBlank() && it.value.isNotBlank() },
+            mrp = v.mrp.coerceAtLeast(0.0),
+            baseUnit = if (loose) v.baseUnit.ifBlank { "KG" } else v.baseUnit,
+            minQty = if (loose) v.minQty.takeIf { it > 0 } ?: DEFAULT_LOOSE_STEP else 0.0,
+            maxQty = if (loose) v.maxQty.coerceAtLeast(0.0) else 0.0,
+            stepQty = if (loose) v.stepQty.takeIf { it > 0 } ?: DEFAULT_LOOSE_STEP else 0.0,
+            quickPicks = if (loose) v.quickPicks.filter { it > 0 }.distinct().sorted() else emptyList(),
+            bundleCount = if (mode == VARIANT_BUNDLE) v.bundleCount.coerceAtLeast(2) else 0,
+            imageUrls = assets.toKeys(v.imageUrls.filter { assets.isValidRef(it) }).distinct().take(4),
+            stockQty = v.stockQty.coerceAtLeast(0.0),
+            barcode = v.barcode?.trim()?.ifBlank { null },
+            active = v.active,
+        )
+    }
 
     /** Keys for storage; call sites resolve to URLs when building DTOs. */
     private fun normalizeProductImageUrls(
@@ -2329,6 +2656,7 @@ class AppStore(
             cancelReason = cancelReason,
             refundId = refundId,
             packedProductIds = packedProductIds,
+            discount = discount,
         )
     }
 

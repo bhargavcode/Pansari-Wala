@@ -21,6 +21,8 @@ import org.bhargav.pansariwala.domain.model.PartnerProfile
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.domain.model.ProductVariant
+import org.bhargav.pansariwala.domain.model.SellMode
 import org.bhargav.pansariwala.domain.model.ShopOffer
 import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.util.AppConstants
@@ -127,6 +129,57 @@ data class ShopDto(
     val upiId: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
+    val deliversToYou: Boolean = true,
+)
+
+@Serializable
+data class CatalogSectionDto(
+    val category: String,
+    val totalCount: Int,
+    val preview: List<ProductDto> = emptyList(),
+)
+
+@Serializable
+data class ProductPageDto(
+    val items: List<ProductDto> = emptyList(),
+    val page: Int = 0,
+    val pageSize: Int = 0,
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
+)
+
+@Serializable
+data class ProductVariantDto(
+    val name: String,
+    val sku: String = "",
+    val price: Double = 0.0,
+    val id: String = "",
+    val sellMode: String = "PACK",
+    val attributes: Map<String, String> = emptyMap(),
+    val mrp: Double = 0.0,
+    val baseUnit: String = "",
+    val minQty: Double = 0.0,
+    val maxQty: Double = 0.0,
+    val stepQty: Double = 0.0,
+    val quickPicks: List<Double> = emptyList(),
+    val bundleCount: Int = 0,
+    val imageUrls: List<String> = emptyList(),
+    val stockQty: Double = 0.0,
+    val barcode: String? = null,
+    val active: Boolean = true,
+)
+
+@Serializable
+data class ProductDetailDto(
+    val product: ProductDto,
+    val brandName: String = "",
+    val companyName: String = "",
+    val description: String = "",
+    val sku: String = "",
+    val tags: String = "",
+    val weightKg: Double = 0.0,
+    val dimensions: String = "",
+    val variants: List<ProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -155,6 +208,7 @@ data class ProductDto(
     val lowStockThreshold: Double,
     val voiceAlias: String? = null,
     val imageUrls: List<String> = emptyList(),
+    val variants: List<ProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -166,7 +220,7 @@ data class OfferDto(
 )
 
 @Serializable
-data class PlaceOrderItemDto(val productId: String, val quantity: Double)
+data class PlaceOrderItemDto(val productId: String, val quantity: Double, val variantId: String? = null)
 
 @Serializable
 data class PlaceOrderRequest(
@@ -271,6 +325,8 @@ data class OrderDto(
     val partnerProgress: String = "",
     val packedProductIds: List<String> = emptyList(),
     val deliveryMode: String = AppConstants.DELIVERY_MODE_PARTNER,
+    /** POS bill discount in INR. Online orders keep theirs on [quote]. */
+    val discount: Double = 0.0,
 )
 
 @Serializable
@@ -284,6 +340,9 @@ data class OrderItemDto(
     val quantity: Double,
     val unitPrice: Double,
     val imageUrl: String? = null,
+    val variantId: String? = null,
+    val variantLabel: String? = null,
+    val sellMode: String? = null,
 )
 
 @Serializable
@@ -403,6 +462,10 @@ data class MasterProductDto(
     val categoryId: String,
     val unit: String,
     val barcode: String? = null,
+    val imageUrls: List<String> = emptyList(),
+    val brandName: String = "",
+    val salePrice: Double = 0.0,
+    val variants: List<ProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -412,9 +475,43 @@ data class UploadResultDto(
 )
 
 @Serializable
+data class OfflineOrderSyncDto(
+    val revision: Long,
+    val order: OrderDto,
+)
+
+@Serializable
+data class OfflineOrderAck(
+    val id: String,
+    val revision: Long,
+)
+
+@Serializable
+data class OfflineProductSyncDto(
+    val revision: Long,
+    val product: ProductDto,
+)
+
+@Serializable
 data class SyncPushRequest(
     val products: List<ProductDto> = emptyList(),
     val orders: List<OrderDto> = emptyList(),
+    val offlineOrders: List<OfflineOrderSyncDto> = emptyList(),
+    val offlineProducts: List<OfflineProductSyncDto> = emptyList(),
+)
+
+@Serializable
+data class SyncPushResponse(
+    val accepted: List<OfflineOrderAck> = emptyList(),
+    val acceptedProducts: List<OfflineOrderAck> = emptyList(),
+)
+
+@Serializable
+data class SyncOrdersPage(
+    val orders: List<OrderDto> = emptyList(),
+    val nextSince: Long,
+    val nextAfterId: String = "",
+    val hasMore: Boolean = false,
 )
 
 @Serializable
@@ -440,6 +537,33 @@ fun ShopDto.toModel() = MarketplaceShop(
     discountPercent = discountPercent,
     deliveryRadiusKm = deliveryRadiusKm,
     shopType = ShopType.fromApi(shopType),
+    deliversToYou = deliversToYou,
+)
+
+fun CatalogSectionDto.toModel() = org.bhargav.pansariwala.domain.model.CatalogSection(
+    category = ProductCategory.fromName(category),
+    totalCount = totalCount,
+    preview = preview.map { it.toModel() },
+)
+
+fun ProductPageDto.toModel() = org.bhargav.pansariwala.domain.model.ProductPage(
+    items = items.map { it.toModel() },
+    page = page,
+    totalCount = totalCount,
+    hasMore = hasMore,
+)
+
+fun ProductDetailDto.toModel() = org.bhargav.pansariwala.domain.model.ProductDetail(
+    product = product.toModel().let { p ->
+        if (p.variants.isNotEmpty()) p else p.copy(variants = variants.filter { it.active }.map { it.toModel() })
+    },
+    brandName = brandName,
+    companyName = companyName,
+    description = description,
+    sku = sku,
+    tags = tags.split(',').map { it.trim() }.filter { it.isNotEmpty() },
+    weightKg = weightKg,
+    dimensions = dimensions,
 )
 
 fun ShopReviewDto.toModel() = org.bhargav.pansariwala.domain.model.ShopReview(
@@ -502,6 +626,45 @@ fun ProductDto.toModel() = Product(
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
+    variants = variants.filter { it.active }.map { it.toModel() },
+)
+
+fun ProductVariantDto.toModel() = ProductVariant(
+    id = id,
+    label = name,
+    sellMode = SellMode.fromName(sellMode),
+    price = price,
+    mrp = mrp,
+    attributes = attributes,
+    baseUnit = ProductUnit.fromName(baseUnit),
+    minQty = minQty,
+    maxQty = maxQty,
+    stepQty = stepQty,
+    quickPicks = quickPicks,
+    bundleCount = bundleCount,
+    imageUrls = imageUrls,
+    stockQty = stockQty,
+    sku = sku,
+    barcode = barcode,
+)
+
+fun ProductVariant.toDto() = ProductVariantDto(
+    name = label,
+    sku = sku,
+    price = price,
+    id = id,
+    sellMode = sellMode.name,
+    attributes = attributes,
+    mrp = mrp,
+    baseUnit = if (isLoose) baseUnit.name else "",
+    minQty = minQty,
+    maxQty = maxQty,
+    stepQty = stepQty,
+    quickPicks = quickPicks,
+    bundleCount = bundleCount,
+    imageUrls = imageUrls,
+    stockQty = stockQty,
+    barcode = barcode,
 )
 
 fun Product.toDto() = ProductDto(
@@ -518,6 +681,31 @@ fun Product.toDto() = ProductDto(
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
+    variants = variants.map { it.toDto() },
+)
+
+fun Order.toSyncDto() = OrderDto(
+    id = id,
+    shopId = shopId,
+    createdAtEpochMs = createdAtEpochMs,
+    status = status.name,
+    customerName = customerName,
+    channel = OrderChannel.POS.name,
+    paymentMethod = paymentMethod,
+    cancelReason = cancelReason,
+    discount = discount,
+    items = items.map { line ->
+        OrderItemDto(
+            productId = line.productId,
+            productName = line.productName,
+            unit = line.unit.name,
+            quantity = line.quantity,
+            unitPrice = line.unitPrice,
+            imageUrl = line.imageUrl,
+            variantId = line.variantId,
+            variantLabel = line.variantLabel,
+        )
+    },
 )
 
 fun OrderDto.toModel() = Order(
@@ -534,6 +722,8 @@ fun OrderDto.toModel() = Order(
             quantity = it.quantity,
             unitPrice = it.unitPrice,
             imageUrl = it.imageUrl,
+            variantId = it.variantId,
+            variantLabel = it.variantLabel,
         )
     },
     cancelReason = cancelReason,
@@ -564,6 +754,7 @@ fun OrderDto.toModel() = Order(
     partnerProgress = partnerProgress,
     packedProductIds = packedProductIds.toSet(),
     isSelfDelivery = deliveryMode == AppConstants.DELIVERY_MODE_SELF,
+    discount = discount,
 )
 
 fun OfferDto.toModel() = ShopOffer(id, title, description, discountPercent)

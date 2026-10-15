@@ -8,6 +8,31 @@ object AppConstants {
     const val DEFAULT_SEARCH_RADIUS_KM: Double = 20.0
     const val MIN_SEARCH_RADIUS_KM: Double = 10.0
     const val MAX_SEARCH_RADIUS_KM: Double = 50.0
+    const val SEARCH_RADIUS_STEP_KM: Double = 1.0
+
+    /** Products shown per category on the shop home before "Show more". */
+    const val CATALOG_PREVIEW_PER_CATEGORY: Int = 5
+    /** Page size for the category product list (server caps at 50). */
+    const val CATALOG_PAGE_SIZE: Int = 10
+    const val LIST_PAGE_SIZE: Int = 30
+    const val LIST_PREFETCH_DISTANCE: Int = 5
+    /** Start loading the next page when this many items remain below the viewport. */
+    const val CATALOG_PREFETCH_DISTANCE: Int = 3
+    const val CATALOG_SEARCH_DEBOUNCE_MS: Long = 350L
+
+    /** Loose (khula) quantity rules when a product/variant doesn't define its own. */
+    object LooseQty {
+        /** kg / litre step (50 g / 50 ml). */
+        const val STEP_BASE_UNIT: Double = 0.05
+        const val STEP_GRAM: Double = 50.0
+        const val DEFAULT_BASE_UNIT: Double = 1.0
+        const val DEFAULT_GRAM: Double = 100.0
+        val QUICK_PICKS_BASE_UNIT: List<Double> = listOf(0.1, 0.25, 0.5, 1.0, 2.0, 5.0)
+        val QUICK_PICKS_GRAM: List<Double> = listOf(50.0, 100.0, 250.0, 500.0)
+        /** Below 1 kg / 1 litre, show grams / millilitres. */
+        const val SUB_UNIT_FACTOR: Double = 1000.0
+        const val EPSILON: Double = 1e-6
+    }
 
     const val PLATFORM_FEE_INR: Double = 10.0
     const val DELIVERY_BASE_PER_KM_INR: Double = 8.0
@@ -128,6 +153,20 @@ object AppConstants {
     const val HTTP_UPLOAD_TIMEOUT_MS: Long = 60_000L
     const val HTTP_LOG_TAG: String = "PansariHttp"
     const val REMOTE_LOGIN_TIMEOUT_MS: Long = 15_000L
+    /** POS bills uploaded in one silent sync request. */
+    const val OFFLINE_SYNC_BATCH: Int = 25
+    /** First retry after a failed silent sync; doubles up to [OFFLINE_SYNC_RETRY_MAX_MS]. */
+    const val OFFLINE_SYNC_RETRY_MS: Long = 1_000L
+    const val OFFLINE_SYNC_RETRY_MAX_MS: Long = 60_000L
+    /** Safety sweep so a missed wake still uploads every pending bill. */
+    const val OFFLINE_SYNC_FALLBACK_MS: Long = 20_000L
+    /** Bills per page when pulling other devices' sales. */
+    const val SYNC_PULL_PAGE_SIZE: Int = 200
+    /** Background pull of other devices' bills while the POS is open. */
+    const val SYNC_PULL_INTERVAL_MS: Long = 60_000L
+    /** Full catalog refresh (stock from other devices) while the POS is open. */
+    const val SYNC_CATALOG_INTERVAL_MS: Long = 5 * 60_000L
+    const val SYNC_ORDERS_CURSOR_KEY_PREFIX: String = "orders_cursor_"
     const val DEFAULT_PHONE_COUNTRY_CODE: String = "+91"
     const val PHONE_LOCAL_DIGITS: Int = 10
     const val OTP_TIMEOUT_SEC: Long = 60L

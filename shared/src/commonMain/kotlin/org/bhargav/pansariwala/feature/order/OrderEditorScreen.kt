@@ -7,6 +7,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import org.bhargav.pansariwala.media.NetworkImage
+import org.bhargav.pansariwala.feature.user.CartStore
+import org.bhargav.pansariwala.feature.user.ProductPriceSummary
+import org.bhargav.pansariwala.feature.user.VariantPickerHost
+import org.bhargav.pansariwala.feature.user.needsPicker
+import org.bhargav.pansariwala.feature.user.priceLabel
+import org.bhargav.pansariwala.feature.user.quantityLabel
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
@@ -107,6 +117,14 @@ fun OrderEditorScreen(
     if (state.showPaymentPicker) {
         PosPaymentSheet(state = state, viewModel = viewModel)
     }
+    state.variantPicker?.let { request ->
+        VariantPickerHost(
+            request = request,
+            lines = state.cart.map { CartStore.Line(it.product, it.variant, it.quantity) },
+            onConfirm = viewModel::upsertOption,
+            onDismiss = viewModel::dismissPicker,
+        )
+    }
 
     RequestMicrophonePermission(
         trigger = state.requestMicPermission,
@@ -190,7 +208,7 @@ private fun ColumnScope.CartSection(state: OrderEditorUiState, viewModel: OrderE
                 .fillMaxWidth()
                 .weight(1f) // Takes up remaining available vertical space
         ) {
-            items(state.cart, key = { it.product.id }) { line ->
+            items(state.cart, key = { it.key }) { line ->
                 CartLineRow(line, viewModel)
             }
         }
@@ -272,25 +290,38 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(line.product.name, style = MaterialTheme.typography.bodyMedium)
+        NetworkImage(
+            url = line.option.imageUrl,
+            contentDescription = line.product.name,
+            modifier = Modifier.size(40.dp).clip(MaterialTheme.shapes.small),
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(
+            modifier = Modifier.weight(1f).clickable(enabled = line.product.needsPicker) {
+                viewModel.openPicker(line.product, line.key)
+            },
+        ) {
             Text(
-                text = "${line.product.sellingPrice.asMoney()} · ${line.lineTotal.asMoney()}",
+                text = line.variant?.let { "${line.product.name} · ${it.label}" } ?: line.product.name,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = "${line.option.priceLabel()} · ${line.lineTotal.asMoney()}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         TextButton(onClick = {
-            viewModel.changeQuantity(line.product.id, -1.0)
+            viewModel.changeQuantity(line.key, -1)
         }) { Text("−") }
         Text(
-            text = "${line.quantity.asQuantity()} ${line.product.unit.localizedLabel()}",
+            text = line.option.quantityLabel(line.quantity),
             style = MaterialTheme.typography.bodyMedium,
         )
         TextButton(onClick = {
-            viewModel.changeQuantity(line.product.id, 1.0)
+            viewModel.changeQuantity(line.key, 1)
         }) { Text("+") }
-        TextButton(onClick = { viewModel.removeLine(line.product.id) }) {
+        TextButton(onClick = { viewModel.removeLine(line.key) }) {
             Text(stringResource(Res.string.action_remove))
         }
     }
@@ -357,18 +388,28 @@ private fun SearchOrSuggestedItems(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    NetworkImage(
+                        url = product.primaryImageUrl,
+                        contentDescription = product.name,
+                        modifier = Modifier.size(48.dp).clip(MaterialTheme.shapes.small),
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(product.name, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(
-                                Res.string.in_stock,
-                                product.sellingPrice.asMoney(),
-                                product.stockQty.asQuantity(),
-                                product.unit.localizedLabel(),
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        if (product.hasVariants) {
+                            ProductPriceSummary(product)
+                        } else {
+                            Text(
+                                text = stringResource(
+                                    Res.string.in_stock,
+                                    product.sellingPrice.asMoney(),
+                                    product.stockQty.asQuantity(),
+                                    product.unit.localizedLabel(),
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     OutlinedButton(onClick = { viewModel.addProduct(product) }) {
                         Text(stringResource(Res.string.action_add))

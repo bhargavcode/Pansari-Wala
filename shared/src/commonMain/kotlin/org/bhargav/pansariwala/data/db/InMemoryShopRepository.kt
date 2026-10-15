@@ -24,6 +24,11 @@ class InMemoryShopRepository : ShopRepository {
     private val users = LinkedHashMap<String, Pair<ShopUser, String>>() // username -> (user, hash)
     private val productsFlow = MutableStateFlow<List<Product>>(emptyList())
     private val ordersFlow = MutableStateFlow<List<Order>>(emptyList())
+    private val orderRevisions = HashMap<String, Long>()
+    private val pendingOrders = HashSet<String>()
+    private val productRevisions = HashMap<String, Long>()
+    private val pendingProducts = HashSet<String>()
+    private val syncStates = HashMap<String, String>()
     private val mutex = Mutex()
     private var seeded = false
 
@@ -91,6 +96,8 @@ class InMemoryShopRepository : ShopRepository {
             val index = current.indexOfFirst { it.id == product.id }
             if (index >= 0) current[index] = product else current.add(product)
             productsFlow.value = current
+            productRevisions[product.id] = (productRevisions[product.id] ?: 0L) + 1L
+            pendingProducts += product.id
         }
     }
 
@@ -122,7 +129,63 @@ class InMemoryShopRepository : ShopRepository {
             val index = orders.indexOfFirst { it.id == order.id }
             if (index >= 0) orders[index] = order else orders.add(order)
             ordersFlow.value = orders
+            orderRevisions[order.id] = (orderRevisions[order.id] ?: 0L) + 1L
+            pendingOrders += order.id
         }
+    }
+
+    override suspend fun pendingOfflineOrders(shopId: String): List<PendingOfflineOrder> =
+        mutex.withLock {
+            ordersFlow.value
+                .filter { it.shopId == shopId && it.id in pendingOrders }
+                .map { PendingOfflineOrder(orderRevisions[it.id] ?: 1L, it) }
+                .sortedBy { it.order.createdAtEpochMs }
+        }
+
+    override suspend fun markOfflineOrderSynced(orderId: String, revision: Long) {
+        mutex.withLock {
+            if (orderRevisions[orderId] == revision) pendingOrders -= orderId
+        }
+    }
+
+    override suspend fun pendingOfflineProducts(shopId: String): List<PendingOfflineProduct> =
+        mutex.withLock {
+            productsFlow.value
+                .filter { it.shopId == shopId && it.id in pendingProducts }
+                .map { PendingOfflineProduct(productRevisions[it.id] ?: 1L, it) }
+        }
+
+    override suspend fun markOfflineProductSynced(productId: String, revision: Long) {
+        mutex.withLock {
+            if (productRevisions[productId] == revision) pendingProducts -= productId
+        }
+    }
+
+    override suspend fun applyRemoteOrders(orders: List<Order>) {
+        mutex.withLock {
+            val byId = ordersFlow.value.associateBy { it.id }.toMutableMap()
+            orders.forEach { if (it.id !in pendingOrders) byId[it.id] = it }
+            ordersFlow.value = byId.values.toList()
+        }
+    }
+
+    override suspend fun applyRemoteProducts(shopId: String, products: List<Product>) {
+        mutex.withLock {
+            val blocked = ordersFlow.value
+                .filter { it.shopId == shopId && it.id in pendingOrders }
+                .flatMapTo(HashSet()) { o -> o.items.map { it.productId } }
+            val byId = productsFlow.value.associateBy { it.id }.toMutableMap()
+            products.forEach {
+                if (it.id !in pendingProducts && it.id !in blocked) byId[it.id] = it
+            }
+            productsFlow.value = byId.values.toList()
+        }
+    }
+
+    override suspend fun syncState(key: String): String? = mutex.withLock { syncStates[key] }
+
+    override suspend fun setSyncState(key: String, value: String) {
+        mutex.withLock { syncStates[key] = value }
     }
 
     private fun Order.toSummary() = OrderSummary(

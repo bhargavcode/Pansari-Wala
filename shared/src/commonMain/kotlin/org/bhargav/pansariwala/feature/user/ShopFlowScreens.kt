@@ -5,6 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,8 +73,11 @@ import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.catalog_shop_categories
+import pansariwala.shared.generated.resources.shop_outside_delivery
 import pansariwala.shared.generated.resources.account_all_orders
 import pansariwala.shared.generated.resources.account_transactions
 import pansariwala.shared.generated.resources.action_add_address
@@ -136,12 +142,18 @@ import pansariwala.shared.generated.resources.user_cart_items
 fun ShopCatalogScreen(
     shopId: String,
     onOpenCart: () -> Unit,
+    onOpenCategory: (category: ProductCategory?, query: String) -> Unit,
+    onOpenProduct: (productId: String) -> Unit,
     onBack: () -> Unit,
     viewModel: ShopCatalogViewModel = koinViewModel(),
+    cart: CartStore = koinInject(),
 ) {
     LaunchedEffect(shopId) { viewModel.load(shopId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val data = (state as? AsyncUiState.Success)?.data
+    val cartLines = rememberCartLines(cart)
+    val picker = rememberVariantPicker()
+    VariantPickerHost(picker, cart)
     val ratingFilterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var draftRatingStars by remember(data?.showRatingFilterSheet) {
         mutableStateOf(data?.ratingFilterStars ?: emptySet())
@@ -189,26 +201,28 @@ fun ShopCatalogScreen(
         onBack = onBack,
         error = state.errorBannerOrNull(),
         onErrorAction = {
-            handleErrorBannerAction(it, onRetry = { viewModel.load(shopId) }, onDismiss = viewModel::dismissError)
+            handleErrorBannerAction(it, onRetry = viewModel::refresh, onDismiss = viewModel::dismissError)
         },
         isLoading = state.isBlockingLoad(),
         isRefreshing = state.isRefreshing(),
     ) {
         Column(Modifier.fillMaxSize()) {
-            Column(
-                Modifier.weight(1f).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = 16.dp),
             ) {
-                OutlinedTextField(
-                    value = data?.productQuery.orEmpty(),
-                    onValueChange = viewModel::setProductQuery,
-                    label = { Text(stringResource(Res.string.catalog_search_products)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                data?.shop?.let { shop ->
+                item(key = "search", contentType = "search") {
+                    OutlinedTextField(
+                        value = data?.productQuery.orEmpty(),
+                        onValueChange = viewModel::setProductQuery,
+                        label = { Text(stringResource(Res.string.catalog_search_products)) },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        singleLine = true,
+                    )
+                }
+                data?.shop?.let { shop -> item(key = "shop", contentType = "shop") {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                     ) {
                         Row(
@@ -235,26 +249,41 @@ fun ShopCatalogScreen(
                                     ),
                                     style = MaterialTheme.typography.bodySmall,
                                 )
+                                if (!shop.deliversToYou) {
+                                    Text(
+                                        stringResource(Res.string.shop_outside_delivery),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
                             }
                         }
                     }
+                } }
+                item(key = "tabs", contentType = "tabs") {
+                    TabRow(
+                        selectedTabIndex = if (data?.selectedTab == CatalogTab.RATINGS) 1 else 0,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    ) {
+                        Tab(
+                            selected = data?.selectedTab == CatalogTab.PRODUCTS,
+                            onClick = { viewModel.selectTab(CatalogTab.PRODUCTS) },
+                            text = { Text(stringResource(Res.string.catalog_tab_products)) },
+                        )
+                        Tab(
+                            selected = data?.selectedTab == CatalogTab.RATINGS,
+                            onClick = { viewModel.selectTab(CatalogTab.RATINGS) },
+                            text = { Text(stringResource(Res.string.catalog_tab_ratings)) },
+                        )
+                    }
                 }
-                TabRow(selectedTabIndex = if (data?.selectedTab == CatalogTab.RATINGS) 1 else 0) {
-                    Tab(
-                        selected = data?.selectedTab == CatalogTab.PRODUCTS,
-                        onClick = { viewModel.selectTab(CatalogTab.PRODUCTS) },
-                        text = { Text(stringResource(Res.string.catalog_tab_products)) },
-                    )
-                    Tab(
-                        selected = data?.selectedTab == CatalogTab.RATINGS,
-                        onClick = { viewModel.selectTab(CatalogTab.RATINGS) },
-                        text = { Text(stringResource(Res.string.catalog_tab_ratings)) },
-                    )
-                }
-                when (data?.selectedTab) {
-                    CatalogTab.RATINGS -> {
+                when {
+                    data == null -> Unit
+                    data.selectedTab == CatalogTab.RATINGS -> {
+                        item(key = "rating_filter", contentType = "rating_filter") {
                         Card(
-                            modifier = Modifier.fillMaxWidth().clickable(onClick = viewModel::showRatingFilterSheet),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                                .clickable(onClick = viewModel::showRatingFilterSheet),
                         ) {
                             Row(
                                 Modifier.fillMaxWidth().padding(12.dp),
@@ -272,86 +301,72 @@ fun ShopCatalogScreen(
                                 )
                             }
                         }
-                        val ratings = viewModel.filteredRatings(data)
-                        if (ratings.isEmpty()) {
-                            Text(stringResource(Res.string.catalog_no_ratings), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            ratings.forEach { review ->
-                                ShopReviewCard(review = review)
-                            }
                         }
-                    }
-                    else -> {
-                        val products = data?.let { viewModel.filteredProducts(it) }.orEmpty()
-                        if (products.isEmpty()) {
-                            Text(stringResource(Res.string.catalog_no_products), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            products.groupBy { it.category }.forEach { (category, grouped) ->
+                        val ratings = viewModel.filteredRatings(data)
+                        when {
+                            !data.ratingsLoaded -> item(key = "ratings_loading", contentType = "progress") {
+                                LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
+                            }
+                            ratings.isEmpty() -> item(key = "ratings_empty", contentType = "empty") {
                                 Text(
-                                    category.displayName,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(top = 8.dp),
+                                    stringResource(Res.string.catalog_no_ratings),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(16.dp),
                                 )
-                                grouped.forEach { product ->
-                                    CatalogProductRow(
-                                        name = product.name,
-                                        price = product.sellingPrice.asMoney(),
-                                        imageUrls = product.imageUrls,
-                                        quantity = viewModel.quantityOf(product.id),
-                                        onIncrement = {
-                                            if (viewModel.quantityOf(product.id) == 0) viewModel.add(product)
-                                            else viewModel.increment(product.id)
-                                        },
-                                        onDecrement = { viewModel.decrement(product.id) },
-                                        onAdd = { viewModel.add(product) },
-                                    )
+                            }
+                            else -> items(ratings, key = { "r-${it.id}" }, contentType = { "review" }) { review ->
+                                Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                                    ShopReviewCard(review = review)
                                 }
                             }
                         }
                     }
+                    else -> {
+                        if (!data.isSearchActive && data.sections.size > 1) {
+                            item(key = "category_chips", contentType = "chips") {
+                                Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                                    Text(
+                                        stringResource(Res.string.catalog_shop_categories),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(bottom = 4.dp),
+                                    )
+                                    CatalogCategoryChips(
+                                        sections = data.sections,
+                                        onClick = { onOpenCategory(it, "") },
+                                    )
+                                }
+                            }
+                        }
+                        if (data.searching) {
+                            item(key = "searching", contentType = "progress") {
+                                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+                            }
+                        }
+                        val sections = data.visibleSections
+                        if (sections.isEmpty() && !data.searching) {
+                            item(key = "empty", contentType = "empty") {
+                                Text(
+                                    stringResource(Res.string.catalog_no_products),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            }
+                        }
+                        val searchQuery = data.productQuery.trim()
+                        catalogSectionItems(
+                            sections = sections,
+                            lines = cartLines,
+                            picker = picker,
+                            keyPrefix = if (data.isSearchActive) "s" else "c",
+                            onOpenCategory = { onOpenCategory(it, searchQuery) },
+                            onOpenProduct = onOpenProduct,
+                            cart = cart,
+                        )
+                    }
                 }
             }
-            if ((data?.cartCount ?: 0) > 0) {
-                UserPrimaryButton(
-                    text = stringResource(Res.string.user_cart_items, data?.cartCount ?: 0),
-                    onClick = onOpenCart,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CatalogProductRow(
-    name: String,
-    price: String,
-    imageUrls: List<String>,
-    quantity: Int,
-    onIncrement: () -> Unit,
-    onDecrement: () -> Unit,
-    onAdd: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        org.bhargav.pansariwala.media.ProductImageCarousel(
-            imageUrls = imageUrls,
-            modifier = Modifier.size(64.dp),
-            height = 64.dp,
-        )
-        Column(Modifier.weight(1f)) {
-            Text(name, fontWeight = FontWeight.Medium)
-            Text(price, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-        }
-        if (quantity > 0) {
-            QuantityStepper(quantity = quantity, onIncrement = onIncrement, onDecrement = onDecrement)
-        } else {
-            TextButton(onClick = onAdd) { Text("+") }
+            CatalogCartBar(cartCount = data?.cartCount ?: 0, onOpenCart = onOpenCart)
         }
     }
 }
@@ -362,8 +377,11 @@ fun CartScreen(
     onCheckout: () -> Unit,
     onBack: () -> Unit,
     viewModel: CartViewModel = koinViewModel(),
+    cart: CartStore = koinInject(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val picker = rememberVariantPicker()
+    VariantPickerHost(picker, cart)
     PansariScreen(
         title = stringResource(Res.string.cart_title),
         onBack = onBack,
@@ -371,24 +389,12 @@ fun CartScreen(
         Column(Modifier.fillMaxSize().padding(16.dp)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             state.lines.forEach { line ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(line.product.name, fontWeight = FontWeight.Medium)
-                        Text(
-                            "${line.quantity.asQuantity()} × ${line.product.sellingPrice.asMoney()}",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    QuantityStepper(
-                        quantity = line.quantity.toInt(),
-                        onIncrement = { viewModel.increment(line.product.id) },
-                        onDecrement = { viewModel.decrement(line.product.id) },
-                    )
-                }
+                CartLineRow(
+                    line = line,
+                    onEdit = { picker.open(line.product, line.key) },
+                    onIncrement = { viewModel.increment(line.key) },
+                    onDecrement = { viewModel.decrement(line.key) },
+                )
                 HorizontalDivider()
             }
         }

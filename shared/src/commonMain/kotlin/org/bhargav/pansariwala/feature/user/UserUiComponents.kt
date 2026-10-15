@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -93,6 +95,7 @@ import pansariwala.shared.generated.resources.shop_type_sports
 import pansariwala.shared.generated.resources.shop_type_supermarket
 import pansariwala.shared.generated.resources.shop_type_toys_gifts
 import pansariwala.shared.generated.resources.shop_closed
+import pansariwala.shared.generated.resources.shop_outside_delivery
 import pansariwala.shared.generated.resources.status_accepted
 import pansariwala.shared.generated.resources.status_cancelled
 import pansariwala.shared.generated.resources.status_delivered
@@ -311,6 +314,13 @@ fun ShopDiscoveryCard(
                         )
                     }
                 }
+                if (!shop.deliversToYou) {
+                    Text(
+                        text = stringResource(Res.string.shop_outside_delivery),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
     }
@@ -340,7 +350,8 @@ fun ContinueLastOrderCard(
             Text(shopName, fontWeight = FontWeight.SemiBold)
             lines.forEach { line ->
                 Text(
-                    "${line.product.name} × ${line.quantity.asQuantity()} · ${line.product.sellingPrice.asMoney()}",
+                    listOfNotNull(line.product.name, line.variant?.label).joinToString(" · ") +
+                        " × ${line.option.quantityLabel(line.quantity)} · ${line.lineTotal.asMoney()}",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -384,6 +395,22 @@ fun QuantityStepper(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier,
+) = QuantityStepper(
+    label = quantity.toString(),
+    onIncrement = onIncrement,
+    onDecrement = onDecrement,
+    modifier = modifier,
+    decrementEnabled = quantity > 0,
+)
+
+@Composable
+fun QuantityStepper(
+    label: String,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    modifier: Modifier = Modifier,
+    decrementEnabled: Boolean = true,
+    incrementEnabled: Boolean = true,
 ) {
     Surface(
         modifier = modifier,
@@ -397,15 +424,16 @@ fun QuantityStepper(
                 .clip(RoundedCornerShape(8.dp)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-        IconButton(onClick = onDecrement, enabled = quantity > 0, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = onDecrement, enabled = decrementEnabled, modifier = Modifier.size(36.dp)) {
             Text("-", fontWeight = FontWeight.Bold)
         }
         Text(
-            text = quantity.toString(),
-            modifier = Modifier.width(28.dp),
+            text = label,
+            modifier = Modifier.widthIn(min = 28.dp),
             fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
         )
-        IconButton(onClick = onIncrement, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = onIncrement, enabled = incrementEnabled, modifier = Modifier.size(36.dp)) {
             Text("+", fontWeight = FontWeight.Bold)
         }
         }

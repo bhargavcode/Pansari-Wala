@@ -10,6 +10,9 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.ProductVariantDto
+import org.bhargav.pansariwala.api.toDto
+import org.bhargav.pansariwala.api.toModel
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
@@ -22,6 +25,7 @@ import org.bhargav.pansariwala.media.ImageSource
 import org.bhargav.pansariwala.media.ImageUploadFeature
 import org.bhargav.pansariwala.media.LifecycleImageUploader
 import org.bhargav.pansariwala.media.UploadedImage
+import org.bhargav.pansariwala.media.prepareImageForUpload
 import org.bhargav.pansariwala.platform.ImagePicker
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
@@ -47,6 +51,7 @@ data class AddEditInventoryUiState(
     val stockQty: String = "",
     val lowStockThreshold: String = "",
     val voiceAlias: String = "",
+    val variants: List<ProductVariantDto> = emptyList(),
     val imageSlots: List<ImageSlotState> = List(AppConstants.PHOTO_MAX_PRODUCT_IMAGES) { ImageSlotState.Empty },
     val message: UiText? = null,
     val error: UiText? = null,
@@ -120,6 +125,23 @@ class AddEditInventoryViewModel(
     fun onStockQtyChange(value: String) = _uiState.update { it.copy(stockQty = value) }
     fun onThresholdChange(value: String) = _uiState.update { it.copy(lowStockThreshold = value) }
     fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value) }
+    fun onVariantsChange(value: List<ProductVariantDto>) = _uiState.update { it.copy(variants = value) }
+
+    suspend fun uploadVariantImage(): String? {
+        val picked = runCatching { imagePicker.pickImage() }.getOrNull() ?: return null
+        return runCatching {
+            val compressed = prepareImageForUpload(picked)
+            api.uploadImage(
+                ImageUploadFeature.INVENTORY_PRODUCT.prefix,
+                compressed.displayName,
+                compressed.bytes,
+                compressed.mimeType,
+                compressed.thumbnailBytes,
+            ).url
+        }.onFailure {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_image_upload_failed)) }
+        }.getOrNull()
+    }
 
     fun addImage(slot: Int, source: ImageSource) =
         imageUploader.pickAndUpload(slot, ImageUploadFeature.INVENTORY_PRODUCT.prefix, source)
@@ -181,6 +203,9 @@ class AddEditInventoryViewModel(
             lowStockThreshold = state.lowStockThreshold.toDoubleOrNull() ?: 0.0,
             voiceAlias = state.voiceAlias.trim().ifBlank { null },
             imageUrls = imageUploader.readyUrls(),
+            variants = state.variants
+                .filter { it.name.isNotBlank() }
+                .map { v -> v.copy(id = v.id.ifBlank { generateId("v") }).toModel() },
         )
         viewModelScope.launch {
             shopRepository.upsertProduct(product)
@@ -211,6 +236,7 @@ class AddEditInventoryViewModel(
                 stockQty = product.stockQty.toString(),
                 lowStockThreshold = product.lowStockThreshold.toString(),
                 voiceAlias = product.voiceAlias.orEmpty(),
+                variants = product.variants.map { it.toDto() },
             )
         }
     }

@@ -26,6 +26,11 @@ data class OrderEntity(
     val paymentMethod: String = AppConstants.PosPayment.CASH,
     @ColumnInfo(defaultValue = "0")
     val discount: Double = 0.0,
+    /** 1 until the server confirms this [syncRevision]. */
+    @ColumnInfo(defaultValue = "1")
+    val pendingSync: Int = 1,
+    @ColumnInfo(defaultValue = "1")
+    val syncRevision: Long = 1,
 )
 
 @Entity(
@@ -41,4 +46,6 @@ data class OrderItemEntity(
     val quantity: Double,
     val unitPrice: Double,
     val lineTotal: Double,
+    val variantId: String? = null,
+    val variantLabel: String? = null,
 )

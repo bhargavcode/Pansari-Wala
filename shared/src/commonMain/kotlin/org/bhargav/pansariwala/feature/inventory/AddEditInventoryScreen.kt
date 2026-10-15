@@ -209,6 +209,13 @@ fun AddEditInventoryScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        org.bhargav.pansariwala.feature.catalog.VariantListEditor(
+            variants = state.variants,
+            onChange = viewModel::onVariantsChange,
+            onPickImage = viewModel::uploadVariantImage,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         Button(
             onClick = viewModel::onSave,
             modifier = Modifier.fillMaxWidth(),

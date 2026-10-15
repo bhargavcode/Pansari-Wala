@@ -29,6 +29,38 @@ interface ShopRepository {
 
     suspend fun getOrder(orderId: String): Order?
     suspend fun saveOrder(order: Order)
+
+    /** POS bills not yet confirmed by the server, oldest first. */
+    suspend fun pendingOfflineOrders(shopId: String): List<PendingOfflineOrder>
+
+    /**
+     * Clears the pending flag only when [revision] is still the saved copy.
+     * A newer edit keeps the bill queued.
+     */
+    suspend fun markOfflineOrderSynced(orderId: String, revision: Long)
+
+    /** Inventory edits not yet confirmed by the server. */
+    suspend fun pendingOfflineProducts(shopId: String): List<PendingOfflineProduct>
+    suspend fun markOfflineProductSynced(productId: String, revision: Long)
+
+    /** Bills pulled from the server (other devices). Unsent local edits win; stock is untouched. */
+    suspend fun applyRemoteOrders(orders: List<Order>)
+
+    /** Server catalog. Skips unsent local edits and products in unsent bills. */
+    suspend fun applyRemoteProducts(shopId: String, products: List<Product>)
+
+    suspend fun syncState(key: String): String?
+    suspend fun setSyncState(key: String, value: String)
 }
+
+data class PendingOfflineOrder(
+    val revision: Long,
+    val order: Order,
+)
+
+data class PendingOfflineProduct(
+    val revision: Long,
+    val product: Product,
+)
 
 expect fun createShopRepository(): ShopRepository

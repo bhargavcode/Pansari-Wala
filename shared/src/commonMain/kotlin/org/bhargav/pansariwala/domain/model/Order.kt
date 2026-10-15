@@ -30,6 +30,8 @@ data class OrderItem(
     val quantity: Double,
     val unitPrice: Double,
     val imageUrl: String? = null,
+    val variantId: String? = null,
+    val variantLabel: String? = null,
 ) {
     val lineTotal: Double get() = quantity * unitPrice
 }

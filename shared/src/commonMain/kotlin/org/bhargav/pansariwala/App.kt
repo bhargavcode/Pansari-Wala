@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.data.sync.OfflineOrderSync
 import org.bhargav.pansariwala.designsystem.PermissionRationaleSheet
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
@@ -48,6 +49,7 @@ fun App(
     notifications: NotificationGateway = koinInject(),
     locationTracker: PartnerLocationTracker = koinInject(),
     pushRegistrar: PushRegistrar = koinInject(),
+    orderSync: OfflineOrderSync = koinInject(),
 ) {
     val settings by preferences.userSettings.collectAsStateWithLifecycle(
         initialValue = AppUserSettings(),
@@ -73,6 +75,7 @@ fun App(
             }
             AppProduct.POS, AppProduct.USER -> pushRegistrar.run(product)
         }
+        if (product == AppProduct.POS) orderSync.start()
     }
 
     AppLocaleProvider(languageCode = settings.language.code) {

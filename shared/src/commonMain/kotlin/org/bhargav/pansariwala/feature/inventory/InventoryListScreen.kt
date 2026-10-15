@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,7 +17,11 @@ import androidx.compose.material3.TextButton
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +38,7 @@ import org.bhargav.pansariwala.ui.AsyncUiState
 import org.bhargav.pansariwala.ui.errorBannerOrNull
 import org.bhargav.pansariwala.ui.isBlockingLoad
 import org.bhargav.pansariwala.util.asMoney
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -87,8 +93,19 @@ fun InventoryListScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp),
         )
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(products, key = { it.id }) { product ->
+        var visibleCount by remember(lowStockOnly) { mutableIntStateOf(AppConstants.LIST_PAGE_SIZE) }
+        val listState = rememberLazyListState()
+        val nearEnd by remember {
+            derivedStateOf {
+                val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                last >= listState.layoutInfo.totalItemsCount - AppConstants.LIST_PREFETCH_DISTANCE
+            }
+        }
+        LaunchedEffect(nearEnd, products.size, visibleCount) {
+            if (nearEnd && visibleCount < products.size) visibleCount += AppConstants.LIST_PAGE_SIZE
+        }
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            items(products.take(visibleCount), key = { it.id }) { product ->
                 InventoryRow(product, onEditProduct)
                 HorizontalDivider()
             }
@@ -105,7 +122,7 @@ private fun InventoryRow(product: Product, onEditProduct: (String) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         ProductImageCarousel(
-            imageUrls = product.imageUrls,
+            imageUrls = product.imageUrls.ifEmpty { listOfNotNull(product.primaryImageUrl) },
             height = 72.dp,
             modifier = Modifier.size(72.dp),
         )

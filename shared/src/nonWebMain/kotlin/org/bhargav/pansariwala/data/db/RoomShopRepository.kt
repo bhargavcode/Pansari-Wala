@@ -2,6 +2,10 @@ package org.bhargav.pansariwala.data.db
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import org.bhargav.pansariwala.api.ProductVariantDto
+import org.bhargav.pansariwala.api.toDto
+import org.bhargav.pansariwala.api.toModel
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.auth.Credentials
 import org.bhargav.pansariwala.domain.model.Order
@@ -12,6 +16,7 @@ import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.domain.model.ProductVariant
 import org.bhargav.pansariwala.domain.model.SalesSnapshot
 import org.bhargav.pansariwala.domain.model.ShopUser
 import org.bhargav.pansariwala.util.AppClock
@@ -43,7 +48,7 @@ class RoomShopRepository(
             )
             productDao.upsertAll(products.map { it.toEntity() })
             val orders = SeedData.orders(AppClock.nowMillis(), products)
-            orderDao.insertOrders(orders.map { it.toEntity() })
+            orderDao.insertOrders(orders.map { it.toEntity().copy(pendingSync = 0) })
             orders.forEach { order ->
                 orderDao.insertItems(order.items.map { it.toEntity(order.id) })
             }
@@ -90,7 +95,7 @@ class RoomShopRepository(
         }
 
     override suspend fun upsertProduct(product: Product) {
-        productDao.upsert(product.toEntity())
+        productDao.saveLocal(product.toEntity())
     }
 
     override suspend fun getOrder(orderId: String): Order? {
@@ -104,10 +109,48 @@ class RoomShopRepository(
         // unless the order is cancelled (stock already restored / should not deduct).
         val previousItems = orderDao.getItems(order.id)
         previousItems.forEach { productDao.adjustStock(it.productId, it.quantity) }
-        orderDao.replaceOrder(order.toEntity(), order.items.map { it.toEntity(order.id) })
+        orderDao.saveOrderGraph(order.toEntity(), order.items.map { it.toEntity(order.id) })
         if (order.status != OrderStatus.CANCELLED) {
             order.items.forEach { productDao.adjustStock(it.productId, -it.quantity) }
         }
+    }
+
+    override suspend fun pendingOfflineOrders(shopId: String): List<PendingOfflineOrder> =
+        orderDao.pending(shopId).map { entity ->
+            PendingOfflineOrder(
+                revision = entity.syncRevision,
+                order = entity.toDomain(orderDao.getItems(entity.id)),
+            )
+        }
+
+    override suspend fun markOfflineOrderSynced(orderId: String, revision: Long) {
+        orderDao.markSynced(orderId, revision)
+    }
+
+    override suspend fun pendingOfflineProducts(shopId: String): List<PendingOfflineProduct> =
+        productDao.pending(shopId).map { PendingOfflineProduct(it.syncRevision, it.toDomain()) }
+
+    override suspend fun markOfflineProductSynced(productId: String, revision: Long) {
+        productDao.markSynced(productId, revision)
+    }
+
+    override suspend fun applyRemoteOrders(orders: List<Order>) {
+        if (orders.isEmpty()) return
+        orderDao.applyRemote(orders.map { it.toEntity() to it.items.map { item -> item.toEntity(it.id) } })
+    }
+
+    override suspend fun applyRemoteProducts(shopId: String, products: List<Product>) {
+        if (products.isEmpty()) return
+        val blocked = orderDao.pendingProductIds(shopId).toSet()
+        products.chunked(SQLITE_MAX_BIND_ARGS).forEach { chunk ->
+            productDao.applyRemote(chunk.map { it.toEntity() }, blocked)
+        }
+    }
+
+    override suspend fun syncState(key: String): String? = orderDao.syncState(key)
+
+    override suspend fun setSyncState(key: String, value: String) {
+        orderDao.putSyncState(SyncStateEntity(key, value))
     }
 }
 
@@ -125,7 +168,15 @@ private fun Product.toEntity() = ProductEntity(
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.filter { it.isNotBlank() }.take(4).joinToString("|"),
+    variantsJson = if (variants.isEmpty()) "" else variantJson.encodeToString(variants.map { it.toDto() }),
 )
+
+private val variantJson = Json { ignoreUnknownKeys = true }
+
+private fun decodeVariants(raw: String): List<ProductVariant> =
+    if (raw.isBlank()) emptyList()
+    else runCatching { variantJson.decodeFromString<List<ProductVariantDto>>(raw).map { it.toModel() } }
+        .getOrDefault(emptyList())
 
 private fun ProductEntity.toDomain() = Product(
     id = id,
@@ -141,6 +192,7 @@ private fun ProductEntity.toDomain() = Product(
     lowStockThreshold = lowStockThreshold,
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.split('|').map { it.trim() }.filter { it.isNotBlank() }.take(4),
+    variants = decodeVariants(variantsJson),
 )
 
 private fun UserEntity.toUser() = ShopUser(
@@ -150,7 +202,7 @@ private fun UserEntity.toUser() = ShopUser(
     shopId = shopId,
 )
 
-private fun Order.toEntity() = OrderEntity(
+private fun Order.toEntity(syncRevision: Long = 1L) = OrderEntity(
     id = id,
     shopId = shopId,
     createdAt = createdAtEpochMs,
@@ -161,6 +213,8 @@ private fun Order.toEntity() = OrderEntity(
     cancelReason = cancelReason,
     paymentMethod = paymentMethod,
     discount = discount,
+    pendingSync = 1,
+    syncRevision = syncRevision,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -172,6 +226,8 @@ private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
     quantity = quantity,
     unitPrice = unitPrice,
     lineTotal = lineTotal,
+    variantId = variantId,
+    variantLabel = variantLabel,
 )
 
 private fun OrderEntity.toSummary() = OrderSummary(
@@ -200,6 +256,8 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
             unit = ProductUnit.fromName(it.unit),
             quantity = it.quantity,
             unitPrice = it.unitPrice,
+            variantId = it.variantId,
+            variantLabel = it.variantLabel,
         )
     },
 )

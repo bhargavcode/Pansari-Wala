@@ -23,6 +23,11 @@ import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.domain.model.ProductVariant
+import org.bhargav.pansariwala.feature.user.CartStore
+import org.bhargav.pansariwala.feature.user.PurchaseOption
+import org.bhargav.pansariwala.feature.user.VariantPickerState
+import org.bhargav.pansariwala.feature.user.needsPicker
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
@@ -46,8 +51,12 @@ import pansariwala.shared.generated.resources.voice_partial_stock
 data class CartLine(
     val product: Product,
     val quantity: Double,
+    val variant: ProductVariant? = null,
 ) {
-    val lineTotal: Double get() = quantity * product.sellingPrice
+    val option: PurchaseOption get() = PurchaseOption(product, variant)
+    val key: String get() = option.key
+    val unitPrice: Double get() = option.unitPrice
+    val lineTotal: Double get() = quantity * unitPrice
 }
 
 data class OrderEditorUiState(
@@ -57,6 +66,7 @@ data class OrderEditorUiState(
     val searchQuery: String = "",
     val catalog: List<Product> = emptyList(),
     val cart: List<CartLine> = emptyList(),
+    val variantPicker: VariantPickerState.Request? = null,
     val saved: Boolean = false,
     val showPaymentPicker: Boolean = false,
     val showUpiQr: Boolean = false,
@@ -265,7 +275,7 @@ class OrderEditorViewModel(
                 editingOrderId = existing.id
                 createdAt = existing.createdAtEpochMs
                 val cart = existing.items.mapNotNull { item ->
-                    byId[item.productId]?.let { CartLine(it, item.quantity) }
+                    byId[item.productId]?.let { CartLine(it, item.quantity, item.variantId?.let(it::variant)) }
                 }
                 // Edits keep the original bill discount as a flat amount instead of re-applying today's offers.
                 _uiState.update {
@@ -372,25 +382,49 @@ class OrderEditorViewModel(
     }
 
     fun addProduct(product: Product) {
-        addToCart(product, 1.0)
+        if (product.needsPicker) openPicker(product) else addToCart(product, 1.0)
     }
 
-    fun changeQuantity(productId: String, delta: Double) {
+    fun openPicker(product: Product, editKey: String? = null) {
+        _uiState.update { it.copy(variantPicker = VariantPickerState.Request(product, editKey)) }
+    }
+
+    fun dismissPicker() {
+        _uiState.update { it.copy(variantPicker = null) }
+    }
+
+    fun changeQuantity(key: String, direction: Int) {
         _uiState.update { state ->
             val cart = state.cart.mapNotNull { line ->
-                if (line.product.id != productId) {
+                if (line.key != key) {
                     line
                 } else {
-                    val next = line.quantity + delta
-                    if (next <= 0.0) null else line.copy(quantity = next)
+                    val next = line.quantity + direction * line.option.step
+                    if (next < line.option.minQty - AppConstants.LooseQty.EPSILON) null
+                    else line.copy(quantity = line.option.normalize(next))
                 }
             }
             state.copy(cart = cart)
         }
     }
 
-    fun removeLine(productId: String) {
-        _uiState.update { state -> state.copy(cart = state.cart.filterNot { it.product.id == productId }) }
+    fun removeLine(key: String) {
+        _uiState.update { state -> state.copy(cart = state.cart.filterNot { it.key == key }) }
+    }
+
+    /** Adds or replaces a line from the variant picker; [targetKey] is the line being edited. */
+    fun upsertOption(targetKey: String, option: PurchaseOption, quantity: Double) {
+        _uiState.update { state ->
+            val qty = option.normalize(quantity)
+            val replaced = CartLine(option.product, qty, option.variant)
+            val others = state.cart.filterNot { it.key == targetKey || it.key == option.key }
+            val index = state.cart.indexOfFirst { it.key == targetKey }.takeIf { it >= 0 } ?: others.size
+            state.copy(
+                cart = others.toMutableList().apply { add(index.coerceAtMost(size), replaced) },
+                variantPicker = null,
+                error = null,
+            )
+        }
     }
 
     fun save(print: Boolean = false) {
@@ -457,7 +491,9 @@ class OrderEditorViewModel(
                     productName = line.product.name,
                     unit = line.product.unit,
                     quantity = line.quantity,
-                    unitPrice = line.product.sellingPrice,
+                    unitPrice = line.unitPrice,
+                    variantId = line.variant?.id,
+                    variantLabel = line.variant?.label,
                 )
             },
         )
@@ -553,10 +589,11 @@ class OrderEditorViewModel(
     private fun addToCart(product: Product, quantity: Double) {
         if (quantity <= 0.0) return
         _uiState.update { state ->
-            val existing = state.cart.firstOrNull { it.product.id == product.id }
+            val key = CartStore.lineKey(product.id, null)
+            val existing = state.cart.firstOrNull { it.key == key }
             val cart = if (existing != null) {
                 state.cart.map {
-                    if (it.product.id == product.id) it.copy(quantity = it.quantity + quantity) else it
+                    if (it.key == key) it.copy(quantity = it.quantity + quantity) else it
                 }
             } else {
                 state.cart + CartLine(product, quantity)

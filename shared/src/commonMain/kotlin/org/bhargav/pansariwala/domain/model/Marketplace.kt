@@ -93,6 +93,31 @@ data class MarketplaceShop(
     val offerCount: Int = 0,
     val discountPercent: Double = 0.0,
     val deliveryRadiusKm: Double = 20.0,
+    val deliversToYou: Boolean = true,
+)
+
+data class CatalogSection(
+    val category: ProductCategory,
+    val totalCount: Int,
+    val preview: List<Product>,
+)
+
+data class ProductPage(
+    val items: List<Product>,
+    val page: Int,
+    val totalCount: Int,
+    val hasMore: Boolean,
+)
+
+data class ProductDetail(
+    val product: Product,
+    val brandName: String = "",
+    val companyName: String = "",
+    val description: String = "",
+    val sku: String = "",
+    val tags: List<String> = emptyList(),
+    val weightKg: Double = 0.0,
+    val dimensions: String = "",
 )
 
 data class ShopReview(

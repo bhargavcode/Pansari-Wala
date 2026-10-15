@@ -40,8 +40,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.designsystem.AdaptivePane
+import org.bhargav.pansariwala.feature.catalog.VariantListEditor
+import pansariwala.shared.generated.resources.action_next
+import pansariwala.shared.generated.resources.action_previous
+import pansariwala.shared.generated.resources.master_image_column
+import pansariwala.shared.generated.resources.master_page_info
+import pansariwala.shared.generated.resources.master_variants_count
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
@@ -434,34 +441,64 @@ private fun FeatureToggle(label: String, checked: Boolean, onToggle: () -> Unit)
     FeatureToggleRow(label, checked, onToggle)
 }
 
+private const val MASTER_PAGE_SIZE = 25
+private const val MASTER_SEARCH_DEBOUNCE_MS = 350L
+
+private suspend fun uploadMasterProductImage(api: MasterApi, token: String): String {
+    val picked = pickWebImageFile() ?: error("No file selected")
+    val mime = picked.mimeType.lowercase()
+    require(
+        mime.contains("png") || mime.contains("jpeg") || mime.contains("jpg") || mime.contains("webp"),
+    ) { "Only PNG, JPEG, or WebP" }
+    val compressed = org.bhargav.pansariwala.media.compressImageForUpload(picked.bytes, picked.mimeType, picked.name)
+    return api.uploadFile(
+        token,
+        AppConstants.S3Prefix.MASTER_PRODUCT_IMAGES,
+        compressed.displayName,
+        compressed.bytes,
+        compressed.mimeType,
+    ).url
+}
+
 @Composable
 internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit, onStatus: (String) -> Unit) {
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
-    var products by remember { mutableStateOf<List<ProductDto>>(emptyList()) }
+    var pageData by remember { mutableStateOf(ProductPageDto()) }
+    var page by rememberSaveable { mutableStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
-    fun refresh() {
-        scope.launch {
-            runCatching { products = api.products(token) }.onFailure { onStatus(it.message.orEmpty()) }
-        }
+    var reload by remember { mutableStateOf(0) }
+    val products = pageData.items
+    fun refresh() { reload++ }
+    LaunchedEffect(token, query, page, reload) {
+        if (query.isNotBlank()) delay(MASTER_SEARCH_DEBOUNCE_MS)
+        runCatching { pageData = api.productPage(token, query.trim(), null, page, MASTER_PAGE_SIZE) }
+            .onFailure { onStatus(it.message.orEmpty()) }
     }
-    LaunchedEffect(token) { refresh() }
-    val filtered = products.filter {
-        query.isBlank() || it.name.contains(query, true) || it.id.contains(query, true) || it.brandName.contains(query, true)
-    }
+    val pageCount = ((pageData.totalCount + MASTER_PAGE_SIZE - 1) / MASTER_PAGE_SIZE).coerceAtLeast(1)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         MasterTopBar(stringResource(Res.string.master_products_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MasterStatCard(title = stringResource(Res.string.master_card_products), value = "${products.size}")
+                MasterStatCard(title = stringResource(Res.string.master_card_products), value = "${pageData.totalCount}")
                 AddProductPromoCard(onClick = { onNavigate(MasterDest.ProductEdit(null)) })
             }
-            OutlinedTextField(query, { query = it }, label = { Text(stringResource(Res.string.master_search)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                query,
+                {
+                    query = it
+                    page = 0
+                },
+                label = { Text(stringResource(Res.string.master_search)) },
+                modifier = Modifier.fillMaxWidth(),
+            )
             MasterSectionCard {
-                ResponsiveTable(columns = 10) {
+                ResponsiveTable(columns = 12) {
                     TableHeader(
+                        stringResource(Res.string.master_image_column),
                         stringResource(Res.string.master_product_id),
                         stringResource(Res.string.master_product_name),
+                        stringResource(Res.string.master_variants_count),
                         stringResource(Res.string.master_brand),
                         stringResource(Res.string.master_company),
                         stringResource(Res.string.master_sale_price),
@@ -471,10 +508,17 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
                         stringResource(Res.string.master_added_date),
                         stringResource(Res.string.master_actions),
                     )
-                    filtered.forEach { p ->
+                    products.forEach { p ->
                         TableRow(onClick = { onNavigate(MasterDest.ProductEdit(p.id)) }) {
+                            Cell {
+                                ImageThumb(
+                                    p.imageUrls.firstOrNull() ?: p.imageUrl ?: p.variants.firstNotNullOfOrNull { it.imageUrls.firstOrNull() },
+                                    Modifier.size(48.dp),
+                                )
+                            }
                             CellText(p.id)
                             CellText(p.name)
+                            CellText(if (p.variants.isEmpty()) "—" else "${p.variants.size}")
                             CellText(p.brandName.ifBlank { "—" })
                             CellText(p.companyName.ifBlank { "—" })
                             CellText(formatInr(p.salePrice))
@@ -531,6 +575,15 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
                     }
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { page-- }, enabled = page > 0) {
+                    Text(stringResource(Res.string.action_previous))
+                }
+                Text(stringResource(Res.string.master_page_info, page + 1, pageCount, pageData.totalCount))
+                OutlinedButton(onClick = { page++ }, enabled = pageData.hasMore) {
+                    Text(stringResource(Res.string.action_next))
+                }
+            }
         }
     }
 }
@@ -565,7 +618,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     LaunchedEffect(productId) {
         if (productId != null && loadedId != productId) {
             runCatching {
-                val p = api.products(token).firstOrNull { it.id == productId } ?: return@runCatching
+                val p = api.product(token, productId)
                 loadedId = productId
                 name = p.name; nameHi = p.nameHi; categoryId = p.categoryId
                 subcategoryId = p.subcategoryId.orEmpty(); brand = p.brandName; company = p.companyName
@@ -606,25 +659,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                                 onClick = {
                                     scope.launch {
                                         uploading = true
-                                        val result = runCatching {
-                                            val picked = pickWebImageFile()
-                                                ?: error("No file selected")
-                                            val mime = picked.mimeType.lowercase()
-                                            require(
-                                                mime.contains("png") || mime.contains("jpeg") ||
-                                                    mime.contains("jpg") || mime.contains("webp"),
-                                            ) { "Only PNG, JPEG, or WebP" }
-                                            val compressed = org.bhargav.pansariwala.media.compressImageForUpload(
-                                                picked.bytes, picked.mimeType, picked.name,
-                                            )
-                                            api.uploadFile(
-                                                token,
-                                                org.bhargav.pansariwala.util.AppConstants.S3Prefix.MASTER_PRODUCT_IMAGES,
-                                                compressed.displayName,
-                                                compressed.bytes,
-                                                compressed.mimeType,
-                                            ).url
-                                        }
+                                        val result = runCatching { uploadMasterProductImage(api, token) }
                                         result.onSuccess { url ->
                                             imageUrls = (imageUrls + url).distinct().take(4)
                                         }.onFailure { onStatus(it.message ?: "Upload failed. Try again.") }
@@ -652,7 +687,15 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                         OutlinedTextField(categoryId, { categoryId = it }, label = { Text(stringResource(Res.string.master_category)) }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(subcategoryId, { subcategoryId = it }, label = { Text(stringResource(Res.string.master_subcategory)) }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(Res.string.master_tags)) }, modifier = Modifier.fillMaxWidth())
-                        VariantsEditor(variants = variants, onChange = { variants = it })
+                        VariantListEditor(
+                            variants = variants,
+                            onChange = { variants = it },
+                            onPickImage = {
+                                runCatching { uploadMasterProductImage(api, token) }
+                                    .onFailure { onStatus(it.message ?: "Upload failed. Try again.") }
+                                    .getOrNull()
+                            },
+                        )
                         DescriptionEditor(value = description, onValueChange = { description = it })
                     }
                     Column(Modifier.widthIn(min = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

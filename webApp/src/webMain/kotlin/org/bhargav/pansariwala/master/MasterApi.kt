@@ -93,6 +93,24 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
     suspend fun products(token: String): List<ProductDto> =
         client.get(url("/master/products")) { bearer(token) }.body()
 
+    suspend fun productPage(
+        token: String,
+        query: String,
+        categoryId: String?,
+        page: Int,
+        pageSize: Int,
+    ): ProductPageDto =
+        client.get(url("/master/products/page")) {
+            bearer(token)
+            parameter("q", query)
+            categoryId?.takeIf { it.isNotBlank() }?.let { parameter("categoryId", it) }
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+        }.body()
+
+    suspend fun product(token: String, id: String): ProductDto =
+        client.get(url("/master/products/item/$id")) { bearer(token) }.body()
+
     suspend fun categories(token: String): List<CategoryDto> =
         client.get(url("/master/categories")) { bearer(token) }.body()
 
@@ -295,8 +313,16 @@ data class AdminDashboardDto(
     val txnTrendByMonth: List<AdminChartPointDto> = emptyList(),
 )
 
+typealias ProductVariantDto = org.bhargav.pansariwala.api.ProductVariantDto
+
 @Serializable
-data class ProductVariantDto(val name: String, val sku: String = "", val price: Double = 0.0)
+data class ProductPageDto(
+    val items: List<ProductDto> = emptyList(),
+    val page: Int = 0,
+    val pageSize: Int = 0,
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
+)
 
 @Serializable
 data class ProductDto(

@@ -170,6 +170,42 @@ class KtorPansariApi(
     override suspend fun shopCatalog(shopId: String): List<Product> =
         client.get("shops/$shopId/catalog").body<List<ProductDto>>().map { it.toModel() }
 
+    override suspend fun shopInfo(shopId: String, lat: Double, lng: Double): MarketplaceShop =
+        client.get("shops/$shopId/info") {
+            parameter("lat", lat)
+            parameter("lng", lng)
+        }.body<ShopDto>().toModel()
+
+    override suspend fun catalogSections(
+        shopId: String,
+        query: String,
+        previewSize: Int,
+    ): List<org.bhargav.pansariwala.domain.model.CatalogSection> =
+        client.get("shops/$shopId/catalog/sections") {
+            if (query.isNotBlank()) parameter("query", query)
+            parameter("preview", previewSize)
+        }.body<List<CatalogSectionDto>>().map { it.toModel() }
+
+    override suspend fun catalogPage(
+        shopId: String,
+        category: org.bhargav.pansariwala.domain.model.ProductCategory?,
+        query: String,
+        page: Int,
+        pageSize: Int,
+    ): org.bhargav.pansariwala.domain.model.ProductPage =
+        client.get("shops/$shopId/products") {
+            category?.let { parameter("category", it.name) }
+            if (query.isNotBlank()) parameter("query", query)
+            parameter("page", page)
+            parameter("size", pageSize)
+        }.body<ProductPageDto>().toModel()
+
+    override suspend fun shopProductDetail(
+        shopId: String,
+        productId: String,
+    ): org.bhargav.pansariwala.domain.model.ProductDetail =
+        client.get("shops/$shopId/products/$productId").body<ProductDetailDto>().toModel()
+
     override suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview> =
         client.get("shops/$shopId/ratings").body<List<ShopReviewDto>>().map { it.toModel() }
 
@@ -379,9 +415,15 @@ class KtorPansariApi(
 
     override suspend fun pullSync(): SyncPullResponse = client.get("sync/pull").body()
 
-    override suspend fun pushSync(request: SyncPushRequest) {
-        client.post("sync/push") { setBody(request) }
-    }
+    override suspend fun pushSync(request: SyncPushRequest): SyncPushResponse =
+        client.post("sync/push") { setBody(request) }.body()
+
+    override suspend fun syncOrders(since: Long, afterId: String, limit: Int): SyncOrdersPage =
+        client.get("sync/orders") {
+            parameter("since", since)
+            parameter("afterId", afterId)
+            parameter("limit", limit)
+        }.body()
 
     override suspend fun uploadImage(
         prefix: String,

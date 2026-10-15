@@ -115,6 +115,7 @@ data class ShopDto(
     val active: Boolean = true,
     val paymentsEnabled: Boolean = true,
     val address: String = "",
+    val deliversToYou: Boolean = true,
 )
 
 @Serializable
@@ -302,11 +303,35 @@ data class AdminPartnerPatch(val active: Boolean? = null)
 @Serializable
 data class AdminOrderActionRequest(val reason: String? = null)
 
+/** Mirrors `ProductVariantDoc`; see it for [sellMode] semantics. */
 @Serializable
-data class MasterProductVariantDto(
+data class ProductVariantDto(
     val name: String,
     val sku: String = "",
     val price: Double = 0.0,
+    val id: String = "",
+    val sellMode: String = "PACK",
+    val attributes: Map<String, String> = emptyMap(),
+    val mrp: Double = 0.0,
+    val baseUnit: String = "",
+    val minQty: Double = 0.0,
+    val maxQty: Double = 0.0,
+    val stepQty: Double = 0.0,
+    val quickPicks: List<Double> = emptyList(),
+    val bundleCount: Int = 0,
+    val imageUrls: List<String> = emptyList(),
+    val stockQty: Double = 0.0,
+    val barcode: String? = null,
+    val active: Boolean = true,
+)
+
+@Serializable
+data class MasterProductPageDto(
+    val items: List<MasterProductDto>,
+    val page: Int,
+    val pageSize: Int,
+    val totalCount: Int,
+    val hasMore: Boolean,
 )
 
 @Serializable
@@ -385,6 +410,36 @@ data class ProductDto(
     val lowStockThreshold: Double,
     val voiceAlias: String? = null,
     val imageUrls: List<String> = emptyList(),
+    val variants: List<ProductVariantDto> = emptyList(),
+)
+
+@Serializable
+data class CatalogSectionDto(
+    val category: String,
+    val totalCount: Int,
+    val preview: List<ProductDto>,
+)
+
+@Serializable
+data class ProductPageDto(
+    val items: List<ProductDto>,
+    val page: Int,
+    val pageSize: Int,
+    val totalCount: Int,
+    val hasMore: Boolean,
+)
+
+@Serializable
+data class ProductDetailDto(
+    val product: ProductDto,
+    val brandName: String = "",
+    val companyName: String = "",
+    val description: String = "",
+    val sku: String = "",
+    val tags: String = "",
+    val weightKg: Double = 0.0,
+    val dimensions: String = "",
+    val variants: List<ProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -396,7 +451,12 @@ data class OfferDto(
 )
 
 @Serializable
-data class PlaceOrderItemDto(val productId: String, val quantity: Double)
+data class PlaceOrderItemDto(
+    val productId: String,
+    /** PACK/BUNDLE: number of packs. LOOSE: amount in the variant's base unit (0.25 = 250 g). */
+    val quantity: Double,
+    val variantId: String? = null,
+)
 
 @Serializable
 data class PlaceOrderRequest(
@@ -460,6 +520,9 @@ data class OrderItemDto(
     val quantity: Double,
     val unitPrice: Double,
     val imageUrl: String? = null,
+    val variantId: String? = null,
+    val variantLabel: String? = null,
+    val sellMode: String? = null,
 )
 
 @Serializable
@@ -500,6 +563,7 @@ data class OrderDto(
     val refundId: String? = null,
     val packedProductIds: List<String> = emptyList(),
     val deliveryMode: String = "PARTNER",
+    val discount: Double = 0.0,
 )
 
 @Serializable
@@ -646,7 +710,7 @@ data class MasterProductDto(
     val tags: String = "",
     val weightKg: Double = 0.0,
     val dimensions: String = "",
-    val variants: List<MasterProductVariantDto> = emptyList(),
+    val variants: List<ProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -673,7 +737,7 @@ data class MasterProductUpsert(
     val tags: String = "",
     val weightKg: Double = 0.0,
     val dimensions: String = "",
-    val variants: List<MasterProductVariantDto> = emptyList(),
+    val variants: List<ProductVariantDto> = emptyList(),
 )
 
 @Serializable
@@ -706,9 +770,43 @@ data class UploadResultDto(
 )
 
 @Serializable
+data class OfflineOrderSyncDto(
+    val revision: Long,
+    val order: OrderDto,
+)
+
+@Serializable
+data class OfflineOrderAck(
+    val id: String,
+    val revision: Long,
+)
+
+@Serializable
+data class OfflineProductSyncDto(
+    val revision: Long,
+    val product: ProductDto,
+)
+
+@Serializable
 data class SyncPushRequest(
     val products: List<ProductDto> = emptyList(),
     val orders: List<OrderDto> = emptyList(),
+    val offlineOrders: List<OfflineOrderSyncDto> = emptyList(),
+    val offlineProducts: List<OfflineProductSyncDto> = emptyList(),
+)
+
+@Serializable
+data class SyncPushResponse(
+    val accepted: List<OfflineOrderAck> = emptyList(),
+    val acceptedProducts: List<OfflineOrderAck> = emptyList(),
+)
+
+@Serializable
+data class SyncOrdersPage(
+    val orders: List<OrderDto>,
+    val nextSince: Long,
+    val nextAfterId: String,
+    val hasMore: Boolean,
 )
 
 @Serializable

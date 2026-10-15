@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -27,4 +28,19 @@ data class ProductEntity(
     val voiceAlias: String?,
     /** Pipe-separated HTTPS image URLs (max 4). */
     val imageUrls: String = "",
+    /** 1 while a local edit waits for server confirmation of [syncRevision]. */
+    @ColumnInfo(defaultValue = "0")
+    val pendingSync: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    val syncRevision: Long = 0,
+    /** JSON array of `ProductVariantDto`; empty when the product has no variants. */
+    @ColumnInfo(defaultValue = "")
+    val variantsJson: String = "",
+)
+
+/** Pull cursors and other small sync bookmarks. */
+@Entity(tableName = "sync_state")
+data class SyncStateEntity(
+    @PrimaryKey val syncKey: String,
+    val syncValue: String,
 )

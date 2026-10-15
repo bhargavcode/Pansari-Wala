@@ -21,11 +21,11 @@ import org.bhargav.pansariwala.api.VerifyPaymentRequest
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
+import org.bhargav.pansariwala.domain.model.CatalogSection
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderStatus
-import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.SavedAddress
 import org.bhargav.pansariwala.domain.model.ShopOffer
 import org.bhargav.pansariwala.domain.model.toFulfillmentStep
@@ -52,14 +52,20 @@ enum class CatalogTab { PRODUCTS, RATINGS }
 
 data class CatalogData(
     val shop: MarketplaceShop? = null,
-    val products: List<Product> = emptyList(),
+    val sections: List<CatalogSection> = emptyList(),
+    val searchSections: List<CatalogSection> = emptyList(),
+    val searching: Boolean = false,
     val ratings: List<org.bhargav.pansariwala.domain.model.ShopReview> = emptyList(),
+    val ratingsLoaded: Boolean = false,
     val cartCount: Int = 0,
     val productQuery: String = "",
     val selectedTab: CatalogTab = CatalogTab.PRODUCTS,
     val ratingFilterStars: Set<Int> = emptySet(),
     val showRatingFilterSheet: Boolean = false,
-)
+) {
+    val isSearchActive: Boolean get() = productQuery.isNotBlank()
+    val visibleSections: List<CatalogSection> get() = if (isSearchActive) searchSections else sections
+}
 
 typealias CatalogUiState = AsyncUiState<CatalogData>
 
@@ -79,36 +85,47 @@ class ShopCatalogViewModel(
         }
     }
 
-    fun load(shopId: String) {
+    private var shopId: String? = null
+    private var cartJob: Job? = null
+    private var searchJob: Job? = null
+    private var ratingsJob: Job? = null
+
+    fun refresh() {
+        shopId?.let { load(it, force = true) }
+    }
+
+    fun load(shopId: String, force: Boolean = false) {
+        if (!force && this.shopId == shopId && _state.value is AsyncUiState.Success) return
+        this.shopId = shopId
         cart.bindShop(shopId)
-        viewModelScope.launch {
+        cartJob?.cancel()
+        cartJob = viewModelScope.launch {
             cart.lines.collect { lines ->
-                val count = lines.sumOf { line -> line.quantity.toInt() }
-                val current = _state.value
-                if (current is AsyncUiState.Success) {
-                    _state.value = current.copy(data = current.data.copy(cartCount = count))
-                }
+                updateSuccess { it.copy(cartCount = CartStore.countItems(lines)) }
             }
         }
         viewModelScope.launch {
             _state.value = _state.value.beginLoad()
             runCatching {
                 coroutineScope {
-                    val productsDef = async { api.shopCatalog(shopId) }
-                    val ratingsDef = async { api.shopRatings(shopId) }
-                    val shopDef = async {
-                        val geo = location.currentOrDefault()
-                        api.nearbyShops(geo.lat, geo.lng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
-                            .firstOrNull { it.id == shopId }
+                    val sectionsDef = async {
+                        api.catalogSections(shopId, "", AppConstants.CATALOG_PREVIEW_PER_CATEGORY)
                     }
-                    val products = productsDef.await()
+                    val shopDef = async {
+                        runCatching {
+                            val geo = location.currentOrDefault()
+                            api.shopInfo(shopId, geo.lat, geo.lng)
+                        }.getOrNull()
+                    }
                     val shop = shopDef.await()
-                    val ratings = ratingsDef.await()
+                    val sections = sectionsDef.await().sortedBy { it.category.ordinal }
                     shop?.let { cart.bindShop(shopId, it.name) }
-                    CatalogData(shop = shop, products = products, ratings = ratings, cartCount = cart.itemCount)
+                    val previous = (_state.value as? AsyncUiState.Success)?.data ?: CatalogData()
+                    previous.copy(shop = shop ?: previous.shop, sections = sections, cartCount = cart.itemCount)
                 }
             }.onSuccess { data ->
                 _state.value = AsyncUiState.Success(data)
+                if (data.selectedTab == CatalogTab.RATINGS) loadRatings(force = true)
             }.onFailure { err ->
                 err.rethrowIfStructuredCancellation()
                 val message = err.toApiUiText()
@@ -120,17 +137,54 @@ class ShopCatalogViewModel(
         }
     }
 
-    fun add(product: Product) { cart.add(product) }
-    fun increment(productId: String) { cart.increment(productId) }
-    fun decrement(productId: String) { cart.decrement(productId) }
-    fun quantityOf(productId: String): Int = cart.quantityOf(productId)
-
     fun setProductQuery(value: String) {
-        updateSuccess { it.copy(productQuery = value) }
+        updateSuccess { it.copy(productQuery = value, searching = value.isNotBlank()) }
+        searchJob?.cancel()
+        val id = shopId ?: return
+        val query = value.trim()
+        if (query.isEmpty()) {
+            updateSuccess { it.copy(searchSections = emptyList(), searching = false) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(AppConstants.CATALOG_SEARCH_DEBOUNCE_MS)
+            runCatching { api.catalogSections(id, query, AppConstants.CATALOG_PREVIEW_PER_CATEGORY) }
+                .onSuccess { results ->
+                    updateSuccess {
+                        it.copy(searchSections = results.sortedBy { s -> s.category.ordinal }, searching = false)
+                    }
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    val current = _state.value
+                    if (current is AsyncUiState.Success) {
+                        _state.value = current.copy(
+                            data = current.data.copy(searching = false),
+                            bannerError = err.toApiUiText(),
+                        )
+                    }
+                }
+        }
     }
 
     fun selectTab(tab: CatalogTab) {
         updateSuccess { it.copy(selectedTab = tab) }
+        if (tab == CatalogTab.RATINGS) loadRatings()
+    }
+
+    private fun loadRatings(force: Boolean = false) {
+        val id = shopId ?: return
+        val data = (_state.value as? AsyncUiState.Success)?.data ?: return
+        if ((data.ratingsLoaded && !force) || ratingsJob?.isActive == true) return
+        ratingsJob = viewModelScope.launch {
+            runCatching { api.shopRatings(id) }
+                .onSuccess { ratings -> updateSuccess { it.copy(ratings = ratings, ratingsLoaded = true) } }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    val current = _state.value
+                    if (current is AsyncUiState.Success) _state.value = current.copy(bannerError = err.toApiUiText())
+                }
+        }
     }
 
     fun showRatingFilterSheet() {
@@ -156,15 +210,6 @@ class ShopCatalogViewModel(
 
     fun clearRatingFilter() {
         updateSuccess { it.copy(ratingFilterStars = emptySet()) }
-    }
-
-    fun filteredProducts(data: CatalogData): List<Product> {
-        val query = data.productQuery.trim()
-        if (query.isBlank()) return data.products
-        return data.products.filter {
-            it.name.contains(query, ignoreCase = true) ||
-                it.nameHi.contains(query, ignoreCase = true)
-        }
     }
 
     fun filteredRatings(data: CatalogData): List<org.bhargav.pansariwala.domain.model.ShopReview> {
@@ -199,8 +244,8 @@ class CartViewModel(
         }
     }
 
-    fun increment(productId: String) { cart.increment(productId) }
-    fun decrement(productId: String) { cart.decrement(productId) }
+    fun increment(lineKey: String) { cart.increment(lineKey) }
+    fun decrement(lineKey: String) { cart.decrement(lineKey) }
 }
 
 data class CheckoutUiState(
@@ -235,17 +280,14 @@ class CheckoutViewModel(
             val selected = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
             val dropLat = selected?.location?.lat ?: profile?.location?.lat ?: geo.lat
             val dropLng = selected?.location?.lng ?: profile?.location?.lng ?: geo.lng
-            val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity) }
+            val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity, it.variant?.id) }
             val quote = runCatching {
                 api.quote(
                     org.bhargav.pansariwala.api.QuoteRequest(shopId, items, dropLat, dropLng),
                 )
             }.getOrNull()
             val offers = runCatching { api.shopOffers(shopId) }.getOrDefault(emptyList())
-            val shop = runCatching {
-                api.nearbyShops(dropLat, dropLng, AppConstants.MAX_SEARCH_RADIUS_KM, "")
-                    .firstOrNull { it.id == shopId }
-            }.getOrNull()
+            val shop = runCatching { api.shopInfo(shopId, dropLat, dropLng) }.getOrNull()
             _state.update {
                 it.copy(
                     quote = quote,
@@ -277,7 +319,7 @@ class CheckoutViewModel(
         viewModelScope.launch {
             _state.update { it.copy(placing = true, error = null, needsProfile = false, snackbar = null) }
             runCatching {
-                val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity) }
+                val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity, it.variant?.id) }
                 require(items.isNotEmpty()) { AppConstants.Checkout.ERROR_EMPTY_CART }
                 val quote = _state.value.quote ?: error(AppConstants.Checkout.ERROR_MISSING_QUOTE)
                 val selectedId = _state.value.selectedAddressId

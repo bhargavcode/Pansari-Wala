@@ -8,6 +8,7 @@ import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.crash.CrashReporter
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
+import org.bhargav.pansariwala.data.sync.OrderSyncSignal
 import org.bhargav.pansariwala.domain.auth.AuthRepository
 import org.bhargav.pansariwala.domain.auth.LoginCredentials
 import org.bhargav.pansariwala.domain.auth.Session
@@ -28,6 +29,7 @@ class LocalAuthRepository(
     private val analytics: Analytics,
     private val crashReporter: CrashReporter,
     private val api: PansariApi,
+    private val orderSyncSignal: OrderSyncSignal,
 ) : AuthRepository {
 
     override suspend fun hasSession(): Boolean = preferences.hasSession()
@@ -86,6 +88,7 @@ class LocalAuthRepository(
                 JwtAuthCache.invalidate()
                 local
             }
+            orderSyncSignal.kick(pull = true)
             session
         }.onFailure { error ->
             analytics.log(

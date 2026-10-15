@@ -35,6 +35,20 @@ interface PansariApi {
 
     suspend fun nearbyShops(lat: Double, lng: Double, radiusKm: Double, query: String): List<MarketplaceShop>
     suspend fun shopCatalog(shopId: String): List<Product>
+    suspend fun shopInfo(shopId: String, lat: Double, lng: Double): MarketplaceShop
+    suspend fun catalogSections(
+        shopId: String,
+        query: String,
+        previewSize: Int,
+    ): List<org.bhargav.pansariwala.domain.model.CatalogSection>
+    suspend fun catalogPage(
+        shopId: String,
+        category: org.bhargav.pansariwala.domain.model.ProductCategory?,
+        query: String,
+        page: Int,
+        pageSize: Int,
+    ): org.bhargav.pansariwala.domain.model.ProductPage
+    suspend fun shopProductDetail(shopId: String, productId: String): org.bhargav.pansariwala.domain.model.ProductDetail
     suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview>
     suspend fun shopOffers(shopId: String): List<ShopOffer>
     suspend fun quote(request: QuoteRequest): QuoteDto
@@ -95,7 +109,8 @@ interface PansariApi {
     suspend fun deliverOrder(orderId: String, otp: String): Order
 
     suspend fun pullSync(): SyncPullResponse
-    suspend fun pushSync(request: SyncPushRequest)
+    suspend fun pushSync(request: SyncPushRequest): SyncPushResponse
+    suspend fun syncOrders(since: Long, afterId: String, limit: Int): SyncOrdersPage
 
     /**
      * Multipart file upload to S3 (or local) URL. Prefix must be an allowed S3 prefix.

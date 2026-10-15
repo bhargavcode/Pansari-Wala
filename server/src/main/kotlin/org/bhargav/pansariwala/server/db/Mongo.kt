@@ -155,11 +155,30 @@ data class CategoryDoc(
     val parentId: String? = null,
 )
 
+/**
+ * One sellable option of a product. [sellMode]: PACK (fixed pack, integer count), LOOSE (sold by
+ * [baseUnit] amount, [price] is per base unit), BUNDLE ([bundleCount] packs sold together).
+ * [name] is the customer-facing label ("1 kg", "Red / M", "Loose").
+ */
 @Serializable
-data class MasterProductVariantDoc(
+data class ProductVariantDoc(
     val name: String,
     val sku: String = "",
     val price: Double = 0.0,
+    val id: String = "",
+    val sellMode: String = "PACK",
+    val attributes: Map<String, String> = emptyMap(),
+    val mrp: Double = 0.0,
+    val baseUnit: String = "",
+    val minQty: Double = 0.0,
+    val maxQty: Double = 0.0,
+    val stepQty: Double = 0.0,
+    val quickPicks: List<Double> = emptyList(),
+    val bundleCount: Int = 0,
+    val imageUrls: List<String> = emptyList(),
+    val stockQty: Double = 0.0,
+    val barcode: String? = null,
+    val active: Boolean = true,
 )
 
 @Serializable
@@ -187,7 +206,7 @@ data class MasterProductDoc(
     val tags: String = "",
     val weightKg: Double = 0.0,
     val dimensions: String = "",
-    val variants: List<MasterProductVariantDoc> = emptyList(),
+    val variants: List<ProductVariantDoc> = emptyList(),
 )
 
 @Serializable
@@ -212,6 +231,7 @@ data class ProductDoc(
     val lowStockThreshold: Double,
     val voiceAlias: String? = null,
     val imageUrls: List<String> = emptyList(),
+    val variants: List<ProductVariantDoc> = emptyList(),
 )
 
 @Serializable
@@ -270,6 +290,10 @@ data class OrderDoc(
     val packedProductIds: List<String> = emptyList(),
     /** PARTNER (platform delivery partner) or SELF (shop delivers itself). */
     val deliveryMode: String = "PARTNER",
+    /** POS bill discount in INR. */
+    val discount: Double = 0.0,
+    /** Server write time for POS bills; cursor for device pull sync. */
+    val syncedAt: Long = 0L,
 )
 
 @Serializable
@@ -536,11 +560,33 @@ private fun ensureIndexes(db: MongoDatabase) {
         createIndex(Indexes.compoundIndex(Indexes.ascending("partnerId"), Indexes.ascending("status")))
         createIndex(Indexes.descending("createdAt"))
         createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.descending("createdAt")))
+        createIndex(
+            Indexes.compoundIndex(
+                Indexes.ascending("shopId"),
+                Indexes.ascending("channel"),
+                Indexes.ascending("syncedAt"),
+                Indexes.ascending("_id"),
+            ),
+        )
     }
     db.getCollection<TxnDoc>("transactions")
         .createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))
-    db.getCollection<ProductDoc>("products")
-        .createIndex(Indexes.ascending("shopId"))
+    db.getCollection<ProductDoc>("products").apply {
+        createIndex(Indexes.ascending("shopId"))
+        createIndex(
+            Indexes.compoundIndex(
+                Indexes.ascending("shopId"),
+                Indexes.ascending("category"),
+                Indexes.ascending("name"),
+                Indexes.ascending("_id"),
+            ),
+        )
+    }
+    db.getCollection<MasterProductDoc>("master_products").apply {
+        createIndex(Indexes.ascending("barcode"))
+        createIndex(Indexes.ascending("name"))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("categoryId"), Indexes.ascending("name")))
+    }
     db.getCollection<DeliveryOfferDoc>("delivery_offers").apply {
         createIndex(Indexes.ascending("orderId"))
         createIndex(Indexes.ascending("acceptedBy"))

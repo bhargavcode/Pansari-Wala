@@ -30,6 +30,14 @@ abstract class OrderDao {
     )
     abstract suspend fun ordersBetween(shopId: String, from: Long, to: Long): List<OrderEntity>
 
+    @Query(
+        "SELECT * FROM orders WHERE shopId = :shopId AND pendingSync = 1 ORDER BY createdAt ASC",
+    )
+    abstract suspend fun pending(shopId: String): List<OrderEntity>
+
+    @Query("UPDATE orders SET pendingSync = 0 WHERE id = :id AND syncRevision = :revision")
+    abstract suspend fun markSynced(id: String, revision: Long): Int
+
     @Query("SELECT * FROM orders WHERE id = :id LIMIT 1")
     abstract suspend fun getOrder(id: String): OrderEntity?
 
@@ -53,5 +61,33 @@ abstract class OrderDao {
         upsertOrder(order)
         deleteItems(order.id)
         insertItems(items)
+    }
+
+    @Query(
+        "SELECT DISTINCT i.productId FROM order_items i JOIN orders o ON o.id = i.orderId " +
+            "WHERE o.shopId = :shopId AND o.pendingSync = 1",
+    )
+    abstract suspend fun pendingProductIds(shopId: String): List<String>
+
+    @Query("SELECT syncValue FROM sync_state WHERE syncKey = :key LIMIT 1")
+    abstract suspend fun syncState(key: String): String?
+
+    @Upsert
+    abstract suspend fun putSyncState(state: SyncStateEntity)
+
+    /** Server copies from other devices; rows with unsent local edits are kept. */
+    @Transaction
+    open suspend fun applyRemote(orders: List<Pair<OrderEntity, List<OrderItemEntity>>>) {
+        orders.forEach { (order, items) ->
+            val local = getOrder(order.id)
+            if (local?.pendingSync == 1) return@forEach
+            replaceOrder(order.copy(pendingSync = 0, syncRevision = local?.syncRevision ?: 0L), items)
+        }
+    }
+
+    @Transaction
+    open suspend fun saveOrderGraph(order: OrderEntity, items: List<OrderItemEntity>) {
+        val revision = (getOrder(order.id)?.syncRevision ?: 0L) + 1L
+        replaceOrder(order.copy(pendingSync = 1, syncRevision = revision), items)
     }
 }

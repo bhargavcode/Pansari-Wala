@@ -10,6 +10,9 @@ import org.bhargav.pansariwala.data.db.createShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.local.SessionStore
 import org.bhargav.pansariwala.data.local.createSessionStore
+import org.bhargav.pansariwala.data.sync.OfflineOrderSync
+import org.bhargav.pansariwala.data.sync.OrderSyncSignal
+import org.bhargav.pansariwala.data.sync.SyncingShopRepository
 import org.bhargav.pansariwala.domain.auth.AuthRepository
 import org.bhargav.pansariwala.domain.auth.LoginUseCase
 import org.bhargav.pansariwala.domain.auth.ObserveSessionUseCase
@@ -43,6 +46,8 @@ import org.bhargav.pansariwala.feature.user.PhoneAuthViewModel
 import org.bhargav.pansariwala.feature.user.AddressViewModel
 import org.bhargav.pansariwala.feature.user.UserLocationAccessViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogViewModel
+import org.bhargav.pansariwala.feature.user.CategoryProductsViewModel
+import org.bhargav.pansariwala.feature.user.ProductDetailViewModel
 import org.bhargav.pansariwala.feature.user.ThankYouViewModel
 import org.bhargav.pansariwala.feature.user.UserSettingsViewModel
 import org.bhargav.pansariwala.feature.printer.PrinterSettingsViewModel
@@ -62,6 +67,7 @@ import org.bhargav.pansariwala.voice.SpeechToText
 import org.bhargav.pansariwala.voice.createSpeechToText
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
@@ -78,7 +84,9 @@ val appModule = module {
     single<SpeechToText> { createSpeechToText() }
 
     single<SessionStore> { createSessionStore() }
-    single<ShopRepository> { createShopRepository() }
+    single { OrderSyncSignal() }
+    single<ShopRepository> { SyncingShopRepository(createShopRepository(), get()) }
+    singleOf(::OfflineOrderSync)
     single { AppPreferences(get()) }
     single { CartStore() }
     single<PrinterSettingsStore> { SessionPrinterSettingsStore(get()) }
@@ -105,6 +113,8 @@ val appModule = module {
     viewModelOf(::AccountViewModel)
     viewModelOf(::UserSettingsViewModel)
     viewModelOf(::ShopCatalogViewModel)
+    viewModel { CategoryProductsViewModel(get()) }
+    viewModelOf(::ProductDetailViewModel)
     viewModelOf(::CartViewModel)
     viewModelOf(::CheckoutViewModel)
     viewModelOf(::ThankYouViewModel)

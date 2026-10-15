@@ -28,6 +28,44 @@ enum class ProductUnit(val label: String) {
     }
 }
 
+/** PACK = fixed pack bought by count; LOOSE = bought by weight/volume; BUNDLE = several packs together. */
+enum class SellMode {
+    PACK,
+    LOOSE,
+    BUNDLE,
+    ;
+
+    companion object {
+        fun fromName(value: String?): SellMode = entries.firstOrNull { it.name == value } ?: PACK
+    }
+}
+
+/**
+ * A sellable option of a [Product] (size, colour, pack size, item count or loose weight).
+ * For [SellMode.LOOSE], [price] is per [baseUnit] and cart quantities are in [baseUnit].
+ */
+data class ProductVariant(
+    val id: String,
+    val label: String,
+    val sellMode: SellMode = SellMode.PACK,
+    val price: Double,
+    val mrp: Double = 0.0,
+    val attributes: Map<String, String> = emptyMap(),
+    val baseUnit: ProductUnit = ProductUnit.PIECE,
+    val minQty: Double = 0.0,
+    val maxQty: Double = 0.0,
+    val stepQty: Double = 0.0,
+    val quickPicks: List<Double> = emptyList(),
+    val bundleCount: Int = 0,
+    val imageUrls: List<String> = emptyList(),
+    val stockQty: Double = 0.0,
+    val sku: String = "",
+    val barcode: String? = null,
+) {
+    val isLoose: Boolean get() = sellMode == SellMode.LOOSE
+    val primaryImageUrl: String? get() = imageUrls.firstOrNull { it.isNotBlank() }
+}
+
 data class Product(
     val id: String,
     val shopId: String,
@@ -42,8 +80,19 @@ data class Product(
     val lowStockThreshold: Double,
     val voiceAlias: String?,
     val imageUrls: List<String> = emptyList(),
+    val variants: List<ProductVariant> = emptyList(),
 ) {
     val isLowStock: Boolean get() = stockQty <= lowStockThreshold
     val stockValue: Double get() = stockQty * costPrice
-    val primaryImageUrl: String? get() = imageUrls.firstOrNull { it.isNotBlank() }
+    val primaryImageUrl: String? get() =
+        imageUrls.firstOrNull { it.isNotBlank() } ?: variants.firstNotNullOfOrNull { it.primaryImageUrl }
+    val hasVariants: Boolean get() = variants.isNotEmpty()
+
+    /** Weight/volume products without variants are sold loose by [unit]. */
+    val isLooseUnit: Boolean get() = unit == ProductUnit.KG || unit == ProductUnit.LITRE || unit == ProductUnit.GRAM
+
+    /** Lowest price across options, for "from ₹x" labels. */
+    val startingPrice: Double get() = variants.minOfOrNull { it.price } ?: sellingPrice
+
+    fun variant(id: String?): ProductVariant? = id?.let { vid -> variants.firstOrNull { it.id == vid } }
 }

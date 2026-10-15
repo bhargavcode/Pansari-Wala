@@ -79,6 +79,8 @@ private val userNavConfig = SavedStateConfiguration {
             subclass(UserRoute.LocationAccess::class, UserRoute.LocationAccess.serializer())
             subclass(UserRoute.Shell::class, UserRoute.Shell.serializer())
             subclass(UserRoute.ShopCatalog::class, UserRoute.ShopCatalog.serializer())
+            subclass(UserRoute.ShopCategory::class, UserRoute.ShopCategory.serializer())
+            subclass(UserRoute.ShopProduct::class, UserRoute.ShopProduct.serializer())
             subclass(UserRoute.Cart::class, UserRoute.Cart.serializer())
             subclass(UserRoute.Checkout::class, UserRoute.Checkout.serializer())
             subclass(UserRoute.ThankYou::class, UserRoute.ThankYou.serializer())
@@ -189,6 +191,30 @@ fun UserNavGraph() {
                         ShopCatalogScreen(
                             shopId = route.shopId,
                             onOpenCart = { push(UserRoute.Cart(route.shopId)) },
+                            onOpenCategory = { category, query ->
+                                push(UserRoute.ShopCategory(route.shopId, category?.name, query))
+                            },
+                            onOpenProduct = { push(UserRoute.ShopProduct(route.shopId, it)) },
+                            onBack = { pop() },
+                        )
+                    }
+                    is UserRoute.ShopCategory -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.user.ShopCategoryScreen(
+                            shopId = route.shopId,
+                            category = route.category?.let(
+                                org.bhargav.pansariwala.domain.model.ProductCategory::fromName,
+                            ),
+                            initialQuery = route.query,
+                            onOpenProduct = { push(UserRoute.ShopProduct(route.shopId, it)) },
+                            onOpenCart = { push(UserRoute.Cart(route.shopId)) },
+                            onBack = { pop() },
+                        )
+                    }
+                    is UserRoute.ShopProduct -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.user.ShopProductDetailScreen(
+                            shopId = route.shopId,
+                            productId = route.productId,
+                            onOpenCart = { push(UserRoute.Cart(route.shopId)) },
                             onBack = { pop() },
                         )
                     }
@@ -267,7 +293,7 @@ private fun UserShell(
     val cart: CartStore = koinInject()
     val cartLines by cart.lines.collectAsStateWithLifecycle(emptyList())
     val cartShopId by cart.shopId.collectAsStateWithLifecycle(null)
-    val cartCount = cartLines.sumOf { it.quantity.toInt() }
+    val cartCount = CartStore.countItems(cartLines)
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {

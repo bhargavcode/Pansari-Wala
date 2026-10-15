@@ -164,6 +164,37 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             }
             call.respond(store.catalog(shopId))
         }
+        get("/shops/{id}/info") {
+            val lat = call.parameters["lat"]?.toDoubleOrNull() ?: error("lat required")
+            val lng = call.parameters["lng"]?.toDoubleOrNull() ?: error("lng required")
+            call.respond(withContext(Dispatchers.IO) { store.shopForCustomer(call.parameters["id"]!!, lat, lng) })
+        }
+        get("/shops/{id}/catalog/sections") {
+            val shopId = call.parameters["id"]!!
+            val query = call.parameters["query"].orEmpty()
+            val preview = call.parameters["preview"]?.toIntOrNull() ?: 5
+            call.respond(
+                withContext(Dispatchers.IO) {
+                    if (query.isBlank() && call.payload().getClaim("role").asString() == "CUSTOMER") {
+                        store.recordShopVisit(shopId, call.userId())
+                    }
+                    store.catalogSections(shopId, query, preview)
+                },
+            )
+        }
+        get("/shops/{id}/products") {
+            val shopId = call.parameters["id"]!!
+            val category = call.parameters["category"]?.takeIf { it.isNotBlank() }
+            val query = call.parameters["query"].orEmpty()
+            val page = call.parameters["page"]?.toIntOrNull() ?: 0
+            val size = call.parameters["size"]?.toIntOrNull() ?: 10
+            call.respond(withContext(Dispatchers.IO) { store.catalogPage(shopId, category, query, page, size) })
+        }
+        get("/shops/{id}/products/{productId}") {
+            val shopId = call.parameters["id"]!!
+            val productId = call.parameters["productId"]!!
+            call.respond(withContext(Dispatchers.IO) { store.shopProductDetail(shopId, productId) })
+        }
         get("/shops/{id}/ratings") {
             call.respond(withContext(Dispatchers.IO) { store.shopRatings(call.parameters["id"]!!) })
         }
@@ -296,7 +327,18 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(withContext(Dispatchers.IO) { store.visitorStats(call.userId(), from, to) })
         }
         get("/sync/pull") { call.respond(store.pullSync(call.requireShopId())) }
-        post("/sync/push") { store.pushSync(call.requireShopId(), call.receive<SyncPushRequest>()); call.respond(OkResponse()) }
+        post("/sync/push") {
+            val shopId = call.requireShopId()
+            val body = call.receive<SyncPushRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.pushSync(shopId, body) })
+        }
+        get("/sync/orders") {
+            val shopId = call.requireShopId()
+            val since = call.parameters["since"]?.toLongOrNull() ?: -1L
+            val afterId = call.parameters["afterId"].orEmpty()
+            val limit = call.parameters["limit"]?.toIntOrNull() ?: 200
+            call.respond(withContext(Dispatchers.IO) { store.posOrdersSince(shopId, since, afterId, limit) })
+        }
 
         get("/partners/dashboard") {
             val from = call.parameters["from"]?.toLongOrNull() ?: startOfToday()
@@ -517,6 +559,20 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
 
         get("/master/categories") { call.respond(store.masterCategories()) }
         get("/master/products") { call.respond(store.masterProducts()) }
+        get("/master/products/item/{id}") {
+            call.respond(store.masterProduct(call.parameters["id"]!!))
+        }
+        get("/master/products/page") {
+            val params = call.request.queryParameters
+            call.respond(
+                store.masterProductPage(
+                    query = params["q"].orEmpty(),
+                    categoryId = params["categoryId"],
+                    page = params["page"]?.toIntOrNull() ?: 0,
+                    pageSize = params["pageSize"]?.toIntOrNull() ?: 30,
+                ),
+            )
+        }
         get("/master/shop-types") { call.respond(store.shopTypes()) }
 
         post("/admin/master/categories") {

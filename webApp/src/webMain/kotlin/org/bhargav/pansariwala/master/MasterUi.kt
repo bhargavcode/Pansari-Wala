@@ -78,7 +78,6 @@ import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.master_actions
 import pansariwala.shared.generated.resources.master_active
 import pansariwala.shared.generated.resources.master_add_product_card
-import pansariwala.shared.generated.resources.master_add_variant
 import pansariwala.shared.generated.resources.master_address
 import pansariwala.shared.generated.resources.master_amount_group
 import pansariwala.shared.generated.resources.master_cancel_order
@@ -112,7 +111,6 @@ import pansariwala.shared.generated.resources.master_order_id
 import pansariwala.shared.generated.resources.master_paid
 import pansariwala.shared.generated.resources.master_profile
 import pansariwala.shared.generated.resources.master_refund
-import pansariwala.shared.generated.resources.master_remove_variant
 import pansariwala.shared.generated.resources.master_sales_overview
 import pansariwala.shared.generated.resources.master_select_on_map
 import pansariwala.shared.generated.resources.master_shop_details_col
@@ -123,9 +121,6 @@ import pansariwala.shared.generated.resources.master_star
 import pansariwala.shared.generated.resources.master_total
 import pansariwala.shared.generated.resources.master_transaction_no
 import pansariwala.shared.generated.resources.master_txn_trends
-import pansariwala.shared.generated.resources.master_variant_name
-import pansariwala.shared.generated.resources.master_variant_price
-import pansariwala.shared.generated.resources.master_variants
 import pansariwala.shared.generated.resources.master_view_more
 
 @Composable
@@ -498,59 +493,6 @@ fun DescriptionEditor(
             minLines = 4,
             placeholder = { Text(stringResource(Res.string.master_description)) },
         )
-    }
-}
-
-@Composable
-fun VariantsEditor(
-    variants: List<ProductVariantDto>,
-    onChange: (List<ProductVariantDto>) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(Res.string.master_variants), fontWeight = FontWeight.SemiBold)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(Res.string.master_variant_name), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
-            Text(stringResource(Res.string.master_sku), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
-            Text(stringResource(Res.string.master_variant_price), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.width(72.dp))
-        }
-        variants.forEachIndexed { index, variant ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    variant.name,
-                    { name -> onChange(variants.toMutableList().also { it[index] = variant.copy(name = name) }) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    variant.sku,
-                    { sku -> onChange(variants.toMutableList().also { it[index] = variant.copy(sku = sku) }) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    variant.price.toString(),
-                    { price ->
-                        onChange(
-                            variants.toMutableList().also {
-                                it[index] = variant.copy(price = price.toDoubleOrNull() ?: 0.0)
-                            },
-                        )
-                    },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                )
-                TextButton(onClick = { onChange(variants.toMutableList().also { it.removeAt(index) }) }) {
-                    Text(stringResource(Res.string.master_remove_variant))
-                }
-            }
-        }
-        TextButton(onClick = { onChange(variants + ProductVariantDto(name = "", sku = "", price = 0.0)) }) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(Modifier.width(4.dp))
-            Text(stringResource(Res.string.master_add_variant))
-        }
     }
 }
 

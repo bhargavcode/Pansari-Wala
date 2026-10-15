@@ -12,6 +12,13 @@ sealed interface UserRoute : NavKey {
     @Serializable data object LocationAccess : UserRoute
     @Serializable data object Shell : UserRoute
     @Serializable data class ShopCatalog(val shopId: String) : UserRoute
+    /** [category] is a ProductCategory name; null means search across all categories. */
+    @Serializable data class ShopCategory(
+        val shopId: String,
+        val category: String?,
+        val query: String = "",
+    ) : UserRoute
+    @Serializable data class ShopProduct(val shopId: String, val productId: String) : UserRoute
     @Serializable data class Checkout(val shopId: String) : UserRoute
     @Serializable data class ThankYou(val orderId: String) : UserRoute
     @Serializable data class OrderDetails(val orderId: String) : UserRoute
