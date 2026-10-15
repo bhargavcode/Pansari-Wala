@@ -17,12 +17,15 @@ import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.feature.printer.PrintAction
+import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.media.ProductImageCarousel
@@ -38,6 +41,10 @@ import pansariwala.shared.generated.resources.action_edit
 import pansariwala.shared.generated.resources.all_inventory
 import pansariwala.shared.generated.resources.category_price
 import pansariwala.shared.generated.resources.low_stock_items
+import pansariwala.shared.generated.resources.print_action_inventory
+import pansariwala.shared.generated.resources.print_action_label
+import pansariwala.shared.generated.resources.print_action_labels_all
+import pansariwala.shared.generated.resources.print_action_low_stock
 import pansariwala.shared.generated.resources.products_count
 
 @Composable
@@ -58,6 +65,20 @@ fun InventoryListScreen(
         error = state.errorBannerOrNull(),
         isLoading = state.isBlockingLoad(),
         onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = {}) },
+        actions = {
+            PrintMenuButton(
+                actions = remember(products, lowStockOnly) {
+                    listOf(
+                        if (lowStockOnly) {
+                            PrintAction(Res.string.print_action_low_stock) { printInventory(lowStockOnly = true) }
+                        } else {
+                            PrintAction(Res.string.print_action_inventory) { printInventory(lowStockOnly = false) }
+                        },
+                        PrintAction(Res.string.print_action_labels_all) { printLabels(products) },
+                    )
+                },
+            )
+        },
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text(
@@ -111,8 +132,15 @@ private fun InventoryRow(product: Product, onEditProduct: (String) -> Unit) {
                 fontWeight = FontWeight.SemiBold,
                 color = if (product.isLowStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
             )
-            TextButton(onClick = { onEditProduct(product.id) }) {
-                Text(stringResource(Res.string.action_edit))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PrintMenuButton(
+                    actions = remember(product) {
+                        listOf(PrintAction(Res.string.print_action_label) { printLabels(listOf(product)) })
+                    },
+                )
+                TextButton(onClick = { onEditProduct(product.id) }) {
+                    Text(stringResource(Res.string.action_edit))
+                }
             }
         }
     }

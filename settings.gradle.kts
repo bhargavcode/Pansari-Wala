@@ -29,5 +29,6 @@ dependencyResolutionManagement {
 
 include(":androidApp")
 include(":shared")
+include(":printer")
 include(":webApp")
 include(":server")

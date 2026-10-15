@@ -71,6 +71,9 @@ class RoomShopRepository(
             SalesSnapshot(orderCount = it.orderCount, totalValue = it.totalValue)
         }
 
+    override suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary> =
+        orderDao.ordersBetween(shopId, fromEpochMs, toEpochMs).map { it.toSummary() }
+
     override suspend fun productCount(shopId: String): Int = productDao.count(shopId)
 
     override suspend fun findProduct(idOrBarcode: String): Product? {

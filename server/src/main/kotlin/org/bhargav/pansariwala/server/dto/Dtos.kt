@@ -436,6 +436,7 @@ data class OrderDto(
     val cancelReason: String? = null,
     val partnerProgress: String = "",
     val refundId: String? = null,
+    val packedProductIds: List<String> = emptyList(),
 )
 
 @Serializable
@@ -446,6 +447,9 @@ data class ShopActionRequest(val rejectedProductIds: List<String> = emptyList(),
 
 @Serializable
 data class StatusPatch(val status: String)
+
+@Serializable
+data class DeliveryRequest(val packedProductIds: List<String> = emptyList())
 
 @Serializable
 data class DeliveryOfferDto(

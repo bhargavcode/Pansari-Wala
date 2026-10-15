@@ -31,7 +31,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
+import org.bhargav.pansariwala.feature.order.PackedGreen
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -592,12 +594,20 @@ fun PartnerLocationCard(
 }
 
 @Composable
-fun PartnerProductRow(item: OrderItem, modifier: Modifier = Modifier) {
+fun PartnerProductRow(item: OrderItem, modifier: Modifier = Modifier, packed: Boolean = false) {
     Row(
         modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (packed) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = PackedGreen,
+                modifier = Modifier.size(22.dp),
+            )
+        }
         Box(
             modifier = Modifier
                 .size(56.dp)

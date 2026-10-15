@@ -262,7 +262,11 @@ data class OrderDto(
     val ratingComment: String? = null,
     val cancelReason: String? = null,
     val partnerProgress: String = "",
+    val packedProductIds: List<String> = emptyList(),
 )
+
+@Serializable
+data class DeliveryRequestDto(val packedProductIds: List<String>)
 
 @Serializable
 data class OrderItemDto(
@@ -548,6 +552,7 @@ fun OrderDto.toModel() = Order(
     deliveryDurationMin = deliveryDurationMin,
     partnerPayoutInr = partnerPayoutInr,
     partnerProgress = partnerProgress,
+    packedProductIds = packedProductIds.toSet(),
 )
 
 fun OfferDto.toModel() = ShopOffer(id, title, description, discountPercent)

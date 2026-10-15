@@ -66,6 +66,12 @@ class InMemoryShopRepository : ShopRepository {
             SalesSnapshot(orderCount = today.size, totalValue = today.sumOf { it.totalValue })
         }
 
+    override suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary> =
+        ordersFlow.value
+            .filter { it.shopId == shopId && it.createdAtEpochMs >= fromEpochMs && it.createdAtEpochMs < toEpochMs }
+            .sortedByDescending { it.createdAtEpochMs }
+            .map { it.toSummary() }
+
     override suspend fun productCount(shopId: String): Int =
         productsFlow.value.count { it.shopId == shopId }
 

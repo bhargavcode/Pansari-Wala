@@ -27,6 +27,10 @@
 	<string>Pansari Wala needs the microphone to add order items with Hindi voice commands.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Pansari Wala uses speech recognition to understand Hindi order commands like &quot;1 kilo chini&quot;.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Pansari Wala uses Bluetooth to find and connect receipt printers.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Pansari Wala looks for Wi‑Fi receipt printers on your local network.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

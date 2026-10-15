@@ -230,6 +230,8 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-Wl,-U,_OBJC_CLASS_$_UIViewLayoutRegion",
+					"-framework",
+					CoreBluetooth,
 				);
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -265,6 +267,8 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-Wl,-U,_OBJC_CLASS_$_UIViewLayoutRegion",
+					"-framework",
+					CoreBluetooth,
 				);
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

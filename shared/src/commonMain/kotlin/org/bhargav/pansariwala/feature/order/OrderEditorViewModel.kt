@@ -24,6 +24,7 @@ import org.bhargav.pansariwala.util.generateId
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.i18n.WALK_IN_CUSTOMER_KEY
 import org.bhargav.pansariwala.notification.ShopNotifier
+import org.bhargav.pansariwala.printing.PosPrintService
 import org.bhargav.pansariwala.voice.ProductFuzzyMatcher
 import org.bhargav.pansariwala.voice.SpeechEvent
 import org.bhargav.pansariwala.voice.SpeechToText
@@ -78,6 +79,7 @@ class OrderEditorViewModel(
     private val analytics: Analytics,
     private val speechToText: SpeechToText,
     private val shopNotifier: ShopNotifier,
+    private val printService: PosPrintService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrderEditorUiState())
@@ -325,7 +327,7 @@ class OrderEditorViewModel(
         _uiState.update { state -> state.copy(cart = state.cart.filterNot { it.product.id == productId }) }
     }
 
-    fun save() {
+    fun save(print: Boolean = false) {
         val state = _uiState.value
         if (state.cart.isEmpty()) {
             _uiState.update { it.copy(error = UiText.res(Res.string.error_order_empty)) }
@@ -370,6 +372,9 @@ class OrderEditorViewModel(
             val catalogAfter = shopRepository.observeProducts(shopId).first()
             if (existing == null) {
                 shopNotifier.onOrderSaved(toSave, catalogAfter)
+                printService.onOrderSaved(toSave, printRequested = print)
+            } else if (print) {
+                printService.onOrderSaved(toSave, printRequested = true)
             }
             _uiState.update { it.copy(saved = true, error = null, isListening = false) }
         }

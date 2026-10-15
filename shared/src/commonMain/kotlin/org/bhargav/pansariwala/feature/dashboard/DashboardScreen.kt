@@ -39,6 +39,7 @@ import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.auth.AuthRepository
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.feature.printer.PrinterStatusButton
 import org.bhargav.pansariwala.i18n.localizeCustomerName
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
@@ -69,6 +70,7 @@ import pansariwala.shared.generated.resources.order_items_summary
 import pansariwala.shared.generated.resources.orders_workspace_title
 import pansariwala.shared.generated.resources.online_orders_title
 import pansariwala.shared.generated.resources.recent_orders_subtitle
+import pansariwala.shared.generated.resources.reports_title
 import pansariwala.shared.generated.resources.recent_orders_title
 import pansariwala.shared.generated.resources.sales_orders
 import pansariwala.shared.generated.resources.sales_revenue
@@ -87,8 +89,10 @@ fun DashboardScreen(
     onShowLowStockList: () -> Unit,
     onShowFullInventory: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPrinter: () -> Unit,
     onOpenOrdersWorkspace: () -> Unit,
     onOpenOnlineOrders: () -> Unit,
+    onOpenReports: () -> Unit,
     onLogout: () -> Unit,
     viewModel: DashboardViewModel = koinViewModel(),
     authRepository: AuthRepository = koinInject(),
@@ -120,6 +124,9 @@ fun DashboardScreen(
                         }, scope, authRepository, onLogout = {
                             analytics.log(AnalyticsEvent.ButtonClicked("logout", "dashboard"))
                             onLogout.invoke()
+                        }, onOpenPrinter = {
+                            analytics.log(AnalyticsEvent.ButtonClicked("printer", "dashboard"))
+                            onOpenPrinter.invoke()
                         }, compact = widthClass == WindowWidthClass.Compact)
                         if (widthClass != WindowWidthClass.Compact) {
                             SalesCard(data)
@@ -143,6 +150,7 @@ fun DashboardScreen(
                                 onEditOrder = onEditOrder,
                                 onOpenOrdersWorkspace = onOpenOrdersWorkspace,
                                 onOpenOnlineOrders = onOpenOnlineOrders,
+                                onOpenReports = onOpenReports,
                                 modifier = Modifier.weight(1f),
                             )
                             InventoryCard(
@@ -162,6 +170,7 @@ fun DashboardScreen(
                             onEditOrder = onEditOrder,
                             onOpenOrdersWorkspace = onOpenOrdersWorkspace,
                             onOpenOnlineOrders = onOpenOnlineOrders,
+                            onOpenReports = onOpenReports,
                             compact = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -189,6 +198,7 @@ fun DashboardHeader(
     scope: CoroutineScope,
     authRepository: AuthRepository,
     onLogout: () -> Unit,
+    onOpenPrinter: () -> Unit,
     compact: Boolean = false,
 ) {
     val actions = @Composable {
@@ -207,6 +217,7 @@ fun DashboardHeader(
                 }
             }) { Text(stringResource(Res.string.action_logout),
                 style = MaterialTheme.typography.titleMedium) }
+            if (!compact) PrinterStatusButton(onClick = onOpenPrinter)
         }
     }
     val greeting = @Composable { modifier: Modifier ->
@@ -231,7 +242,10 @@ fun DashboardHeader(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            greeting(Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                greeting(Modifier.weight(1f))
+                PrinterStatusButton(onClick = onOpenPrinter)
+            }
             actions()
         }
     } else {
@@ -279,6 +293,7 @@ private fun OrdersCard(
     onEditOrder: (String) -> Unit,
     onOpenOrdersWorkspace: () -> Unit,
     onOpenOnlineOrders: () -> Unit,
+    onOpenReports: () -> Unit,
     compact: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -298,6 +313,9 @@ private fun OrdersCard(
                     OutlinedButton(onClick = onOpenOnlineOrders, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(Res.string.online_orders_title))
                     }
+                    OutlinedButton(onClick = onOpenReports, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(Res.string.reports_title))
+                    }
                     Button(onClick = onCreateOrder, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(Res.string.create_order))
                     }
@@ -309,6 +327,9 @@ private fun OrdersCard(
                     }
                     OutlinedButton(onClick = onOpenOnlineOrders) {
                         Text(stringResource(Res.string.online_orders_title))
+                    }
+                    OutlinedButton(onClick = onOpenReports) {
+                        Text(stringResource(Res.string.reports_title))
                     }
                     Button(onClick = onCreateOrder) {
                         Text(stringResource(Res.string.create_order))

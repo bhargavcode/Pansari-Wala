@@ -694,10 +694,20 @@ class AppStore(
         return getOrder(orderId)
     }
 
-    suspend fun requestDelivery(shopId: String, orderId: String): DeliveryOfferDto {
+    suspend fun requestDelivery(
+        shopId: String,
+        orderId: String,
+        packedProductIds: List<String>? = null,
+    ): DeliveryOfferDto {
         val order = getOrder(orderId)
         require(order.shopId == shopId) { "Forbidden" }
         require(order.status in setOf("PACKING", "LOOKING_FOR_PARTNER")) { "Pack order first" }
+        if (packedProductIds != null) {
+            val orderItemIds = order.items.map { it.productId }.toSet()
+            val packed = packedProductIds.filter { it in orderItemIds }.distinct()
+            require(packed.isNotEmpty()) { "Pack at least one item" }
+            orderCol.updateOne(eq("_id", orderId), set("packedProductIds", packed))
+        }
         val shop = shopById(shopId)
         val now = System.currentTimeMillis()
         val existing = deliveryOfferCol.find(
@@ -1843,6 +1853,7 @@ class AppStore(
             ratingComment = ratingComment,
             cancelReason = cancelReason,
             refundId = refundId,
+            packedProductIds = packedProductIds,
         )
     }
 

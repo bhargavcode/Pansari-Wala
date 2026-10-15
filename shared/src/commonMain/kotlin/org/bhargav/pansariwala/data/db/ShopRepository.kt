@@ -19,6 +19,8 @@ interface ShopRepository {
     fun observeProducts(shopId: String): Flow<List<Product>>
     fun observeRecentOrders(shopId: String, limit: Int): Flow<List<OrderSummary>>
     fun observeTodaySales(shopId: String, startOfDayEpochMs: Long): Flow<SalesSnapshot>
+    /** Local (POS/offline) orders with `from <= createdAt < to`, newest first. */
+    suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary>
 
     suspend fun productCount(shopId: String): Int
     suspend fun findProduct(idOrBarcode: String): Product?

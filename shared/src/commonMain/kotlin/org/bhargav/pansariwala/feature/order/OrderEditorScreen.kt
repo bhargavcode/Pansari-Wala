@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import pansariwala.shared.generated.resources.update_and_print_order
+import pansariwala.shared.generated.resources.save_and_print_order
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -169,13 +171,23 @@ private fun ColumnScope.CartSection(state: OrderEditorUiState, viewModel: OrderE
             text = stringResource(Res.string.total_label, state.total.asMoney()),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
         )
-        Button(onClick = viewModel::save) {
-            Text(
-                stringResource(
-                    if (state.isEditing) Res.string.update_order else Res.string.save_order,
-                ),
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { viewModel.save(print = true) }) {
+                Text(
+                    stringResource(
+                        if (state.isEditing) Res.string.update_and_print_order else Res.string.save_and_print_order,
+                    ),
+                )
+            }
+            Button(onClick = { viewModel.save() }) {
+                Text(
+                    stringResource(
+                        if (state.isEditing) Res.string.update_order else Res.string.save_order,
+                    ),
+                )
+            }
         }
     }
 }

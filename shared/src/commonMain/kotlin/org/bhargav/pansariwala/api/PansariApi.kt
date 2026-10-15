@@ -51,7 +51,7 @@ interface PansariApi {
     suspend fun acceptOrder(orderId: String): Order
     suspend fun rejectOrder(orderId: String, rejectedProductIds: List<String>, reason: String?): Order
     suspend fun setOrderStatus(orderId: String, status: String): Order
-    suspend fun requestDelivery(orderId: String): DeliveryOffer
+    suspend fun requestDelivery(orderId: String, packedProductIds: List<String>): DeliveryOffer
     suspend fun cancelShopOrder(orderId: String, reason: String?): Order
 
     suspend fun registerPartner(request: PartnerRegisterRequest): String

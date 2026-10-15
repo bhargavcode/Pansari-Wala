@@ -51,6 +51,7 @@ import org.bhargav.pansariwala.designsystem.PansariTopBar
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.FulfillmentStep
+import org.bhargav.pansariwala.feature.order.DeliveringItemsList
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import androidx.compose.material3.Card
 import androidx.compose.material3.ModalBottomSheet
@@ -621,7 +622,9 @@ fun OrderDetailsScreen(
                         }
                     }
                     SectionCard(title = stringResource(Res.string.order_items_title)) {
-                        order.items.forEach { item ->
+                        if (order.isPackedForDelivery) {
+                            DeliveringItemsList(order)
+                        } else order.items.forEach { item ->
                             Text(item.productName, fontWeight = FontWeight.SemiBold)
                             Text(
                                 text = "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",

@@ -8,6 +8,7 @@ import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.RazorpayCheckout
 import org.bhargav.pansariwala.platform.ServerPhoneAuthGateway
 import org.bhargav.pansariwala.platform.JsImagePicker
+import org.bhargav.pansariwala.printer.PrinterManager
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -16,4 +17,5 @@ actual val platformModule: Module = module {
     single<PhoneAuthGateway> { ServerPhoneAuthGateway(get()) }
     single<ImagePicker> { JsImagePicker() }
     single<RazorpayCheckout> { NoOpRazorpayCheckout() }
+    single { PrinterManager(emptyList(), get()) }
 }

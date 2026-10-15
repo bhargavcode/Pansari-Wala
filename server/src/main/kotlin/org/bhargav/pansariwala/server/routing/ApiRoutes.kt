@@ -35,6 +35,7 @@ import org.bhargav.pansariwala.server.dto.AdminUserPatch
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
 import org.bhargav.pansariwala.server.dto.CustomerLocationRequest
 import org.bhargav.pansariwala.server.dto.DeliverRequest
+import org.bhargav.pansariwala.server.dto.DeliveryRequest
 import org.bhargav.pansariwala.server.dto.FirebaseAuthRequest
 import org.bhargav.pansariwala.server.dto.IncomingOfferResponse
 import org.bhargav.pansariwala.server.dto.OkResponse
@@ -202,7 +203,8 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(store.setStatus(call.requireShopId(), call.parameters["id"]!!, body.status))
         }
         post("/shop/orders/{id}/delivery") {
-            call.respond(store.requestDelivery(call.requireShopId(), call.parameters["id"]!!))
+            val body = runCatching { call.receive<DeliveryRequest>() }.getOrNull()
+            call.respond(store.requestDelivery(call.requireShopId(), call.parameters["id"]!!, body?.packedProductIds))
         }
         post("/shop/orders/{id}/cancel") {
             val body = call.receive<ShopActionRequest>()

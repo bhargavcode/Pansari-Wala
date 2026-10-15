@@ -785,4 +785,232 @@
     <string name="partner_active_job">Active delivery</string>
     <string name="partner_resume_job">Resume delivery</string>
     <string name="partner_item_price">₹%1$s</string>
+
+    <!-- Printer -->
+    <string name="printer_title">Printer</string>
+    <string name="printer_settings_title">Printer settings</string>
+    <string name="printer_icon_cd">Printer settings</string>
+    <string name="printer_status_connected">Connected</string>
+    <string name="printer_status_disconnected">Disconnected</string>
+    <string name="printer_status_connecting">Connecting…</string>
+    <string name="printer_status_unsupported">Not supported</string>
+    <string name="printer_current_section">Current printer</string>
+    <string name="printer_no_device">No printer selected yet</string>
+    <string name="printer_action_disconnect">Disconnect</string>
+    <string name="printer_action_reconnect">Reconnect</string>
+    <string name="printer_action_forget">Forget</string>
+    <string name="printer_find_section">Find printers</string>
+    <string name="printer_find_subtitle">Turn the printer on and keep it close to this device</string>
+    <string name="printer_type_bluetooth">Bluetooth</string>
+    <string name="printer_type_ble">Bluetooth LE</string>
+    <string name="printer_type_network">Wi‑Fi / LAN</string>
+    <string name="printer_action_scan">Scan</string>
+    <string name="printer_action_stop_scan">Stop scan</string>
+    <string name="printer_scanning">Searching for printers…</string>
+    <string name="printer_no_devices_found">No printers found yet. Tap Scan to search.</string>
+    <string name="printer_paired">Paired</string>
+    <string name="printer_signal">%1$d dBm</string>
+    <string name="printer_manual_title">Add Wi‑Fi printer by IP</string>
+    <string name="printer_manual_ip">IP address</string>
+    <string name="printer_manual_port">Port</string>
+    <string name="printer_action_add_connect">Add &amp; connect</string>
+    <string name="printer_manual_invalid">Enter a valid IP address and port</string>
+    <string name="printer_error_permission">Bluetooth permission is needed to find and connect printers.</string>
+    <string name="printer_error_bluetooth_off">Bluetooth is turned off.</string>
+    <string name="printer_error_no_network">Connect this device to the same Wi‑Fi network as the printer.</string>
+    <string name="printer_error_unsupported">This printer type is not supported on this device.</string>
+    <string name="printer_error_not_found">Printer not found. Make sure it is on and nearby.</string>
+    <string name="printer_error_connection_failed">Could not connect to the printer.</string>
+    <string name="printer_error_connection_lost">Printer connection lost.</string>
+    <string name="printer_error_write_failed">Could not send data to the printer.</string>
+    <string name="printer_error_not_connected">No printer connected. Choose one in printer settings.</string>
+    <string name="printer_error_timeout">The printer did not respond in time.</string>
+    <string name="printer_error_nothing_to_print">Nothing to print yet.</string>
+    <string name="printer_action_grant_permission">Grant permission</string>
+    <string name="printer_action_enable_bluetooth">Turn on Bluetooth</string>
+    <string name="printer_web_unsupported">Printing to Bluetooth or Wi‑Fi printers needs the Android or iOS app.</string>
+    <string name="printer_paper_section">Paper &amp; formatting</string>
+    <string name="printer_paper_width">Paper width</string>
+    <string name="printer_paper_58">58 mm</string>
+    <string name="printer_paper_80">80 mm</string>
+    <string name="printer_chars_per_line">Characters per line</string>
+    <string name="printer_chars_auto">Auto (%1$d)</string>
+    <string name="printer_font_size">Font size</string>
+    <string name="printer_font_small">Small</string>
+    <string name="printer_font_normal">Normal</string>
+    <string name="printer_font_large">Large</string>
+    <string name="printer_font_xl">Extra large</string>
+    <string name="printer_bold_titles">Bold item names</string>
+    <string name="printer_line_spacing">Line spacing</string>
+    <string name="printer_density">Print darkness</string>
+    <string name="printer_currency">Currency symbol</string>
+    <string name="printer_header_section">Header &amp; footer</string>
+    <string name="printer_show_header">Print header</string>
+    <string name="printer_shop_name">Shop name</string>
+    <string name="printer_address">Address</string>
+    <string name="printer_phone">Phone</string>
+    <string name="printer_tax_id">GSTIN / Tax ID</string>
+    <string name="printer_header_note">Header note</string>
+    <string name="printer_header_alignment">Header alignment</string>
+    <string name="printer_align_left">Left</string>
+    <string name="printer_align_center">Center</string>
+    <string name="printer_align_right">Right</string>
+    <string name="printer_bold_shop_name">Bold shop name</string>
+    <string name="printer_show_footer">Print footer</string>
+    <string name="printer_footer_note">Footer message</string>
+    <string name="printer_image_section">Logo &amp; images</string>
+    <string name="printer_print_logo">Print logo on receipts</string>
+    <string name="printer_pick_logo">Choose logo</string>
+    <string name="printer_remove_logo">Remove logo</string>
+    <string name="printer_logo_width">Logo width</string>
+    <string name="printer_dither">Image processing</string>
+    <string name="printer_dither_threshold">Sharp</string>
+    <string name="printer_dither_floyd">Photo</string>
+    <string name="printer_dither_atkinson">Soft</string>
+    <string name="printer_threshold">Threshold</string>
+    <string name="printer_brightness">Brightness</string>
+    <string name="printer_invert">Invert colours</string>
+    <string name="printer_logo_reload_hint">Choose the logo again to fine-tune it.</string>
+    <string name="printer_logo_failed">Could not read that image.</string>
+    <string name="printer_receipt_section">Receipt extras</string>
+    <string name="printer_show_qr">Print QR code</string>
+    <string name="printer_qr_content">QR content (UPI link / website)</string>
+    <string name="printer_show_barcode">Print order barcode</string>
+    <string name="printer_auto_print">Auto print receipt after saving an order</string>
+    <string name="printer_output_section">Output</string>
+    <string name="printer_copies">Copies</string>
+    <string name="printer_feed_lines">Blank lines after print</string>
+    <string name="printer_auto_cut">Auto cut paper</string>
+    <string name="printer_cash_drawer">Open cash drawer</string>
+    <string name="printer_beep">Beep after printing</string>
+    <string name="printer_auto_reconnect">Reconnect automatically</string>
+    <string name="printer_test_section">Test prints</string>
+    <string name="printer_test_page">Test page</string>
+    <string name="printer_test_receipt">Last order receipt</string>
+    <string name="printer_test_ticket">Last order ticket</string>
+    <string name="printer_test_invoice">Last order invoice</string>
+    <string name="printer_test_labels">Product labels</string>
+    <string name="printer_test_inventory">Inventory report</string>
+    <string name="printer_test_low_stock">Low stock report</string>
+    <string name="printer_print_success">Sent to printer</string>
+    <string name="print_action_menu">Print</string>
+    <string name="print_action_receipt">Receipt</string>
+    <string name="print_action_invoice">Invoice</string>
+    <string name="print_action_ticket">Order ticket</string>
+    <string name="print_action_inventory">Inventory report</string>
+    <string name="print_action_low_stock">Low stock report</string>
+    <string name="print_action_labels_all">Labels for all listed</string>
+    <string name="print_action_label">Print label</string>
+    <string name="save_and_print_order">Save &amp; print</string>
+    <string name="update_and_print_order">Update &amp; print</string>
+    <!-- Printed document words -->
+    <string name="print_receipt_title">RECEIPT</string>
+    <string name="print_invoice_title">TAX INVOICE</string>
+    <string name="print_ticket_title">ORDER</string>
+    <string name="print_inventory_title">INVENTORY REPORT</string>
+    <string name="print_low_stock_title">LOW STOCK REPORT</string>
+    <string name="print_test_title">PRINTER TEST</string>
+    <string name="print_order_no">Order #</string>
+    <string name="print_invoice_no">Invoice #</string>
+    <string name="print_date">Date</string>
+    <string name="print_customer">Customer</string>
+    <string name="print_cashier">Cashier</string>
+    <string name="print_item">Item</string>
+    <string name="print_qty">Qty</string>
+    <string name="print_rate">Rate</string>
+    <string name="print_amount">Amount</string>
+    <string name="print_subtotal">Subtotal</string>
+    <string name="print_discount">Discount</string>
+    <string name="print_tax">Tax</string>
+    <string name="print_total">TOTAL</string>
+    <string name="print_paid">Paid</string>
+    <string name="print_change">Change</string>
+    <string name="print_payment_mode">Payment</string>
+    <string name="print_bill_to">Bill to</string>
+    <string name="print_phone">Ph</string>
+    <string name="print_tax_id">GSTIN</string>
+    <string name="print_address">Address</string>
+    <string name="print_note">Note</string>
+    <string name="print_channel">Channel</string>
+    <string name="print_status">Status</string>
+    <string name="print_category">Category</string>
+    <string name="print_stock">Stock</string>
+    <string name="print_value">Value</string>
+    <string name="print_low_stock_mark">* </string>
+    <string name="print_total_items">Items</string>
+    <string name="print_total_value">Stock value</string>
+    <string name="print_price">Price</string>
+    <string name="print_channel_pos">Counter</string>
+    <string name="print_channel_online">Online</string>
+    <string name="print_test_line_normal">Normal text</string>
+    <string name="print_test_line_bold">Bold text</string>
+    <string name="print_test_line_underline">Underlined text</string>
+    <string name="print_test_line_double">Double size</string>
+    <string name="print_test_line_inverted">Inverted</string>
+    <string name="print_test_line_center">Centered</string>
+    <string name="print_test_line_right">Right aligned</string>
+
+    <!-- Packing checklist -->
+    <string name="packing_checklist_title">Packing checklist</string>
+    <string name="packing_checklist_progress">%1$d of %2$d items packed</string>
+    <string name="packing_checklist_hint">Tick each item as you put it in the delivery packet.</string>
+    <string name="action_select_all">Select all</string>
+    <string name="action_clear_all">Clear all</string>
+    <string name="action_request_delivery_partial">Request delivery (%1$d of %2$d items)</string>
+    <string name="delivering_items_title">Delivering items (%1$d)</string>
+    <string name="item_not_included">Not included in this delivery</string>
+
+    <!-- Marketplace shop filters -->
+    <string name="market_shop_type_all">All</string>
+    <string name="market_sort_by">Sort:</string>
+    <string name="market_sort_nearest">Nearest</string>
+    <string name="market_sort_top_rated">Top rated</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Reports</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="report_channel_all">All orders</string>
+    <string name="report_channel_online">Online</string>
+    <string name="report_channel_offline">Offline</string>
+    <string name="report_period_today">Today</string>
+    <string name="report_period_yesterday">Yesterday</string>
+    <string name="report_period_week">This week</string>
+    <string name="report_period_month">This month</string>
+    <string name="report_period_year">This year</string>
+    <string name="report_period_custom">Custom</string>
+    <string name="report_pick_dates">Pick a date or a date range</string>
+    <string name="report_revenue">Revenue</string>
+    <string name="report_orders_count">Orders</string>
+    <string name="report_online">Online</string>
+    <string name="report_offline">Offline</string>
+    <string name="report_avg_order">Avg. order value</string>
+    <string name="report_orders_trend">Orders trend</string>
+    <string name="report_revenue_trend">Revenue</string>
+    <string name="report_inventory_title">Inventory by category</string>
+    <string name="report_inventory_total">Total stock</string>
+    <string name="report_chart_empty">No data for this period</string>
+    <string name="report_chart_tap_hint">Tap or drag on the chart to see details</string>
+    <string name="report_point_orders">%1$s · Online %2$d · Offline %3$d</string>
+    <string name="report_point_revenue">%1$s · %2$s (Online %3$s · Offline %4$s)</string>
+    <string name="report_list_title">Orders (%1$d)</string>
+    <string name="report_list_empty">No orders in this period</string>
+    <string name="report_row_items">%1$d items</string>
+    <string name="report_page_of">Page %1$d of %2$d</string>
+    <string name="report_prev_page">Previous page</string>
+    <string name="report_next_page">Next page</string>
+    <string-array name="report_month_short">
+        <item>Jan</item>
+        <item>Feb</item>
+        <item>Mar</item>
+        <item>Apr</item>
+        <item>May</item>
+        <item>Jun</item>
+        <item>Jul</item>
+        <item>Aug</item>
+        <item>Sep</item>
+        <item>Oct</item>
+        <item>Nov</item>
+        <item>Dec</item>
+    </string-array>
 </resources>

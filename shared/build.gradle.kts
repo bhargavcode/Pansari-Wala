@@ -29,7 +29,7 @@ kotlin {
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.all {
-            linkerOpts("-framework", "CoreLocation", "-framework", "MapKit")
+            linkerOpts("-framework", "CoreLocation", "-framework", "MapKit", "-framework", "CoreBluetooth")
         }
         iosTarget.binaries.framework {
             baseName = "Shared"
@@ -86,6 +86,7 @@ kotlin {
         iosMain.get().dependsOn(nonWebMain)
 
         commonMain.dependencies {
+            api(project(":printer"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
@@ -100,6 +101,7 @@ kotlin {
 
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)

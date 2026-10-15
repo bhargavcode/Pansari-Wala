@@ -693,7 +693,7 @@ fun PartnerPickupItemsScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                    loaded.items.forEach { PartnerProductRow(it) }
+                    loaded.deliveringItems.forEach { PartnerProductRow(it, packed = true) }
                 }
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.partner_action_verify_bags),

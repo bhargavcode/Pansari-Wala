@@ -34,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.bhargav.pansariwala.feature.printer.PrintActionsRow
+import org.bhargav.pansariwala.feature.printer.orderPrintActions
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -360,6 +362,10 @@ private fun OrderDetailsPane(
                 Text(stringResource(Res.string.action_cancel_order))
             }
         }
+        PrintActionsRow(
+            actions = remember(order) { orderPrintActions(order) },
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+        )
     }
 }
 

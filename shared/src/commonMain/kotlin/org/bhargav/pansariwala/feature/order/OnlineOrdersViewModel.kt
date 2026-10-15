@@ -27,6 +27,8 @@ data class OnlineOrdersUiState(
     val cancelOrderId: String? = null,
     val cancelReason: CancelOrderReason = CancelOrderReason.CUSTOMER_REQUEST,
     val customCancelReason: String = "",
+    /** orderId → productIds checked into the delivery packet while PACKING. */
+    val packedChecks: Map<String, Set<String>> = emptyMap(),
 )
 
 /**
@@ -91,7 +93,28 @@ class OnlineOrdersViewModel(
         api.setOrderStatus(id, OrderStatus.PACKING.name)
     }
 
-    fun requestDeliveryPartner(id: String) = runOrderAction(id) { api.requestDelivery(id) }
+    fun togglePacked(orderId: String, productId: String) {
+        _uiState.update { state ->
+            val current = state.packedChecks[orderId].orEmpty()
+            val next = if (productId in current) current - productId else current + productId
+            state.copy(packedChecks = state.packedChecks + (orderId to next))
+        }
+    }
+
+    fun setAllPacked(orderId: String, packed: Boolean) {
+        val order = _uiState.value.orders.firstOrNull { it.id == orderId } ?: return
+        val next = if (packed) order.items.map { it.productId }.toSet() else emptySet()
+        _uiState.update { it.copy(packedChecks = it.packedChecks + (orderId to next)) }
+    }
+
+    fun requestDeliveryPartner(id: String) {
+        val packed = _uiState.value.packedChecks[id].orEmpty()
+        if (packed.isEmpty()) return
+        runOrderAction(id) {
+            api.requestDelivery(id, packed.toList())
+            _uiState.update { it.copy(packedChecks = it.packedChecks - id) }
+        }
+    }
 
     fun openCancel(id: String) {
         _uiState.update {

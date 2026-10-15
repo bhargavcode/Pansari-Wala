@@ -213,8 +213,10 @@ class KtorPansariApi(
         client.post("shop/orders/$orderId/status") { setBody(StatusPatch(status)) }
             .body<OrderDto>().toModel()
 
-    override suspend fun requestDelivery(orderId: String): DeliveryOffer =
-        client.post("shop/orders/$orderId/delivery").body<DeliveryOfferDto>().toModel()
+    override suspend fun requestDelivery(orderId: String, packedProductIds: List<String>): DeliveryOffer =
+        client.post("shop/orders/$orderId/delivery") {
+            setBody(DeliveryRequestDto(packedProductIds))
+        }.body<DeliveryOfferDto>().toModel()
 
     override suspend fun cancelShopOrder(orderId: String, reason: String?): Order =
         client.post("shop/orders/$orderId/cancel") {

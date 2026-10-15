@@ -76,7 +76,15 @@ data class Order(
     val deliveryDurationMin: Int? = null,
     val partnerPayoutInr: Double? = null,
     val partnerProgress: String = "",
+    /** Items the shop checked into the delivery packet; empty means all items (legacy orders). */
+    val packedProductIds: Set<String> = emptySet(),
 ) {
+    val deliveringItems: List<OrderItem>
+        get() = if (packedProductIds.isEmpty()) items else items.filter { it.productId in packedProductIds }
+    val isPackedForDelivery: Boolean
+        get() = status == OrderStatus.LOOKING_FOR_PARTNER || status == OrderStatus.PARTNER_ACCEPTED ||
+            status == OrderStatus.ON_THE_WAY || status == OrderStatus.DELIVERED ||
+            status == OrderStatus.COMPLETED
     val totalValue: Double get() = quote?.payable ?: items.sumOf { it.lineTotal }
     val itemCount: Int get() = items.size
     val hasAssignedPartner: Boolean

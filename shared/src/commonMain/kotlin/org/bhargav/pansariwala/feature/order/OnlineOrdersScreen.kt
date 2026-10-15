@@ -7,10 +7,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,7 +26,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import org.bhargav.pansariwala.feature.printer.PrintMenuButton
+import org.bhargav.pansariwala.feature.printer.orderPrintActions
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,6 +54,7 @@ import pansariwala.shared.generated.resources.action_cancel_order
 import pansariwala.shared.generated.resources.action_no
 import pansariwala.shared.generated.resources.action_packing
 import pansariwala.shared.generated.resources.action_request_delivery
+import pansariwala.shared.generated.resources.action_request_delivery_partial
 import pansariwala.shared.generated.resources.action_retry
 import pansariwala.shared.generated.resources.action_yes
 import pansariwala.shared.generated.resources.cancel_order_message
@@ -94,18 +99,33 @@ fun OnlineOrdersScreen(
         isLoading = state.loading && state.orders.isEmpty(),
         isRefreshing = state.loading && state.orders.isNotEmpty(),
     ) {
-        Column(
-            Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (state.orders.isEmpty() && !state.loading && state.error == null) {
-                Text(stringResource(Res.string.online_orders_empty))
+                item(key = "empty") { Text(stringResource(Res.string.online_orders_empty)) }
             }
-            state.orders.forEach { order ->
+            items(state.orders, key = { it.id }, contentType = { "order" }) { order ->
                 val busy = state.busyId == order.id
-                SectionCard(title = "${order.id} · ${order.customerName.orEmpty().ifBlank { order.id }} · ${onlineOrderStatusLabel(order.status)}") {
-                    order.items.forEach { item ->
-                        Text("${item.productName} × ${item.quantity.asQuantity()} · ${item.lineTotal.asMoney()}")
+                val packedChecks = state.packedChecks[order.id].orEmpty()
+                SectionCard(
+                    title = "${order.id} · ${order.customerName.orEmpty().ifBlank { order.id }} · ${onlineOrderStatusLabel(order.status)}",
+                    action = { PrintMenuButton(actions = remember(order) { orderPrintActions(order) }) },
+                ) {
+                    when {
+                        order.status == OrderStatus.PACKING -> PackingChecklist(
+                            order = order,
+                            checked = packedChecks,
+                            enabled = !busy,
+                            onToggle = { viewModel.togglePacked(order.id, it) },
+                            onSetAll = { viewModel.setAllPacked(order.id, it) },
+                        )
+                        order.isPackedForDelivery -> DeliveringItemsList(order)
+                        else -> order.items.forEach { item ->
+                            Text("${item.productName} × ${item.quantity.asQuantity()} · ${item.lineTotal.asMoney()}")
+                        }
                     }
                     OnlineOrderStatusNote(order)
                     order.cancelReason?.let { reason ->
@@ -120,6 +140,7 @@ fun OnlineOrdersScreen(
                     OnlineOrderActions(
                         order = order,
                         busy = busy,
+                        packedCount = packedChecks.size,
                         onAccept = { viewModel.accept(order.id) },
                         onPacking = { viewModel.markPacking(order.id) },
                         onRequestPartner = { viewModel.requestDeliveryPartner(order.id) },
@@ -171,6 +192,7 @@ private fun DeliveryPartnerDetails(order: Order) {
 private fun OnlineOrderActions(
     order: Order,
     busy: Boolean,
+    packedCount: Int,
     onAccept: () -> Unit,
     onPacking: () -> Unit,
     onRequestPartner: () -> Unit,
@@ -179,9 +201,14 @@ private fun OnlineOrderActions(
     val nextLabel = when (order.status) {
         OrderStatus.RECEIVED -> stringResource(Res.string.action_accept_order)
         OrderStatus.ACCEPTED -> stringResource(Res.string.action_packing)
-        OrderStatus.PACKING -> stringResource(Res.string.action_request_delivery)
+        OrderStatus.PACKING -> if (packedCount in 1 until order.items.size) {
+            stringResource(Res.string.action_request_delivery_partial, packedCount, order.items.size)
+        } else {
+            stringResource(Res.string.action_request_delivery)
+        }
         else -> null
     }
+    val nextEnabled = order.status != OrderStatus.PACKING || packedCount > 0
     val nextAction = when (order.status) {
         OrderStatus.RECEIVED -> onAccept
         OrderStatus.ACCEPTED -> onPacking
@@ -195,7 +222,7 @@ private fun OnlineOrderActions(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (nextLabel != null && nextAction != null) {
-            Button(onClick = nextAction, enabled = !busy) {
+            Button(onClick = nextAction, enabled = !busy && nextEnabled) {
                 if (busy) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {

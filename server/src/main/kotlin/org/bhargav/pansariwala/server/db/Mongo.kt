@@ -240,6 +240,7 @@ data class OrderDoc(
     val deliveryDurationMin: Int? = null,
     val partnerPayoutInr: Double? = null,
     val partnerProgress: String = "",
+    val packedProductIds: List<String> = emptyList(),
 )
 
 @Serializable

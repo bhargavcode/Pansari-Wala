@@ -148,6 +148,12 @@ class MarketViewModel(
         applyFilters()
     }
 
+    fun selectAllShopTypes() {
+        if (_state.value.selectedShopTypes.isEmpty()) return
+        _state.update { it.copy(selectedShopTypes = emptySet()) }
+        applyFilters()
+    }
+
     fun setSortOption(option: ShopSortOption) {
         _state.update { it.copy(sortOption = option) }
         applyFilters()
@@ -233,9 +239,14 @@ class MarketViewModel(
             result = result.filter { it.shopType in current.selectedShopTypes }
         }
         result = when (current.sortOption) {
-            ShopSortOption.DISTANCE_ASC -> result.sortedBy { it.distanceKm }
+            ShopSortOption.DISTANCE_ASC ->
+                result.sortedWith(compareBy<MarketplaceShop> { it.distanceKm }.thenByDescending { it.rating })
             ShopSortOption.DISTANCE_DESC -> result.sortedByDescending { it.distanceKm }
-            ShopSortOption.RATING_DESC -> result.sortedByDescending { it.rating }
+            ShopSortOption.RATING_DESC -> result.sortedWith(
+                compareByDescending<MarketplaceShop> { it.rating }
+                    .thenByDescending { it.ratingCount }
+                    .thenBy { it.distanceKm },
+            )
             ShopSortOption.NAME_ASC -> result.sortedBy { it.name.lowercase() }
             ShopSortOption.NAME_DESC -> result.sortedByDescending { it.name.lowercase() }
         }

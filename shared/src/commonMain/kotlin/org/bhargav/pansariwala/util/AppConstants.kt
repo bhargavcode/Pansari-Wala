@@ -54,9 +54,13 @@ object AppConstants {
     const val DEV_ARRIVAL_UNLOCK_WINDOW_MS: Long = 2_000L
     const val RECENT_ORDERS_CARD_LIMIT: Int = 3
 
+    const val PRINTER_SETTINGS_KEY: String = "pref_printer_settings"
+    const val PRINT_SAMPLE_LABEL_LIMIT: Int = 3
+
     const val DEV_OTP: String = "123456"
     const val DELIVERY_OTP_LENGTH: Int = 4
     const val PUBLIC_ORDER_CODE_LENGTH: Int = 8
+    const val REPORT_PAGE_SIZE: Int = 20
 
     object PartnerProgress {
         const val TO_STORE: String = "TO_STORE"

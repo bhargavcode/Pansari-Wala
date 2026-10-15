@@ -24,6 +24,12 @@ abstract class OrderDao {
     )
     abstract fun observeTodaySales(shopId: String, start: Long): Flow<SalesRow>
 
+    @Query(
+        "SELECT * FROM orders WHERE shopId = :shopId AND createdAt >= :from AND createdAt < :to " +
+            "ORDER BY createdAt DESC",
+    )
+    abstract suspend fun ordersBetween(shopId: String, from: Long, to: Long): List<OrderEntity>
+
     @Query("SELECT * FROM orders WHERE id = :id LIMIT 1")
     abstract suspend fun getOrder(id: String): OrderEntity?
 

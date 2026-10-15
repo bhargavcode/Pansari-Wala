@@ -4,7 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -88,7 +91,11 @@ import pansariwala.shared.generated.resources.market_greeting
 import pansariwala.shared.generated.resources.market_location_unknown
 import pansariwala.shared.generated.resources.market_radius_range
 import pansariwala.shared.generated.resources.market_search_products
+import pansariwala.shared.generated.resources.market_shop_type_all
 import pansariwala.shared.generated.resources.market_shop_types
+import pansariwala.shared.generated.resources.market_sort_by
+import pansariwala.shared.generated.resources.market_sort_nearest
+import pansariwala.shared.generated.resources.market_sort_top_rated
 import pansariwala.shared.generated.resources.market_sort_distance_asc
 import pansariwala.shared.generated.resources.market_sort_distance_desc
 import pansariwala.shared.generated.resources.market_sort_name_asc
@@ -364,7 +371,11 @@ fun MarketScreen(
         isLoading = state.loading && state.shops.isEmpty(),
         isRefreshing = state.loading && state.shops.isNotEmpty(),
     ) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
+          item(key = "header", contentType = "header") { Column {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(
                     stringResource(Res.string.market_greeting, state.userName.ifBlank { "there" }),
@@ -409,6 +420,11 @@ fun MarketScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                FilterChip(
+                    selected = state.selectedShopTypes.isEmpty(),
+                    onClick = viewModel::selectAllShopTypes,
+                    label = { Text(stringResource(Res.string.market_shop_type_all)) },
+                )
                 ShopType.entries.forEach { type ->
                     FilterChip(
                         selected = type in state.selectedShopTypes,
@@ -417,13 +433,42 @@ fun MarketScreen(
                     )
                 }
             }
-            Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (state.shops.isEmpty() && !state.loading) {
-                    Text(stringResource(Res.string.no_shops_nearby))
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(Res.string.market_sort_by),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FilterChip(
+                    selected = state.sortOption == ShopSortOption.DISTANCE_ASC,
+                    onClick = { viewModel.setSortOption(ShopSortOption.DISTANCE_ASC) },
+                    label = { Text(stringResource(Res.string.market_sort_nearest)) },
+                )
+                FilterChip(
+                    selected = state.sortOption == ShopSortOption.RATING_DESC,
+                    onClick = { viewModel.setSortOption(ShopSortOption.RATING_DESC) },
+                    label = { Text(stringResource(Res.string.market_sort_top_rated)) },
+                )
+            }
+          } }
+            if (state.shops.isEmpty() && !state.loading) {
+                item(key = "empty", contentType = "empty") {
+                    Text(
+                        stringResource(Res.string.no_shops_nearby),
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
                 }
-                state.shops.forEach { shop ->
-                    ShopDiscoveryCard(shop = shop, onClick = { onOpenShop(shop.id) })
-                }
+            }
+            items(state.shops, key = { it.id }, contentType = { "shop" }) { shop ->
+                ShopDiscoveryCard(
+                    shop = shop,
+                    onClick = { onOpenShop(shop.id) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
             }
         }
     }

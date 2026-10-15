@@ -44,7 +44,12 @@ import org.bhargav.pansariwala.feature.user.UserLocationAccessViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogViewModel
 import org.bhargav.pansariwala.feature.user.ThankYouViewModel
 import org.bhargav.pansariwala.feature.user.UserSettingsViewModel
+import org.bhargav.pansariwala.feature.printer.PrinterSettingsViewModel
+import org.bhargav.pansariwala.feature.reports.ReportsViewModel
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
+import org.bhargav.pansariwala.printer.PrinterSettingsStore
+import org.bhargav.pansariwala.printing.PosPrintService
+import org.bhargav.pansariwala.printing.SessionPrinterSettingsStore
 import org.bhargav.pansariwala.notification.DedupingNotificationGateway
 import org.bhargav.pansariwala.notification.NotificationGateway
 import org.bhargav.pansariwala.notification.PartnerOfferSocket
@@ -75,6 +80,8 @@ val appModule = module {
     single<ShopRepository> { createShopRepository() }
     single { AppPreferences(get()) }
     single { CartStore() }
+    single<PrinterSettingsStore> { SessionPrinterSettingsStore(get()) }
+    singleOf(::PosPrintService)
     single<PansariApi> { KtorPansariApi(createPlatformHttpClient(), ApiRuntime.baseUrl, get()) }
 
     singleOf(::LocalAuthRepository) bind AuthRepository::class
@@ -108,4 +115,6 @@ val appModule = module {
     viewModelOf(::PartnerJobViewModel)
     viewModelOf(::PartnerEarningsViewModel)
     viewModelOf(::OnlineOrdersViewModel)
+    viewModelOf(::PrinterSettingsViewModel)
+    viewModelOf(::ReportsViewModel)
 }

@@ -6,6 +6,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.animation.animateContentSize
 import androidx.compose.material3.SnackbarDuration
+import pansariwala.shared.generated.resources.printer_print_success
+import org.jetbrains.compose.resources.getString
+import org.bhargav.pansariwala.feature.printer.resolve
+import org.bhargav.pansariwala.feature.printer.toPrintMessage
+import org.bhargav.pansariwala.printing.PosPrintService
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -18,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -35,10 +41,12 @@ import org.bhargav.pansariwala.feature.inventory.InventoryListScreen
 import org.bhargav.pansariwala.feature.login.LoginScreen
 import org.bhargav.pansariwala.feature.order.OrderEditorScreen
 import org.bhargav.pansariwala.feature.order.OrdersWorkspaceScreen
+import org.bhargav.pansariwala.feature.printer.PrinterSettingsScreen
 import org.bhargav.pansariwala.feature.settings.SettingsScreen
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.notification.NotificationRouter
+import org.bhargav.pansariwala.printer.PrinterManager
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -58,6 +66,8 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.OrderEditor::class, AppRoute.OrderEditor.serializer())
             subclass(AppRoute.OrdersWorkspace::class, AppRoute.OrdersWorkspace.serializer())
             subclass(AppRoute.OnlineOrders::class, AppRoute.OnlineOrders.serializer())
+            subclass(AppRoute.PrinterSettings::class, AppRoute.PrinterSettings.serializer())
+            subclass(AppRoute.Reports::class, AppRoute.Reports.serializer())
         }
     }
 }
@@ -65,6 +75,8 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
 @Composable
 fun AppNavGraph(
     analytics: Analytics = koinInject(),
+    printerManager: PrinterManager = koinInject(),
+    printService: PosPrintService = koinInject(),
 ) {
     val backStack = rememberNavBackStack(navSavedStateConfiguration, AppRoute.Splash)
     var previousScreen by remember { mutableStateOf<String?>(null) }
@@ -126,6 +138,25 @@ fun AppNavGraph(
         }
     }
 
+    LaunchedEffect(printService) {
+        printService.results.collect { result ->
+            val message = result.fold(
+                onSuccess = { getString(Res.string.printer_print_success) },
+                onFailure = { it.toPrintMessage().resolve() },
+            )
+            snackbarHostState.showSnackbar(message = message, duration = SnackbarDuration.Short)
+        }
+    }
+
+    // Printer health monitoring / auto-reconnect only while signed in and the app is visible.
+    val signedIn = backStack.none { it is AppRoute.Splash || it is AppRoute.Login }
+    if (signedIn) {
+        LifecycleStartEffect(printerManager) {
+            printerManager.setAppInForeground(true)
+            onStopOrDispose { printerManager.setAppInForeground(false) }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().safeDrawingPadding().animateContentSize()) {
         NavDisplay(
             backStack = backStack,
@@ -157,14 +188,20 @@ fun AppNavGraph(
                             onShowLowStockList = { push(AppRoute.InventoryList(lowStockOnly = true)) },
                             onShowFullInventory = { push(AppRoute.InventoryList(lowStockOnly = false)) },
                             onOpenSettings = { push(AppRoute.Settings) },
+                            onOpenPrinter = { push(AppRoute.PrinterSettings) },
                             onOpenOrdersWorkspace = { push(AppRoute.OrdersWorkspace()) },
                             onOpenOnlineOrders = { push(AppRoute.OnlineOrders) },
+                            onOpenReports = { push(AppRoute.Reports) },
                             onLogout = { replaceAll(AppRoute.Login) },
                         )
                     }
 
                     AppRoute.Settings -> NavEntry(route) {
                         SettingsScreen(onBack = { pop() })
+                    }
+
+                    AppRoute.PrinterSettings -> NavEntry(route) {
+                        PrinterSettingsScreen(onBack = { pop() })
                     }
 
                     is AppRoute.AddEditInventory -> NavEntry(route) {
@@ -200,6 +237,10 @@ fun AppNavGraph(
 
                     AppRoute.OnlineOrders -> NavEntry(route) {
                         org.bhargav.pansariwala.feature.order.OnlineOrdersScreen(onBack = { pop() })
+                    }
+
+                    AppRoute.Reports -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.reports.ReportsScreen(onBack = { pop() })
                     }
                 }
             },
