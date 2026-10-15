@@ -21,6 +21,9 @@ data class TokenResponse(
     val shopId: String? = null,
     val displayName: String? = null,
     val profileComplete: Boolean = true,
+    /** Shop logins only: SHOP (admin) or EXECUTIVE. */
+    val shopRole: String? = null,
+    val permissions: List<String> = emptyList(),
 )
 
 @Serializable
@@ -313,6 +316,58 @@ data class ShopReviewDto(
     val stars: Int,
     val comment: String? = null,
     val createdAtEpochMs: Long,
+    val reply: String? = null,
+    val replyAtEpochMs: Long? = null,
+)
+
+@Serializable
+data class RatingReplyRequest(val reply: String)
+
+@Serializable
+data class ShopStaffDto(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val role: String,
+    val permissions: List<String> = emptyList(),
+    val active: Boolean = true,
+)
+
+@Serializable
+data class ShopStaffUpsert(
+    val username: String = "",
+    val displayName: String = "",
+    val password: String = "",
+    val permissions: List<String> = emptyList(),
+    val active: Boolean = true,
+)
+
+@Serializable
+data class ShopProfileDto(
+    val shop: AdminShopDto,
+    val me: ShopStaffDto,
+)
+
+@Serializable
+data class ShopOfferDto(
+    val id: String = "",
+    val title: String,
+    val description: String = "",
+    val scope: String = "BILL",
+    val discountType: String = "PERCENT",
+    val value: Double,
+    val productIds: List<String> = emptyList(),
+    val minBillAmount: Double = 0.0,
+    val active: Boolean = true,
+    val startsAtEpochMs: Long? = null,
+    val endsAtEpochMs: Long? = null,
+)
+
+@Serializable
+data class VisitorStatsDto(
+    val uniqueVisitors: Int,
+    val visitDays: Int,
+    val daily: List<AdminChartPointDto> = emptyList(),
 )
 
 @Serializable
@@ -686,4 +741,7 @@ data class AdminShopPatch(
     val operatingHours: List<ShopHoursDayDto>? = null,
     val loginUsername: String? = null,
     val loginPassword: String? = null,
+    val upiId: String? = null,
+    val deliveryRadiusKm: Double? = null,
+    val discountPercent: Double? = null,
 )

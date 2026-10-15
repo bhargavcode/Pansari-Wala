@@ -170,6 +170,34 @@ object PrintTemplates {
         feed()
     }
 
+    fun salesReport(data: SalesReportData, settings: PrinterSettings, labels: PrintLabels): PrintDocument = printDocument {
+        header(settings, labels, compact = true)
+        title(data.title, scale = 1)
+        center(data.period)
+        center(data.generatedAt)
+        divider()
+        data.summary.forEach { (key, value) -> keyValue(key, value) }
+        if (data.rows.isNotEmpty()) {
+            divider()
+            val amountChars = if (settings.charsPerLine >= WIDE_LAYOUT_MIN_CHARS) 12 else 9
+            row(
+                Column(labels.orderNumber, weight = 1f),
+                Column(labels.amount, fixedChars = amountChars, alignment = PrintAlignment.RIGHT),
+                style = TextStyle(bold = true),
+            )
+            data.rows.forEach { row ->
+                row(
+                    Column(row.label, weight = 1f),
+                    Column(amount(row.amount), fixedChars = amountChars, alignment = PrintAlignment.RIGHT),
+                )
+                if (row.detail.isNotBlank()) text(row.detail)
+            }
+        }
+        divider()
+        keyValue(labels.total, money(data.total, settings.currencySymbol), bold = true)
+        feed()
+    }
+
     /**
      * Exercises every style so the shop can check alignment, sizes, barcode and QR support.
      * [sampleLines] are printed once per style in [TEST_PAGE_STYLES].

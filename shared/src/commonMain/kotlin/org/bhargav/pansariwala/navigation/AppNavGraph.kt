@@ -68,6 +68,7 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.OnlineOrders::class, AppRoute.OnlineOrders.serializer())
             subclass(AppRoute.PrinterSettings::class, AppRoute.PrinterSettings.serializer())
             subclass(AppRoute.Reports::class, AppRoute.Reports.serializer())
+            subclass(AppRoute.ShopProfile::class, AppRoute.ShopProfile.serializer())
         }
     }
 }
@@ -192,6 +193,7 @@ fun AppNavGraph(
                             onOpenOrdersWorkspace = { push(AppRoute.OrdersWorkspace()) },
                             onOpenOnlineOrders = { push(AppRoute.OnlineOrders) },
                             onOpenReports = { push(AppRoute.Reports) },
+                            onOpenProfile = { push(AppRoute.ShopProfile) },
                             onLogout = { replaceAll(AppRoute.Login) },
                         )
                     }
@@ -241,6 +243,10 @@ fun AppNavGraph(
 
                     AppRoute.Reports -> NavEntry(route) {
                         org.bhargav.pansariwala.feature.reports.ReportsScreen(onBack = { pop() })
+                    }
+
+                    AppRoute.ShopProfile -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.profile.ShopProfileScreen(onBack = { pop() })
                     }
                 }
             },

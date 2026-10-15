@@ -52,6 +52,10 @@ import org.bhargav.pansariwala.server.dto.PushRegisterRequest
 import org.bhargav.pansariwala.server.dto.PushUnregisterRequest
 import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RateOrderRequest
+import org.bhargav.pansariwala.server.dto.RatingReplyRequest
+import org.bhargav.pansariwala.server.dto.ShopOfferDto
+import org.bhargav.pansariwala.server.dto.ShopStaffUpsert
+import org.bhargav.pansariwala.server.service.ShopPerm
 import org.bhargav.pansariwala.server.dto.SaveAddressRequest
 import org.bhargav.pansariwala.server.dto.ShopActionRequest
 import org.bhargav.pansariwala.server.dto.ShopLoginRequest
@@ -154,7 +158,11 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(store.nearbyShops(lat, lng, radius, query, categories))
         }
         get("/shops/{id}/catalog") {
-            call.respond(store.catalog(call.parameters["id"]!!))
+            val shopId = call.parameters["id"]!!
+            if (call.payload().getClaim("role").asString() == "CUSTOMER") {
+                withContext(Dispatchers.IO) { store.recordShopVisit(shopId, call.userId()) }
+            }
+            call.respond(store.catalog(shopId))
         }
         get("/shops/{id}/ratings") {
             call.respond(withContext(Dispatchers.IO) { store.shopRatings(call.parameters["id"]!!) })
@@ -197,31 +205,95 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(withContext(Dispatchers.IO) { store.shopOrders(call.requireShopId()) })
         }
         post("/shop/orders/{id}/accept") {
-            call.respond(store.acceptShopOrder(call.requireShopId(), call.parameters["id"]!!))
+            call.respond(store.acceptShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!))
         }
         post("/shop/orders/{id}/reject") {
             val body = call.receive<ShopActionRequest>()
-            call.respond(store.rejectShopOrder(call.requireShopId(), call.parameters["id"]!!, body.rejectedProductIds, body.reason))
+            call.respond(store.rejectShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body.rejectedProductIds, body.reason))
         }
         post("/shop/orders/{id}/status") {
             val body = call.receive<StatusPatch>()
-            call.respond(store.setStatus(call.requireShopId(), call.parameters["id"]!!, body.status))
+            call.respond(store.setStatus(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body.status))
         }
         post("/shop/orders/{id}/delivery") {
             val body = runCatching { call.receive<DeliveryRequest>() }.getOrNull()
-            call.respond(store.requestDelivery(call.requireShopId(), call.parameters["id"]!!, body?.packedProductIds))
+            call.respond(store.requestDelivery(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body?.packedProductIds))
         }
         post("/shop/orders/{id}/self-delivery") {
             val body = runCatching { call.receive<DeliveryRequest>() }.getOrNull()
-            call.respond(store.startSelfDelivery(call.requireShopId(), call.parameters["id"]!!, body?.packedProductIds))
+            call.respond(store.startSelfDelivery(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body?.packedProductIds))
         }
         post("/shop/orders/{id}/self-delivery/complete") {
             val body = call.receive<DeliverRequest>()
-            call.respond(store.completeSelfDelivery(call.requireShopId(), call.parameters["id"]!!, body.otp))
+            call.respond(store.completeSelfDelivery(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body.otp))
         }
         post("/shop/orders/{id}/cancel") {
             val body = call.receive<ShopActionRequest>()
-            call.respond(store.cancelShopOrder(call.requireShopId(), call.parameters["id"]!!, body.reason))
+            call.respond(store.cancelShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body.reason))
+        }
+
+        get("/shop/profile") {
+            call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.shopProfile(call.userId()) })
+        }
+        put("/shop/profile") {
+            call.requireShopId()
+            val body = call.receive<AdminShopPatch>()
+            call.respond(withContext(Dispatchers.IO) { store.updateShopProfile(call.userId(), body) })
+        }
+        get("/shop/staff") {
+            call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.listStaff(call.userId()) })
+        }
+        post("/shop/staff") {
+            call.requireShopId()
+            val body = call.receive<ShopStaffUpsert>()
+            call.respond(withContext(Dispatchers.IO) { store.upsertStaff(call.userId(), null, body) })
+        }
+        put("/shop/staff/{id}") {
+            call.requireShopId()
+            val body = call.receive<ShopStaffUpsert>()
+            call.respond(withContext(Dispatchers.IO) { store.upsertStaff(call.userId(), call.parameters["id"]!!, body) })
+        }
+        delete("/shop/staff/{id}") {
+            call.requireShopId()
+            withContext(Dispatchers.IO) { store.deleteStaff(call.userId(), call.parameters["id"]!!) }
+            call.respond(OkResponse())
+        }
+        get("/shop/offers") {
+            call.requireShopId()
+            val all = call.parameters["all"] == "true"
+            call.respond(withContext(Dispatchers.IO) { store.shopOffers(call.userId(), includeInactive = all) })
+        }
+        post("/shop/offers") {
+            call.requireShopId()
+            val body = call.receive<ShopOfferDto>()
+            call.respond(withContext(Dispatchers.IO) { store.saveOffer(call.userId(), null, body) })
+        }
+        put("/shop/offers/{id}") {
+            call.requireShopId()
+            val body = call.receive<ShopOfferDto>()
+            call.respond(withContext(Dispatchers.IO) { store.saveOffer(call.userId(), call.parameters["id"]!!, body) })
+        }
+        delete("/shop/offers/{id}") {
+            call.requireShopId()
+            withContext(Dispatchers.IO) { store.deleteOffer(call.userId(), call.parameters["id"]!!) }
+            call.respond(OkResponse())
+        }
+        get("/shop/ratings") {
+            call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.shopRatingsForStaff(call.userId()) })
+        }
+        post("/shop/ratings/{orderId}/reply") {
+            call.requireShopId()
+            val body = call.receive<RatingReplyRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.replyToRatingAsStaff(call.userId(), call.parameters["orderId"]!!, body.reply) })
+        }
+        get("/shop/visitors") {
+            call.requireShopId()
+            val from = call.parameters["from"]?.toLongOrNull()
+            val to = call.parameters["to"]?.toLongOrNull()
+            call.respond(withContext(Dispatchers.IO) { store.visitorStats(call.userId(), from, to) })
         }
         get("/sync/pull") { call.respond(store.pullSync(call.requireShopId())) }
         post("/sync/push") { store.pushSync(call.requireShopId(), call.receive<SyncPushRequest>()); call.respond(OkResponse()) }
@@ -379,6 +451,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 operatingHours = body.operatingHours,
                 loginUsername = body.loginUsername,
                 loginPassword = body.loginPassword,
+                upiId = body.upiId,
+                deliveryRadiusKm = body.deliveryRadiusKm,
+                discountPercent = body.discountPercent,
             )
             call.respond(OkResponse())
         }
@@ -503,6 +578,12 @@ private fun ApplicationCall.userId(): String = payload().subject
 
 private fun ApplicationCall.requireShopId(): String =
     payload().getClaim("shopId").asString() ?: error("Shop role required")
+
+private fun ApplicationCall.requireShopPerm(store: AppStore, permission: String): String {
+    val shopId = requireShopId()
+    if (store.requireShopPermission(userId(), permission) != shopId) error("Forbidden")
+    return shopId
+}
 
 private fun ApplicationCall.requireRole(role: String) {
     if (payload().getClaim("role").asString() != role) error("Forbidden")

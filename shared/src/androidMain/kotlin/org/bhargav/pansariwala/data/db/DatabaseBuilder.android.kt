@@ -15,6 +15,6 @@ actual fun shopDatabaseBuilder(): RoomDatabase.Builder<ShopDatabase> {
     return Room.databaseBuilder<ShopDatabase>(
         context = appContext,
         name = dbFile.absolutePath,
-    ).addMigrations(MIGRATION_3_4)
+    ).addMigrations(MIGRATION_3_4, MIGRATION_4_5)
         .fallbackToDestructiveMigration(dropAllTables = true)
 }

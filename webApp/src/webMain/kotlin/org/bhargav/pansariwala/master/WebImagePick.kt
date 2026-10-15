@@ -31,9 +31,7 @@ suspend fun pickWebImageFile(): WebPickedFile? = suspendCancellableCoroutine { c
                     if (cont.isActive) cont.resume(null)
                 } else {
                     val arr = Int8Array(buffer)
-                    val bytes = ByteArray(arr.length) { idx ->
-                        arr.asDynamic()[idx] as Byte
-                    }
+                    val bytes = ByteArray(arr.length) { idx -> arr[idx] }
                     if (cont.isActive) {
                         cont.resume(
                             WebPickedFile(

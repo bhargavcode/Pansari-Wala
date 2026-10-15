@@ -81,7 +81,21 @@ data class ShopUserDoc(
     val username: String,
     val passwordHash: String,
     val displayName: String,
+    /** SHOP = shop admin (full access); EXECUTIVE = staff limited to [permissions]. */
     val role: String,
+    val permissions: List<String> = emptyList(),
+    val active: Boolean = true,
+    val createdAt: Long = 0L,
+)
+
+/** One row per (shop, visitor, day); unique-visitor counts are distinct [visitorId]s in a range. */
+@Serializable
+data class ShopVisitDoc(
+    @SerialName("_id") val id: String,
+    val shopId: String,
+    val visitorId: String,
+    val day: Long,
+    val lastAt: Long,
 )
 
 @Serializable
@@ -207,6 +221,17 @@ data class OfferDoc(
     val title: String,
     val description: String,
     val discountPercent: Double,
+    /** BILL = applies to the order subtotal; PRODUCT = applies to [productIds] lines. */
+    val scope: String = "BILL",
+    /** PERCENT or FLAT (INR). */
+    val discountType: String = "PERCENT",
+    val value: Double = discountPercent,
+    val productIds: List<String> = emptyList(),
+    val minBillAmount: Double = 0.0,
+    val active: Boolean = true,
+    val startsAt: Long? = null,
+    val endsAt: Long? = null,
+    val createdAt: Long = 0L,
 )
 
 @Serializable
@@ -234,6 +259,8 @@ data class OrderDoc(
     val quote: QuoteDto? = null,
     val ratingStars: Int? = null,
     val ratingComment: String? = null,
+    val ratingReply: String? = null,
+    val ratingReplyAt: Long? = null,
     val cancelReason: String? = null,
     val refundId: String? = null,
     val totalDistanceKm: Double? = null,
@@ -497,6 +524,8 @@ private fun ensureIndexes(db: MongoDatabase) {
     }
     db.getCollection<ShopDoc>("shops").createIndex(Indexes.ascending("active"))
     db.getCollection<OfferDoc>("offers").createIndex(Indexes.ascending("shopId"))
+    db.getCollection<ShopVisitDoc>("shop_visits")
+        .createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.ascending("day")))
     db.getCollection<OtpDoc>("otp_challenges").createIndex(Indexes.ascending("phone"))
     db.getCollection<AdminUserDoc>("admin_users")
         .createIndex(Indexes.ascending("username"), IndexOptions().unique(true))

@@ -12,6 +12,9 @@ import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ShopOffer
 
 interface PansariApi {
+    /** Best-effort connection pre-warm; never throws. */
+    suspend fun warmUp() {}
+
     suspend fun publicConfig(): PublicConfigDto
 
     suspend fun shopLogin(username: String, password: String): TokenResponse
@@ -56,6 +59,19 @@ interface PansariApi {
     suspend fun startSelfDelivery(orderId: String, packedProductIds: List<String>): Order
     suspend fun completeSelfDelivery(orderId: String, otp: String): Order
     suspend fun cancelShopOrder(orderId: String, reason: String?): Order
+
+    suspend fun shopProfile(): ShopProfileDto
+    suspend fun updateShopProfile(patch: ShopProfilePatch): ShopProfileDto
+    suspend fun shopStaff(): List<ShopStaffDto>
+    suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto
+    suspend fun deleteShopStaff(staffId: String)
+    /** [all] includes inactive/expired offers (needs OFFERS permission); otherwise live offers for billing. */
+    suspend fun shopManagedOffers(all: Boolean): List<ShopOfferDto>
+    suspend fun saveShopOffer(offerId: String?, body: ShopOfferDto): ShopOfferDto
+    suspend fun deleteShopOffer(offerId: String)
+    suspend fun shopOwnRatings(): List<org.bhargav.pansariwala.domain.model.ShopReview>
+    suspend fun replyToRating(orderId: String, reply: String): org.bhargav.pansariwala.domain.model.ShopReview
+    suspend fun shopVisitors(fromEpochMs: Long?, toEpochMs: Long?): VisitorStatsDto
 
     suspend fun registerPartner(request: PartnerRegisterRequest): String
     suspend fun partnerProfile(): PartnerProfile

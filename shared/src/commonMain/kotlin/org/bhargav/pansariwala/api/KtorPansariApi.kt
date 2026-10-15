@@ -15,6 +15,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.timeout
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -111,6 +112,10 @@ class KtorPansariApi(
         val token = preferences.getAccessToken() ?: return null
         if (!token.startsWith(AppConstants.JWT_PREFIX)) return null
         return BearerTokens(accessToken = token, refreshToken = token)
+    }
+
+    override suspend fun warmUp() {
+        runCatching { client.get(AppConstants.API_HEALTH_PATH) }
     }
 
     override suspend fun publicConfig(): PublicConfigDto =
@@ -249,6 +254,51 @@ class KtorPansariApi(
         client.post("shop/orders/$orderId/cancel") {
             setBody(ShopActionRequest(reason = reason))
         }.body<OrderDto>().toModel()
+
+    override suspend fun shopProfile(): ShopProfileDto = client.get("shop/profile").body()
+
+    override suspend fun updateShopProfile(patch: ShopProfilePatch): ShopProfileDto =
+        client.put("shop/profile") { setBody(patch) }.body()
+
+    override suspend fun shopStaff(): List<ShopStaffDto> = client.get("shop/staff").body()
+
+    override suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto =
+        if (staffId == null) {
+            client.post("shop/staff") { setBody(body) }.body()
+        } else {
+            client.put("shop/staff/$staffId") { setBody(body) }.body()
+        }
+
+    override suspend fun deleteShopStaff(staffId: String) {
+        client.delete("shop/staff/$staffId").body<OkResponse>()
+    }
+
+    override suspend fun shopManagedOffers(all: Boolean): List<ShopOfferDto> =
+        client.get("shop/offers") { parameter("all", all) }.body()
+
+    override suspend fun saveShopOffer(offerId: String?, body: ShopOfferDto): ShopOfferDto =
+        if (offerId == null) {
+            client.post("shop/offers") { setBody(body) }.body()
+        } else {
+            client.put("shop/offers/$offerId") { setBody(body) }.body()
+        }
+
+    override suspend fun deleteShopOffer(offerId: String) {
+        client.delete("shop/offers/$offerId").body<OkResponse>()
+    }
+
+    override suspend fun shopOwnRatings(): List<org.bhargav.pansariwala.domain.model.ShopReview> =
+        client.get("shop/ratings").body<List<ShopReviewDto>>().map { it.toModel() }
+
+    override suspend fun replyToRating(orderId: String, reply: String): org.bhargav.pansariwala.domain.model.ShopReview =
+        client.post("shop/ratings/$orderId/reply") { setBody(RatingReplyRequest(reply)) }
+            .body<ShopReviewDto>().toModel()
+
+    override suspend fun shopVisitors(fromEpochMs: Long?, toEpochMs: Long?): VisitorStatsDto =
+        client.get("shop/visitors") {
+            fromEpochMs?.let { parameter("from", it) }
+            toEpochMs?.let { parameter("to", it) }
+        }.body()
 
     override suspend fun registerPartner(request: PartnerRegisterRequest): String =
         client.post("partners/register") { setBody(request) }.body<OtpSessionResponse>().sessionId

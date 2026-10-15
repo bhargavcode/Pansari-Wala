@@ -80,6 +80,9 @@ object AppConstants {
     const val API_BASE_URL: String = "https://api.pansariwala.shop"
     const val DEFAULT_API_BASE_URL: String = API_BASE_URL
     const val IOS_API_BASE_URL: String = API_BASE_URL
+    /** Retired EC2 hosts; any base URL pointing here is replaced by [API_BASE_URL]. */
+    val LEGACY_API_HOSTS: List<String> = listOf("35.172.232.196")
+    const val API_HEALTH_PATH: String = "health"
     const val BRAND_TAGLINE: String = "Apka apna market"
     const val PLAY_STORE_USER_URL: String =
         "https://play.google.com/store/apps/details?id=org.bhargav.pansariwala.user"
@@ -118,7 +121,7 @@ object AppConstants {
         S3Prefix.SHOPS_SHOP,
         S3Prefix.SHOPS_PRODUCT_IMAGES,
     )
-    const val HTTP_CONNECT_TIMEOUT_MS: Long = 5_000L
+    const val HTTP_CONNECT_TIMEOUT_MS: Long = 10_000L
     const val HTTP_REQUEST_TIMEOUT_MS: Long = 12_000L
     const val HTTP_SOCKET_TIMEOUT_MS: Long = 12_000L
     const val HTTP_EXTERNAL_TIMEOUT_MS: Long = 5_000L
@@ -162,6 +165,9 @@ object AppConstants {
         const val NOTIFY_DELIVERY: String = "pref_notify_delivery"
         const val SHOP_UPI_ID: String = "pref_shop_upi_id"
         const val SHOP_NAME: String = "pref_shop_name"
+        const val SHOP_STAFF_ROLE: String = "pref_shop_staff_role"
+        const val SHOP_PERMISSIONS: String = "pref_shop_permissions"
+        const val SHOP_FEATURES: String = "pref_shop_features"
     }
 
     object Roles {

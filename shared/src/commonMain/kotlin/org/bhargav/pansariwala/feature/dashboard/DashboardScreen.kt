@@ -37,6 +37,8 @@ import org.bhargav.pansariwala.designsystem.StatTile
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.auth.AuthRepository
+import org.bhargav.pansariwala.domain.auth.ShopAccess
+import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.feature.printer.PrinterStatusButton
@@ -68,6 +70,7 @@ import pansariwala.shared.generated.resources.low_stock_count
 import pansariwala.shared.generated.resources.no_orders_yet
 import pansariwala.shared.generated.resources.order_items_summary
 import pansariwala.shared.generated.resources.orders_workspace_title
+import pansariwala.shared.generated.resources.profile_title
 import pansariwala.shared.generated.resources.online_orders_title
 import pansariwala.shared.generated.resources.recent_orders_subtitle
 import pansariwala.shared.generated.resources.reports_title
@@ -93,12 +96,14 @@ fun DashboardScreen(
     onOpenOrdersWorkspace: () -> Unit,
     onOpenOnlineOrders: () -> Unit,
     onOpenReports: () -> Unit,
+    onOpenProfile: () -> Unit,
     onLogout: () -> Unit,
     viewModel: DashboardViewModel = koinViewModel(),
     authRepository: AuthRepository = koinInject(),
     analytics: Analytics = koinInject(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val access by viewModel.access.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val success = state as? AsyncUiState.Success
 
@@ -127,62 +132,79 @@ fun DashboardScreen(
                         }, onOpenPrinter = {
                             analytics.log(AnalyticsEvent.ButtonClicked("printer", "dashboard"))
                             onOpenPrinter.invoke()
-                        }, compact = widthClass == WindowWidthClass.Compact)
-                        if (widthClass != WindowWidthClass.Compact) {
+                        }, onOpenProfile = {
+                            analytics.log(AnalyticsEvent.ButtonClicked("profile", "dashboard"))
+                            onOpenProfile.invoke()
+                        }, access = access, compact = widthClass == WindowWidthClass.Compact)
+                        if (widthClass != WindowWidthClass.Compact && access.can(ShopPermission.VIEW_REPORTS)) {
                             SalesCard(data)
                         }
                     }
                 }
 
-                if (widthClass == WindowWidthClass.Compact) {
+                if (widthClass == WindowWidthClass.Compact && access.can(ShopPermission.VIEW_REPORTS)) {
                     item { SalesCard(data) }
                 }
 
+                val showOrders = access.can(ShopPermission.BILLING) ||
+                    access.can(ShopPermission.ONLINE_ORDERS) ||
+                    access.can(ShopPermission.VIEW_REPORTS)
+                val showInventory = access.can(ShopPermission.INVENTORY)
                 if (widthClass == WindowWidthClass.Expanded) {
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
+                            if (showOrders) {
+                                OrdersCard(
+                                    orders = data.recentOrders,
+                                    access = access,
+                                    onCreateOrder = onCreateOrder,
+                                    onEditOrder = onEditOrder,
+                                    onOpenOrdersWorkspace = onOpenOrdersWorkspace,
+                                    onOpenOnlineOrders = onOpenOnlineOrders,
+                                    onOpenReports = onOpenReports,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            if (showInventory) {
+                                InventoryCard(
+                                    state = data,
+                                    onAddOrUpdateInventory = onAddOrUpdateInventory,
+                                    onShowLowStockList = onShowLowStockList,
+                                    onShowFullInventory = onShowFullInventory,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    if (showOrders) {
+                        item {
                             OrdersCard(
                                 orders = data.recentOrders,
+                                access = access,
                                 onCreateOrder = onCreateOrder,
                                 onEditOrder = onEditOrder,
                                 onOpenOrdersWorkspace = onOpenOrdersWorkspace,
                                 onOpenOnlineOrders = onOpenOnlineOrders,
                                 onOpenReports = onOpenReports,
-                                modifier = Modifier.weight(1f),
+                                compact = true,
+                                modifier = Modifier.fillMaxWidth(),
                             )
+                        }
+                    }
+                    if (showInventory) {
+                        item {
                             InventoryCard(
                                 state = data,
                                 onAddOrUpdateInventory = onAddOrUpdateInventory,
                                 onShowLowStockList = onShowLowStockList,
                                 onShowFullInventory = onShowFullInventory,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                    }
-                } else {
-                    item {
-                        OrdersCard(
-                            orders = data.recentOrders,
-                            onCreateOrder = onCreateOrder,
-                            onEditOrder = onEditOrder,
-                            onOpenOrdersWorkspace = onOpenOrdersWorkspace,
-                            onOpenOnlineOrders = onOpenOnlineOrders,
-                            onOpenReports = onOpenReports,
-                            compact = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    item {
-                        InventoryCard(
-                            state = data,
-                            onAddOrUpdateInventory = onAddOrUpdateInventory,
-                            onShowLowStockList = onShowLowStockList,
-                            onShowFullInventory = onShowFullInventory,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
                     }
                 }
             }
@@ -199,15 +221,24 @@ fun DashboardHeader(
     authRepository: AuthRepository,
     onLogout: () -> Unit,
     onOpenPrinter: () -> Unit,
+    onOpenProfile: () -> Unit,
+    access: ShopAccess,
     compact: Boolean = false,
 ) {
+    val showPrinter = access.can(ShopPermission.BILLING) || access.can(ShopPermission.PRINT_REPORTS) ||
+        access.can(ShopPermission.SETTINGS)
     val actions = @Composable {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = {
-                onOpenSettings.invoke()
-            }) {
-                Text("⚙ ${stringResource(Res.string.action_settings)}",
-                    style = MaterialTheme.typography.titleMedium,)
+            TextButton(onClick = onOpenProfile) {
+                Text(stringResource(Res.string.profile_title), style = MaterialTheme.typography.titleMedium)
+            }
+            if (access.can(ShopPermission.SETTINGS)) {
+                TextButton(onClick = {
+                    onOpenSettings.invoke()
+                }) {
+                    Text("⚙ ${stringResource(Res.string.action_settings)}",
+                        style = MaterialTheme.typography.titleMedium,)
+                }
             }
             TextButton(onClick = {
                 analytics.log(AnalyticsEvent.ButtonClicked("logout", "dashboard"))
@@ -217,7 +248,7 @@ fun DashboardHeader(
                 }
             }) { Text(stringResource(Res.string.action_logout),
                 style = MaterialTheme.typography.titleMedium) }
-            if (!compact) PrinterStatusButton(onClick = onOpenPrinter)
+            if (!compact && showPrinter) PrinterStatusButton(onClick = onOpenPrinter)
         }
     }
     val greeting = @Composable { modifier: Modifier ->
@@ -244,7 +275,7 @@ fun DashboardHeader(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 greeting(Modifier.weight(1f))
-                PrinterStatusButton(onClick = onOpenPrinter)
+                if (showPrinter) PrinterStatusButton(onClick = onOpenPrinter)
             }
             actions()
         }
@@ -289,6 +320,7 @@ private fun SalesCard(state: DashboardData) {
 @Composable
 private fun OrdersCard(
     orders: List<OrderSummary>,
+    access: ShopAccess,
     onCreateOrder: () -> Unit,
     onEditOrder: (String) -> Unit,
     onOpenOrdersWorkspace: () -> Unit,
@@ -297,6 +329,29 @@ private fun OrdersCard(
     compact: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val canBill = access.can(ShopPermission.BILLING)
+    val buttons = @Composable { buttonModifier: Modifier ->
+        if (canBill) {
+            OutlinedButton(onClick = onOpenOrdersWorkspace, modifier = buttonModifier) {
+                Text(stringResource(Res.string.orders_workspace_title))
+            }
+        }
+        if (access.can(ShopPermission.ONLINE_ORDERS)) {
+            OutlinedButton(onClick = onOpenOnlineOrders, modifier = buttonModifier) {
+                Text(stringResource(Res.string.online_orders_title))
+            }
+        }
+        if (access.can(ShopPermission.VIEW_REPORTS)) {
+            OutlinedButton(onClick = onOpenReports, modifier = buttonModifier) {
+                Text(stringResource(Res.string.reports_title))
+            }
+        }
+        if (canBill) {
+            Button(onClick = onCreateOrder, modifier = buttonModifier) {
+                Text(stringResource(Res.string.create_order))
+            }
+        }
+    }
     SectionCard(
         title = stringResource(Res.string.recent_orders_title),
         subtitle = stringResource(Res.string.recent_orders_subtitle, orders.size),
@@ -306,35 +361,9 @@ private fun OrdersCard(
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(onClick = onOpenOrdersWorkspace, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(Res.string.orders_workspace_title))
-                    }
-                    OutlinedButton(onClick = onOpenOnlineOrders, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(Res.string.online_orders_title))
-                    }
-                    OutlinedButton(onClick = onOpenReports, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(Res.string.reports_title))
-                    }
-                    Button(onClick = onCreateOrder, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(Res.string.create_order))
-                    }
-                }
+                ) { buttons(Modifier.fillMaxWidth()) }
             } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onOpenOrdersWorkspace) {
-                        Text(stringResource(Res.string.orders_workspace_title))
-                    }
-                    OutlinedButton(onClick = onOpenOnlineOrders) {
-                        Text(stringResource(Res.string.online_orders_title))
-                    }
-                    OutlinedButton(onClick = onOpenReports) {
-                        Text(stringResource(Res.string.reports_title))
-                    }
-                    Button(onClick = onCreateOrder) {
-                        Text(stringResource(Res.string.create_order))
-                    }
-                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { buttons(Modifier) }
             }
         },
     ) {
@@ -368,8 +397,10 @@ private fun OrdersCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    TextButton(onClick = { onEditOrder(order.id) }) {
-                        Text(stringResource(Res.string.action_edit))
+                    if (canBill) {
+                        TextButton(onClick = { onEditOrder(order.id) }) {
+                            Text(stringResource(Res.string.action_edit))
+                        }
                     }
                 }
                 if (index < orders.lastIndex) HorizontalDivider()

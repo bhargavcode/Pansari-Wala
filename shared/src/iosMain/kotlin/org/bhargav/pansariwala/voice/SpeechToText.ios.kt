@@ -23,6 +23,7 @@ import platform.darwin.dispatch_time
 import platform.darwin.DISPATCH_TIME_NOW
 
 private const val NSEC_PER_MSEC: Long = 1_000_000L
+private const val MAX_RESTART_BACKOFF_MS: Long = 3_000L
 
 /**
  * iOS SFSpeechRecognizer bridge for hi-IN.
@@ -48,6 +49,9 @@ private class IosSpeechToText : SpeechToText {
     private var committedThisUtterance = false
     private var intentionalStop = false
     private var tapInstalled = false
+    /** Ignores callbacks from rotated-out tasks (their 216 cancel would otherwise re-trigger restarts). */
+    private var taskGeneration = 0
+    private var consecutiveFailures = 0
 
     override fun isAvailable(): Boolean = recognizer.isAvailable()
 
@@ -58,6 +62,7 @@ private class IosSpeechToText : SpeechToText {
             if (status.value == 3L) {
                 continuous = true
                 sessionActive = false
+                consecutiveFailures = 0
                 lastPartial = ""
                 committedThisUtterance = false
                 startEngine()
@@ -76,6 +81,12 @@ private class IosSpeechToText : SpeechToText {
         if (!continuous || intentionalStop) return
         if (!isAvailable()) {
             _events.tryEmit(SpeechEvent.Error("Speech recognition is not available on this device."))
+            return
+        }
+
+        // Mic stays open across phrases; only the recognition task is rotated.
+        if (audioEngine.running && tapInstalled) {
+            startRecognitionTask()
             return
         }
 
@@ -102,15 +113,6 @@ private class IosSpeechToText : SpeechToText {
         // Fresh engine avoids stale zero sample-rate format after rapid teardown/restart.
         audioEngine = AVAudioEngine()
 
-        val recognitionRequest = SFSpeechAudioBufferRecognitionRequest().also {
-            it.shouldReportPartialResults = true
-            // Prefer on-device when available — fewer network / assistant errors.
-            runCatching { it.setRequiresOnDeviceRecognition(true) }
-        }
-        request = recognitionRequest
-        lastPartial = ""
-        committedThisUtterance = false
-
         val inputNode = audioEngine.inputNode
         // Prefer hardware input format; fall back to output bus format.
         val inputFormat = inputNode.inputFormatForBus(0u)
@@ -128,7 +130,7 @@ private class IosSpeechToText : SpeechToText {
 
         inputNode.installTapOnBus(0u, bufferSize = 1024u, format = format) { buffer, _ ->
             if (buffer != null) {
-                recognitionRequest.appendAudioPCMBuffer(buffer)
+                request?.appendAudioPCMBuffer(buffer)
             }
         }
         tapInstalled = true
@@ -145,11 +147,29 @@ private class IosSpeechToText : SpeechToText {
             _events.tryEmit(SpeechEvent.Started)
         }
 
+        startRecognitionTask()
+    }
+
+    private fun startRecognitionTask() {
+        runCatching { request?.endAudio() }
+        val recognitionRequest = SFSpeechAudioBufferRecognitionRequest().also {
+            it.shouldReportPartialResults = true
+            // Forcing on-device where hi-IN isn't installed fails every task → endless restarts.
+            if (recognizer.supportsOnDeviceRecognition) {
+                runCatching { it.setRequiresOnDeviceRecognition(true) }
+            }
+        }
+        request = recognitionRequest
+        lastPartial = ""
+        committedThisUtterance = false
+        val generation = ++taskGeneration
+
         task = recognizer.recognitionTaskWithRequest(recognitionRequest) { result, error: NSError? ->
-            if (intentionalStop) return@recognitionTaskWithRequest
+            if (intentionalStop || generation != taskGeneration) return@recognitionTaskWithRequest
 
             val text = result?.bestTranscription?.formattedString.orEmpty()
             if (text.isNotBlank()) {
+                consecutiveFailures = 0
                 lastPartial = text
                 val isFinal = result?.isFinal() == true
                 if (isFinal) {
@@ -182,15 +202,16 @@ private class IosSpeechToText : SpeechToText {
         if (recoverable) {
             commitPartialIfNeeded()
             if (continuous && !intentionalStop) {
-                scheduleRestart(delayMs = 400)
+                scheduleRestart(delayMs = backoffDelay(200))
             }
             return
         }
 
         if (continuous && !intentionalStop) {
-            // Soft failure — keep listening without showing a raw system error.
+            // Soft failure — reset the engine and keep listening without a raw system error.
             commitPartialIfNeeded()
-            scheduleRestart(delayMs = 600)
+            teardownEngine()
+            scheduleRestart(delayMs = backoffDelay(600))
             return
         }
 
@@ -208,6 +229,11 @@ private class IosSpeechToText : SpeechToText {
             _events.tryEmit(SpeechEvent.FinalResult(text))
         }
         lastPartial = ""
+    }
+
+    private fun backoffDelay(baseMs: Long): Long {
+        consecutiveFailures++
+        return (baseMs * consecutiveFailures).coerceAtMost(MAX_RESTART_BACKOFF_MS)
     }
 
     private fun scheduleRestart(delayMs: Long) {

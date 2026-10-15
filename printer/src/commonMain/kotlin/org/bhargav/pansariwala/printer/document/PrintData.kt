@@ -80,6 +80,22 @@ data class InventoryReportData(
     val lowStockOnly: Boolean = false,
 )
 
+data class SalesReportRow(
+    val label: String,
+    val detail: String = "",
+    val amount: Double,
+)
+
+/** Sales summary for a period; [title]/[period] and summary keys come pre-localized from the app. */
+data class SalesReportData(
+    val title: String,
+    val period: String,
+    val generatedAt: String,
+    val summary: List<Pair<String, String>>,
+    val rows: List<SalesReportRow>,
+    val total: Double,
+)
+
 /** Every fixed word printed by the templates, supplied by the app so it stays localizable. */
 data class PrintLabels(
     val receiptTitle: String,

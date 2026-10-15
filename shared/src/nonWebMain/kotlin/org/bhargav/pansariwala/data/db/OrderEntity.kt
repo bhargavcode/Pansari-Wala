@@ -24,6 +24,8 @@ data class OrderEntity(
     val cancelReason: String? = null,
     @ColumnInfo(defaultValue = AppConstants.PosPayment.CASH)
     val paymentMethod: String = AppConstants.PosPayment.CASH,
+    @ColumnInfo(defaultValue = "0")
+    val discount: Double = 0.0,
 )
 
 @Entity(

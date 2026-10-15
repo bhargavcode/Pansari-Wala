@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +17,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+
+private const val SILENCE_RESTART_MS = 150L
+private const val MAX_RESTART_BACKOFF_MS = 3_000L
+private const val BUSY_RECREATE_THRESHOLD = 2
+private const val COMPLETE_SILENCE_MS = 1_500L
+private const val SEGMENTED_SESSION_MS = 5 * 60_000L
 
 private class AndroidSpeechToText(
     private val context: Context,
@@ -32,6 +39,8 @@ private class AndroidSpeechToText(
     private var lastPartial: String = ""
     private var committedThisUtterance = false
     private var restartScheduled = false
+    private var consecutiveFailures = 0
+    private var busyCount = 0
 
     override fun isAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(context)
 
@@ -57,6 +66,8 @@ private class AndroidSpeechToText(
             lastPartial = ""
             committedThisUtterance = false
             restartScheduled = false
+            consecutiveFailures = 0
+            busyCount = 0
             ensureRecognizer()
             beginListeningInternal()
         }
@@ -94,6 +105,12 @@ private class AndroidSpeechToText(
             _events.tryEmit(SpeechEvent.FinalResult(text))
         }
         lastPartial = ""
+    }
+
+    /** Grows the restart delay while the recognizer keeps failing so the mic doesn't flap on/off. */
+    private fun backoffDelay(baseMs: Long): Long {
+        consecutiveFailures++
+        return (baseMs * consecutiveFailures).coerceAtMost(MAX_RESTART_BACKOFF_MS)
     }
 
     private fun scheduleRestart(delayMs: Long = 300) {
@@ -145,16 +162,26 @@ private class AndroidSpeechToText(
                     when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH,
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
-                        SpeechRecognizer.ERROR_CLIENT,
                         -> {
+                            // Silence / background noise only: reopen quickly so speech isn't missed.
                             commitPartialIfNeeded()
-                            if (continuous) scheduleRestart(250) else endSession()
+                            if (continuous) scheduleRestart(SILENCE_RESTART_MS) else endSession()
+                        }
+                        SpeechRecognizer.ERROR_CLIENT -> {
+                            commitPartialIfNeeded()
+                            if (continuous) scheduleRestart(backoffDelay(250)) else endSession()
                         }
                         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
-                            // Recreate and retry quietly — common during continuous restarts.
+                            // Cancel the in-flight session first; only rebuild the recognizer if busy persists.
                             if (continuous) {
-                                recreateRecognizer()
-                                scheduleRestart(400)
+                                busyCount++
+                                if (busyCount >= BUSY_RECREATE_THRESHOLD) {
+                                    busyCount = 0
+                                    recreateRecognizer()
+                                } else {
+                                    runCatching { recognizer?.cancel() }
+                                }
+                                scheduleRestart(backoffDelay(300))
                             } else {
                                 endSession()
                             }
@@ -176,29 +203,31 @@ private class AndroidSpeechToText(
                         -> {
                             // Soft retry — don't dump raw errors into the order UI.
                             commitPartialIfNeeded()
-                            if (continuous) scheduleRestart(700) else endSession()
+                            if (continuous) scheduleRestart(backoffDelay(700)) else endSession()
                         }
                         else -> {
                             commitPartialIfNeeded()
-                            if (continuous) scheduleRestart(400) else endSession()
+                            if (continuous) scheduleRestart(backoffDelay(400)) else endSession()
                         }
                     }
                 }
 
                 override fun onResults(results: Bundle?) {
                     listening = false
-                    val texts = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        .orEmpty()
-                    val best = texts.firstOrNull().orEmpty().ifBlank { lastPartial }
-                    if (best.isNotBlank() && !committedThisUtterance) {
-                        committedThisUtterance = true
-                        lastPartial = ""
-                        _events.tryEmit(SpeechEvent.FinalResult(best))
-                    } else {
-                        lastPartial = ""
-                    }
-                    if (continuous) scheduleRestart(250) else endSession()
+                    emitFinal(results)
+                    if (continuous) scheduleRestart(SILENCE_RESTART_MS) else endSession()
+                }
+
+                // Android 13+ segmented session: one result per phrase while the mic stays open.
+                override fun onSegmentResults(segmentResults: Bundle) {
+                    emitFinal(segmentResults)
+                    committedThisUtterance = false
+                }
+
+                override fun onEndOfSegmentedSession() {
+                    listening = false
+                    commitPartialIfNeeded()
+                    if (continuous) scheduleRestart(SILENCE_RESTART_MS) else endSession()
                 }
 
                 override fun onPartialResults(partialResults: Bundle?) {
@@ -207,6 +236,8 @@ private class AndroidSpeechToText(
                         ?.firstOrNull()
                         .orEmpty()
                     if (text.isNotBlank()) {
+                        consecutiveFailures = 0
+                        busyCount = 0
                         lastPartial = text
                         _events.tryEmit(SpeechEvent.PartialResult(text))
                     }
@@ -215,6 +246,20 @@ private class AndroidSpeechToText(
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
             })
         }
+    }
+
+    private fun emitFinal(results: Bundle?) {
+        val best = results
+            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?.firstOrNull()
+            .orEmpty()
+            .ifBlank { lastPartial }
+        if (best.isNotBlank() && !committedThisUtterance) {
+            committedThisUtterance = true
+            consecutiveFailures = 0
+            _events.tryEmit(SpeechEvent.FinalResult(best))
+        }
+        lastPartial = ""
     }
 
     private fun endSession() {
@@ -235,6 +280,22 @@ private class AndroidSpeechToText(
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+            // Tolerate short pauses between "1 kilo ... chini" instead of ending the session.
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                COMPLETE_SILENCE_MS,
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                COMPLETE_SILENCE_MS,
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, true)
+                putExtra(
+                    RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,
+                    SEGMENTED_SESSION_MS,
+                )
+            }
         }
         runCatching {
             sr.startListening(intent)

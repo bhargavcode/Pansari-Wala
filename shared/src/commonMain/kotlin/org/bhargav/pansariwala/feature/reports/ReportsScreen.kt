@@ -89,6 +89,9 @@ import pansariwala.shared.generated.resources.report_revenue
 import pansariwala.shared.generated.resources.report_revenue_trend
 import pansariwala.shared.generated.resources.report_row_items
 import pansariwala.shared.generated.resources.reports_title
+import pansariwala.shared.generated.resources.report_print_sales
+import org.bhargav.pansariwala.feature.printer.PrintAction
+import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 
 @Composable
 fun ReportsScreen(
@@ -96,6 +99,7 @@ fun ReportsScreen(
     viewModel: ReportsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val canPrint by viewModel.canPrint.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val months = stringArrayResource(Res.array.report_month_short)
@@ -110,6 +114,11 @@ fun ReportsScreen(
         title = stringResource(Res.string.reports_title),
         onBack = onBack,
         actions = {
+            if (canPrint) {
+                PrintMenuButton(
+                    listOf(PrintAction(Res.string.report_print_sales) { printSalesReport(viewModel.buildSalesReport()) }),
+                )
+            }
             IconButton(onClick = viewModel::refresh) {
                 Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.action_refresh))
             }

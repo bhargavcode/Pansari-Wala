@@ -89,10 +89,10 @@ fun main() {
             }
             exception<IllegalStateException> { call, cause ->
                 val message = cause.message ?: "Bad request"
-                val status = if (message.contains("Invalid credentials") || message.contains("Invalid OTP")) {
-                    HttpStatusCode.Unauthorized
-                } else {
-                    HttpStatusCode.BadRequest
+                val status = when {
+                    message.contains("Invalid credentials") || message.contains("Invalid OTP") -> HttpStatusCode.Unauthorized
+                    message.startsWith("Forbidden") -> HttpStatusCode.Forbidden
+                    else -> HttpStatusCode.BadRequest
                 }
                 call.respond(status, ApiErrorBody(message))
             }

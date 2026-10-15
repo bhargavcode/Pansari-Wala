@@ -101,6 +101,8 @@ data class ShopReview(
     val stars: Int,
     val comment: String?,
     val createdAtEpochMs: Long,
+    val reply: String? = null,
+    val replyAtEpochMs: Long? = null,
 )
 
 data class ShopOffer(

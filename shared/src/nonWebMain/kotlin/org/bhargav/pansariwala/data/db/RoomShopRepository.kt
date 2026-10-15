@@ -160,6 +160,7 @@ private fun Order.toEntity() = OrderEntity(
     itemCount = itemCount,
     cancelReason = cancelReason,
     paymentMethod = paymentMethod,
+    discount = discount,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -191,6 +192,7 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
     cancelReason = cancelReason,
     channel = OrderChannel.POS,
     paymentMethod = paymentMethod,
+    discount = discount,
     items = items.map {
         OrderItem(
             productId = it.productId,

@@ -32,6 +32,7 @@ import org.bhargav.pansariwala.printer.document.PrintLabels
 import org.bhargav.pansariwala.printer.document.PrintLineItem
 import org.bhargav.pansariwala.printer.document.PrintTemplates
 import org.bhargav.pansariwala.printer.document.ReceiptData
+import org.bhargav.pansariwala.printer.document.SalesReportData
 import org.bhargav.pansariwala.printer.model.PrinterSettings
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
@@ -211,6 +212,11 @@ class PosPrintService(
                 labels(),
             )
         }
+    }
+
+    suspend fun printSalesReport(data: SalesReportData): Result<Unit> {
+        if (data.summary.isEmpty() && data.rows.isEmpty()) return Result.failure(NothingToPrintException())
+        return print { PrintTemplates.salesReport(data, settings, labels()) }
     }
 
     /**

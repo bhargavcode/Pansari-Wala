@@ -39,5 +39,15 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.kotlinx.serialization.json)
         }
+        jsMain.dependencies {
+            implementation(devNpm("esbuild-loader", libs.versions.esbuildLoader.get()))
+        }
+    }
+}
+
+// Production bundles ship without source maps; generating them only slows webpack.
+tasks.withType<org.jetbrains.kotlin.gradle.targets.js.ir.KotlinJsIrLink>().configureEach {
+    if (name.contains("Production")) {
+        compilerOptions.sourceMap.set(false)
     }
 }

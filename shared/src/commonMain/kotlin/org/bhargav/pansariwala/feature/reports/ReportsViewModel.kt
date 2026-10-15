@@ -27,6 +27,27 @@ import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
 import kotlin.time.Instant
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import org.bhargav.pansariwala.domain.auth.ShopPermission
+import org.bhargav.pansariwala.printer.document.SalesReportData
+import org.bhargav.pansariwala.printer.document.SalesReportRow
+import org.bhargav.pansariwala.printing.formatPrintDateTime
+import org.bhargav.pansariwala.util.asMoney
+import org.jetbrains.compose.resources.getString
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.report_avg_order
+import pansariwala.shared.generated.resources.report_cancelled
+import pansariwala.shared.generated.resources.report_channel_offline
+import pansariwala.shared.generated.resources.report_channel_online
+import pansariwala.shared.generated.resources.report_offline
+import pansariwala.shared.generated.resources.report_online
+import pansariwala.shared.generated.resources.report_orders_count
+import pansariwala.shared.generated.resources.report_print_period
+import pansariwala.shared.generated.resources.report_print_title
+
+private const val MAX_PRINTED_ROWS = 200
 
 data class ReportsUiState(
     val channel: ReportChannel = ReportChannel.ALL,
@@ -52,6 +73,10 @@ class ReportsViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(ReportsUiState())
     val state: StateFlow<ReportsUiState> = _state.asStateFlow()
+
+    val canPrint: StateFlow<Boolean> = preferences.shopAccess
+        .map { it.can(ShopPermission.PRINT_REPORTS) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val tz = TimeZone.currentSystemDefault()
     private var shopId: String = SeedData.DEMO_SHOP_ID
@@ -218,6 +243,48 @@ class ReportsViewModel(
                 .sortedByDescending { it.stockValue }
         }
         _state.update { it.copy(inventory = breakdown) }
+    }
+
+    /** Snapshot of the current channel + period for the printer; very long periods print the summary only. */
+    suspend fun buildSalesReport(): SalesReportData {
+        val state = _state.value
+        val s = state.summary
+        val period = state.range?.let { range ->
+            if (range.start == range.endInclusive) {
+                range.start.toString()
+            } else {
+                getString(Res.string.report_print_period, range.start.toString(), range.endInclusive.toString())
+            }
+        }.orEmpty()
+        val online = getString(Res.string.report_channel_online)
+        val offline = getString(Res.string.report_channel_offline)
+        val paid = filtered.filter { it.countsTowardRevenue }
+        val rows = if (paid.size > MAX_PRINTED_ROWS) {
+            emptyList()
+        } else {
+            paid.map { order ->
+                SalesReportRow(
+                    label = "#${order.displayNumber}",
+                    detail = "${formatPrintDateTime(order.createdAtEpochMs)} · " +
+                        if (order.channel == OrderChannel.ONLINE) online else offline,
+                    amount = order.total,
+                )
+            }
+        }
+        return SalesReportData(
+            title = getString(Res.string.report_print_title),
+            period = period,
+            generatedAt = formatPrintDateTime(AppClock.nowMillis()),
+            summary = listOf(
+                getString(Res.string.report_orders_count) to s.totalOrders.toString(),
+                getString(Res.string.report_online) to "${s.onlineOrders} · ${s.onlineRevenue.asMoney()}",
+                getString(Res.string.report_offline) to "${s.offlineOrders} · ${s.offlineRevenue.asMoney()}",
+                getString(Res.string.report_avg_order) to s.averageOrderValue.asMoney(),
+                getString(Res.string.report_cancelled) to s.cancelledOrders.toString(),
+            ),
+            rows = rows,
+            total = s.revenue,
+        )
     }
 
     private fun utcMillisToDate(ms: Long): LocalDate =

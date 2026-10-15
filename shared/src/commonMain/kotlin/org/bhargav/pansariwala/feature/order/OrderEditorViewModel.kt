@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
@@ -67,8 +68,14 @@ data class OrderEditorUiState(
     val isListening: Boolean = false,
     val partialTranscript: String = "",
     val requestMicPermission: Boolean = false,
+    val offers: List<ShopOfferDto> = emptyList(),
+    val manualDiscountInput: String = "",
+    val manualDiscountPercent: Boolean = false,
+    val voiceSearchEnabled: Boolean = true,
+    val barcodeSearchEnabled: Boolean = true,
 ) {
-    val total: Double get() = cart.sumOf { it.lineTotal }
+    val bill: BillTotals get() = computeBill(cart, offers, manualDiscountInput, manualDiscountPercent)
+    val total: Double get() = bill.total
     val itemCount: Int get() = cart.size
     val filteredCatalog: List<Product>
         get() {
@@ -78,7 +85,7 @@ data class OrderEditorUiState(
                 it.name.lowercase().contains(q) ||
                     it.nameHi.contains(searchQuery.trim()) ||
                     (it.voiceAlias?.lowercase()?.contains(q) == true) ||
-                    (it.barcode?.contains(q) == true)
+                    (barcodeSearchEnabled && it.barcode?.contains(q) == true)
             }
         }
 }
@@ -106,6 +113,17 @@ class OrderEditorViewModel(
     private var lastAppliedUtterance: String? = null
 
     init {
+        viewModelScope.launch {
+            preferences.shopFeatures.collect { features ->
+                if (!features.voiceSearch && _uiState.value.isListening) cancelListening()
+                _uiState.update {
+                    it.copy(
+                        voiceSearchEnabled = features.voiceSearch,
+                        barcodeSearchEnabled = features.barcodeSearch,
+                    )
+                }
+            }
+        }
         speechJob = viewModelScope.launch {
             speechToText.events.collect { event ->
                 when (event) {
@@ -249,6 +267,7 @@ class OrderEditorViewModel(
                 val cart = existing.items.mapNotNull { item ->
                     byId[item.productId]?.let { CartLine(it, item.quantity) }
                 }
+                // Edits keep the original bill discount as a flat amount instead of re-applying today's offers.
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -256,13 +275,23 @@ class OrderEditorViewModel(
                         customerName = existing.customerName.orEmpty(),
                         catalog = catalog,
                         cart = cart,
+                        manualDiscountInput = if (existing.discount > 0.0) existing.discount.asMoneyInput() else "",
                     )
                 }
             } else {
                 _uiState.update { it.copy(loading = false, catalog = catalog) }
+                loadOffers()
             }
         }
         loadShopPaymentInfo()
+    }
+
+    private fun loadOffers() {
+        viewModelScope.launch {
+            runCatching { api.shopManagedOffers(all = false) }
+                .onSuccess { offers -> _uiState.update { it.copy(offers = offers) } }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
     }
 
     private fun loadShopPaymentInfo() {
@@ -282,12 +311,22 @@ class OrderEditorViewModel(
     fun onSearchChange(value: String) = _uiState.update { it.copy(searchQuery = value) }
     fun onCustomerNameChange(value: String) = _uiState.update { it.copy(customerName = value) }
 
+    fun onManualDiscountChange(value: String) {
+        val cleaned = value.filter { it.isDigit() || it == '.' }
+        if (cleaned.count { it == '.' } > 1) return
+        _uiState.update { it.copy(manualDiscountInput = cleaned) }
+    }
+
+    fun onManualDiscountPercentChange(percent: Boolean) =
+        _uiState.update { it.copy(manualDiscountPercent = percent) }
+
     fun onMicClick() {
         analytics.log(AnalyticsEvent.ButtonClicked("voice_mic", "order_editor"))
         if (_uiState.value.isListening) {
             cancelListening()
             return
         }
+        if (!_uiState.value.voiceSearchEnabled) return
         if (!speechToText.isAvailable()) {
             _uiState.update {
                 it.copy(error = UiText.res(Res.string.error_speech_unavailable))
@@ -311,6 +350,7 @@ class OrderEditorViewModel(
             }
             return
         }
+        if (!_uiState.value.voiceSearchEnabled) return
         lastAppliedUtterance = null
         partialCommitJob?.cancel()
         _uiState.update { it.copy(error = null, partialTranscript = "", voiceMessages = emptyList()) }
@@ -410,6 +450,7 @@ class OrderEditorViewModel(
             customerName = state.customerName.trim().ifBlank { WALK_IN_CUSTOMER_KEY },
             channel = OrderChannel.POS,
             paymentMethod = paymentMethod,
+            discount = state.bill.discount,
             items = state.cart.map { line ->
                 OrderItem(
                     productId = line.product.id,
@@ -450,12 +491,15 @@ class OrderEditorViewModel(
 
         val lines = VoiceIntentParser.parse(textToParse)
         if (lines.isEmpty()) {
-            val msg = UiText.res(Res.string.voice_not_understood, normalized)
-            _uiState.update {
-                it.copy(
-                    voiceMessages = it.voiceMessages + msg,
-                    error = msg,
-                )
+            // Continuous mic picks up shop chatter; only complain when it wasn't open-mic noise.
+            if (!_uiState.value.isListening) {
+                val msg = UiText.res(Res.string.voice_not_understood, normalized)
+                _uiState.update {
+                    it.copy(
+                        voiceMessages = it.voiceMessages + msg,
+                        error = msg,
+                    )
+                }
             }
             return
         }
@@ -469,7 +513,10 @@ class OrderEditorViewModel(
         for (line in lines) {
             val match = ProductFuzzyMatcher.findBest(line.productQuery, catalog)
             if (match == null) {
-                messages += UiText.res(Res.string.voice_out_of_stock, line.productQuery)
+                // No unit + no catalog match → background speech, not an order line.
+                if (line.unit != null) {
+                    messages += UiText.res(Res.string.voice_out_of_stock, line.productQuery)
+                }
                 continue
             }
             val product = match.product
@@ -528,4 +575,9 @@ class OrderEditorViewModel(
     companion object {
         private const val PARTIAL_COMMIT_DELAY_MS = 700L
     }
+}
+
+private fun Double.asMoneyInput(): String {
+    val paise = kotlin.math.round(this * 100).toLong()
+    return if (paise % 100 == 0L) (paise / 100).toString() else "${paise / 100}.${(paise % 100).toString().padStart(2, '0')}"
 }

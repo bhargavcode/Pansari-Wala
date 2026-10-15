@@ -44,6 +44,8 @@ data class TokenResponse(
     val shopId: String? = null,
     val displayName: String? = null,
     val profileComplete: Boolean = true,
+    val shopRole: String? = null,
+    val permissions: List<String> = emptyList(),
 )
 
 @Serializable
@@ -134,6 +136,8 @@ data class ShopReviewDto(
     val stars: Int,
     val comment: String? = null,
     val createdAtEpochMs: Long,
+    val reply: String? = null,
+    val replyAtEpochMs: Long? = null,
 )
 
 @Serializable
@@ -444,6 +448,8 @@ fun ShopReviewDto.toModel() = org.bhargav.pansariwala.domain.model.ShopReview(
     stars = stars,
     comment = comment,
     createdAtEpochMs = createdAtEpochMs,
+    reply = reply,
+    replyAtEpochMs = replyAtEpochMs,
 )
 
 fun SavedAddressDto.toModel() = org.bhargav.pansariwala.domain.model.SavedAddress(

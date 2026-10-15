@@ -4,6 +4,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import org.bhargav.pansariwala.api.ShopFeaturesDto
+import org.bhargav.pansariwala.domain.auth.ShopAccess
+import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.CustomerProfile
 import org.bhargav.pansariwala.domain.model.PartnerProfile
 import org.bhargav.pansariwala.i18n.AppLanguage
@@ -92,7 +95,44 @@ class AppPreferences(
             role = token.role,
         )
         setProfileComplete(token.profileComplete)
+        token.shopRole?.let { setShopAccess(it, token.permissions) }
     }
+
+    /** Missing role (legacy session / offline login) means full shop-admin access. */
+    val shopAccess: Flow<ShopAccess> = combine(
+        store.observeString(AppConstants.Prefs.SHOP_STAFF_ROLE),
+        store.observeString(AppConstants.Prefs.SHOP_PERMISSIONS),
+    ) { role, perms -> toShopAccess(role, perms) }
+
+    suspend fun getShopAccess(): ShopAccess = toShopAccess(
+        store.getString(AppConstants.Prefs.SHOP_STAFF_ROLE),
+        store.getString(AppConstants.Prefs.SHOP_PERMISSIONS),
+    )
+
+    suspend fun setShopAccess(role: String, permissions: List<String>) {
+        store.putStrings(
+            mapOf(
+                AppConstants.Prefs.SHOP_STAFF_ROLE to role,
+                AppConstants.Prefs.SHOP_PERMISSIONS to permissions.joinToString(PERMISSION_SEPARATOR),
+            ),
+        )
+    }
+
+    /** Server-side shop feature switches; defaults (all on) until the profile has been fetched once. */
+    val shopFeatures: Flow<ShopFeaturesDto> = store.observeString(AppConstants.Prefs.SHOP_FEATURES).map { raw ->
+        raw?.let { runCatching { json.decodeFromString<ShopFeaturesDto>(it) }.getOrNull() } ?: ShopFeaturesDto()
+    }
+
+    suspend fun setShopFeatures(features: ShopFeaturesDto) {
+        store.putStrings(mapOf(AppConstants.Prefs.SHOP_FEATURES to json.encodeToString(features)))
+    }
+
+    private fun toShopAccess(role: String?, perms: String?): ShopAccess =
+        if (role.isNullOrBlank()) {
+            ShopAccess.FULL
+        } else {
+            ShopAccess(role, ShopPermission.parse(perms.orEmpty().split(PERMISSION_SEPARATOR)))
+        }
 
     suspend fun isProfileComplete(): Boolean =
         store.getString(Keys.profileComplete).toBooleanPref(default = true)
@@ -240,6 +280,9 @@ class AppPreferences(
             setOf(
                 AppConstants.Prefs.SHOP_UPI_ID,
                 AppConstants.Prefs.SHOP_NAME,
+                AppConstants.Prefs.SHOP_STAFF_ROLE,
+                AppConstants.Prefs.SHOP_PERMISSIONS,
+                AppConstants.Prefs.SHOP_FEATURES,
                 Keys.accessToken,
                 Keys.refreshToken,
                 Keys.userId,
@@ -254,6 +297,8 @@ class AppPreferences(
         )
     }
 }
+
+private const val PERMISSION_SEPARATOR = ","
 
 private fun String?.toBooleanPref(default: Boolean): Boolean =
     when {

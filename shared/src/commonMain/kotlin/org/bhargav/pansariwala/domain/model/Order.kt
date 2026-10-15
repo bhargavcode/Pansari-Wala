@@ -80,14 +80,17 @@ data class Order(
     val packedProductIds: Set<String> = emptySet(),
     /** Shop delivers this order itself instead of a platform partner. */
     val isSelfDelivery: Boolean = false,
+    /** POS bill discount (offers + manual), in INR; online orders carry theirs in [quote]. */
+    val discount: Double = 0.0,
 ) {
+    val subtotal: Double get() = items.sumOf { it.lineTotal }
     val deliveringItems: List<OrderItem>
         get() = if (packedProductIds.isEmpty()) items else items.filter { it.productId in packedProductIds }
     val isPackedForDelivery: Boolean
         get() = status == OrderStatus.LOOKING_FOR_PARTNER || status == OrderStatus.PARTNER_ACCEPTED ||
             status == OrderStatus.ON_THE_WAY || status == OrderStatus.DELIVERED ||
             status == OrderStatus.COMPLETED
-    val totalValue: Double get() = quote?.payable ?: items.sumOf { it.lineTotal }
+    val totalValue: Double get() = quote?.payable ?: (subtotal - discount).coerceAtLeast(0.0)
     val itemCount: Int get() = items.size
     val hasAssignedPartner: Boolean
         get() = !partnerName.isNullOrBlank() || !partnerPhone.isNullOrBlank()

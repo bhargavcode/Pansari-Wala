@@ -67,10 +67,23 @@ android {
             buildConfigField("String", "APP_PRODUCT", "\"DELIVERY\"")
         }
     }
-    val apiBaseUrl =
-        System.getenv("API_BASE_URL")
-            ?: (project.findProperty("API_BASE_URL") as String?)
-            ?: "https://api.pansariwala.shop"
+    val defaultApiBaseUrl = "https://api.pansariwala.shop"
+    // Retired EC2 IPs: a stale CI secret / IDE env must never ship (connect timeouts on every flavor).
+    val legacyApiHosts = listOf("35.172.232.196")
+    val apiBaseUrl = listOf(
+        System.getenv("API_BASE_URL"),
+        project.findProperty("API_BASE_URL") as String?,
+    ).map { it?.trim().orEmpty() }
+        .firstOrNull { it.isNotEmpty() }
+        ?.let { candidate ->
+            if (legacyApiHosts.any { candidate.contains(it) }) {
+                logger.warn("API_BASE_URL=$candidate is a retired host; using $defaultApiBaseUrl")
+                defaultApiBaseUrl
+            } else {
+                candidate
+            }
+        }
+        ?: defaultApiBaseUrl
     val signingProps = Properties().apply {
         listOf(
             rootProject.file("local.properties"),

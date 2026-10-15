@@ -14,6 +14,7 @@ import org.bhargav.pansariwala.domain.auth.AuthRepository
 import org.bhargav.pansariwala.domain.auth.LoginUseCase
 import org.bhargav.pansariwala.domain.auth.ObserveSessionUseCase
 import org.bhargav.pansariwala.feature.dashboard.DashboardViewModel
+import org.bhargav.pansariwala.feature.profile.ShopProfileViewModel
 import org.bhargav.pansariwala.feature.inventory.AddEditInventoryViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryListViewModel
 import org.bhargav.pansariwala.feature.login.LoginViewModel
@@ -117,4 +118,5 @@ val appModule = module {
     viewModelOf(::OnlineOrdersViewModel)
     viewModelOf(::PrinterSettingsViewModel)
     viewModelOf(::ReportsViewModel)
+    viewModelOf(::ShopProfileViewModel)
 }

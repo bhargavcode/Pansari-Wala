@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -37,6 +39,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,6 +72,13 @@ import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_add
 import pansariwala.shared.generated.resources.action_back
 import pansariwala.shared.generated.resources.action_remove
+import pansariwala.shared.generated.resources.bill_discount_flat
+import pansariwala.shared.generated.resources.bill_discount_hint
+import pansariwala.shared.generated.resources.bill_discount_label
+import pansariwala.shared.generated.resources.bill_discount_percent
+import pansariwala.shared.generated.resources.bill_manual_discount
+import pansariwala.shared.generated.resources.bill_offer_discount
+import pansariwala.shared.generated.resources.bill_subtotal
 import pansariwala.shared.generated.resources.cart_count
 import pansariwala.shared.generated.resources.cart_empty_hint
 import pansariwala.shared.generated.resources.create_order
@@ -185,6 +197,7 @@ private fun ColumnScope.CartSection(state: OrderEditorUiState, viewModel: OrderE
     }
 
     HorizontalDivider()
+    if (state.cart.isNotEmpty()) BillDiscountSection(state, viewModel)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -210,6 +223,44 @@ private fun ColumnScope.CartSection(state: OrderEditorUiState, viewModel: OrderE
                         if (state.isEditing) Res.string.update_order else Res.string.save_order,
                     ),
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BillDiscountSection(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    val bill = state.bill
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = state.manualDiscountInput,
+                onValueChange = viewModel::onManualDiscountChange,
+                label = { Text(stringResource(Res.string.bill_discount_label)) },
+                placeholder = { Text(stringResource(Res.string.bill_discount_hint)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+            FilterChip(
+                selected = !state.manualDiscountPercent,
+                onClick = { viewModel.onManualDiscountPercentChange(false) },
+                label = { Text(stringResource(Res.string.bill_discount_flat)) },
+            )
+            FilterChip(
+                selected = state.manualDiscountPercent,
+                onClick = { viewModel.onManualDiscountPercentChange(true) },
+                label = { Text(stringResource(Res.string.bill_discount_percent)) },
+            )
+        }
+        if (bill.discount > 0.0) {
+            val muted = MaterialTheme.colorScheme.onSurfaceVariant
+            Text(stringResource(Res.string.bill_subtotal, bill.subtotal.asMoney()), style = MaterialTheme.typography.bodySmall, color = muted)
+            if (bill.offerDiscount > 0.0) {
+                Text(stringResource(Res.string.bill_offer_discount, bill.offerDiscount.asMoney()), style = MaterialTheme.typography.bodySmall, color = muted)
+            }
+            if (bill.manualDiscount > 0.0) {
+                Text(stringResource(Res.string.bill_manual_discount, bill.manualDiscount.asMoney()), style = MaterialTheme.typography.bodySmall, color = muted)
             }
         }
     }
@@ -267,16 +318,22 @@ private fun SearchOrSuggestedItems(
             searchLabel = stringResource(Res.string.search_products),
             onSearchChange = viewModel::onSearchChange,
             onBack = if (showHeader) null else onBack,
-            trailingSearchContent = {
-                ListeningMicButton(
-                    isListening = state.isListening,
-                    onClick = viewModel::onMicClick,
-                    modifier = Modifier.size(40.dp),
-                )
+            trailingSearchContent = if (state.voiceSearchEnabled) {
+                {
+                    ListeningMicButton(
+                        isListening = state.isListening,
+                        onClick = viewModel::onMicClick,
+                        modifier = Modifier.size(40.dp),
+                    )
+                }
+            } else {
+                null
             },
         )
 
-        if (state.isListening || state.partialTranscript.isNotBlank()) {
+        if (!state.voiceSearchEnabled) {
+            Spacer(Modifier.height(8.dp))
+        } else if (state.isListening || state.partialTranscript.isNotBlank()) {
             VoiceSearchControls(
                 isListening = state.isListening,
                 partialTranscript = state.partialTranscript,

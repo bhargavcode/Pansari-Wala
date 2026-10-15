@@ -7,8 +7,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
+import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
@@ -35,12 +40,24 @@ typealias DashboardUiState = AsyncUiState<DashboardData>
 class DashboardViewModel(
     private val shopRepository: ShopRepository,
     private val preferences: AppPreferences,
+    private val api: PansariApi,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DashboardUiState>(AsyncUiState.Idle)
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    val access: StateFlow<ShopAccess> = preferences.shopAccess
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ShopAccess.FULL)
+
     init {
+        viewModelScope.launch {
+            runCatching { api.shopProfile() }
+                .onSuccess {
+                    preferences.setShopAccess(it.me.role, it.me.permissions)
+                    preferences.setShopFeatures(it.shop.features)
+                }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
         viewModelScope.launch {
             _uiState.value = AsyncUiState.Loading
             shopRepository.ensureSeeded()

@@ -39,7 +39,14 @@ import org.bhargav.pansariwala.server.db.ShopFeaturesDoc
 import org.bhargav.pansariwala.server.db.ShopHoursDayDoc
 import org.bhargav.pansariwala.server.db.ShopTypeDoc
 import org.bhargav.pansariwala.server.db.ShopUserDoc
+import org.bhargav.pansariwala.server.db.ShopVisitDoc
 import org.bhargav.pansariwala.server.db.TxnDoc
+import org.bhargav.pansariwala.server.dto.AdminShopPatch
+import org.bhargav.pansariwala.server.dto.ShopOfferDto
+import org.bhargav.pansariwala.server.dto.ShopProfileDto
+import org.bhargav.pansariwala.server.dto.ShopStaffDto
+import org.bhargav.pansariwala.server.dto.ShopStaffUpsert
+import org.bhargav.pansariwala.server.dto.VisitorStatsDto
 import org.bhargav.pansariwala.server.dto.AdminChartPointDto
 import org.bhargav.pansariwala.server.dto.AdminDashboardDto
 import org.bhargav.pansariwala.server.dto.AdminPartnerDetailDto
@@ -111,6 +118,7 @@ private const val DELIVERY_BASE_PER_KM = 8.0
 private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
 private const val MIN_SHOP_PASSWORD = 4
+private const val DAY_MS = 86_400_000L
 private val LOGIN_USERNAME_REGEX = Regex("^[a-z0-9._@-]{3,40}$")
 private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 
@@ -150,6 +158,7 @@ class AppStore(
     private val offerPayoutCol = mongo.db.getCollection<Document>("delivery_offers")
     private val otpCol = mongo.db.getCollection<OtpDoc>("otp_challenges")
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
+    private val shopVisitCol = mongo.db.getCollection<ShopVisitDoc>("shop_visits")
     private val partnerLiteProjection = exclude(
         "platePhoto",
         "vehiclePhoto",
@@ -185,8 +194,13 @@ class AppStore(
         verifyAndMigratePassword(row.passwordHash, password) { hash ->
             shopUserCol.updateOne(eq("_id", row.id), set("passwordHash", hash))
         }
+        require(row.active) { "This login is disabled. Contact your shop admin." }
         val token = security.issueJwt(row.id, "SHOP", row.shopId, row.displayName)
-        return TokenResponse(token, null, "SHOP", row.id, row.shopId, row.displayName)
+        return TokenResponse(
+            token, null, "SHOP", row.id, row.shopId, row.displayName,
+            shopRole = row.role,
+            permissions = effectivePermissions(row),
+        )
     }
 
     fun adminLogin(username: String, password: String): TokenResponse {
@@ -424,18 +438,24 @@ class AppStore(
         productCol.find(eq("shopId", shopId)).toList().map { it.toDto() }
 
     fun offers(shopId: String): List<OfferDto> =
-        offerCol.find(eq("shopId", shopId)).toList().map { OfferDto(it.id, it.title, it.description, it.discountPercent) }
+        liveOffers(shopId).map {
+            OfferDto(it.id, it.title, it.description, if (it.discountType == OfferType.PERCENT) it.value else 0.0)
+        }
+
+    private fun liveOffers(shopId: String, now: Long = System.currentTimeMillis()): List<OfferDoc> =
+        offerCol.find(eq("shopId", shopId)).toList().filter { it.isLive(now) }
 
     fun quote(userId: String, request: QuoteRequest): QuoteDto {
         me(userId)
         val shop = shopById(request.shopId)
         val catalog = catalog(request.shopId).associateBy { it.id }
-        val subtotal = request.items.sumOf { line ->
+        val lines = request.items.map { line ->
             val product = catalog[line.productId] ?: error("Unknown product")
-            product.sellingPrice * line.quantity
+            line.productId to product.sellingPrice * line.quantity
         }
+        val subtotal = lines.sumOf { it.second }
         val dist = haversine(request.userLat, request.userLng, shop.lat, shop.lng)
-        val discount = subtotal * (shop.discountPercent / 100.0)
+        val discount = offerDiscount(liveOffers(request.shopId), lines, subtotal, shop.discountPercent)
         val base = 8.0 * dist
         val delivery = base + base * 0.30
         val fee = 10.0
@@ -619,8 +639,25 @@ class AppStore(
                     stars = stars,
                     comment = row.ratingComment,
                     createdAtEpochMs = row.createdAt,
+                    reply = row.ratingReply,
+                    replyAtEpochMs = row.ratingReplyAt,
                 )
             }
+
+    /** One-way: the shop may set/replace its reply; customers cannot respond to it. */
+    fun replyToRating(shopId: String, orderId: String, reply: String): ShopReviewDto {
+        val text = reply.trim()
+        require(text.isNotEmpty()) { "Reply cannot be empty" }
+        require(text.length <= MAX_RATING_REPLY) { "Reply is too long" }
+        val row = orderCol.find(and(eq("_id", orderId), eq("shopId", shopId))).firstOrNull()
+            ?: error("Rating not found")
+        require(row.ratingStars != null) { "Order has no rating" }
+        orderCol.updateOne(
+            eq("_id", orderId),
+            combine(set("ratingReply", text), set("ratingReplyAt", System.currentTimeMillis())),
+        )
+        return shopRatings(shopId).first { it.id == orderId }
+    }
 
     private fun recalculateShopRating(shopId: String) {
         val rated = orderCol.find(and(eq("shopId", shopId), exists("ratingStars", true))).toList()
@@ -1495,8 +1532,13 @@ class AppStore(
         operatingHours: List<ShopHoursDayDto>? = null,
         loginUsername: String? = null,
         loginPassword: String? = null,
+        upiId: String? = null,
+        deliveryRadiusKm: Double? = null,
+        discountPercent: Double? = null,
     ) {
         val shop = shopById(shopId)
+        require(deliveryRadiusKm == null || deliveryRadiusKm in 1.0..100.0) { "Delivery radius must be 1-100 km" }
+        require(discountPercent == null || discountPercent in 0.0..90.0) { "Discount must be 0-90%" }
         if (name != null) require(name.isNotBlank()) { "Shop name is required" }
         if (lat != null || lng != null) validateShopLocation(lat ?: shop.lat, lng ?: shop.lng)
         val phone = ownerPhone?.trim()?.takeIf { it.isNotEmpty() }?.let { Security.normalizePhone(it) }
@@ -1533,10 +1575,250 @@ class AppStore(
             if (operatingHours != null) {
                 add(set("operatingHours", operatingHours.map { ShopHoursDayDoc(it.day, it.start, it.end, it.closed) }))
             }
+            if (upiId != null) add(set("upiId", upiId.trim()))
+            if (deliveryRadiusKm != null) add(set("deliveryRadiusKm", deliveryRadiusKm))
+            if (discountPercent != null) add(set("discountPercent", discountPercent))
         }
         if (updates.isNotEmpty()) {
             shopCol.updateOne(eq("_id", shopId), combine(updates))
         }
+    }
+
+    private fun shopUser(userId: String): ShopUserDoc =
+        shopUserCol.find(eq("_id", userId)).firstOrNull() ?: error("Unauthorized")
+
+    /** Returns the caller's shop id when its login is active and holds [permission]. */
+    fun requireShopPermission(userId: String, permission: String): String {
+        val user = shopUser(userId)
+        if (!user.active || permission !in effectivePermissions(user)) error("Forbidden")
+        return user.shopId
+    }
+
+    private fun ShopUserDoc.toStaffDto() = ShopStaffDto(
+        id = id,
+        username = username,
+        displayName = displayName,
+        role = role,
+        permissions = effectivePermissions(this),
+        active = active,
+    )
+
+    fun shopProfile(userId: String): ShopProfileDto {
+        val user = shopUser(userId)
+        if (!user.active) error("Forbidden")
+        val login = shopUserCol.find(and(eq("shopId", user.shopId), eq("role", ShopRole.ADMIN)))
+            .firstOrNull()?.username.orEmpty()
+        return ShopProfileDto(shopById(user.shopId).toAdminDto(login), user.toStaffDto())
+    }
+
+    fun updateShopProfile(userId: String, patch: AdminShopPatch): ShopProfileDto {
+        val shopId = if (patch.features != null) {
+            requireShopPermission(userId, ShopPerm.TOGGLE_FEATURES)
+        } else {
+            shopUser(userId).shopId
+        }
+        if (patch.copy(features = null) != AdminShopPatch()) requireShopPermission(userId, ShopPerm.SHOP_PROFILE)
+        patchShop(
+            shopId = shopId,
+            active = patch.active,
+            payments = patch.paymentsEnabled,
+            features = patch.features,
+            imageUrl = patch.imageUrl,
+            name = patch.name,
+            address = patch.address,
+            shopType = patch.shopType,
+            ownerName = patch.ownerName,
+            ownerPhone = patch.ownerPhone,
+            ownerEmail = patch.ownerEmail,
+            city = patch.city,
+            state = patch.state,
+            zip = patch.zip,
+            country = patch.country,
+            registrationNumber = patch.registrationNumber,
+            taxId = patch.taxId,
+            lat = patch.lat,
+            lng = patch.lng,
+            operatingHours = patch.operatingHours,
+            loginUsername = patch.loginUsername,
+            loginPassword = patch.loginPassword,
+            upiId = patch.upiId,
+            deliveryRadiusKm = patch.deliveryRadiusKm,
+            discountPercent = patch.discountPercent,
+        )
+        return shopProfile(userId)
+    }
+
+    fun listStaff(userId: String): List<ShopStaffDto> {
+        val shopId = requireShopPermission(userId, ShopPerm.MANAGE_STAFF)
+        return shopUserCol.find(eq("shopId", shopId)).toList()
+            .sortedWith(compareBy({ it.role != ShopRole.ADMIN }, { it.displayName.lowercase() }))
+            .map { it.toStaffDto() }
+    }
+
+    /** Creates an EXECUTIVE login when [staffId] is null; admin (`SHOP`) logins are managed by master. */
+    fun upsertStaff(userId: String, staffId: String?, body: ShopStaffUpsert): ShopStaffDto {
+        val shopId = requireShopPermission(userId, ShopPerm.MANAGE_STAFF)
+        val permissions = body.permissions.filter { it in ShopPerm.ALL }.distinct()
+        val granterPermissions = effectivePermissions(shopUser(userId))
+        if (!permissions.all { it in granterPermissions }) error("Forbidden: you can only grant access you have")
+        val password = body.password.trim()
+        if (password.isNotEmpty()) {
+            require(password.length >= MIN_SHOP_PASSWORD) { "Password must be at least $MIN_SHOP_PASSWORD characters" }
+        }
+        if (staffId == null) {
+            val username = normalizeLoginUsername(body.username)
+            require(username.isNotEmpty()) { "Login username is required" }
+            require(password.isNotEmpty()) { "Password is required" }
+            require(body.displayName.isNotBlank()) { "Name is required" }
+            require(shopUserCol.find(eq("username", username)).firstOrNull() == null) {
+                "Login username '$username' is already taken"
+            }
+            val doc = ShopUserDoc(
+                id = security.randomId("user"),
+                shopId = shopId,
+                username = username,
+                passwordHash = security.hashPassword(password),
+                displayName = body.displayName.trim(),
+                role = ShopRole.EXECUTIVE,
+                permissions = permissions,
+                active = body.active,
+                createdAt = System.currentTimeMillis(),
+            )
+            shopUserCol.insertOne(doc)
+            return doc.toStaffDto()
+        }
+        val current = shopUserCol.find(and(eq("_id", staffId), eq("shopId", shopId))).firstOrNull()
+            ?: error("Staff login not found")
+        require(current.role == ShopRole.EXECUTIVE) { "Admin logins can only be changed from the master portal" }
+        requireCanManage(granterPermissions, current)
+        require(current.id != userId || body.active) { "You cannot disable your own login" }
+        // Keep access the editor cannot see/grant; otherwise a limited manager would silently strip it.
+        val retained = current.permissions.filter { it in ShopPerm.ALL && it !in granterPermissions }
+        val updates = buildList {
+            if (body.displayName.isNotBlank()) add(set("displayName", body.displayName.trim()))
+            if (password.isNotEmpty()) add(set("passwordHash", security.hashPassword(password)))
+            add(set("permissions", (retained + permissions).distinct()))
+            add(set("active", body.active))
+        }
+        shopUserCol.updateOne(eq("_id", current.id), combine(updates))
+        return shopUser(current.id).toStaffDto()
+    }
+
+    fun deleteStaff(userId: String, staffId: String) {
+        val shopId = requireShopPermission(userId, ShopPerm.MANAGE_STAFF)
+        require(staffId != userId) { "You cannot delete your own login" }
+        val current = shopUserCol.find(and(eq("_id", staffId), eq("shopId", shopId))).firstOrNull()
+            ?: error("Staff login not found")
+        require(current.role == ShopRole.EXECUTIVE) { "Admin logins can only be changed from the master portal" }
+        requireCanManage(effectivePermissions(shopUser(userId)), current)
+        shopUserCol.deleteOne(eq("_id", staffId))
+    }
+
+    /** Executives holding full admin access can only be edited / disabled / removed by another admin. */
+    private fun requireCanManage(granterPermissions: List<String>, target: ShopUserDoc) {
+        if (ShopPerm.ADMIN in target.permissions && ShopPerm.ADMIN !in granterPermissions) {
+            error("Forbidden: only a shop admin can change a login with full admin access")
+        }
+    }
+
+    private fun OfferDoc.toShopOfferDto() = ShopOfferDto(
+        id = id,
+        title = title,
+        description = description,
+        scope = scope,
+        discountType = discountType,
+        value = value,
+        productIds = productIds,
+        minBillAmount = minBillAmount,
+        active = active,
+        startsAtEpochMs = startsAt,
+        endsAtEpochMs = endsAt,
+    )
+
+    /** Live offers for billing (any shop login); full list incl. inactive for [ShopPerm.OFFERS]. */
+    fun shopOffers(userId: String, includeInactive: Boolean): List<ShopOfferDto> {
+        val shopId = if (includeInactive) requireShopPermission(userId, ShopPerm.OFFERS) else shopUser(userId).shopId
+        val rows = if (includeInactive) offerCol.find(eq("shopId", shopId)).toList() else liveOffers(shopId)
+        return rows.sortedByDescending { it.createdAt }.map { it.toShopOfferDto() }
+    }
+
+    fun saveOffer(userId: String, offerId: String?, body: ShopOfferDto): ShopOfferDto {
+        val shopId = requireShopPermission(userId, ShopPerm.OFFERS)
+        require(body.title.isNotBlank()) { "Offer title is required" }
+        require(body.scope in listOf(OfferScope.BILL, OfferScope.PRODUCT)) { "Invalid offer scope" }
+        require(body.discountType in listOf(OfferType.PERCENT, OfferType.FLAT)) { "Invalid discount type" }
+        require(body.value > 0.0) { "Discount must be greater than 0" }
+        require(body.discountType != OfferType.PERCENT || body.value <= 90.0) { "Percent discount must be at most 90" }
+        require(body.scope != OfferScope.PRODUCT || body.productIds.isNotEmpty()) { "Pick at least one product" }
+        require(body.minBillAmount >= 0.0) { "Minimum bill cannot be negative" }
+        val start = body.startsAtEpochMs
+        val end = body.endsAtEpochMs
+        require(start == null || end == null || end >= start) { "Offer end must be after start" }
+        val existing = offerId?.let { id ->
+            offerCol.find(and(eq("_id", id), eq("shopId", shopId))).firstOrNull() ?: error("Offer not found")
+        }
+        val doc = OfferDoc(
+            id = existing?.id ?: security.randomId("off"),
+            shopId = shopId,
+            title = body.title.trim(),
+            description = body.description.trim(),
+            discountPercent = if (body.discountType == OfferType.PERCENT) body.value else 0.0,
+            scope = body.scope,
+            discountType = body.discountType,
+            value = body.value,
+            productIds = if (body.scope == OfferScope.PRODUCT) body.productIds.distinct() else emptyList(),
+            minBillAmount = if (body.scope == OfferScope.BILL) body.minBillAmount else 0.0,
+            active = body.active,
+            startsAt = start,
+            endsAt = end,
+            createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+        )
+        offerCol.replaceOne(eq("_id", doc.id), doc, ReplaceOptions().upsert(true))
+        return doc.toShopOfferDto()
+    }
+
+    fun deleteOffer(userId: String, offerId: String) {
+        val shopId = requireShopPermission(userId, ShopPerm.OFFERS)
+        offerCol.deleteOne(and(eq("_id", offerId), eq("shopId", shopId)))
+    }
+
+    fun shopRatingsForStaff(userId: String): List<ShopReviewDto> =
+        shopRatings(requireShopPermission(userId, ShopPerm.RATINGS))
+
+    fun replyToRatingAsStaff(userId: String, orderId: String, reply: String): ShopReviewDto =
+        replyToRating(requireShopPermission(userId, ShopPerm.RATINGS), orderId, reply)
+
+    /** Records a customer opening the shop catalog; idempotent per visitor per day. */
+    fun recordShopVisit(shopId: String, visitorId: String, now: Long = System.currentTimeMillis()) {
+        val day = now / DAY_MS
+        runCatching {
+            shopVisitCol.replaceOne(
+                eq("_id", "$shopId:$visitorId:$day"),
+                ShopVisitDoc("$shopId:$visitorId:$day", shopId, visitorId, day, now),
+                ReplaceOptions().upsert(true),
+            )
+        }
+    }
+
+    fun visitorStats(userId: String, fromEpochMs: Long?, toEpochMs: Long?): VisitorStatsDto {
+        val shopId = requireShopPermission(userId, ShopPerm.VISITORS)
+        val filters = buildList {
+            add(eq("shopId", shopId))
+            if (fromEpochMs != null) add(gte("day", fromEpochMs / DAY_MS))
+            if (toEpochMs != null) add(lte("day", toEpochMs / DAY_MS))
+        }
+        val rows = shopVisitCol.find(and(filters))
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
+        val dayFormat = java.text.SimpleDateFormat("dd MMM", java.util.Locale.ENGLISH)
+        val daily = rows.groupBy { it.day }.toSortedMap().map { (day, visits) ->
+            AdminChartPointDto(dayFormat.format(java.util.Date(day * DAY_MS)), visits.map { it.visitorId }.distinct().size.toDouble())
+        }
+        return VisitorStatsDto(
+            uniqueVisitors = rows.map { it.visitorId }.distinct().size,
+            visitDays = rows.size,
+            daily = daily,
+        )
     }
 
     fun listShopsAdmin(): List<ShopDto> = listAdminShops().map { it.toLegacyShopDto() }

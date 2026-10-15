@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.api
 
 import io.ktor.client.plugins.logging.LogLevel
+import org.bhargav.pansariwala.util.AppConstants
 
 /** Configurable HTTP client log verbosity. */
 enum class HttpLogLevel {
@@ -24,7 +25,15 @@ enum class HttpLogLevel {
 }
 
 object ApiRuntime {
-    var baseUrl: String = org.bhargav.pansariwala.util.AppConstants.DEFAULT_API_BASE_URL
+    var baseUrl: String = AppConstants.DEFAULT_API_BASE_URL
+        set(value) {
+            val trimmed = value.trim()
+            field = if (trimmed.isEmpty() || AppConstants.LEGACY_API_HOSTS.any { trimmed.contains(it) }) {
+                AppConstants.DEFAULT_API_BASE_URL
+            } else {
+                trimmed
+            }
+        }
 
     /** Set from app entry (Android BuildConfig.DEBUG / iOS debug scheme). */
     var isDebugBuild: Boolean = false

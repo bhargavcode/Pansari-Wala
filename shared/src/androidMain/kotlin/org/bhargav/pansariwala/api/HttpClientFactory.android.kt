@@ -13,7 +13,8 @@ actual fun createPlatformHttpClient(): HttpClient = HttpClient(OkHttp) {
             readTimeout(AppConstants.HTTP_SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             writeTimeout(AppConstants.HTTP_SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             callTimeout(AppConstants.HTTP_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            retryOnConnectionFailure(false)
+            // nginx closes idle keep-alives; retry lets OkHttp swap a stale pooled socket instead of failing.
+            retryOnConnectionFailure(true)
             connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
         }
     }
