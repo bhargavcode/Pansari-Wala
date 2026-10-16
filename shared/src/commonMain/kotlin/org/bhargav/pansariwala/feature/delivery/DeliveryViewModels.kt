@@ -42,6 +42,10 @@ import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.digitsPhone
 import org.bhargav.pansariwala.platform.fetchPlaceDetails
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
+import org.bhargav.pansariwala.platform.otpCountdown
+import org.bhargav.pansariwala.platform.otpRetryAfterSec
+import org.bhargav.pansariwala.platform.sanitizeOtpInput
+import org.bhargav.pansariwala.platform.toPhoneOtpSession
 import org.bhargav.pansariwala.platform.normalizeVehicleReg
 import org.bhargav.pansariwala.platform.searchPlaces
 import org.bhargav.pansariwala.notification.NotificationRouter
@@ -70,6 +74,7 @@ import pansariwala.shared.generated.resources.location_unavailable
 import pansariwala.shared.generated.resources.dev_otp_hint
 import pansariwala.shared.generated.resources.otp_sent_partner
 import pansariwala.shared.generated.resources.otp_sent_partner_login
+import pansariwala.shared.generated.resources.otp_sent_to
 import pansariwala.shared.generated.resources.partner_register_location_required
 
 /** Keep in sync with server `Security.isValidVehicleReg` (state series + Bharat series). */
@@ -83,6 +88,7 @@ data class PartnerLoginUiState(
     val loading: Boolean = false,
     val error: UiText? = null,
     val hint: UiText? = null,
+    val resendInSec: Int = 0,
 )
 
 class PartnerLoginViewModel(
@@ -96,10 +102,13 @@ class PartnerLoginViewModel(
     fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
 
+    private var countdownJob: Job? = null
+
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
-    fun setOtp(value: String) { _state.update { it.copy(otp = value, error = null) } }
+    fun setOtp(value: String) { _state.update { it.copy(otp = sanitizeOtpInput(value), error = null) } }
 
     fun sendOtp() {
+        if (_state.value.loading || _state.value.resendInSec > 0) return
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             phoneAuth.sendOtp(_state.value.phone)
@@ -109,33 +118,33 @@ class PartnerLoginViewModel(
                         it.copy(
                             loading = false,
                             step = 1,
-                            hint = if (next.devOtp != null) {
-                                UiText.res(Res.string.dev_otp_hint)
-                            } else {
-                                UiText.res(Res.string.otp_sent_partner_login)
+                            otp = "",
+                            hint = when {
+                                next.devOtp != null -> UiText.res(Res.string.dev_otp_hint)
+                                next.maskedPhone.isNotBlank() -> UiText.res(Res.string.otp_sent_to, next.maskedPhone)
+                                else -> UiText.res(Res.string.otp_sent_partner_login)
                             },
                         )
+                    }
+                    countdownJob = otpCountdown(countdownJob, next.resendAfterSec) { left ->
+                        _state.update { it.copy(resendInSec = left) }
                     }
                 }
                 .onFailure { error ->
                     _state.update { it.copy(loading = false, error = mapPhoneAuthError(error, verifying = false)) }
+                    error.otpRetryAfterSec()?.let { secs ->
+                        countdownJob = otpCountdown(countdownJob, secs) { left -> _state.update { it.copy(resendInSec = left) } }
+                    }
                 }
         }
     }
 
     fun verify(onDone: () -> Unit) {
         val otpSession = session ?: return
+        if (_state.value.loading) return
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            runCatching {
-                val auth = phoneAuth.verifyOtp(_state.value.phone, _state.value.otp, otpSession).getOrThrow()
-                val phone = digitsPhone(_state.value.phone)
-                if (otpSession.usesFirebase) {
-                    api.loginWithFirebase(requireNotNull(auth.firebaseIdToken))
-                } else {
-                    api.verifyOtp(phone, _state.value.otp, otpSession.sessionId)
-                }
-            }.onSuccess { token ->
+            phoneAuth.verifyOtp(_state.value.phone, _state.value.otp, otpSession).onSuccess { token ->
                 if (token.role != AppConstants.Roles.PARTNER) {
                     _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_not_a_partner)) }
                     return@launch
@@ -180,6 +189,7 @@ data class RegisterUiState(
     val showLocationDeniedDialog: Boolean = false,
     val error: UiText? = null,
     val hint: UiText? = null,
+    val resendInSec: Int = 0,
 )
 
 class PartnerRegisterViewModel(
@@ -208,7 +218,8 @@ class PartnerRegisterViewModel(
     }
     fun setPhone(v: String) { _state.update { it.copy(phone = v, error = null) } }
     fun setVehicleReg(v: String) { _state.update { it.copy(vehicleReg = v, error = null) } }
-    fun setOtp(v: String) { _state.update { it.copy(otp = v, error = null) } }
+    fun setOtp(v: String) { _state.update { it.copy(otp = sanitizeOtpInput(v), error = null) } }
+    private var countdownJob: Job? = null
 
     fun setPlaceQuery(value: String) {
         _state.update { it.copy(placeQuery = value, error = null) }
@@ -402,7 +413,9 @@ class PartnerRegisterViewModel(
                 return@launch
             }
             runCatching {
-                if (!registered) {
+                if (registered) {
+                    phoneAuth.sendOtp(_state.value.phone).getOrThrow()
+                } else {
                     api.registerPartner(
                         PartnerRegisterRequest(
                             name = _state.value.name,
@@ -419,24 +432,32 @@ class PartnerRegisterViewModel(
                             lat = geo.lat,
                             lng = geo.lng,
                         ),
-                    )
-                    registered = true
+                    ).also { registered = true }
+                        .takeIf { it.sessionId.isNotBlank() }
+                        ?.toPhoneOtpSession()
+                        ?: phoneAuth.sendOtp(_state.value.phone).getOrThrow()
                 }
-                phoneAuth.sendOtp(_state.value.phone).getOrThrow()
             }.onSuccess { otpSession ->
                 session = otpSession
                 _state.update {
                     it.copy(
                         loading = false,
                         step = 1,
-                        hint = if (otpSession.devOtp != null) {
-                            UiText.res(Res.string.dev_otp_hint)
-                        } else {
-                            UiText.res(Res.string.otp_sent_partner)
+                        otp = "",
+                        hint = when {
+                            otpSession.devOtp != null -> UiText.res(Res.string.dev_otp_hint)
+                            otpSession.maskedPhone.isNotBlank() -> UiText.res(Res.string.otp_sent_to, otpSession.maskedPhone)
+                            else -> UiText.res(Res.string.otp_sent_partner)
                         },
                     )
                 }
+                countdownJob = otpCountdown(countdownJob, otpSession.resendAfterSec) { left ->
+                    _state.update { it.copy(resendInSec = left) }
+                }
             }.onFailure { error ->
+                error.otpRetryAfterSec()?.let { secs ->
+                    countdownJob = otpCountdown(countdownJob, secs) { left -> _state.update { it.copy(resendInSec = left) } }
+                }
                 val mapped = when (error) {
                     is LocationPermissionDeniedException ->
                         UiText.res(Res.string.partner_register_location_required)
@@ -466,17 +487,10 @@ class PartnerRegisterViewModel(
 
     fun verify(onDone: () -> Unit) {
         val otpSession = session ?: return
+        if (_state.value.loading) return
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            runCatching {
-                val auth = phoneAuth.verifyOtp(_state.value.phone, _state.value.otp, otpSession).getOrThrow()
-                val phone = digitsPhone(_state.value.phone)
-                if (otpSession.usesFirebase) {
-                    api.loginWithFirebase(requireNotNull(auth.firebaseIdToken))
-                } else {
-                    api.verifyOtp(phone, _state.value.otp, otpSession.sessionId)
-                }
-            }.onSuccess {
+            phoneAuth.verifyOtp(_state.value.phone, _state.value.otp, otpSession).onSuccess {
                 preferences.saveToken(it)
                 JwtAuthCache.invalidate()
                 onDone()

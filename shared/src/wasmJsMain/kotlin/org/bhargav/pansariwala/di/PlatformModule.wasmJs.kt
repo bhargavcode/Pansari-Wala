@@ -4,7 +4,9 @@ import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.WasmJsDeviceLocation
 import org.bhargav.pansariwala.platform.ImagePicker
 import org.bhargav.pansariwala.platform.NoOpRazorpayCheckout
+import org.bhargav.pansariwala.platform.OtpAppVerifier
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
+import org.bhargav.pansariwala.platform.WebOtpAppVerifier
 import org.bhargav.pansariwala.platform.RazorpayCheckout
 import org.bhargav.pansariwala.platform.ServerPhoneAuthGateway
 import org.bhargav.pansariwala.platform.WasmJsImagePicker
@@ -14,7 +16,8 @@ import org.koin.dsl.module
 
 actual val platformModule: Module = module {
     single<DeviceLocation> { WasmJsDeviceLocation() }
-    single<PhoneAuthGateway> { ServerPhoneAuthGateway(get()) }
+    single<OtpAppVerifier> { WebOtpAppVerifier() }
+    single<PhoneAuthGateway> { ServerPhoneAuthGateway(get(), get()) }
     single<ImagePicker> { WasmJsImagePicker() }
     single<RazorpayCheckout> { NoOpRazorpayCheckout() }
     single { PrinterManager(emptyList(), get()) }

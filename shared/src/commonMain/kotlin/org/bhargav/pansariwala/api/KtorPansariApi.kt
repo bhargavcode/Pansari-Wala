@@ -67,11 +67,14 @@ class KtorPansariApi(
             handleResponseExceptionWithRequest { cause, _ ->
                 val response = (cause as? ResponseException)?.response ?: return@handleResponseExceptionWithRequest
                 val text = runCatching { response.bodyAsText() }.getOrDefault("")
-                val serverMessage = runCatching { json.decodeFromString<ApiErrorBody>(text).error }
-                    .getOrNull()
-                    ?.takeIf { it.isNotBlank() }
-                    ?: response.status.description
-                throw ApiException(response.status.value, serverMessage)
+                val body = runCatching { json.decodeFromString<ApiErrorBody>(text) }.getOrNull()
+                val serverMessage = body?.error?.takeIf { it.isNotBlank() } ?: response.status.description
+                throw ApiException(
+                    status = response.status.value,
+                    serverMessage = serverMessage,
+                    code = body?.code?.takeIf { it.isNotBlank() },
+                    retryAfterSec = response.headers["Retry-After"]?.trim()?.toIntOrNull(),
+                )
             }
         }
         if (shouldInstallHttpLogging()) {
@@ -128,8 +131,20 @@ class KtorPansariApi(
     override suspend fun loginWithFirebase(idToken: String): TokenResponse =
         client.post("auth/user/firebase") { setBody(FirebaseAuthRequest(idToken)) }.body()
 
-    override suspend fun requestOtp(phone: String): OtpSessionResponse =
-        client.post("auth/otp/request") { setBody(OtpRequest(phone)) }.body()
+    override suspend fun requestOtp(request: OtpRequest): OtpSessionResponse =
+        client.post("auth/otp/request") {
+            otpTimeout()
+            setBody(request)
+        }.body()
+
+    override suspend fun otpConfig(): OtpConfigDto = client.get("auth/otp/config").body()
+
+    private fun io.ktor.client.request.HttpRequestBuilder.otpTimeout() {
+        timeout {
+            requestTimeoutMillis = AppConstants.OTP_REQUEST_TIMEOUT_MS
+            socketTimeoutMillis = AppConstants.OTP_REQUEST_TIMEOUT_MS
+        }
+    }
 
     override suspend fun verifyOtp(phone: String, otp: String, sessionId: String?): TokenResponse =
         client.post("auth/otp/verify") { setBody(OtpVerifyRequest(phone, otp, sessionId)) }.body()
@@ -374,8 +389,11 @@ class KtorPansariApi(
             toEpochMs?.let { parameter("to", it) }
         }.body()
 
-    override suspend fun registerPartner(request: PartnerRegisterRequest): String =
-        client.post("partners/register") { setBody(request) }.body<OtpSessionResponse>().sessionId
+    override suspend fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse =
+        client.post("partners/register") {
+            otpTimeout()
+            setBody(request)
+        }.body()
 
     override suspend fun partnerProfile(): PartnerProfile =
         client.get("partners/profile").body<PartnerProfileDto>().toModel()

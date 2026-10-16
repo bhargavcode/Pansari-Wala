@@ -548,6 +548,16 @@
     <string name="error_otp_quota">Too many SMS attempts right now. Try again later.</string>
     <string name="error_otp_send_failed">Could not send the code. Check the number and try again.</string>
     <string name="error_otp_verify_failed">Could not verify the code. Try again.</string>
+    <string name="error_otp_cooldown">Please wait %1$d seconds before requesting a new code.</string>
+    <string name="error_otp_unavailable">OTP service is temporarily unavailable. Please try again in a few minutes.</string>
+    <string name="error_otp_delivery_failed">We couldn\'t deliver the SMS right now. Please try again.</string>
+    <string name="error_otp_not_found">No active code. Tap Resend OTP to get a new one.</string>
+    <string name="error_otp_too_many_attempts">Too many wrong attempts. Request a new code.</string>
+    <string name="action_resend_otp_in">Resend OTP in %1$ds</string>
+    <string name="error_otp_app_verification">Could not verify this app. Update the app from the store and try again.</string>
+    <string name="otp_verify_human_title">Quick check</string>
+    <string name="action_cancel_verification">Cancel</string>
+    <string name="otp_sent_to">Code sent to %1$s</string>
     <string name="error_photo_pick_failed">Could not read that photo. Try another image.</string>
     <string name="error_camera_permission_denied">Camera access is off. Allow it in Settings or choose from gallery.</string>
     <string name="error_image_upload_failed">Image upload failed. Tap retry to try again.</string>

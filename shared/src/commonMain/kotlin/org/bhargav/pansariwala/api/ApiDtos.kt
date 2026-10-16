@@ -63,7 +63,21 @@ data class PushRegisterRequest(val token: String, val platform: String, val devi
 data class PushUnregisterRequest(val token: String)
 
 @Serializable
-data class OtpRequest(val phone: String)
+data class OtpRequest(
+    val phone: String,
+    val playIntegrityToken: String? = null,
+    val recaptchaToken: String? = null,
+    val androidPackage: String? = null,
+    val androidCertSha1: String? = null,
+)
+
+/** Server OTP mode: `dev` (fixed code) or `firebase` (needs app proof from [OtpAppVerifier]). */
+@Serializable
+data class OtpConfigDto(
+    val mode: String = AppConstants.OTP_MODE_DEV,
+    val recaptchaSiteKey: String = "",
+    val authDomain: String = "",
+)
 
 @Serializable
 data class OtpVerifyRequest(val phone: String, val otp: String, val sessionId: String? = null)
@@ -313,6 +327,9 @@ data class ShopPaymentInfoDto(val shopName: String, val upiId: String = "")
 data class OtpSessionResponse(
     val sessionId: String,
     val devOtp: String? = null,
+    val expiresInSec: Int = AppConstants.OTP_DEFAULT_TTL_SEC,
+    val resendAfterSec: Int = AppConstants.OTP_DEFAULT_RESEND_SEC,
+    val maskedPhone: String = "",
 )
 
 @Serializable

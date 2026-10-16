@@ -42,7 +42,21 @@ data class PushRegisterRequest(val token: String, val platform: String, val devi
 data class PushUnregisterRequest(val token: String)
 
 @Serializable
-data class OtpRequest(val phone: String)
+data class OtpRequest(
+    val phone: String,
+    val playIntegrityToken: String? = null,
+    val recaptchaToken: String? = null,
+    val androidPackage: String? = null,
+    val androidCertSha1: String? = null,
+)
+
+/** Tells clients which app proof `/auth/otp/request` needs. [mode] is `dev` or `firebase`. */
+@Serializable
+data class OtpConfigResponse(
+    val mode: String,
+    val recaptchaSiteKey: String = "",
+    val authDomain: String = "",
+)
 
 @Serializable
 data class OtpVerifyRequest(val phone: String, val otp: String, val sessionId: String? = null)
@@ -52,6 +66,9 @@ data class OtpSessionResponse(
     val sessionId: String,
     /** Present when SMS is not sent (dev / no SMS provider). Client may show as hint. */
     val devOtp: String? = null,
+    val expiresInSec: Int = 300,
+    val resendAfterSec: Int = 30,
+    val maskedPhone: String = "",
 )
 
 @Serializable

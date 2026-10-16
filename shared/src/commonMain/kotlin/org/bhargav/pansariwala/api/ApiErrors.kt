@@ -12,8 +12,12 @@ import pansariwala.shared.generated.resources.error_session_expired
  * Non-2xx API response. [serverMessage] is the server's `{"error": "..."}` text; the exception
  * message keeps `HTTP <status>` so existing status checks on `message` keep working.
  */
-class ApiException(val status: Int, val serverMessage: String) :
-    Exception("HTTP $status: $serverMessage")
+class ApiException(
+    val status: Int,
+    val serverMessage: String,
+    val code: String? = null,
+    val retryAfterSec: Int? = null,
+) : Exception("HTTP $status: $serverMessage")
 
 fun Throwable.rethrowIfStructuredCancellation() {
     if (this is CancellationException && this !is HttpRequestTimeoutException) throw this

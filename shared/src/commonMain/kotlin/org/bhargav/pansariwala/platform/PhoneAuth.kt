@@ -1,48 +1,126 @@
 package org.bhargav.pansariwala.platform
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.api.ApiException
+import org.bhargav.pansariwala.api.OtpConfigDto
+import org.bhargav.pansariwala.api.OtpRequest
+import org.bhargav.pansariwala.api.OtpSessionResponse
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.TokenResponse
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.api.userFacingServerMessage
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_otp_app_verification
+import pansariwala.shared.generated.resources.error_otp_cooldown
+import pansariwala.shared.generated.resources.error_otp_delivery_failed
 import pansariwala.shared.generated.resources.error_otp_expired
 import pansariwala.shared.generated.resources.error_otp_invalid
+import pansariwala.shared.generated.resources.error_otp_not_found
 import pansariwala.shared.generated.resources.error_otp_quota
 import pansariwala.shared.generated.resources.error_otp_send_failed
+import pansariwala.shared.generated.resources.error_otp_too_many_attempts
+import pansariwala.shared.generated.resources.error_otp_unavailable
 import pansariwala.shared.generated.resources.error_otp_verify_failed
 import pansariwala.shared.generated.resources.error_phone_invalid
 
+/** Server-side OTP for every flavour: the API generates, sends (SMS failover) and verifies the code. */
 interface PhoneAuthGateway {
     suspend fun sendOtp(phone: String): Result<PhoneOtpSession>
-    suspend fun verifyOtp(phone: String, otp: String, session: PhoneOtpSession): Result<PhoneAuthResult>
+    suspend fun verifyOtp(phone: String, otp: String, session: PhoneOtpSession): Result<TokenResponse>
 }
 
 data class PhoneOtpSession(
     val sessionId: String,
-    val usesFirebase: Boolean,
     val devOtp: String? = null,
+    val resendAfterSec: Int = AppConstants.OTP_DEFAULT_RESEND_SEC,
+    val maskedPhone: String = "",
 )
-data class PhoneAuthResult(val firebaseIdToken: String?, val verifiedPhone: String)
+
+fun OtpSessionResponse.toPhoneOtpSession() = PhoneOtpSession(
+    sessionId = sessionId,
+    devOtp = devOtp,
+    resendAfterSec = resendAfterSec,
+    maskedPhone = maskedPhone,
+)
+
+/** App proof Firebase needs before the server may send an SMS (Play Integrity on Android, reCAPTCHA elsewhere). */
+data class OtpAppProof(
+    val playIntegrityToken: String? = null,
+    val recaptchaToken: String? = null,
+    val androidPackage: String? = null,
+    val androidCertSha1: String? = null,
+)
+
+interface OtpAppVerifier {
+    /** [forceRecaptcha] skips Play Integrity, used after Firebase rejected an integrity token. */
+    suspend fun proof(e164Phone: String, config: OtpConfigDto, forceRecaptcha: Boolean = false): OtpAppProof
+}
+
+/** User closed the verification challenge; the OTP request is dropped without an error banner. */
+class OtpVerificationCancelledException : Exception("App verification cancelled")
+
+class OtpAppVerificationException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 class ServerPhoneAuthGateway(
     private val api: PansariApi,
+    private val verifier: OtpAppVerifier,
 ) : PhoneAuthGateway {
     override suspend fun sendOtp(phone: String): Result<PhoneOtpSession> = runCatching {
-        val body = api.requestOtp(digitsPhone(phone))
-        PhoneOtpSession(
-            sessionId = body.sessionId,
-            usesFirebase = false,
-            devOtp = body.devOtp,
-        )
-    }
+        val digits = digitsPhone(phone)
+        val config = api.otpConfig()
+        if (config.mode != AppConstants.OTP_MODE_FIREBASE) return@runCatching request(digits, OtpAppProof())
+        val proof = verifier.proof(e164Phone(digits), config)
+        try {
+            request(digits, proof)
+        } catch (e: ApiException) {
+            val integrityRejected = e.code == OtpErrorCodes.APP_VERIFICATION_FAILED && proof.playIntegrityToken != null
+            if (!integrityRejected) throw e
+            request(digits, verifier.proof(e164Phone(digits), config, forceRecaptcha = true))
+        }
+    }.onFailure { it.rethrowIfStructuredCancellation() }
+
+    private suspend fun request(digits: String, proof: OtpAppProof): PhoneOtpSession =
+        api.requestOtp(
+            OtpRequest(
+                phone = digits,
+                playIntegrityToken = proof.playIntegrityToken,
+                recaptchaToken = proof.recaptchaToken,
+                androidPackage = proof.androidPackage,
+                androidCertSha1 = proof.androidCertSha1,
+            ),
+        ).toPhoneOtpSession()
 
     override suspend fun verifyOtp(
         phone: String,
         otp: String,
         session: PhoneOtpSession,
-    ): Result<PhoneAuthResult> = Result.success(
-        PhoneAuthResult(firebaseIdToken = null, verifiedPhone = digitsPhone(phone)),
-    )
+    ): Result<TokenResponse> = runCatching {
+        api.verifyOtp(digitsPhone(phone), otp.filter { it.isDigit() }, session.sessionId)
+    }.onFailure { it.rethrowIfStructuredCancellation() }
+}
+
+/** Digits only, capped at [AppConstants.OTP_LENGTH]. */
+fun sanitizeOtpInput(value: String): String = value.filter { it.isDigit() }.take(AppConstants.OTP_LENGTH)
+
+/** Seconds the server asked the client to wait (cooldown / rate limit), if any. */
+fun Throwable.otpRetryAfterSec(): Int? = (this as? ApiException)?.retryAfterSec
+
+/** Ticks [onTick] from [seconds] down to 0 once per second, replacing [previous]. */
+fun ViewModel.otpCountdown(previous: Job?, seconds: Int, onTick: (Int) -> Unit): Job {
+    previous?.cancel()
+    return viewModelScope.launch {
+        for (left in seconds downTo 0) {
+            onTick(left)
+            if (left > 0) delay(AppConstants.OTP_COUNTDOWN_TICK_MS)
+        }
+    }
 }
 
 fun digitsPhone(phone: String): String {
@@ -62,36 +140,39 @@ fun e164Phone(phone: String): String {
     return AppConstants.DEFAULT_PHONE_COUNTRY_CODE + digitsPhone(trimmed)
 }
 
-fun mapPhoneAuthError(error: Throwable, verifying: Boolean): UiText {
-    val msg = error.message.orEmpty()
-    error.userFacingServerMessage()
-        ?.takeUnless { containsAny(it, "Invalid OTP", "OTP expired") }
-        ?.let { return UiText.Plain(it) }
-    return when {
-        containsAny(msg, "invalid-phone", "ERROR_INVALID_PHONE_NUMBER", "Invalid format") ->
-            UiText.res(Res.string.error_phone_invalid)
-        containsAny(msg, "invalid-verification-code", "ERROR_INVALID_VERIFICATION_CODE", "Invalid OTP") ->
-            UiText.res(Res.string.error_otp_invalid)
-        containsAny(msg, "session-expired", "invalid-verification-id", "ERROR_SESSION_EXPIRED", "OTP expired") ->
-            UiText.res(Res.string.error_otp_expired)
-        containsAny(msg, "quota", "too-many-requests", "ERROR_TOO_MANY_REQUESTS") ->
-            UiText.res(Res.string.error_otp_quota)
-        isPlayIntegrityAuthFailure(error) ->
-            UiText.res(Res.string.error_otp_send_failed)
-        verifying -> error.message?.let { UiText.Plain(it) } ?: UiText.res(Res.string.error_otp_verify_failed)
-        else -> error.message?.let { UiText.Plain(it) } ?: UiText.res(Res.string.error_otp_send_failed)
+/** Null when the user cancelled the verification challenge (nothing to report). */
+fun mapPhoneAuthError(error: Throwable, verifying: Boolean): UiText? {
+    if (error is OtpVerificationCancelledException) return null
+    if (error is OtpAppVerificationException) return UiText.res(Res.string.error_otp_app_verification)
+    val api = error as? ApiException
+    when (api?.code) {
+        OtpErrorCodes.APP_VERIFICATION_FAILED -> return UiText.res(Res.string.error_otp_app_verification)
+        OtpErrorCodes.INVALID_PHONE -> return UiText.res(Res.string.error_phone_invalid)
+        OtpErrorCodes.RESEND_COOLDOWN ->
+            return UiText.res(Res.string.error_otp_cooldown, api.retryAfterSec ?: AppConstants.OTP_DEFAULT_RESEND_SEC)
+        OtpErrorCodes.RATE_LIMITED -> return UiText.res(Res.string.error_otp_quota)
+        OtpErrorCodes.SMS_UNAVAILABLE -> return UiText.res(Res.string.error_otp_unavailable)
+        OtpErrorCodes.DELIVERY_FAILED -> return UiText.res(Res.string.error_otp_delivery_failed)
+        OtpErrorCodes.NOT_FOUND -> return UiText.res(Res.string.error_otp_not_found)
+        OtpErrorCodes.EXPIRED -> return UiText.res(Res.string.error_otp_expired)
+        OtpErrorCodes.TOO_MANY_ATTEMPTS -> return UiText.res(Res.string.error_otp_too_many_attempts)
+        OtpErrorCodes.INVALID -> return UiText.res(Res.string.error_otp_invalid)
     }
+    error.userFacingServerMessage()?.let { return UiText.Plain(it) }
+    if (api == null) return error.toApiUiText()
+    return if (verifying) UiText.res(Res.string.error_otp_verify_failed) else UiText.res(Res.string.error_otp_send_failed)
 }
 
-fun isPlayIntegrityAuthFailure(error: Throwable): Boolean =
-    containsAny(
-        error.message.orEmpty(),
-        "play_integrity",
-        "play integrity",
-        "app-not-authorized",
-        "not authorized to use Firebase",
-        "Invalid app info",
-    )
-
-private fun containsAny(haystack: String, vararg needles: String): Boolean =
-    needles.any { haystack.contains(it, ignoreCase = true) }
+/** Mirrors the server's `OtpErrorCode` values sent in `ApiErrorBody.code`. */
+object OtpErrorCodes {
+    const val INVALID_PHONE = "OTP_INVALID_PHONE"
+    const val RESEND_COOLDOWN = "OTP_RESEND_COOLDOWN"
+    const val RATE_LIMITED = "OTP_RATE_LIMITED"
+    const val SMS_UNAVAILABLE = "OTP_SMS_UNAVAILABLE"
+    const val DELIVERY_FAILED = "OTP_DELIVERY_FAILED"
+    const val NOT_FOUND = "OTP_NOT_FOUND"
+    const val EXPIRED = "OTP_EXPIRED"
+    const val INVALID = "OTP_INVALID"
+    const val TOO_MANY_ATTEMPTS = "OTP_TOO_MANY_ATTEMPTS"
+    const val APP_VERIFICATION_FAILED = "OTP_APP_VERIFICATION_FAILED"
+}

@@ -20,7 +20,8 @@ interface PansariApi {
 
     suspend fun shopLogin(username: String, password: String): TokenResponse
     suspend fun loginWithFirebase(idToken: String): TokenResponse
-    suspend fun requestOtp(phone: String): OtpSessionResponse
+    suspend fun requestOtp(request: OtpRequest): OtpSessionResponse
+    suspend fun otpConfig(): OtpConfigDto
     suspend fun verifyOtp(phone: String, otp: String, sessionId: String?): TokenResponse
     suspend fun updateProfile(
         name: String,
@@ -95,7 +96,7 @@ interface PansariApi {
     suspend fun replyToRating(orderId: String, reply: String): org.bhargav.pansariwala.domain.model.ShopReview
     suspend fun shopVisitors(fromEpochMs: Long?, toEpochMs: Long?): VisitorStatsDto
 
-    suspend fun registerPartner(request: PartnerRegisterRequest): String
+    suspend fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse
     suspend fun partnerProfile(): PartnerProfile
     suspend fun updatePartnerProfilePhoto(profilePhotoUrl: String)
     suspend fun partnerDashboard(fromEpochMs: Long, toEpochMs: Long): PartnerDashboard

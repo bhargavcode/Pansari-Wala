@@ -174,7 +174,16 @@ object AppConstants {
     const val SYNC_ORDERS_CURSOR_KEY_PREFIX: String = "orders_cursor_"
     const val DEFAULT_PHONE_COUNTRY_CODE: String = "+91"
     const val PHONE_LOCAL_DIGITS: Int = 10
-    const val OTP_TIMEOUT_SEC: Long = 60L
+    /** Server may fail over across several SMS providers before answering. */
+    const val OTP_REQUEST_TIMEOUT_MS: Long = 30_000L
+    const val OTP_DEFAULT_TTL_SEC: Int = 300
+    const val OTP_DEFAULT_RESEND_SEC: Int = 30
+    const val OTP_LENGTH: Int = 6
+    const val OTP_COUNTDOWN_TICK_MS: Long = 1_000L
+    const val OTP_MODE_DEV: String = "dev"
+    const val OTP_MODE_FIREBASE: String = "firebase"
+    /** Firebase Cloud project number (`project_number` in google-services.json) for Play Integrity. */
+    const val FIREBASE_PROJECT_NUMBER: Long = 1047763190940L
     /** WhatsApp-style: high visual quality JPEG after downscale. */
     const val PHOTO_JPEG_QUALITY: Int = 82
     const val PHOTO_JPEG_QUALITY_MIN: Int = 55

@@ -357,6 +357,13 @@ data class OtpDoc(
     val codeHash: String,
     val purpose: String,
     val expiresAt: Long,
+    val createdAt: Long = 0L,
+    val attempts: Int = 0,
+    val sendCount: Int = 1,
+    val windowStart: Long = 0L,
+    val provider: String = "",
+    /** Firebase `sessionInfo`; when set, the code lives in Firebase and [codeHash] is empty. */
+    val firebaseSession: String = "",
 )
 
 @Serializable

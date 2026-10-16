@@ -21,10 +21,12 @@ import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
 import org.bhargav.pansariwala.platform.reverseGeocode
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
-import org.bhargav.pansariwala.platform.digitsPhone
 import org.bhargav.pansariwala.platform.fetchPlaceDetails
 import org.bhargav.pansariwala.platform.geocodeAddress
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
+import org.bhargav.pansariwala.platform.otpCountdown
+import org.bhargav.pansariwala.platform.otpRetryAfterSec
+import org.bhargav.pansariwala.platform.sanitizeOtpInput
 import org.bhargav.pansariwala.platform.searchPlaces
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
@@ -36,6 +38,7 @@ import pansariwala.shared.generated.resources.error_profile_required
 import pansariwala.shared.generated.resources.location_unavailable
 import pansariwala.shared.generated.resources.dev_otp_hint
 import pansariwala.shared.generated.resources.otp_sent_customer
+import pansariwala.shared.generated.resources.otp_sent_to
 
 data class PhoneAuthUiState(
     val phone: String = "",
@@ -45,6 +48,7 @@ data class PhoneAuthUiState(
     val error: UiText? = null,
     val hint: UiText? = null,
     val profileComplete: Boolean = true,
+    val resendInSec: Int = 0,
 )
 
 class PhoneAuthViewModel(
@@ -58,10 +62,13 @@ class PhoneAuthViewModel(
     fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
 
+    private var countdownJob: Job? = null
+
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
-    fun setOtp(value: String) { _state.update { it.copy(otp = value, error = null) } }
+    fun setOtp(value: String) { _state.update { it.copy(otp = sanitizeOtpInput(value), error = null) } }
 
     fun sendOtp() {
+        if (_state.value.loading || _state.value.resendInSec > 0) return
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             phoneAuth.sendOtp(_state.value.phone)
@@ -71,33 +78,33 @@ class PhoneAuthViewModel(
                         it.copy(
                             loading = false,
                             step = 1,
-                            hint = if (next.devOtp != null) {
-                                UiText.res(Res.string.dev_otp_hint)
-                            } else {
-                                UiText.res(Res.string.otp_sent_customer)
+                            otp = "",
+                            hint = when {
+                                next.devOtp != null -> UiText.res(Res.string.dev_otp_hint)
+                                next.maskedPhone.isNotBlank() -> UiText.res(Res.string.otp_sent_to, next.maskedPhone)
+                                else -> UiText.res(Res.string.otp_sent_customer)
                             },
                         )
                     }
+                    startCountdown(next.resendAfterSec)
                 }
                 .onFailure { error ->
                     _state.update { it.copy(loading = false, error = mapPhoneAuthError(error, verifying = false)) }
+                    error.otpRetryAfterSec()?.let(::startCountdown)
                 }
         }
     }
 
+    private fun startCountdown(seconds: Int) {
+        countdownJob = otpCountdown(countdownJob, seconds) { left -> _state.update { it.copy(resendInSec = left) } }
+    }
+
     fun verify(onDone: (TokenResponse) -> Unit) {
         val otpSession = session ?: return
+        if (_state.value.loading) return
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            runCatching {
-                val auth = phoneAuth.verifyOtp(_state.value.phone, _state.value.otp, otpSession).getOrThrow()
-                val phone = digitsPhone(_state.value.phone)
-                if (otpSession.usesFirebase) {
-                    api.loginWithFirebase(requireNotNull(auth.firebaseIdToken))
-                } else {
-                    api.verifyOtp(phone, _state.value.otp, otpSession.sessionId)
-                }
-            }.onSuccess { token ->
+            phoneAuth.verifyOtp(_state.value.phone, _state.value.otp, otpSession).onSuccess { token ->
                 preferences.saveToken(token)
                 JwtAuthCache.invalidate()
                 _state.update { s -> s.copy(loading = false, profileComplete = token.profileComplete) }

@@ -41,6 +41,7 @@ import org.bhargav.pansariwala.server.dto.IncomingOfferResponse
 import org.bhargav.pansariwala.server.dto.OkResponse
 import org.bhargav.pansariwala.server.dto.OtpRequest
 import org.bhargav.pansariwala.server.dto.OtpVerifyRequest
+import org.bhargav.pansariwala.server.security.OtpAppProof
 import org.bhargav.pansariwala.server.dto.PartnerLocationRequest
 import org.bhargav.pansariwala.server.dto.PartnerOnlineRequest
 import org.bhargav.pansariwala.server.dto.PartnerProfilePhotoRequest
@@ -99,15 +100,20 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
     }
     post("/auth/otp/request") {
         val body = call.receive<OtpRequest>()
-        call.respond(store.requestOtp(body.phone))
+        val ip = call.clientIp()
+        val proof = OtpAppProof(body.playIntegrityToken, body.recaptchaToken, body.androidPackage, body.androidCertSha1)
+        call.respond(withContext(Dispatchers.IO) { store.requestOtp(body.phone, ip, proof) })
+    }
+    get("/auth/otp/config") {
+        call.respond(withContext(Dispatchers.IO) { store.otpConfig() })
     }
     post("/auth/otp/verify") {
         val body = call.receive<OtpVerifyRequest>()
-        call.respond(store.verifyOtp(body.phone, body.otp, body.sessionId))
+        call.respond(withContext(Dispatchers.IO) { store.verifyOtp(body.phone, body.otp, body.sessionId) })
     }
     post("/partners/register") {
         val body = call.receive<PartnerRegisterRequest>()
-        call.respond(store.registerPartner(body))
+        call.respond(withContext(Dispatchers.IO) { store.registerPartner(body) })
     }
     // Public: called after logout/session expiry when no JWT remains; the FCM token itself identifies the device.
     post("/push/unregister") {
@@ -671,6 +677,12 @@ private fun ApplicationCall.payload(): Payload =
     principal<JWTPrincipal>()?.payload ?: error("Unauthorized")
 
 private fun ApplicationCall.userId(): String = payload().subject
+
+/** nginx sets X-Real-IP; X-Forwarded-For's first hop is the fallback, then the socket peer. */
+private fun ApplicationCall.clientIp(): String? =
+    request.headers["X-Real-IP"]?.trim()?.takeIf { it.isNotEmpty() }
+        ?: request.headers["X-Forwarded-For"]?.substringBefore(',')?.trim()?.takeIf { it.isNotEmpty() }
+        ?: request.local.remoteAddress
 
 private fun ApplicationCall.requireShopId(): String =
     payload().getClaim("shopId").asString() ?: error("Shop role required")

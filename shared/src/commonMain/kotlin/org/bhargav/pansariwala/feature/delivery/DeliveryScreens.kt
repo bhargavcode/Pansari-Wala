@@ -58,8 +58,10 @@ import org.bhargav.pansariwala.platform.RequestLocationPermission
 import org.bhargav.pansariwala.platform.openAppLocationSettings
 import org.bhargav.pansariwala.platform.openExternalNavigation
 import org.bhargav.pansariwala.designsystem.PansariElevation
+import org.bhargav.pansariwala.designsystem.OtpCodeField
 import org.bhargav.pansariwala.designsystem.PansariLinkButton
 import org.bhargav.pansariwala.designsystem.PansariScreen
+import org.bhargav.pansariwala.designsystem.ResendOtpButton
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.i18n.asString
@@ -234,19 +236,19 @@ fun PartnerLoginScreen(
                 enabled = !state.loading && state.phone.length >= 10,
             )
         } else {
-            OutlinedTextField(
+            state.hint?.let { Text(it.asString(), style = MaterialTheme.typography.bodySmall) }
+            OtpCodeField(
                 value = state.otp,
                 onValueChange = viewModel::setOtp,
-                label = { Text(stringResource(Res.string.field_otp)) },
-                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.loading,
+                onDone = { viewModel.verify(onVerified) },
             )
-            state.hint?.let { Text(it.asString(), style = MaterialTheme.typography.bodySmall) }
             PartnerPrimaryButton(
                 text = stringResource(Res.string.action_verify_otp),
                 onClick = { viewModel.verify(onVerified) },
-                enabled = !state.loading && state.otp.length >= 4,
+                enabled = !state.loading && state.otp.length == AppConstants.OTP_LENGTH,
             )
-            PansariLinkButton(onClick = viewModel::sendOtp, enabled = !state.loading, text = stringResource(Res.string.action_resend_otp))
+            ResendOtpButton(resendInSec = state.resendInSec, loading = state.loading, onClick = viewModel::sendOtp)
         }
         PansariLinkButton(onClick = onSignUp, enabled = !state.loading, text = stringResource(Res.string.partner_signup_join))
         }
@@ -401,13 +403,18 @@ fun PartnerRegisterScreen(
                 PartnerPrimaryButton(text = stringResource(Res.string.partner_action_sign_up), onClick = viewModel::save, enabled = !state.loading)
             } else {
                 state.hint?.let { Text(it.asString()) }
-                OutlinedTextField(state.otp, viewModel::setOtp, label = { Text(stringResource(Res.string.field_otp)) }, modifier = Modifier.fillMaxWidth())
+                OtpCodeField(
+                    value = state.otp,
+                    onValueChange = viewModel::setOtp,
+                    enabled = !state.loading,
+                    onDone = { viewModel.verify(onVerified) },
+                )
                 PartnerPrimaryButton(
                     text = stringResource(Res.string.action_verify_otp),
                     onClick = { viewModel.verify(onVerified) },
-                    enabled = !state.loading && state.otp.length >= 4,
+                    enabled = !state.loading && state.otp.length == AppConstants.OTP_LENGTH,
                 )
-                PansariLinkButton(onClick = viewModel::save, enabled = !state.loading, text = stringResource(Res.string.action_resend_otp))
+                ResendOtpButton(resendInSec = state.resendInSec, loading = state.loading, onClick = viewModel::save)
             }
             PansariLinkButton(onClick = onSignIn, enabled = !state.loading, text = stringResource(Res.string.partner_login_prompt))
         }

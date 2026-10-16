@@ -84,6 +84,13 @@ fun main() {
         }
         install(WebSockets)
         install(StatusPages) {
+            exception<org.bhargav.pansariwala.server.service.OtpException> { call, cause ->
+                cause.retryAfterSec?.let { call.response.headers.append("Retry-After", it.toString()) }
+                call.respond(
+                    HttpStatusCode.fromValue(cause.status),
+                    ApiErrorBody(cause.message ?: "OTP error", cause.code),
+                )
+            }
             exception<io.ktor.server.plugins.BadRequestException> { call, cause ->
                 call.respond(HttpStatusCode.BadRequest, ApiErrorBody(cause.message ?: "Invalid request body"))
             }

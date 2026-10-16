@@ -58,14 +58,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import org.bhargav.pansariwala.designsystem.OtpCodeField
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.PansariTopBar
+import org.bhargav.pansariwala.designsystem.ResendOtpButton
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
@@ -192,25 +193,21 @@ fun PhoneAuthScreen(
                 enabled = !state.loading && state.phone.length >= 10,
             )
         } else {
-            OutlinedTextField(
-                value = state.otp,
-                onValueChange = viewModel::setOtp,
-                label = { Text(stringResource(Res.string.field_otp)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-            )
             state.hint?.let {
                 Text(it.asString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            OtpCodeField(
+                value = state.otp,
+                onValueChange = viewModel::setOtp,
+                enabled = !state.loading,
+                onDone = { viewModel.verify { onVerified(it.profileComplete) } },
+            )
             UserPrimaryButton(
                 text = stringResource(Res.string.action_verify_otp),
                 onClick = { viewModel.verify { onVerified(it.profileComplete) } },
-                enabled = !state.loading && state.otp.length >= 4,
+                enabled = !state.loading && state.otp.length == AppConstants.OTP_LENGTH,
             )
-            TextButton(onClick = viewModel::sendOtp, enabled = !state.loading) {
-                Text(stringResource(Res.string.action_resend_otp))
-            }
+            ResendOtpButton(resendInSec = state.resendInSec, loading = state.loading, onClick = viewModel::sendOtp)
         }
         }
     }

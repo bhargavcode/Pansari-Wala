@@ -26,6 +26,8 @@ import org.bson.conversions.Bson
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.db.AdminUserDoc
 import org.bhargav.pansariwala.server.db.CategoryDoc
+import org.bhargav.pansariwala.server.dto.OtpConfigResponse
+import org.bhargav.pansariwala.server.security.OtpAppProof
 import org.bhargav.pansariwala.server.db.CustomerAddressDoc
 import org.bhargav.pansariwala.server.db.CustomerDoc
 import org.bhargav.pansariwala.server.db.DeliveryOfferDoc
@@ -183,6 +185,7 @@ class AppStore(
     private val deliveryOfferCol = mongo.db.getCollection<DeliveryOfferDoc>("delivery_offers")
     private val offerPayoutCol = mongo.db.getCollection<Document>("delivery_offers")
     private val otpCol = mongo.db.getCollection<OtpDoc>("otp_challenges")
+    private val otp = OtpService(config, security, otpCol)
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
     private val shopVisitCol = mongo.db.getCollection<ShopVisitDoc>("shop_visits")
     private val partnerLiteProjection = exclude(
@@ -267,56 +270,13 @@ class AppStore(
         return upsertCustomerToken(phone)
     }
 
-    fun requestOtp(phone: String): OtpSessionResponse {
-        val normalized = Security.normalizePhone(phone)
-        require(normalized.length == 10) { "Invalid phone" }
-        val sessionId = security.randomId("otp")
-        // Android/iOS use Firebase Phone Auth; this path serves web. Fixed 123456 only with AUTH_DEV_MODE=true.
-        val useFixedOtp = config.devAuth
-        check(useFixedOtp || config.smsConfigured) { "SMS OTP is not configured" }
-        val code = if (useFixedOtp) "123456" else (100000 + kotlin.random.Random.nextInt(900000)).toString()
-        otpCol.deleteMany(eq("phone", normalized))
-        otpCol.insertOne(
-            OtpDoc(sessionId, normalized, security.sha256(code), "phone", System.currentTimeMillis() + 5 * 60_000),
-        )
-        if (config.smsConfigured) {
-            deliverSmsOtp(normalized, code)
-        } else {
-            println("WARN: SMS_API_URL unset — OTP for $normalized is $code (set AUTH_DEV_MODE=true or configure SMS)")
-        }
-        return OtpSessionResponse(sessionId = sessionId, devOtp = code.takeIf { useFixedOtp })
-    }
+    fun requestOtp(phone: String, clientIp: String? = null, proof: OtpAppProof = OtpAppProof()): OtpSessionResponse =
+        otp.request(phone, clientIp, proof)
 
-    private fun deliverSmsOtp(phone: String, code: String) {
-        val url = config.smsApiUrl
-        val body = """{"phone":"$phone","otp":"$code"}"""
-        val connection = java.net.URI(url).toURL().openConnection() as java.net.HttpURLConnection
-        try {
-            connection.requestMethod = "POST"
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json")
-            if (config.smsApiToken.isNotBlank()) {
-                connection.setRequestProperty("Authorization", "Bearer ${config.smsApiToken}")
-            }
-            connection.connectTimeout = 8_000
-            connection.readTimeout = 8_000
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val status = connection.responseCode
-            require(status in 200..299) { "SMS provider returned HTTP $status" }
-        } finally {
-            connection.disconnect()
-        }
-    }
+    fun otpConfig(): OtpConfigResponse = otp.config()
 
-    fun verifyOtp(phone: String, otp: String, sessionId: String?): TokenResponse {
-        val normalized = Security.normalizePhone(phone)
-        val now = System.currentTimeMillis()
-        val row = otpCol.find(eq("phone", normalized)).toList().firstOrNull {
-            sessionId == null || it.sessionId == sessionId
-        } ?: error("OTP not found")
-        if (row.expiresAt < now) error("OTP expired")
-        if (row.codeHash != security.sha256(otp)) error("Invalid OTP")
-        otpCol.deleteOne(eq("_id", row.sessionId))
+    fun verifyOtp(phone: String, code: String, sessionId: String?): TokenResponse {
+        val normalized = otp.verify(phone, code, sessionId)
         val partner = partnerCol.find(eq("phone", normalized)).firstOrNull()
         if (partner != null) {
             partnerCol.updateOne(eq("_id", partner.id), set("verified", true))
@@ -1347,7 +1307,8 @@ class AppStore(
         )
         partnerCol.replaceOne(eq("_id", doc.id), doc, ReplaceOptions().upsert(true))
         customerCol.deleteMany(eq("phone", phone))
-        return requestOtp(phone)
+        // Firebase needs app proof, which only /auth/otp/request carries; an empty session tells the app to call it.
+        return if (config.devAuth) requestOtp(phone) else OtpSessionResponse(sessionId = "")
     }
 
     fun partnerProfile(partnerId: String): PartnerProfileDto {

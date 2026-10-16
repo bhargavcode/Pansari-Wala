@@ -1,13 +1,15 @@
 package org.bhargav.pansariwala.di
 
 import org.bhargav.pansariwala.platform.AndroidDeviceLocation
-import org.bhargav.pansariwala.platform.AndroidFirebasePhoneAuth
 import org.bhargav.pansariwala.platform.AndroidImagePicker
+import org.bhargav.pansariwala.platform.AndroidOtpAppVerifier
+import org.bhargav.pansariwala.platform.OtpAppVerifier
 import org.bhargav.pansariwala.platform.AndroidRazorpayCheckout
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.ImagePicker
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.RazorpayCheckout
+import org.bhargav.pansariwala.platform.ServerPhoneAuthGateway
 import org.bhargav.pansariwala.printer.AndroidPrinterTransports
 import org.bhargav.pansariwala.printer.PrinterManager
 import org.bhargav.pansariwala.printer.encoder.EscPosEncoder
@@ -19,7 +21,8 @@ import org.koin.dsl.module
 actual val platformModule: Module = module {
     single { AndroidDeviceLocation(androidContext()) }
     single<DeviceLocation> { get<AndroidDeviceLocation>() }
-    single<PhoneAuthGateway> { AndroidFirebasePhoneAuth() }
+    single<OtpAppVerifier> { AndroidOtpAppVerifier(androidContext()) }
+    single<PhoneAuthGateway> { ServerPhoneAuthGateway(get(), get()) }
     single<ImagePicker> { AndroidImagePicker() }
     single<RazorpayCheckout> { AndroidRazorpayCheckout() }
     single {

@@ -33,12 +33,20 @@ data class ServerConfig(
     val s3Region: String,
     val awsAccessKeyId: String,
     val awsSecretAccessKey: String,
+    /** Firebase Web API key used for Identity Toolkit phone auth (send + verify OTP on the server). */
+    val firebaseApiKey: String = "",
+    val otpTtlSeconds: Int = 300,
+    val otpResendCooldownSeconds: Int = 30,
+    val otpMaxSendsPerHour: Int = 5,
+    val otpMaxVerifyAttempts: Int = 5,
+    val otpMaxRequestsPerIpPerHour: Int = 30,
 ) {
     val paymentsEnabled: Boolean get() = razorpayKeyId.isNotBlank() && razorpayKeySecret.isNotBlank()
-    val smsConfigured: Boolean get() = smsApiUrl.isNotBlank()
 
     companion object {
         const val DEFAULT_PASSWORD_SALT = "pansari-local-salt"
+        /** Same public key as `google-services.json`; Firebase API keys identify the project, they are not secrets. */
+        private const val DEFAULT_FIREBASE_API_KEY = "AIzaSyAuh8VVFsquRigomZodOTBb9G-e1TIUZSo"
         private const val ATLAS_USER = "pansariwala"
         private const val ATLAS_HOST = "pansariwala.nl9gm4j.mongodb.net"
         private const val ATLAS_APP = "pansariwala"
@@ -71,6 +79,12 @@ data class ServerConfig(
             s3Region = env("AWS_REGION", "ap-south-1"),
             awsAccessKeyId = env("AWS_ACCESS_KEY_ID", ""),
             awsSecretAccessKey = env("AWS_SECRET_ACCESS_KEY", ""),
+            firebaseApiKey = env("FIREBASE_API_KEY", DEFAULT_FIREBASE_API_KEY),
+            otpTtlSeconds = env("OTP_TTL_SECONDS", "300").toInt(),
+            otpResendCooldownSeconds = env("OTP_RESEND_COOLDOWN_SECONDS", "30").toInt(),
+            otpMaxSendsPerHour = env("OTP_MAX_SENDS_PER_HOUR", "5").toInt(),
+            otpMaxVerifyAttempts = env("OTP_MAX_VERIFY_ATTEMPTS", "5").toInt(),
+            otpMaxRequestsPerIpPerHour = env("OTP_MAX_REQUESTS_PER_IP_PER_HOUR", "30").toInt(),
         )
 
         private fun mongoUriFromEnv(): String {
