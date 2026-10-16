@@ -13,6 +13,7 @@ import org.bhargav.pansariwala.navigation.AppNavGraph
 import org.bhargav.pansariwala.navigation.DeliveryNavGraph
 import org.bhargav.pansariwala.navigation.UserNavGraph
 import org.bhargav.pansariwala.notification.NotificationGateway
+import org.bhargav.pansariwala.notification.NotificationPromptGate
 import org.bhargav.pansariwala.notification.PartnerOfferSocket
 import org.bhargav.pansariwala.notification.PushRegistrar
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
@@ -66,8 +67,7 @@ fun App(
 
     LaunchedEffect(product) {
         notifications.ensureChannels()
-        showNotificationRationale = !preferences.isNotificationPromptShown() &&
-            notifications.needsPermissionPrompt()
+        if (product == AppProduct.POS) orderSync.start()
         when (product) {
             AppProduct.DELIVERY -> {
                 locationTracker.restore()
@@ -75,7 +75,14 @@ fun App(
             }
             AppProduct.POS, AppProduct.USER -> pushRegistrar.run(product)
         }
-        if (product == AppProduct.POS) orderSync.start()
+    }
+
+    val homeReached by NotificationPromptGate.homeReached.collectAsStateWithLifecycle()
+    LaunchedEffect(product, homeReached) {
+        // POS has no phone/OTP onboarding; consumer + partner apps ask only once on their home screen.
+        if (product != AppProduct.POS && !homeReached) return@LaunchedEffect
+        showNotificationRationale = !preferences.isNotificationPromptShown() &&
+            notifications.needsPermissionPrompt()
     }
 
     AppLocaleProvider(languageCode = settings.language.code) {

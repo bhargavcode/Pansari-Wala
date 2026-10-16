@@ -142,6 +142,21 @@ import pansariwala.shared.generated.resources.partner_section_address
 import pansariwala.shared.generated.resources.partner_section_contact
 import pansariwala.shared.generated.resources.partner_section_payment
 import pansariwala.shared.generated.resources.partner_signup_join
+import pansariwala.shared.generated.resources.partner_onboarding_highlight_earn
+import pansariwala.shared.generated.resources.partner_onboarding_highlight_flexible
+import pansariwala.shared.generated.resources.partner_onboarding_highlight_nearby
+import pansariwala.shared.generated.resources.partner_onboarding_tagline
+import pansariwala.shared.generated.resources.partner_onboarding_title
+import pansariwala.shared.generated.resources.onboarding_otp_heading
+import pansariwala.shared.generated.resources.onboarding_phone_heading
+import pansariwala.shared.generated.resources.onboarding_phone_subheading
+import org.bhargav.pansariwala.designsystem.OnboardingFormCard
+import org.bhargav.pansariwala.designsystem.OnboardingHero
+import org.bhargav.pansariwala.designsystem.OnboardingHighlight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.lerp
 import pansariwala.shared.generated.resources.partner_signup_prompt
 import pansariwala.shared.generated.resources.partner_submit_images
 import pansariwala.shared.generated.resources.partner_summary_distance
@@ -174,19 +189,43 @@ fun PartnerLoginScreen(
         },
         isLoading = state.loading,
     ) {
-        Column(Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-        Spacer(Modifier.height(32.dp))
-        PartnerBrandHeader()
-        Spacer(Modifier.height(24.dp))
+        OnboardingHero(
+            title = stringResource(Res.string.partner_onboarding_title),
+            tagline = stringResource(Res.string.partner_onboarding_tagline),
+            heroEmoji = "🛵",
+            floatingEmojis = listOf("📦", "📍", "💰", "🛍️", "⏱️", "🏪"),
+            highlights = listOf(
+                OnboardingHighlight("💰", stringResource(Res.string.partner_onboarding_highlight_earn)),
+                OnboardingHighlight("⏰", stringResource(Res.string.partner_onboarding_highlight_flexible)),
+                OnboardingHighlight("📍", stringResource(Res.string.partner_onboarding_highlight_nearby)),
+            ),
+            startColor = MaterialTheme.colorScheme.primary,
+            endColor = lerp(MaterialTheme.colorScheme.primary, Color.Black, 0.35f),
+        )
+        OnboardingFormCard {
+        Text(
+            stringResource(if (state.step == 0) Res.string.onboarding_phone_heading else Res.string.onboarding_otp_heading),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        if (state.step == 0) {
+            Text(
+                stringResource(Res.string.onboarding_phone_subheading),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         OutlinedTextField(
             value = state.phone,
             onValueChange = viewModel::setPhone,
             label = { Text(stringResource(Res.string.field_phone)) },
+            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
         )
         if (state.step == 0) {
             PartnerPrimaryButton(
@@ -210,6 +249,7 @@ fun PartnerLoginScreen(
             PansariLinkButton(onClick = viewModel::sendOtp, enabled = !state.loading, text = stringResource(Res.string.action_resend_otp))
         }
         PansariLinkButton(onClick = onSignUp, enabled = !state.loading, text = stringResource(Res.string.partner_signup_join))
+        }
         }
     }
 }
@@ -393,6 +433,10 @@ fun PartnerHomeScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val locationSettled = !state.loading && !state.requestLocationPermission && !state.showLocationDeniedDialog
+    LaunchedEffect(locationSettled) {
+        if (locationSettled) org.bhargav.pansariwala.notification.NotificationPromptGate.onHomeShown()
     }
     RequestLocationPermission(
         trigger = state.requestLocationPermission,

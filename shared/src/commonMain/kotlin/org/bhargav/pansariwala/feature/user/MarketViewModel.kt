@@ -89,8 +89,20 @@ class MarketViewModel(
         viewModelScope.launch {
             val profile = preferences.getCachedCustomerProfile() ?: return@launch
             applyProfileToState(profile)
+            val point = profile.location?.takeIf { it.lat != 0.0 || it.lng != 0.0 } ?: return@launch
+            if (homeLoaded && (point.lat != lastLat || point.lng != lastLng)) {
+                lastLat = point.lat
+                lastLng = point.lng
+                refreshShops(useCachedLocation = true, soft = true)
+            }
         }
     }
+
+    /** Shops are searched around the selected delivery address; device GPS only when none is saved. */
+    private suspend fun selectedAddressPoint(): Pair<Double, Double>? =
+        preferences.getCachedCustomerProfile()?.location
+            ?.takeIf { it.lat != 0.0 || it.lng != 0.0 }
+            ?.let { it.lat to it.lng }
 
     private fun applyProfileToState(profile: CustomerProfile) {
         val label = buildString {
@@ -178,6 +190,13 @@ class MarketViewModel(
     private fun refreshLocationAndShops() {
         viewModelScope.launch {
             _state.update { it.copy(fetchingLocation = true, loading = true, error = null) }
+            selectedAddressPoint()?.let { (lat, lng) ->
+                lastLat = lat
+                lastLng = lng
+                _state.update { it.copy(fetchingLocation = false) }
+                loadShops(lat, lng)
+                return@launch
+            }
             val geo = runCatching { location.currentOrDefault() }
                 .getOrElse { err ->
                     handleLocationFailure(err)
@@ -203,7 +222,7 @@ class MarketViewModel(
             }
             val geo = if (useCachedLocation && cachedLat != null && cachedLng != null) {
                 cachedLat to cachedLng
-            } else {
+            } else selectedAddressPoint() ?: run {
                 runCatching { location.currentOrDefault() }
                     .getOrElse { err ->
                         handleLocationFailure(err)

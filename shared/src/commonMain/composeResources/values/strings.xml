@@ -433,6 +433,13 @@
     <string name="tab_account">Account</string>
     <string name="tab_user_settings">Settings</string>
     <string name="user_brand_title">Pansari Wala</string>
+    <string name="user_onboarding_tagline">Groceries from your trusted local kirana, delivered to your door</string>
+    <string name="user_onboarding_highlight_nearby">Nearby shops</string>
+    <string name="user_onboarding_highlight_fast">Fast delivery</string>
+    <string name="user_onboarding_highlight_offers">Daily offers</string>
+    <string name="onboarding_phone_heading">Enter your mobile number</string>
+    <string name="onboarding_phone_subheading">We\'ll send a one-time password to verify it</string>
+    <string name="onboarding_otp_heading">Verify OTP</string>
     <string name="user_cart_items">Cart (%1$d Items)</string>
     <string name="shop_open_now">Open Now</string>
     <string name="shop_closed">Closed</string>
@@ -632,6 +639,22 @@
     <string name="dev_otp_hint">Dev OTP is 123456</string>
     <string name="online_orders_title">Online orders</string>
     <string name="online_orders_empty">No online orders yet.</string>
+    <string name="online_orders_search_hint">Search order id, customer or phone</string>
+    <string name="online_orders_tab_new">New</string>
+    <string name="online_orders_tab_accepted">Accepted</string>
+    <string name="online_orders_tab_packing">Packing</string>
+    <string name="online_orders_tab_delivery">Out for delivery</string>
+    <string name="online_orders_tab_delivered">Delivered</string>
+    <string name="online_orders_tab_cancelled">Cancelled</string>
+    <string name="online_orders_tab_all">All orders</string>
+    <string name="action_assign_own_partner">Assign own partner</string>
+    <string name="own_partner_sheet_title">Your delivery partners</string>
+    <string name="own_partner_add">Add delivery partner</string>
+    <string name="own_partner_empty">No delivery partners yet. Add your own rider to assign orders.</string>
+    <string name="own_partner_on_app">On partner app · gets the job in the app</string>
+    <string name="own_partner_not_on_app">Not on partner app · mark delivered with customer OTP</string>
+    <string name="own_partner_assign">Assign</string>
+    <string name="field_vehicle_reg_optional">Vehicle number (optional)</string>
     <string name="action_accept">Accept</string>
     <string name="action_accept_order">Accept order</string>
     <string name="action_reject">Reject</string>
@@ -716,6 +739,11 @@
 
     <!-- Delivery partner flow (PansariWala driver) -->
     <string name="partner_brand_title">PansariWala</string>
+    <string name="partner_onboarding_title">PansariWala Partner</string>
+    <string name="partner_onboarding_tagline">Deliver orders from local shops and earn on your own schedule</string>
+    <string name="partner_onboarding_highlight_earn">Earn daily</string>
+    <string name="partner_onboarding_highlight_flexible">Flexible hours</string>
+    <string name="partner_onboarding_highlight_nearby">Short trips</string>
     <string name="partner_login_phone_email">Phone / email</string>
     <string name="partner_action_login">Login</string>
     <string name="partner_signup_join">New Driver? Join Us</string>

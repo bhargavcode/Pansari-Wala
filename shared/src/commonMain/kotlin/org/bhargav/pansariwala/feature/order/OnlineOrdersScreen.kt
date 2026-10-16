@@ -1,6 +1,61 @@
 package org.bhargav.pansariwala.feature.order
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import pansariwala.shared.generated.resources.action_assign_own_partner
+import pansariwala.shared.generated.resources.action_remove
+import pansariwala.shared.generated.resources.action_save
+import pansariwala.shared.generated.resources.field_name
+import pansariwala.shared.generated.resources.field_phone
+import pansariwala.shared.generated.resources.field_vehicle_reg_optional
+import pansariwala.shared.generated.resources.own_partner_add
+import pansariwala.shared.generated.resources.own_partner_assign
+import pansariwala.shared.generated.resources.own_partner_empty
+import pansariwala.shared.generated.resources.own_partner_not_on_app
+import pansariwala.shared.generated.resources.own_partner_on_app
+import pansariwala.shared.generated.resources.own_partner_sheet_title
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Badge
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.notification.OrderUpdates
+import org.koin.compose.koinInject
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import org.bhargav.pansariwala.util.AppConstants
+import pansariwala.shared.generated.resources.action_clear
+import pansariwala.shared.generated.resources.action_refresh
+import pansariwala.shared.generated.resources.online_orders_search_hint
+import pansariwala.shared.generated.resources.online_orders_tab_accepted
+import pansariwala.shared.generated.resources.online_orders_tab_all
+import pansariwala.shared.generated.resources.online_orders_tab_cancelled
+import pansariwala.shared.generated.resources.online_orders_tab_delivered
+import pansariwala.shared.generated.resources.online_orders_tab_delivery
+import pansariwala.shared.generated.resources.online_orders_tab_new
+import pansariwala.shared.generated.resources.online_orders_tab_packing
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -89,6 +144,7 @@ import pansariwala.shared.generated.resources.status_received
 import pansariwala.shared.generated.resources.status_rejected
 import pansariwala.shared.generated.resources.status_cancelled
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnlineOrdersScreen(
     onBack: () -> Unit,
@@ -99,9 +155,25 @@ fun OnlineOrdersScreen(
         viewModel.onScreenVisible(true)
         onPauseOrDispose { viewModel.onScreenVisible(false) }
     }
+    val listState = rememberLazyListState()
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - 1 - AppConstants.LIST_PREFETCH_DISTANCE
+        }
+    }
+    LaunchedEffect(nearEnd, state.hasMore, state.orders.size) {
+        if (nearEnd && state.hasMore) viewModel.loadMore()
+    }
     PansariScreen(
         title = stringResource(Res.string.online_orders_title),
         onBack = onBack,
+        actions = {
+            IconButton(onClick = { viewModel.refresh(pullToRefresh = true) }, enabled = !state.refreshing) {
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.action_refresh))
+            }
+        },
         error = state.error.toErrorBanner(),
         onErrorAction = {
             handleErrorBannerAction(it, onRetry = { viewModel.refresh() }, onDismiss = viewModel::dismissError)
@@ -109,7 +181,32 @@ fun OnlineOrdersScreen(
         isLoading = state.loading && state.orders.isEmpty(),
         isRefreshing = state.loading && state.orders.isNotEmpty(),
     ) {
+        Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = state.query,
+            onValueChange = viewModel::setQuery,
+            placeholder = { Text(stringResource(Res.string.online_orders_search_hint)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = if (state.query.isNotEmpty()) {
+                {
+                    IconButton(onClick = { viewModel.setQuery("") }) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_clear))
+                    }
+                }
+            } else {
+                null
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        OnlineOrderTabs(selected = state.tab, newCount = state.newCount, onSelect = viewModel::selectTab)
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = { viewModel.refresh(pullToRefresh = true) },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -120,6 +217,20 @@ fun OnlineOrdersScreen(
             items(state.orders, key = { it.id }, contentType = { "order" }) { order ->
                 val busy = state.busyId == order.id
                 val packedChecks = state.packedChecks[order.id].orEmpty()
+                val lineColor = onlineOrderStatusColor(order.status)
+                Column(
+                    Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .drawWithContent {
+                            drawContent()
+                            val stroke = 4.dp.toPx()
+                            drawRect(
+                                color = lineColor,
+                                topLeft = Offset(0f, size.height - stroke),
+                                size = Size(size.width, stroke),
+                            )
+                        },
+                ) {
                 SectionCard(
                     title = "${order.id} · ${order.customerName.orEmpty().ifBlank { order.id }} · ${onlineOrderStatusLabel(order.status)}",
                     action = { PrintMenuButton(actions = remember(order) { orderPrintActions(order) }) },
@@ -155,11 +266,34 @@ fun OnlineOrdersScreen(
                         onPacking = { viewModel.markPacking(order.id) },
                         onRequestPartner = { viewModel.requestDeliveryPartner(order.id) },
                         onSelfDeliver = { viewModel.startSelfDelivery(order.id) },
+                        onAssignOwnPartner = { viewModel.openAssignPartner(order.id) },
                         onCompleteSelfDelivery = { viewModel.openSelfDeliverComplete(order.id) },
                         onCancel = { viewModel.openCancel(order.id) },
                     )
                 }
+                }
             }
+            if (state.loadingMore) {
+                item(key = "loadingMore") {
+                    Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    }
+                }
+            }
+        }
+        }
+        }
+        if (state.assignOrderId != null) {
+            AssignOwnPartnerSheet(
+                state = state,
+                onAssign = viewModel::assignPartner,
+                onRemove = viewModel::removePartner,
+                onOpenForm = viewModel::openPartnerForm,
+                onCloseForm = viewModel::closePartnerForm,
+                onFormChange = viewModel::updatePartnerForm,
+                onSave = viewModel::savePartner,
+                onDismiss = viewModel::dismissAssignPartner,
+            )
         }
         if (state.cancelOrderId != null) {
             CancelOnlineOrderSheet(
@@ -249,6 +383,7 @@ private fun OnlineOrderActions(
     onPacking: () -> Unit,
     onRequestPartner: () -> Unit,
     onSelfDeliver: () -> Unit,
+    onAssignOwnPartner: () -> Unit,
     onCompleteSelfDelivery: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -265,6 +400,9 @@ private fun OnlineOrderActions(
             if (canSelfDeliver) {
                 OutlinedButton(onClick = onSelfDeliver, enabled = !busy) {
                     Text(stringResource(Res.string.action_self_delivery))
+                }
+                OutlinedButton(onClick = onAssignOwnPartner, enabled = !busy) {
+                    Text(stringResource(Res.string.action_assign_own_partner))
                 }
             }
             if (selfOnTheWay) {
@@ -401,6 +539,193 @@ private fun CancelOnlineOrderSheet(
             }
         }
     }
+}
+
+/** Not-yet-accepted online orders; refreshed on resume and on every order push. */
+@Composable
+fun rememberNewOnlineOrderCount(api: PansariApi = koinInject()): Int {
+    var count by remember { mutableIntStateOf(0) }
+    var tick by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        tick++
+        onPauseOrDispose { }
+    }
+    suspend fun fetch() {
+        runCatching { api.shopOnlineOrdersPage(OnlineOrderTab.NEW.statuses, "", 0, 1) }
+            .onSuccess { count = it.newCount }
+            .onFailure { it.rethrowIfStructuredCancellation() }
+    }
+    LaunchedEffect(tick) { fetch() }
+    LaunchedEffect(Unit) { OrderUpdates.events.collect { fetch() } }
+    return count
+}
+
+/** Small count badge used next to "Online orders" entry points. */
+@Composable
+fun NewOrdersBadge(count: Int) {
+    if (count <= 0) return
+    Spacer(Modifier.width(6.dp))
+    Badge { Text(if (count > 99) "99+" else count.toString()) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AssignOwnPartnerSheet(
+    state: OnlineOrdersUiState,
+    onAssign: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onOpenForm: () -> Unit,
+    onCloseForm: () -> Unit,
+    onFormChange: ((ShopPartnerForm) -> ShopPartnerForm) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                stringResource(Res.string.own_partner_sheet_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            state.partnerError?.let {
+                Text(it.asString(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            if (state.partnersLoading && state.shopPartners.isEmpty()) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            } else if (state.shopPartners.isEmpty() && state.partnerForm == null) {
+                Text(stringResource(Res.string.own_partner_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            state.shopPartners.forEach { partner ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(partner.name, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            listOf(partner.phone, partner.vehicleReg).filter { it.isNotBlank() }.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            stringResource(if (partner.onPartnerApp) Res.string.own_partner_on_app else Res.string.own_partner_not_on_app),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (partner.onPartnerApp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = { onRemove(partner.id) }) {
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.action_remove))
+                    }
+                    Button(onClick = { onAssign(partner.id) }) {
+                        Text(stringResource(Res.string.own_partner_assign))
+                    }
+                }
+            }
+            val form = state.partnerForm
+            if (form == null) {
+                OutlinedButton(onClick = onOpenForm, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(Res.string.own_partner_add))
+                }
+            } else {
+                OutlinedTextField(
+                    value = form.name,
+                    onValueChange = { v -> onFormChange { it.copy(name = v) } },
+                    label = { Text(stringResource(Res.string.field_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = form.phone,
+                    onValueChange = { v -> onFormChange { it.copy(phone = v.filter { c -> c.isDigit() || c == '+' }.take(13)) } },
+                    label = { Text(stringResource(Res.string.field_phone)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = form.vehicleReg,
+                    onValueChange = { v -> onFormChange { it.copy(vehicleReg = v.uppercase()) } },
+                    label = { Text(stringResource(Res.string.field_vehicle_reg_optional)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (state.shopPartners.isNotEmpty()) {
+                        OutlinedButton(onClick = onCloseForm, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(Res.string.action_cancel))
+                        }
+                    }
+                    Button(
+                        onClick = onSave,
+                        enabled = form.valid && !state.partnersLoading,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(Res.string.action_save))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OnlineOrderTabs(
+    selected: OnlineOrderTab,
+    newCount: Int,
+    onSelect: (OnlineOrderTab) -> Unit,
+) {
+    val tabs = OnlineOrderTab.entries
+    PrimaryScrollableTabRow(selectedTabIndex = tabs.indexOf(selected), edgePadding = 12.dp) {
+        tabs.forEach { tab ->
+            Tab(
+                selected = tab == selected,
+                onClick = { onSelect(tab) },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(onlineOrderStatusColor(tab.statuses.firstOrNull())),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(onlineOrderTabLabel(tab))
+                        if (tab == OnlineOrderTab.NEW) NewOrdersBadge(newCount)
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun onlineOrderTabLabel(tab: OnlineOrderTab): String = stringResource(
+    when (tab) {
+        OnlineOrderTab.NEW -> Res.string.online_orders_tab_new
+        OnlineOrderTab.ACCEPTED -> Res.string.online_orders_tab_accepted
+        OnlineOrderTab.PACKING -> Res.string.online_orders_tab_packing
+        OnlineOrderTab.DELIVERY -> Res.string.online_orders_tab_delivery
+        OnlineOrderTab.DELIVERED -> Res.string.online_orders_tab_delivered
+        OnlineOrderTab.CANCELLED -> Res.string.online_orders_tab_cancelled
+        OnlineOrderTab.ALL -> Res.string.online_orders_tab_all
+    },
+)
+
+/** Status accent used for the tab dot and the line under each order card; null → neutral. */
+@Composable
+private fun onlineOrderStatusColor(status: OrderStatus?): Color = when (status) {
+    null -> MaterialTheme.colorScheme.outline
+    OrderStatus.RECEIVED, OrderStatus.DRAFT -> Color(0xFFF57C00)
+    OrderStatus.ACCEPTED -> Color(0xFF1E88E5)
+    OrderStatus.PACKING -> Color(0xFF8E24AA)
+    OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED, OrderStatus.ON_THE_WAY -> Color(0xFF00897B)
+    OrderStatus.DELIVERED, OrderStatus.COMPLETED -> Color(0xFF43A047)
+    OrderStatus.REJECTED, OrderStatus.CANCELLED -> MaterialTheme.colorScheme.error
 }
 
 @Composable

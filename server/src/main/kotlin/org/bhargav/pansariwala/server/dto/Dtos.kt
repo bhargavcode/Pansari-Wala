@@ -526,6 +526,40 @@ data class OrderItemDto(
 )
 
 @Serializable
+data class ShopPartnerDto(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val vehicleReg: String = "",
+    /** True when the rider has a partner-app account and will get assigned orders as jobs. */
+    val onPartnerApp: Boolean = false,
+)
+
+@Serializable
+data class ShopPartnerRequest(
+    val name: String,
+    val phone: String,
+    val vehicleReg: String = "",
+)
+
+@Serializable
+data class AssignShopPartnerRequest(
+    val shopPartnerId: String,
+    val packedProductIds: List<String>? = null,
+)
+
+@Serializable
+data class OrderPageDto(
+    val items: List<OrderDto>,
+    val page: Int,
+    val pageSize: Int,
+    val totalCount: Int,
+    val hasMore: Boolean,
+    /** Orders still waiting for the shop to accept (RECEIVED), independent of the page filter. */
+    val newCount: Int = 0,
+)
+
+@Serializable
 data class OrderDto(
     val id: String,
     val shopId: String,

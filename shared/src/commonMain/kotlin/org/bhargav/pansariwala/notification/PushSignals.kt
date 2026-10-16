@@ -25,6 +25,15 @@ object OrderUpdates {
     }
 }
 
+/** Defers the notification permission prompt until the signed-in home screen is shown. */
+object NotificationPromptGate {
+    val homeReached = MutableStateFlow(false)
+
+    fun onHomeShown() {
+        homeReached.value = true
+    }
+}
+
 /** Platform push id sent to the server, or null where push is not supported (web). */
 expect val pushPlatform: String?
 

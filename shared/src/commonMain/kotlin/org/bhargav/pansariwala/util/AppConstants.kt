@@ -14,7 +14,10 @@ object AppConstants {
     const val CATALOG_PREVIEW_PER_CATEGORY: Int = 5
     /** Page size for the category product list (server caps at 50). */
     const val CATALOG_PAGE_SIZE: Int = 10
-    const val LIST_PAGE_SIZE: Int = 30
+    const val LIST_PAGE_SIZE: Int = 20
+    /** Server-side page size for order lists (server caps at 20). */
+    const val ORDER_PAGE_SIZE: Int = 20
+    const val ORDER_SEARCH_DEBOUNCE_MS: Long = 350L
     const val LIST_PREFETCH_DISTANCE: Int = 5
     /** Start loading the next page when this many items remain below the viewport. */
     const val CATALOG_PREFETCH_DISTANCE: Int = 3
@@ -71,6 +74,8 @@ object AppConstants {
     /** Backoff after a delivery WebSocket disconnect before reconnect. */
     const val PARTNER_OFFER_SOCKET_RETRY_MS: Long = 3_000L
     const val LOCATION_FETCH_TIMEOUT_MS: Long = 15_000L
+    /** Cached OS fixes older than this are ignored (a stale fix from another city hides nearby shops). */
+    const val LOCATION_MAX_AGE_MS: Long = 10 * 60_000L
     /** Partner GPS push to server (foreground + background). */
     const val PARTNER_LOCATION_UPDATE_MS: Long = 2 * 60_000L
     const val PARTNER_RING_RADIUS_KM: Double = 8.0

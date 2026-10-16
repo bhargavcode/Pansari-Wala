@@ -5,6 +5,7 @@ import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.MoneyTxn
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.PartnerDashboard
 import org.bhargav.pansariwala.domain.model.PartnerEarnings
 import org.bhargav.pansariwala.domain.model.PartnerProfile
@@ -58,11 +59,14 @@ interface PansariApi {
     suspend fun verifyPayment(request: VerifyPaymentRequest): Boolean
     suspend fun placeOrder(request: PlaceOrderRequest): Order
     suspend fun myOrders(): List<Order>
+    suspend fun myOrdersPage(page: Int, pageSize: Int): OrderPage
     suspend fun order(orderId: String): Order
     suspend fun myTransactions(): List<MoneyTxn>
     suspend fun rateOrder(orderId: String, stars: Int, comment: String?): Order
 
     suspend fun shopOnlineOrders(): List<Order>
+    /** [statuses] empty → every status. */
+    suspend fun shopOnlineOrdersPage(statuses: List<OrderStatus>, query: String, page: Int, pageSize: Int): OrderPage
     suspend fun shopPaymentInfo(): ShopPaymentInfoDto
     suspend fun registerPushToken(token: String, platform: String, deviceId: String)
     suspend fun unregisterPushToken(token: String)
@@ -72,6 +76,10 @@ interface PansariApi {
     suspend fun requestDelivery(orderId: String, packedProductIds: List<String>): DeliveryOffer
     suspend fun startSelfDelivery(orderId: String, packedProductIds: List<String>): Order
     suspend fun completeSelfDelivery(orderId: String, otp: String): Order
+    suspend fun shopPartners(): List<ShopPartnerDto>
+    suspend fun addShopPartner(request: ShopPartnerRequest): ShopPartnerDto
+    suspend fun removeShopPartner(id: String)
+    suspend fun assignShopPartner(orderId: String, shopPartnerId: String, packedProductIds: List<String>): Order
     suspend fun cancelShopOrder(orderId: String, reason: String?): Order
 
     suspend fun shopProfile(): ShopProfileDto

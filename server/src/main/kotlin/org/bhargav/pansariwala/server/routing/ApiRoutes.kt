@@ -55,6 +55,8 @@ import org.bhargav.pansariwala.server.dto.RateOrderRequest
 import org.bhargav.pansariwala.server.dto.RatingReplyRequest
 import org.bhargav.pansariwala.server.dto.ShopOfferDto
 import org.bhargav.pansariwala.server.dto.ShopStaffUpsert
+import org.bhargav.pansariwala.server.dto.ShopPartnerRequest
+import org.bhargav.pansariwala.server.dto.AssignShopPartnerRequest
 import org.bhargav.pansariwala.server.service.ShopPerm
 import org.bhargav.pansariwala.server.dto.SaveAddressRequest
 import org.bhargav.pansariwala.server.dto.ShopActionRequest
@@ -223,6 +225,11 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         get("/orders/mine") {
             call.respond(withContext(Dispatchers.IO) { store.customerOrders(call.userId()) })
         }
+        get("/orders/mine/page") {
+            val page = call.parameters["page"]?.toIntOrNull() ?: 0
+            val size = call.parameters["size"]?.toIntOrNull() ?: 20
+            call.respond(withContext(Dispatchers.IO) { store.customerOrdersPage(call.userId(), page, size) })
+        }
         get("/orders/{id}") { call.respond(store.getOrder(call.parameters["id"]!!)) }
         post("/orders/{id}/rating") {
             val body = call.receive<RateOrderRequest>()
@@ -234,6 +241,37 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         }
         get("/shop/orders") {
             call.respond(withContext(Dispatchers.IO) { store.shopOrders(call.requireShopId()) })
+        }
+        get("/shop/partners") {
+            call.respond(withContext(Dispatchers.IO) { store.shopPartners(call.requireShopId()) })
+        }
+        post("/shop/partners") {
+            val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
+            val body = call.receive<ShopPartnerRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.addShopPartner(shopId, body) })
+        }
+        delete("/shop/partners/{id}") {
+            val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
+            withContext(Dispatchers.IO) { store.removeShopPartner(shopId, call.parameters["id"]!!) }
+            call.respond(OkResponse())
+        }
+        post("/shop/orders/{id}/assign-partner") {
+            val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
+            val body = call.receive<AssignShopPartnerRequest>()
+            call.respond(
+                withContext(Dispatchers.IO) {
+                    store.assignShopPartner(shopId, call.parameters["id"]!!, body.shopPartnerId, body.packedProductIds)
+                },
+            )
+        }
+        get("/shop/orders/page") {
+            val shopId = call.requireShopId()
+            val statuses = call.parameters["status"].orEmpty()
+                .split(',').map { it.trim().uppercase() }.filter { it.isNotEmpty() }
+            val query = call.parameters["query"].orEmpty()
+            val page = call.parameters["page"]?.toIntOrNull() ?: 0
+            val size = call.parameters["size"]?.toIntOrNull() ?: 20
+            call.respond(withContext(Dispatchers.IO) { store.shopOrdersPage(shopId, statuses, query, page, size) })
         }
         post("/shop/orders/{id}/accept") {
             call.respond(store.acceptShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!))

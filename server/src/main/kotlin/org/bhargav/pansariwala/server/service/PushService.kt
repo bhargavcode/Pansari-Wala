@@ -46,6 +46,8 @@ private const val DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token"
 private const val ACCESS_TOKEN_TTL_S = 3_600L
 private const val ACCESS_TOKEN_REFRESH_MARGIN_MS = 120_000L
 private const val PUSH_TTL = "3600s"
+/** Customer JWTs carry role `CUSTOMER`; `USER` kept for tokens registered by older builds. */
+private val CUSTOMER_ROLES = listOf("CUSTOMER", "USER")
 
 /** Payload contract shared with the app (`AppConstants.Push` in shared). */
 private object PushContract {
@@ -164,7 +166,7 @@ class PushService(
         )
         if (!update.customerId.isNullOrBlank() && update.previousStatus != null) {
             send(
-                and(eq("role", "USER"), eq("principalId", update.customerId)),
+                and(`in`("role", CUSTOMER_ROLES), eq("principalId", update.customerId)),
                 PushMessage(update.orderId, data, customerAlert(update)),
             )
         }

@@ -35,6 +35,7 @@ import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.MoneyTxn
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.PartnerDashboard
 import org.bhargav.pansariwala.domain.model.PartnerEarnings
 import org.bhargav.pansariwala.domain.model.PartnerProfile
@@ -235,6 +236,12 @@ class KtorPansariApi(
     override suspend fun myOrders(): List<Order> =
         client.get("orders/mine").body<List<OrderDto>>().map { it.toModel() }
 
+    override suspend fun myOrdersPage(page: Int, pageSize: Int): OrderPage =
+        client.get("orders/mine/page") {
+            parameter("page", page)
+            parameter("size", pageSize)
+        }.body<OrderPageDto>().toModel()
+
     override suspend fun order(orderId: String): Order =
         client.get("orders/$orderId").body<OrderDto>().toModel()
 
@@ -247,6 +254,19 @@ class KtorPansariApi(
 
     override suspend fun shopOnlineOrders(): List<Order> =
         client.get("shop/orders").body<List<OrderDto>>().map { it.toModel() }
+
+    override suspend fun shopOnlineOrdersPage(
+        statuses: List<OrderStatus>,
+        query: String,
+        page: Int,
+        pageSize: Int,
+    ): OrderPage =
+        client.get("shop/orders/page") {
+            if (statuses.isNotEmpty()) parameter("status", statuses.joinToString(",") { it.name })
+            if (query.isNotBlank()) parameter("query", query.trim())
+            parameter("page", page)
+            parameter("size", pageSize)
+        }.body<OrderPageDto>().toModel()
 
     override suspend fun shopPaymentInfo(): ShopPaymentInfoDto =
         client.get("shop/payment-info").body()
@@ -284,6 +304,21 @@ class KtorPansariApi(
     override suspend fun completeSelfDelivery(orderId: String, otp: String): Order =
         client.post("shop/orders/$orderId/self-delivery/complete") {
             setBody(DeliverRequest(otp))
+        }.body<OrderDto>().toModel()
+
+    override suspend fun shopPartners(): List<ShopPartnerDto> =
+        client.get("shop/partners").body()
+
+    override suspend fun addShopPartner(request: ShopPartnerRequest): ShopPartnerDto =
+        client.post("shop/partners") { setBody(request) }.body()
+
+    override suspend fun removeShopPartner(id: String) {
+        client.delete("shop/partners/$id").body<OkResponse>()
+    }
+
+    override suspend fun assignShopPartner(orderId: String, shopPartnerId: String, packedProductIds: List<String>): Order =
+        client.post("shop/orders/$orderId/assign-partner") {
+            setBody(AssignShopPartnerRequest(shopPartnerId, packedProductIds.takeIf { it.isNotEmpty() }))
         }.body<OrderDto>().toModel()
 
     override suspend fun cancelShopOrder(orderId: String, reason: String?): Order =

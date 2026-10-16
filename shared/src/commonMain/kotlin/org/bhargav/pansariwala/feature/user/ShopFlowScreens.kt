@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import org.bhargav.pansariwala.util.AppConstants
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -751,7 +752,19 @@ fun OrdersListScreen(
     viewModel: AccountViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val orders = (state as? AsyncUiState.Success)?.data?.orders.orEmpty()
+    val data = (state as? AsyncUiState.Success)?.data
+    val orders = data?.orders.orEmpty()
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val nearEnd by remember {
+        androidx.compose.runtime.derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - 1 - AppConstants.LIST_PREFETCH_DISTANCE
+        }
+    }
+    LaunchedEffect(nearEnd, data?.ordersHasMore, orders.size) {
+        if (nearEnd && data?.ordersHasMore == true) viewModel.loadMoreOrders()
+    }
     PansariScreen(
         title = stringResource(Res.string.account_all_orders),
         onBack = onBack,
@@ -762,10 +775,22 @@ fun OrdersListScreen(
         isLoading = state.isBlockingLoad(),
         isRefreshing = state.isRefreshing(),
     ) {
-        Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-            orders.forEach { order ->
+        androidx.compose.foundation.lazy.LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        ) {
+            items(orders.size, key = { orders[it].id }) { index ->
+                val order = orders[index]
                 OrderAccountTile(order = order, onClick = { onOpen(order.id) })
                 HorizontalDivider()
+            }
+            if (data?.loadingMoreOrders == true) {
+                item(key = "loadingMore") {
+                    Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    }
+                }
             }
         }
     }

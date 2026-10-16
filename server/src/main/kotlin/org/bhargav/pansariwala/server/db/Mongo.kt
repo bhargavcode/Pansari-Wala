@@ -254,6 +254,18 @@ data class OfferDoc(
     val createdAt: Long = 0L,
 )
 
+/** A delivery rider on a shop's own roster; [partnerId] set when the phone matches a partner-app account. */
+@Serializable
+data class ShopPartnerDoc(
+    @SerialName("_id") val id: String,
+    val shopId: String,
+    val name: String,
+    val phone: String,
+    val vehicleReg: String = "",
+    val partnerId: String? = null,
+    val createdAt: Long = 0L,
+)
+
 @Serializable
 data class OrderDoc(
     @SerialName("_id") val id: String,
@@ -288,8 +300,12 @@ data class OrderDoc(
     val partnerPayoutInr: Double? = null,
     val partnerProgress: String = "",
     val packedProductIds: List<String> = emptyList(),
-    /** PARTNER (platform delivery partner) or SELF (shop delivers itself). */
+    /** PARTNER (platform delivery partner), SHOP_PARTNER (shop's own rider) or SELF (shop delivers itself). */
     val deliveryMode: String = "PARTNER",
+    /** Shop's own rider who is not on the partner app (shop completes with the delivery OTP). */
+    val ownPartnerName: String? = null,
+    val ownPartnerPhone: String? = null,
+    val ownPartnerVehicle: String? = null,
     /** POS bill discount in INR. */
     val discount: Double = 0.0,
     /** Server write time for POS bills; cursor for device pull sync. */

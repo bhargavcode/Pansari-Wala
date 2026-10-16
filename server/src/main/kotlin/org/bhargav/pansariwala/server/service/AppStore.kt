@@ -41,6 +41,9 @@ import org.bhargav.pansariwala.server.db.ShopFeaturesDoc
 import org.bhargav.pansariwala.server.db.ShopHoursDayDoc
 import org.bhargav.pansariwala.server.db.ShopTypeDoc
 import org.bhargav.pansariwala.server.db.ShopUserDoc
+import org.bhargav.pansariwala.server.db.ShopPartnerDoc
+import org.bhargav.pansariwala.server.dto.ShopPartnerDto
+import org.bhargav.pansariwala.server.dto.ShopPartnerRequest
 import org.bhargav.pansariwala.server.db.ShopVisitDoc
 import org.bhargav.pansariwala.server.db.TxnDoc
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
@@ -70,6 +73,7 @@ import org.bhargav.pansariwala.server.dto.ProductVariantDto
 import org.bhargav.pansariwala.server.dto.MasterProductPageDto
 import org.bhargav.pansariwala.server.dto.OfferDto
 import org.bhargav.pansariwala.server.dto.OrderDto
+import org.bhargav.pansariwala.server.dto.OrderPageDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
 import org.bhargav.pansariwala.server.dto.OtpSessionResponse
 import org.bhargav.pansariwala.server.dto.PartnerDailyEarningDto
@@ -122,6 +126,7 @@ import com.mongodb.client.model.Aggregates
 private const val QUERY_MAX_MS = 8_000L
 private const val POS_SYNC_PAGE_MAX = 500
 private const val MAX_CATALOG_PAGE_SIZE = 50
+private const val MAX_ORDER_PAGE_SIZE = 20
 private const val MAX_MASTER_PAGE_SIZE = 100
 private const val VARIANT_PACK = "PACK"
 private const val VARIANT_LOOSE = "LOOSE"
@@ -160,6 +165,7 @@ class AppStore(
     private val acceptLocks = ConcurrentHashMap<String, Any>()
     private val shopCol = mongo.db.getCollection<ShopDoc>("shops")
     private val shopUserCol = mongo.db.getCollection<ShopUserDoc>("shop_users")
+    private val shopPartnerCol = mongo.db.getCollection<ShopPartnerDoc>("shop_partners")
     private val customerCol = mongo.db.getCollection<CustomerDoc>("customers")
     private val partnerCol = mongo.db.getCollection<PartnerDoc>("partners")
     private val categoryCol = mongo.db.getCollection<CategoryDoc>("master_categories")
@@ -841,6 +847,65 @@ class AppStore(
                 .toList(),
         )
 
+    /**
+     * Paged online orders for the POS. [statuses] empty → all; [query] matches order id, customer
+     * name or phone (case-insensitive).
+     */
+    fun shopOrdersPage(
+        shopId: String,
+        statuses: List<String>,
+        query: String,
+        page: Int,
+        pageSize: Int,
+    ): OrderPageDto {
+        val size = pageSize.coerceIn(1, MAX_ORDER_PAGE_SIZE)
+        val safePage = page.coerceAtLeast(0)
+        val base = and(eq("shopId", shopId), eq("channel", "ONLINE"))
+        val parts = mutableListOf(base)
+        if (statuses.isNotEmpty()) parts += `in`("status", statuses)
+        val q = query.trim()
+        if (q.isNotEmpty()) {
+            val rx = java.util.regex.Pattern.quote(q)
+            parts += com.mongodb.client.model.Filters.or(
+                com.mongodb.client.model.Filters.regex("_id", rx, "i"),
+                com.mongodb.client.model.Filters.regex("customerName", rx, "i"),
+                com.mongodb.client.model.Filters.regex("customerPhone", rx, "i"),
+            )
+        }
+        val filter = and(parts)
+        val total = orderCol.countDocuments(filter).toInt()
+        val rows = orderCol.find(filter)
+            .sort(Sorts.descending("createdAt"))
+            .skip(safePage * size)
+            .limit(size)
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
+        val newCount = orderCol.countDocuments(and(base, eq("status", "RECEIVED"))).toInt()
+        return OrderPageDto(
+            items = mapOrders(rows),
+            page = safePage,
+            pageSize = size,
+            totalCount = total,
+            hasMore = (safePage + 1) * size < total,
+            newCount = newCount,
+        )
+    }
+
+    /** Paged customer order history, newest first. */
+    fun customerOrdersPage(userId: String, page: Int, pageSize: Int): OrderPageDto {
+        val size = pageSize.coerceIn(1, MAX_ORDER_PAGE_SIZE)
+        val safePage = page.coerceAtLeast(0)
+        val filter = eq("customerId", userId)
+        val total = orderCol.countDocuments(filter).toInt()
+        val rows = orderCol.find(filter)
+            .sort(Sorts.descending("createdAt"))
+            .skip(safePage * size)
+            .limit(size)
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
+        return OrderPageDto(mapOrders(rows), safePage, size, total, (safePage + 1) * size < total)
+    }
+
     suspend fun acceptShopOrder(shopId: String, orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.shopId == shopId) { "Forbidden" }
@@ -1004,6 +1069,84 @@ class AppStore(
         publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
+
+    fun shopPartners(shopId: String): List<ShopPartnerDto> =
+        shopPartnerCol.find(eq("shopId", shopId)).sort(Sorts.ascending("name")).toList().map { it.toDto() }
+
+    /** Adds a rider to the shop's roster; links to a partner-app account when the phone matches one. */
+    fun addShopPartner(shopId: String, request: ShopPartnerRequest): ShopPartnerDto {
+        val name = request.name.trim()
+        val phone = Security.normalizePhone(request.phone)
+        require(name.length >= 2) { "Full name is required" }
+        require(phone.length == 10) { "Enter a valid 10-digit mobile number" }
+        require(shopPartnerCol.find(and(eq("shopId", shopId), eq("phone", phone))).firstOrNull() == null) {
+            "This delivery partner is already added"
+        }
+        val appPartner = partnerCol.find(eq("phone", phone)).projection(partnerLiteProjection).firstOrNull()
+        val doc = ShopPartnerDoc(
+            id = security.randomId("spt"),
+            shopId = shopId,
+            name = name,
+            phone = phone,
+            vehicleReg = Security.normalizeReg(request.vehicleReg),
+            partnerId = appPartner?.id,
+            createdAt = System.currentTimeMillis(),
+        )
+        shopPartnerCol.insertOne(doc)
+        return doc.toDto()
+    }
+
+    fun removeShopPartner(shopId: String, id: String) {
+        shopPartnerCol.deleteOne(and(eq("_id", id), eq("shopId", shopId)))
+    }
+
+    /**
+     * Hands an order to one of the shop's own riders. Riders on the partner app get it as an active
+     * job (PARTNER_ACCEPTED); others are tracked as shop delivery completed with the customer's OTP.
+     */
+    fun assignShopPartner(shopId: String, orderId: String, shopPartnerId: String, packedProductIds: List<String>?): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        require(row.partnerId == null) { "A delivery partner already accepted this order" }
+        require(row.status in setOf("ACCEPTED", "PACKING", "LOOKING_FOR_PARTNER")) { "Accept and pack the order first" }
+        val rider = shopPartnerCol.find(and(eq("_id", shopPartnerId), eq("shopId", shopId))).firstOrNull()
+            ?: error("Delivery partner not found")
+        // Re-resolve: the rider may have joined the partner app after being added.
+        val appPartnerId = rider.partnerId
+            ?: partnerCol.find(eq("phone", rider.phone)).projection(partnerLiteProjection).firstOrNull()?.id
+                ?.also { shopPartnerCol.updateOne(eq("_id", rider.id), set("partnerId", it)) }
+        val packed = packedProductIds?.let { ids ->
+            val orderItemIds = row.items.map { it.productId }.toSet()
+            ids.filter { it in orderItemIds }.distinct().also { require(it.isNotEmpty()) { "Pack at least one item" } }
+        }
+        deliveryOfferCol.updateMany(
+            and(eq("orderId", orderId), eq("status", "RINGING")),
+            set("status", "CANCELLED"),
+        )
+        val updates = buildList {
+            if (appPartnerId != null) {
+                add(set("status", "PARTNER_ACCEPTED"))
+                add(set("partnerId", appPartnerId))
+                add(set("deliveryMode", "SHOP_PARTNER"))
+                add(set("partnerProgress", "TO_STORE"))
+                add(set("partnerPayoutInr", 0.0))
+            } else {
+                add(set("status", "ON_THE_WAY"))
+                add(set("deliveryMode", "SELF"))
+                add(set("partnerProgress", "SELF_DELIVERY"))
+            }
+            add(set("ownPartnerName", rider.name))
+            add(set("ownPartnerPhone", rider.phone))
+            add(set("ownPartnerVehicle", rider.vehicleReg))
+            if (packed != null) add(set("packedProductIds", packed))
+            if (row.deliveryOtp.isNullOrBlank()) add(set("deliveryOtp", security.deliveryOtp()))
+        }
+        orderCol.updateOne(eq("_id", orderId), combine(updates))
+        publishOrderUpdate(orderId, row.status)
+        return getOrder(orderId)
+    }
+
+    private fun ShopPartnerDoc.toDto() = ShopPartnerDto(id, name, phone, vehicleReg, onPartnerApp = partnerId != null)
 
     /** Completes a self-delivered order with the customer's 4-digit delivery OTP. */
     fun completeSelfDelivery(shopId: String, orderId: String, otp: String): OrderDto {
@@ -2633,9 +2776,9 @@ class AppStore(
             deliveryOtp = deliveryOtp,
             pickupPhotoUrls = assets.toUrls(pickupPhotos),
             partnerId = partnerId,
-            partnerName = partnerRow?.name,
-            partnerPhone = partnerRow?.phone,
-            partnerVehicleReg = partnerRow?.vehicleReg,
+            partnerName = partnerRow?.name ?: ownPartnerName,
+            partnerPhone = partnerRow?.phone ?: ownPartnerPhone,
+            partnerVehicleReg = partnerRow?.vehicleReg ?: ownPartnerVehicle,
             paymentId = paymentId,
             paymentMethod = paymentMethod,
             customerPhone = customerPhone,

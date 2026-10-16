@@ -149,6 +149,48 @@ data class ProductPageDto(
 )
 
 @Serializable
+data class ShopPartnerDto(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val vehicleReg: String = "",
+    val onPartnerApp: Boolean = false,
+)
+
+@Serializable
+data class ShopPartnerRequest(
+    val name: String,
+    val phone: String,
+    val vehicleReg: String = "",
+)
+
+@Serializable
+data class AssignShopPartnerRequest(
+    val shopPartnerId: String,
+    val packedProductIds: List<String>? = null,
+)
+
+@Serializable
+data class OrderPageDto(
+    val items: List<OrderDto> = emptyList(),
+    val page: Int = 0,
+    val pageSize: Int = 0,
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
+    val newCount: Int = 0,
+)
+
+data class OrderPage(
+    val items: List<Order>,
+    val page: Int,
+    val totalCount: Int,
+    val hasMore: Boolean,
+    val newCount: Int,
+)
+
+fun OrderPageDto.toModel() = OrderPage(items.map { it.toModel() }, page, totalCount, hasMore, newCount)
+
+@Serializable
 data class ProductVariantDto(
     val name: String,
     val sku: String = "",

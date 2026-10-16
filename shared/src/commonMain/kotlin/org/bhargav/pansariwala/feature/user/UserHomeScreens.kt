@@ -18,6 +18,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.foundation.shape.RoundedCornerShape
+import org.bhargav.pansariwala.designsystem.OnboardingFormCard
+import org.bhargav.pansariwala.designsystem.OnboardingHero
+import org.bhargav.pansariwala.designsystem.OnboardingHighlight
+import pansariwala.shared.generated.resources.onboarding_otp_heading
+import pansariwala.shared.generated.resources.onboarding_phone_heading
+import pansariwala.shared.generated.resources.onboarding_phone_subheading
+import pansariwala.shared.generated.resources.user_brand_title
+import pansariwala.shared.generated.resources.user_onboarding_highlight_fast
+import pansariwala.shared.generated.resources.user_onboarding_highlight_nearby
+import pansariwala.shared.generated.resources.user_onboarding_highlight_offers
+import pansariwala.shared.generated.resources.user_onboarding_tagline
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -134,19 +147,43 @@ fun PhoneAuthScreen(
         isLoading = state.loading,
     ) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(32.dp))
-        UserBrandHeader()
-        Spacer(Modifier.height(24.dp))
+        OnboardingHero(
+            title = stringResource(Res.string.user_brand_title),
+            tagline = stringResource(Res.string.user_onboarding_tagline),
+            heroEmoji = "🛒",
+            floatingEmojis = listOf("🍅", "🥛", "🍞", "🥕", "🍎", "🧅"),
+            highlights = listOf(
+                OnboardingHighlight("🏪", stringResource(Res.string.user_onboarding_highlight_nearby)),
+                OnboardingHighlight("🛵", stringResource(Res.string.user_onboarding_highlight_fast)),
+                OnboardingHighlight("🏷️", stringResource(Res.string.user_onboarding_highlight_offers)),
+            ),
+            startColor = MaterialTheme.colorScheme.primary,
+            endColor = MaterialTheme.colorScheme.tertiary,
+        )
+        OnboardingFormCard {
+        Text(
+            stringResource(if (state.step == 0) Res.string.onboarding_phone_heading else Res.string.onboarding_otp_heading),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        if (state.step == 0) {
+            Text(
+                stringResource(Res.string.onboarding_phone_subheading),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         OutlinedTextField(
             value = state.phone,
             onValueChange = viewModel::setPhone,
             label = { Text(stringResource(Res.string.field_phone)) },
+            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            shape = RoundedCornerShape(14.dp),
         )
         if (state.step == 0) {
             UserPrimaryButton(
@@ -176,6 +213,7 @@ fun PhoneAuthScreen(
             }
         }
         }
+    }
     }
 }
 
@@ -282,6 +320,10 @@ fun MarketScreen(
 
     LaunchedEffect(Unit) {
         viewModel.onHomeVisible()
+    }
+    val locationSettled = !state.loading && !state.requestLocationPermission && !state.showLocationDeniedDialog
+    LaunchedEffect(locationSettled) {
+        if (locationSettled) org.bhargav.pansariwala.notification.NotificationPromptGate.onHomeShown()
     }
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -498,7 +540,7 @@ fun AccountHomeScreen(
             UserMenuRow(
                 title = stringResource(Res.string.account_all_orders),
                 onClick = onAllOrders,
-                trailing = (data?.orders?.size ?: 0).toString(),
+                trailing = (data?.ordersTotal ?: 0).toString(),
             )
             HorizontalDivider()
             UserMenuRow(

@@ -25,6 +25,10 @@ data class AccountData(
     val orders: List<Order> = emptyList(),
     val txns: List<MoneyTxn> = emptyList(),
     val profile: CustomerProfile? = null,
+    val ordersPage: Int = 0,
+    val ordersHasMore: Boolean = false,
+    val ordersTotal: Int = 0,
+    val loadingMoreOrders: Boolean = false,
 ) {
     val recent: List<Order> get() = orders.take(AppConstants.RECENT_ORDERS_CARD_LIMIT)
 }
@@ -75,13 +79,17 @@ class AccountViewModel(
             _state.value = _state.value.beginLoad()
             runCatching {
                 coroutineScope {
-                    val orders = async { api.myOrders() }
+                    val orders = async { api.myOrdersPage(0, AppConstants.ORDER_PAGE_SIZE) }
                     val txns = async { api.myTransactions() }
                     val profile = async { api.me() }
+                    val page = orders.await()
                     AccountData(
-                        orders = orders.await(),
+                        orders = page.items,
                         txns = txns.await(),
                         profile = profile.await(),
+                        ordersPage = 0,
+                        ordersHasMore = page.hasMore,
+                        ordersTotal = page.totalCount,
                     )
                 }
             }.onSuccess { data ->
@@ -95,6 +103,38 @@ class AccountViewModel(
                     else -> AsyncUiState.Error(message)
                 }
             }
+        }
+    }
+
+    fun loadMoreOrders() {
+        val current = _state.value as? AsyncUiState.Success ?: return
+        val data = current.data
+        if (!data.ordersHasMore || data.loadingMoreOrders) return
+        _state.value = current.copy(data = data.copy(loadingMoreOrders = true))
+        viewModelScope.launch {
+            val nextPage = data.ordersPage + 1
+            runCatching { api.myOrdersPage(nextPage, AppConstants.ORDER_PAGE_SIZE) }
+                .onSuccess { page ->
+                    val latest = _state.value as? AsyncUiState.Success ?: return@onSuccess
+                    val seen = latest.data.orders.mapTo(HashSet()) { it.id }
+                    _state.value = latest.copy(
+                        data = latest.data.copy(
+                            orders = latest.data.orders + page.items.filterNot { it.id in seen },
+                            ordersPage = nextPage,
+                            ordersHasMore = page.hasMore,
+                            ordersTotal = page.totalCount,
+                            loadingMoreOrders = false,
+                        ),
+                    )
+                }
+                .onFailure { error ->
+                    error.rethrowIfStructuredCancellation()
+                    val latest = _state.value as? AsyncUiState.Success ?: return@onFailure
+                    _state.value = latest.copy(
+                        bannerError = error.toApiUiText(),
+                        data = latest.data.copy(loadingMoreOrders = false),
+                    )
+                }
         }
     }
 }

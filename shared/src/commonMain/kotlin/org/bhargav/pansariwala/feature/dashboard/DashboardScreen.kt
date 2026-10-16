@@ -337,8 +337,10 @@ private fun OrdersCard(
             }
         }
         if (access.can(ShopPermission.ONLINE_ORDERS)) {
+            val newOnline = org.bhargav.pansariwala.feature.order.rememberNewOnlineOrderCount()
             OutlinedButton(onClick = onOpenOnlineOrders, modifier = buttonModifier) {
                 Text(stringResource(Res.string.online_orders_title))
+                org.bhargav.pansariwala.feature.order.NewOrdersBadge(newOnline)
             }
         }
         if (access.can(ShopPermission.VIEW_REPORTS)) {

@@ -55,10 +55,10 @@ class AndroidDeviceLocation(
         if (!context.isLocationEnabled()) {
             throw LocationUnavailableException()
         }
-        lastKnown()?.let { return it }
+        lastKnown(AppConstants.LOCATION_MAX_AGE_MS)?.let { return it }
         val fused = LocationServices.getFusedLocationProviderClient(context)
         val fusedLast = awaitLastLocation(fused)
-        if (fusedLast != null && fusedLast.isUsable()) {
+        if (fusedLast != null && fusedLast.isUsable() && fusedLast.isFresh()) {
             return GeoPoint(fusedLast.latitude, fusedLast.longitude)
         }
         return withTimeout(AppConstants.LOCATION_FETCH_TIMEOUT_MS) {
@@ -75,18 +75,21 @@ class AndroidDeviceLocation(
         }
     }
 
-    private fun lastKnown(): GeoPoint? {
+    private fun lastKnown(maxAgeMs: Long? = null): GeoPoint? {
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val cached = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
             .mapNotNull { provider ->
                 runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
             }
-            .filter { it.isUsable() }
+            .filter { it.isUsable() && (maxAgeMs == null || it.isFresh(maxAgeMs)) }
             .maxByOrNull { it.time }
         return cached?.let { GeoPoint(it.latitude, it.longitude) }
     }
 
     private fun Location.isUsable(): Boolean = !(latitude == 0.0 && longitude == 0.0)
+
+    private fun Location.isFresh(maxAgeMs: Long = AppConstants.LOCATION_MAX_AGE_MS): Boolean =
+        System.currentTimeMillis() - time <= maxAgeMs
 
     private suspend fun awaitCurrentLocation(
         fused: com.google.android.gms.location.FusedLocationProviderClient,
