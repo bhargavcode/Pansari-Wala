@@ -116,6 +116,20 @@ class PrinterCoreTest {
     }
 
     @Test
+    fun gammaLightensMidGreyForThermalDotGain() {
+        val grey = ArgbImage(16, 16, IntArray(256) { 0xFF808080.toInt() })
+        fun blackDots(mode: DitherMode, gamma: Int): Int {
+            val mono = ImageProcessor.toMonochrome(grey, 16, mode = mode, gammaPercent = gamma)
+            return (0 until 16).sumOf { y -> (0 until 16).count { x -> mono.isBlack(x, y) } }
+        }
+        for (mode in listOf(DitherMode.FLOYD_STEINBERG, DitherMode.ORDERED)) {
+            val neutral = blackDots(mode, 100)
+            assertTrue(neutral in 1 until 256, "$mode should dither mid-grey, not fill it")
+            assertTrue(blackDots(mode, 180) < neutral, "$mode gamma should lighten mid-grey")
+        }
+    }
+
+    @Test
     fun settingsRoundTripThroughCodec() {
         val settings = PrinterSettings(
             lastDevice = networkPrinterDevice("192.168.1.50"),

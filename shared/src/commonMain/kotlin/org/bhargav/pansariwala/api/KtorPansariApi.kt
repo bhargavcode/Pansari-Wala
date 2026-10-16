@@ -252,8 +252,11 @@ class KtorPansariApi(
         client.post("orders/$orderId/rating") { setBody(RateOrderRequest(stars, comment)) }
             .body<OrderDto>().toModel()
 
-    override suspend fun shopOnlineOrders(): List<Order> =
-        client.get("shop/orders").body<List<OrderDto>>().map { it.toModel() }
+    override suspend fun shopOnlineOrders(fromMs: Long?, toMs: Long?): List<Order> =
+        client.get("shop/orders") {
+            fromMs?.let { parameter("from", it) }
+            toMs?.let { parameter("to", it) }
+        }.body<List<OrderDto>>().map { it.toModel() }
 
     override suspend fun shopOnlineOrdersPage(
         statuses: List<OrderStatus>,

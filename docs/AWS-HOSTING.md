@@ -11,7 +11,7 @@ Production layout on a **single EC2** instance:
 Internet
    │
    ▼
-DNS (Hostinger parking NS) → A records → Elastic IP 52.1.25.27
+DNS (Hostinger parking NS) → A records → Elastic IP 16.4.81.103
    │
    ▼
 EC2 + nginx (443)
@@ -30,11 +30,11 @@ In the Hostinger (or registrar) DNS panel, create:
 
 | Record | Type | Value |
 |---|---|---|
-| `@` / `pansariwala.shop` | A | `52.1.25.27` |
-| `www` | A | `52.1.25.27` |
-| `api` | A | `52.1.25.27` |
+| `@` / `pansariwala.shop` | A | `16.4.81.103` |
+| `www` | A | `16.4.81.103` |
+| `api` | A | `16.4.81.103` |
 
-Elastic IP **`52.1.25.27`** must stay attached to the EC2 instance.
+Elastic IP **`16.4.81.103`** must stay attached to the EC2 instance.
 
 ## EC2 security group
 
@@ -175,7 +175,7 @@ Public read is via **bucket policy** (not object ACLs).
 
 | Secret | Example |
 |---|---|
-| `EC2_HOST` | `52.1.25.27` |
+| `EC2_HOST` | `16.4.81.103` |
 | `EC2_USER` | `ec2-user` |
 | `EC2_SSH_KEY` | PEM private key |
 | `EC2_DEPLOY_PATH` | `/opt/pansari` |

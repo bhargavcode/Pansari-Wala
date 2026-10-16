@@ -36,7 +36,7 @@ enum class PrintFont {
 enum class PrintAlignment { LEFT, CENTER, RIGHT }
 
 @Serializable
-enum class DitherMode { THRESHOLD, FLOYD_STEINBERG, ATKINSON }
+enum class DitherMode { THRESHOLD, FLOYD_STEINBERG, ATKINSON, ORDERED }
 
 @Serializable
 data class PrintHeaderFooter(
@@ -65,6 +65,10 @@ data class PrintImageSettings(
     /** -100..100 brightness offset applied before dithering. */
     val brightness: Int = 0,
     val invert: Boolean = false,
+    /** -100..100 contrast applied after brightness. */
+    val contrast: Int = 0,
+    /** 50..300 (100 = neutral). Above 100 lightens mid-tones so greys don't print as solid black. */
+    val gammaPercent: Int = 180,
 )
 
 @Serializable

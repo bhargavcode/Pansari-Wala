@@ -51,6 +51,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -68,6 +70,7 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.bhargav.pansariwala.navigateToLanding
+import org.bhargav.pansariwala.platform.SyncBrowserHistory
 import org.bhargav.pansariwala.theme.PansariTheme
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.webSessionGet
@@ -267,13 +270,27 @@ private fun MasterLoginScreen(sessionExpired: Boolean, onLoggedIn: (String, Bool
 private fun MasterShell(token: String, onLogout: () -> Unit) {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var dest by remember { mutableStateOf<MasterDest>(MasterDest.Dashboard) }
+    val backStack = remember { mutableStateListOf<MasterDest>(MasterDest.Dashboard) }
+    val dest = backStack.last()
     var drawerOpen by remember { mutableStateOf(false) }
 
+    /** Going to a destination already in the stack pops back to it, so list → detail → list never loops. */
     fun go(d: MasterDest) {
-        dest = d
+        val existing = backStack.indexOf(d)
+        if (existing >= 0) {
+            while (backStack.size > existing + 1) backStack.removeAt(backStack.lastIndex)
+        } else {
+            backStack.add(d)
+        }
         drawerOpen = false
     }
+
+    fun back() {
+        if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+        drawerOpen = false
+    }
+
+    SyncBrowserHistory(depth = backStack.size, onBrowserBack = ::back)
 
     fun report(msg: String) {
         if (msg.isBlank()) return
@@ -313,12 +330,14 @@ private fun MasterShell(token: String, onLogout: () -> Unit) {
                         }
                     }
                     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-                        MasterRouter(
-                            token = token,
-                            dest = dest,
-                            onNavigate = ::go,
-                            onStatus = ::report,
-                        )
+                        CompositionLocalProvider(LocalMasterBack provides ::back) {
+                            MasterRouter(
+                                token = token,
+                                dest = dest,
+                                onNavigate = ::go,
+                                onStatus = ::report,
+                            )
+                        }
                     }
                 }
             }

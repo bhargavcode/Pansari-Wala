@@ -111,7 +111,7 @@ object AppConstants {
     const val DEFAULT_API_BASE_URL: String = API_BASE_URL
     const val IOS_API_BASE_URL: String = API_BASE_URL
     /** Retired EC2 hosts; any base URL pointing here is replaced by [API_BASE_URL]. */
-    val LEGACY_API_HOSTS: List<String> = listOf("35.172.232.196")
+    val LEGACY_API_HOSTS: List<String> = listOf("35.172.232.196", "52.1.25.27")
     const val API_HEALTH_PATH: String = "health"
     const val BRAND_TAGLINE: String = "Apka apna market"
     const val PLAY_STORE_USER_URL: String =

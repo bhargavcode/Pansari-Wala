@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.master
 
+import androidx.compose.runtime.staticCompositionLocalOf
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.MILLIS_PER_DAY
@@ -21,6 +22,9 @@ sealed class MasterDest {
     data object Platform : MasterDest()
     data object Settings : MasterDest()
 }
+
+/** Pops the master console back stack (mirrors the browser back button). */
+val LocalMasterBack = staticCompositionLocalOf<() -> Unit> { {} }
 
 fun dateFilterRange(filter: String): Pair<Long?, Long?> {
     val start = AppClock.startOfTodayMillis()

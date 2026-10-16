@@ -30,7 +30,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
@@ -232,15 +234,12 @@ private fun ReportFilters(
     onPeriod: (ReportPeriod) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        PrimaryTabRow(selectedTabIndex = ReportChannel.entries.indexOf(channel)) {
             ReportChannel.entries.forEach { option ->
-                FilterChip(
+                Tab(
                     selected = option == channel,
                     onClick = { onChannel(option) },
-                    label = { Text(channelLabel(option)) },
+                    text = { Text(channelLabel(option)) },
                 )
             }
         }

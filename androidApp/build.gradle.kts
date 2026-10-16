@@ -69,7 +69,7 @@ android {
     }
     val defaultApiBaseUrl = "https://api.pansariwala.shop"
     // Retired EC2 IPs: a stale CI secret / IDE env must never ship (connect timeouts on every flavor).
-    val legacyApiHosts = listOf("35.172.232.196")
+    val legacyApiHosts = listOf("35.172.232.196", "52.1.25.27")
     val apiBaseUrl = listOf(
         System.getenv("API_BASE_URL"),
         project.findProperty("API_BASE_URL") as String?,

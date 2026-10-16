@@ -34,6 +34,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import org.bhargav.pansariwala.platform.SyncBrowserHistory
 import androidx.savedstate.serialization.SavedStateConfiguration
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
@@ -132,15 +133,19 @@ fun UserNavGraph() {
         }
     }
 
+    fun onBack() {
+        when (backStack.lastOrNull()) {
+            is UserRoute.OrderDetails -> popOr(UserRoute.Shell)
+            else -> pop()
+        }
+    }
+
+    SyncBrowserHistory(depth = backStack.size, onBrowserBack = ::onBack)
+
     Box(Modifier.fillMaxSize().safeDrawingPadding().animateContentSize()) {
         NavDisplay(
             backStack = backStack,
-            onBack = {
-                when (backStack.lastOrNull()) {
-                    is UserRoute.OrderDetails -> popOr(UserRoute.Shell)
-                    else -> pop()
-                }
-            },
+            onBack = ::onBack,
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator(),

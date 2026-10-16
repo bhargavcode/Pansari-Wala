@@ -86,6 +86,7 @@ import pansariwala.shared.generated.resources.action_complete_profile
 import pansariwala.shared.generated.resources.action_place_order
 import pansariwala.shared.generated.resources.action_retry
 import pansariwala.shared.generated.resources.checkout_confirm_address
+import pansariwala.shared.generated.resources.checkout_loading_addresses
 import pansariwala.shared.generated.resources.action_proceed_payment
 import pansariwala.shared.generated.resources.action_save_rating
 import pansariwala.shared.generated.resources.action_update_rating
@@ -447,18 +448,28 @@ fun CheckoutScreen(
         val quote = state.quote
         var addressMenuOpen by remember { mutableStateOf(false) }
         val selected = state.addresses.firstOrNull { it.id == state.selectedAddressId }
-        val selectedLabel = selected?.let { listOf(it.line, it.locality).filter { part -> part.isNotBlank() }.joinToString(", ") }
-            ?: stringResource(Res.string.checkout_confirm_address)
+        val selectedLabel = when {
+            selected != null -> listOf(selected.line, selected.locality).filter { it.isNotBlank() }.joinToString(", ")
+            state.loadingAddresses -> stringResource(Res.string.checkout_loading_addresses)
+            else -> stringResource(Res.string.checkout_confirm_address)
+        }
         ExposedDropdownMenuBox(
             expanded = addressMenuOpen,
-            onExpandedChange = { addressMenuOpen = it },
+            onExpandedChange = { if (!state.loadingAddresses) addressMenuOpen = it },
         ) {
             OutlinedTextField(
                 value = selectedLabel,
                 onValueChange = {},
                 readOnly = true,
+                enabled = !state.loadingAddresses,
                 label = { Text(stringResource(Res.string.checkout_confirm_address)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = addressMenuOpen) },
+                trailingIcon = {
+                    if (state.loadingAddresses) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = addressMenuOpen)
+                    }
+                },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
             )
             DropdownMenu(expanded = addressMenuOpen, onDismissRequest = { addressMenuOpen = false }) {
@@ -479,6 +490,9 @@ fun CheckoutScreen(
                     },
                 )
             }
+        }
+        if (state.loadingQuote && quote == null) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
         }
         if (quote != null) {
             SectionCard(

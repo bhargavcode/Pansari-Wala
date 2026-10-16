@@ -417,7 +417,7 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                     Button(onClick = { onNavigate(MasterDest.ShopEdit(shop.id)) }) {
                         Text(stringResource(Res.string.action_edit))
                     }
-                    OutlinedButton(onClick = { onNavigate(MasterDest.Shops) }) {
+                    OutlinedButton(onClick = LocalMasterBack.current) {
                         Text(stringResource(Res.string.action_back))
                     }
                 }
@@ -745,7 +745,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                             .onFailure { onStatus(it.message.orEmpty()) }
                     }
                 }) { Text(stringResource(Res.string.master_save_changes)) }
-                OutlinedButton(onClick = { onNavigate(MasterDest.Products) }) { Text(stringResource(Res.string.master_cancel)) }
+                OutlinedButton(onClick = LocalMasterBack.current) { Text(stringResource(Res.string.master_cancel)) }
             }
         }
     }
@@ -912,7 +912,7 @@ internal fun TxnDetailScreen(token: String, orderId: String, onNavigate: (Master
                         }
                     }) { Text(stringResource(Res.string.master_cancel_order)) }
                 }
-                OutlinedButton(onClick = { onNavigate(MasterDest.Transactions) }) { Text(stringResource(Res.string.action_back)) }
+                OutlinedButton(onClick = LocalMasterBack.current) { Text(stringResource(Res.string.action_back)) }
             }
         }
     }
@@ -1038,7 +1038,7 @@ internal fun UserDetailScreen(token: String, userId: String, onNavigate: (Master
                         }
                     },
                 )
-                OutlinedButton(onClick = { onNavigate(MasterDest.Users) }) { Text(stringResource(Res.string.action_back)) }
+                OutlinedButton(onClick = LocalMasterBack.current) { Text(stringResource(Res.string.action_back)) }
             }
         }
     }
@@ -1161,7 +1161,7 @@ internal fun PartnerDetailScreen(token: String, partnerId: String, onNavigate: (
                         }
                     },
                 )
-                OutlinedButton(onClick = { onNavigate(MasterDest.Partners) }) { Text(stringResource(Res.string.action_back)) }
+                OutlinedButton(onClick = LocalMasterBack.current) { Text(stringResource(Res.string.action_back)) }
             }
         }
     }

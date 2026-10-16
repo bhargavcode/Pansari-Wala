@@ -240,7 +240,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(withContext(Dispatchers.IO) { store.shopPaymentInfo(call.requireShopId()) })
         }
         get("/shop/orders") {
-            call.respond(withContext(Dispatchers.IO) { store.shopOrders(call.requireShopId()) })
+            val from = call.request.queryParameters["from"]?.toLongOrNull()
+            val to = call.request.queryParameters["to"]?.toLongOrNull()
+            call.respond(withContext(Dispatchers.IO) { store.shopOrders(call.requireShopId(), from, to) })
         }
         get("/shop/partners") {
             call.respond(withContext(Dispatchers.IO) { store.shopPartners(call.requireShopId()) })

@@ -83,8 +83,9 @@ class ReportsViewModel(
     private var customFrom: LocalDate? = null
     private var customTo: LocalDate? = null
 
-    /** Online orders are fetched once per screen session; period/channel changes reuse them. */
+    /** Online orders for the last fetched range; channel changes reuse them, period changes refetch. */
     private var onlineOrders: List<ReportOrder>? = null
+    private var onlineRange: Pair<Long, Long>? = null
     private var rangeOrders: List<ReportOrder> = emptyList()
     private var filtered: List<ReportOrder> = emptyList()
     private var loadJob: Job? = null
@@ -146,7 +147,7 @@ class ReportsViewModel(
             val range = ReportCalculator.range(_state.value.period, today, customFrom, customTo)
             val fromMs = range.fromMs(tz)
             val toMs = range.toMs(tz)
-            val onlineDeferred = async { fetchOnlineOrders() }
+            val onlineDeferred = async { fetchOnlineOrders(fromMs, toMs) }
             val offline = runCatching { repository.ordersBetween(shopId, fromMs, toMs) }
                 .getOrElse { err ->
                     err.rethrowIfStructuredCancellation()
@@ -175,9 +176,9 @@ class ReportsViewModel(
         }
     }
 
-    private suspend fun fetchOnlineOrders(): List<ReportOrder> {
-        onlineOrders?.let { return it }
-        return runCatching { api.shopOnlineOrders() }
+    private suspend fun fetchOnlineOrders(fromMs: Long, toMs: Long): List<ReportOrder> {
+        if (onlineRange == fromMs to toMs) onlineOrders?.let { return it }
+        return runCatching { api.shopOnlineOrders(fromMs, toMs) }
             .map { orders ->
                 orders.map {
                     ReportOrder(
@@ -192,7 +193,10 @@ class ReportsViewModel(
                     )
                 }
             }
-            .onSuccess { onlineOrders = it }
+            .onSuccess {
+                onlineOrders = it
+                onlineRange = fromMs to toMs
+            }
             .getOrElse { err ->
                 err.rethrowIfStructuredCancellation()
                 _state.update { it.copy(error = err.toApiUiText()) }

@@ -572,6 +572,7 @@
     <string name="field_address">Address</string>
     <string name="field_locality">Locality</string>
     <string name="checkout_confirm_address">Confirm delivery address</string>
+    <string name="checkout_loading_addresses">Loading your addresses…</string>
     <string name="action_add_address">Add address</string>
     <string name="home_continue_last_order">Proceed your last order</string>
     <string name="error_checkout_out_of_range">Hey you are out of range of shop range</string>
@@ -961,6 +962,9 @@
     <string name="printer_dither_threshold">Sharp</string>
     <string name="printer_dither_floyd">Photo</string>
     <string name="printer_dither_atkinson">Soft</string>
+    <string name="printer_dither_ordered">Pattern</string>
+    <string name="printer_contrast">Contrast</string>
+    <string name="printer_gray_tone">Grey tones (higher = lighter)</string>
     <string name="printer_threshold">Threshold</string>
     <string name="printer_brightness">Brightness</string>
     <string name="printer_invert">Invert colours</string>

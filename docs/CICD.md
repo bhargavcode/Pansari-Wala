@@ -35,7 +35,7 @@ server_enabled = true
 
 | Setting | Value |
 |---|---|
-| EC2 host | `52.1.25.27` (Elastic IP) |
+| EC2 host | `16.4.81.103` (Elastic IP) |
 | EC2 user | `ec2-user` |
 | Deploy path | `/opt/pansari` |
 | Service | `pansari-server` |
@@ -92,7 +92,7 @@ Direct path pattern: **Actions → CI/CD run → Artifacts → Download zip**
 
 | Secret | Value |
 |---|---|
-| `EC2_HOST` | `52.1.25.27` |
+| `EC2_HOST` | `16.4.81.103` |
 | `EC2_USER` | `ec2-user` |
 | `EC2_SSH_KEY` | Full private key PEM contents |
 | `EC2_DEPLOY_PATH` | `/opt/pansari` |

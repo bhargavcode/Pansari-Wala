@@ -112,6 +112,9 @@ import pansariwala.shared.generated.resources.printer_density
 import pansariwala.shared.generated.resources.printer_dither
 import pansariwala.shared.generated.resources.printer_dither_atkinson
 import pansariwala.shared.generated.resources.printer_dither_floyd
+import pansariwala.shared.generated.resources.printer_dither_ordered
+import pansariwala.shared.generated.resources.printer_contrast
+import pansariwala.shared.generated.resources.printer_gray_tone
 import pansariwala.shared.generated.resources.printer_dither_threshold
 import pansariwala.shared.generated.resources.printer_feed_lines
 import pansariwala.shared.generated.resources.printer_find_section
@@ -665,6 +668,7 @@ private fun ImageSection(state: PrinterSettingsUiState, viewModel: PrinterSettin
                     DitherMode.THRESHOLD -> Res.string.printer_dither_threshold
                     DitherMode.FLOYD_STEINBERG -> Res.string.printer_dither_floyd
                     DitherMode.ATKINSON -> Res.string.printer_dither_atkinson
+                    DitherMode.ORDERED -> Res.string.printer_dither_ordered
                 }
             },
             enabled = tunable,
@@ -688,6 +692,24 @@ private fun ImageSection(state: PrinterSettingsUiState, viewModel: PrinterSettin
             enabled = tunable,
             onChange = { v -> viewModel.updateImage { it.copy(brightness = v.roundToInt()) } },
         )
+        SliderRow(
+            label = stringResource(Res.string.printer_contrast),
+            valueText = image.contrast.toString(),
+            value = image.contrast.toFloat(),
+            range = -100f..100f,
+            enabled = tunable,
+            onChange = { v -> viewModel.updateImage { it.copy(contrast = v.roundToInt()) } },
+        )
+        if (image.ditherMode != DitherMode.THRESHOLD) {
+            SliderRow(
+                label = stringResource(Res.string.printer_gray_tone),
+                valueText = "${image.gammaPercent}%",
+                value = image.gammaPercent.toFloat(),
+                range = 50f..300f,
+                enabled = tunable,
+                onChange = { v -> viewModel.updateImage { it.copy(gammaPercent = v.roundToInt()) } },
+            )
+        }
         ToggleRow(Res.string.printer_invert, image.invert, enabled = tunable) { on ->
             viewModel.updateImage { it.copy(invert = on) }
         }

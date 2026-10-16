@@ -64,7 +64,7 @@ interface PansariApi {
     suspend fun myTransactions(): List<MoneyTxn>
     suspend fun rateOrder(orderId: String, stars: Int, comment: String?): Order
 
-    suspend fun shopOnlineOrders(): List<Order>
+    suspend fun shopOnlineOrders(fromMs: Long? = null, toMs: Long? = null): List<Order>
     /** [statuses] empty → every status. */
     suspend fun shopOnlineOrdersPage(statuses: List<OrderStatus>, query: String, page: Int, pageSize: Int): OrderPage
     suspend fun shopPaymentInfo(): ShopPaymentInfoDto

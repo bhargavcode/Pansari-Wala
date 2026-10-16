@@ -253,6 +253,8 @@ data class CheckoutUiState(
     val offers: List<ShopOffer> = emptyList(),
     val offersExpanded: Boolean = false,
     val placing: Boolean = false,
+    val loadingAddresses: Boolean = false,
+    val loadingQuote: Boolean = false,
     val needsProfile: Boolean = false,
     val addresses: List<SavedAddress> = emptyList(),
     val selectedAddressId: String? = null,
@@ -271,32 +273,60 @@ class CheckoutViewModel(
     private val _state = MutableStateFlow(CheckoutUiState())
     val state: StateFlow<CheckoutUiState> = _state.asStateFlow()
 
+    private var loadJob: Job? = null
+
     fun load(shopId: String) {
-        viewModelScope.launch {
-            val geo = location.currentOrDefault()
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _state.update {
+                it.copy(loadingAddresses = it.addresses.isEmpty(), loadingQuote = true, error = null)
+            }
             val profile = preferences.getCachedCustomerProfile()
-                ?: runCatching { api.me() }.getOrNull()?.also { preferences.setCachedCustomerProfile(it) }
+                ?: runCatching { api.me() }
+                    .onFailure { err ->
+                        err.rethrowIfStructuredCancellation()
+                        _state.update { it.copy(error = err.toApiUiText()) }
+                    }
+                    .getOrNull()
+                    ?.also { preferences.setCachedCustomerProfile(it) }
             val addresses = profile?.addresses.orEmpty()
-            val selected = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
-            val dropLat = selected?.location?.lat ?: profile?.location?.lat ?: geo.lat
-            val dropLng = selected?.location?.lng ?: profile?.location?.lng ?: geo.lng
-            val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity, it.variant?.id) }
-            val quote = runCatching {
-                api.quote(
-                    org.bhargav.pansariwala.api.QuoteRequest(shopId, items, dropLat, dropLng),
-                )
-            }.getOrNull()
-            val offers = runCatching { api.shopOffers(shopId) }.getOrDefault(emptyList())
-            val shop = runCatching { api.shopInfo(shopId, dropLat, dropLng) }.getOrNull()
+            val previous = _state.value.selectedAddressId
+            val selected = addresses.firstOrNull { it.id == previous }
+                ?: addresses.firstOrNull { it.isDefault }
+                ?: addresses.firstOrNull()
             _state.update {
                 it.copy(
-                    quote = quote,
-                    offers = offers,
                     addresses = addresses,
                     selectedAddressId = selected?.id,
-                    shop = shop,
+                    loadingAddresses = false,
                     needsProfile = profile == null || profile.name.isBlank() || addresses.isEmpty(),
                 )
+            }
+            val drop = selected?.location ?: profile?.location ?: runCatching { location.currentOrDefault() }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+                .getOrNull()
+            val dropLat = drop?.lat ?: AppConstants.DEFAULT_MAP_LAT
+            val dropLng = drop?.lng ?: AppConstants.DEFAULT_MAP_LNG
+            val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity, it.variant?.id) }
+            coroutineScope {
+                val quote = async {
+                    runCatching {
+                        api.quote(org.bhargav.pansariwala.api.QuoteRequest(shopId, items, dropLat, dropLng))
+                    }.onFailure { err ->
+                        err.rethrowIfStructuredCancellation()
+                        _state.update { it.copy(error = err.toApiUiText()) }
+                    }.getOrNull()
+                }
+                val offers = async { runCatching { api.shopOffers(shopId) }.getOrDefault(emptyList()) }
+                val shop = async { runCatching { api.shopInfo(shopId, dropLat, dropLng) }.getOrNull() }
+                _state.update {
+                    it.copy(
+                        quote = quote.await(),
+                        offers = offers.await(),
+                        shop = shop.await(),
+                        loadingQuote = false,
+                    )
+                }
             }
         }
     }

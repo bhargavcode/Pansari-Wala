@@ -205,6 +205,8 @@ class PrinterSettingsViewModel(
                 threshold = image.threshold,
                 brightness = image.brightness,
                 invert = image.invert,
+                contrast = image.contrast,
+                gammaPercent = image.gammaPercent,
             )
         }
         printer.updateSettings { it.copy(image = it.image.copy(logo = mono)) }

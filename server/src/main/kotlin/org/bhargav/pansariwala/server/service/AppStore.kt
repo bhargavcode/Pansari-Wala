@@ -839,9 +839,19 @@ class AppStore(
         )
     }
 
-    fun shopOrders(shopId: String): List<OrderDto> =
+    /** [fromMs] inclusive / [toMs] exclusive bound `createdAt` so reports don't pull the full order history. */
+    fun shopOrders(shopId: String, fromMs: Long? = null, toMs: Long? = null): List<OrderDto> =
         mapOrders(
-            orderCol.find(and(eq("shopId", shopId), eq("channel", "ONLINE")))
+            orderCol.find(
+                and(
+                    listOfNotNull(
+                        eq("shopId", shopId),
+                        eq("channel", "ONLINE"),
+                        fromMs?.let { com.mongodb.client.model.Filters.gte("createdAt", it) },
+                        toMs?.let { com.mongodb.client.model.Filters.lt("createdAt", it) },
+                    ),
+                ),
+            )
                 .sort(Sorts.descending("createdAt"))
                 .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
                 .toList(),
