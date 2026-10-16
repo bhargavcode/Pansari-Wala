@@ -169,6 +169,44 @@
     <string name="master_menu">Menu</string>
     <string name="master_platform_title">Platform</string>
     <string name="master_settings_title">Settings</string>
+    <string name="master_platform_subtitle">Values applied across every shop, customer and delivery partner.</string>
+    <string name="master_customer_charges">Customer charges</string>
+    <string name="master_platform_fee">Platform fee (₹ per order)</string>
+    <string name="master_delivery_per_km">Delivery charge (₹ per km)</string>
+    <string name="master_delivery_surcharge">Delivery surcharge (%)</string>
+    <string name="master_min_delivery_charge">Minimum delivery charge (₹)</string>
+    <string name="master_max_delivery_charge">Maximum delivery charge (₹, 0 = no cap)</string>
+    <string name="master_free_delivery_above">Free delivery above order value (₹, 0 = off)</string>
+    <string name="master_min_order_value">Minimum order value (₹, 0 = off)</string>
+    <string name="master_partner_settings">Delivery partners</string>
+    <string name="master_partner_payout_per_km">Partner payout (₹ per km travelled)</string>
+    <string name="master_partner_ring_km">Partner search range (km)</string>
+    <string name="master_offer_ttl_min">Delivery request expiry (minutes)</string>
+    <string name="master_shop_defaults">Shop defaults</string>
+    <string name="master_default_delivery_radius">Default delivery radius for new shops (km)</string>
+    <string name="master_quote_preview">Example: ₹%1$s order delivered %2$s km away</string>
+    <string name="master_quote_platform_fee">Platform fee</string>
+    <string name="master_quote_delivery">Delivery charge</string>
+    <string name="master_quote_customer_pays">Customer pays</string>
+    <string name="master_quote_partner_earns">Partner earns</string>
+    <string name="master_settings_saved">Settings saved</string>
+    <string name="master_invalid_number">Enter a valid number for: %1$s</string>
+    <string name="master_platform_controls">Platform controls</string>
+    <string name="master_online_ordering">Accept online orders</string>
+    <string name="master_online_ordering_hint">When off, customers cannot place new orders on any shop.</string>
+    <string name="master_paused_message">Message shown to customers while ordering is paused</string>
+    <string name="master_partner_registration">Allow new delivery partner sign-ups</string>
+    <string name="master_master_data">Master data</string>
+    <string name="master_admin_account">Admin account</string>
+    <string name="master_current_password">Current password</string>
+    <string name="master_new_password">New password</string>
+    <string name="master_confirm_password">Confirm new password</string>
+    <string name="master_change_password">Change password</string>
+    <string name="master_password_changed">Password changed</string>
+    <string name="master_password_mismatch">New passwords do not match</string>
+    <string name="master_choose_from_device">Choose from device</string>
+    <string name="master_remove_image">Remove image</string>
+    <string name="master_upload_failed">Upload failed. Try again.</string>
     <string name="master_description">Description</string>
     <string name="master_sku">SKU</string>
     <string name="master_stock">Stock Quantity</string>

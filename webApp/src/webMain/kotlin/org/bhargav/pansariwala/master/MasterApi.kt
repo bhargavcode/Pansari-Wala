@@ -314,6 +314,24 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         }
     }
 
+    suspend fun platformSettings(token: String): PlatformSettingsDto =
+        client.get(url("/admin/platform-settings")) { bearer(token) }.body()
+
+    suspend fun savePlatformSettings(token: String, body: PlatformSettingsDto): PlatformSettingsDto =
+        client.post(url("/admin/platform-settings")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun changePassword(token: String, currentPassword: String, newPassword: String) {
+        client.post(url("/admin/account/password")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(PasswordChangeBody(currentPassword, newPassword))
+        }
+    }
+
     private fun io.ktor.client.request.HttpRequestBuilder.bearer(token: String) {
         headers.append("Authorization", "Bearer $token")
     }
@@ -414,6 +432,27 @@ data class UploadResultDto(
 @Serializable data class CategoryUpsert(val id: String? = null, val name: String, val parentId: String? = null)
 @Serializable data class ShopTypeDto(val id: String, val name: String, val active: Boolean = true)
 @Serializable data class ShopTypeUpsert(val id: String? = null, val name: String, val active: Boolean = true)
+@Serializable private data class PasswordChangeBody(val currentPassword: String, val newPassword: String)
+
+/** Zero means "off" for max/free-delivery/min-order fields. */
+@Serializable
+data class PlatformSettingsDto(
+    val platformFeeInr: Double = 10.0,
+    val deliveryBasePerKmInr: Double = 8.0,
+    val deliverySurchargePercent: Double = 30.0,
+    val minDeliveryChargeInr: Double = 0.0,
+    val maxDeliveryChargeInr: Double = 0.0,
+    val freeDeliveryAboveInr: Double = 0.0,
+    val minOrderValueInr: Double = 0.0,
+    val partnerPayoutPerKmInr: Double = 8.0,
+    val partnerRingKm: Double = 8.0,
+    val offerTtlMinutes: Int = 5,
+    val defaultShopDeliveryRadiusKm: Double = 20.0,
+    val onlineOrderingEnabled: Boolean = true,
+    val orderingPausedMessage: String = "",
+    val partnerRegistrationEnabled: Boolean = true,
+    val updatedAt: Long = 0L,
+)
 
 @Serializable
 data class ShopFeaturesDto(

@@ -366,6 +366,29 @@ data class OtpDoc(
     val firebaseSession: String = "",
 )
 
+/** Single-row (`_id = "global"`) platform-wide pricing and controls edited from Master. */
+@Serializable
+data class PlatformSettingsDoc(
+    @SerialName("_id") val id: String = "global",
+    val platformFeeInr: Double = 10.0,
+    val deliveryBasePerKmInr: Double = 8.0,
+    val deliverySurchargePercent: Double = 30.0,
+    val minDeliveryChargeInr: Double = 0.0,
+    /** 0 = no cap. */
+    val maxDeliveryChargeInr: Double = 0.0,
+    /** 0 = never free. */
+    val freeDeliveryAboveInr: Double = 0.0,
+    val minOrderValueInr: Double = 0.0,
+    val partnerPayoutPerKmInr: Double = 8.0,
+    val partnerRingKm: Double = 8.0,
+    val offerTtlMinutes: Int = 5,
+    val defaultShopDeliveryRadiusKm: Double = 20.0,
+    val onlineOrderingEnabled: Boolean = true,
+    val orderingPausedMessage: String = "",
+    val partnerRegistrationEnabled: Boolean = true,
+    val updatedAt: Long = 0L,
+)
+
 @Serializable
 data class AdminUserDoc(
     @SerialName("_id") val id: String,

@@ -190,6 +190,10 @@ import pansariwala.shared.generated.resources.master_sales_overview
 import pansariwala.shared.generated.resources.master_txn_trends
 import pansariwala.shared.generated.resources.master_upload_image
 import pansariwala.shared.generated.resources.action_edit
+import pansariwala.shared.generated.resources.master_admin_account
+import pansariwala.shared.generated.resources.master_master_data
+import pansariwala.shared.generated.resources.master_platform_controls
+import pansariwala.shared.generated.resources.master_platform_subtitle
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -445,8 +449,21 @@ private fun FeatureToggle(label: String, checked: Boolean, onToggle: () -> Unit)
 private const val MASTER_PAGE_SIZE = 25
 private const val MASTER_SEARCH_DEBOUNCE_MS = 350L
 
-private suspend fun uploadMasterProductImage(api: MasterApi, token: String): String {
+private suspend fun uploadMasterProductImage(api: MasterApi, token: String): String =
+    uploadMasterImage(api, token, AppConstants.S3Prefix.MASTER_PRODUCT_IMAGES)
+
+/** Returns null when the user dismisses the picker. */
+internal suspend fun uploadMasterImageOrNull(api: MasterApi, token: String, prefix: String): String? {
+    val picked = pickWebImageFile() ?: return null
+    return uploadPicked(api, token, prefix, picked)
+}
+
+private suspend fun uploadMasterImage(api: MasterApi, token: String, prefix: String): String {
     val picked = pickWebImageFile() ?: error("No file selected")
+    return uploadPicked(api, token, prefix, picked)
+}
+
+private suspend fun uploadPicked(api: MasterApi, token: String, prefix: String, picked: WebPickedFile): String {
     val mime = picked.mimeType.lowercase()
     require(
         mime.contains("png") || mime.contains("jpeg") || mime.contains("jpg") || mime.contains("webp"),
@@ -454,7 +471,7 @@ private suspend fun uploadMasterProductImage(api: MasterApi, token: String): Str
     val compressed = org.bhargav.pansariwala.media.compressImageForUpload(picked.bytes, picked.mimeType, picked.name)
     return api.uploadFile(
         token,
-        AppConstants.S3Prefix.MASTER_PRODUCT_IMAGES,
+        prefix,
         compressed.displayName,
         compressed.bytes,
         compressed.mimeType,
@@ -1176,7 +1193,10 @@ internal fun PlatformScreen(token: String, onStatus: (String) -> Unit) {
         runCatching { stats = api.dashboard(token) }.onFailure { onStatus(it.message.orEmpty()) }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        MasterTopBar(stringResource(Res.string.master_platform_title))
+        MasterTopBar(
+            title = stringResource(Res.string.master_platform_title),
+            subtitle = stringResource(Res.string.master_platform_subtitle),
+        )
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MasterStatCard(stringResource(Res.string.master_card_shops), "${stats?.shopCount ?: 0}")
@@ -1185,6 +1205,7 @@ internal fun PlatformScreen(token: String, onStatus: (String) -> Unit) {
                 MasterStatCard(stringResource(Res.string.master_card_users), "${stats?.userCount ?: 0}")
                 MasterStatCard(stringResource(Res.string.master_card_partners), "${stats?.partnerCount ?: 0}")
             }
+            PlatformConfigSections(token, onStatus)
         }
     }
 }
@@ -1210,6 +1231,15 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         MasterTopBar(stringResource(Res.string.master_settings_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ResponsiveColumns(
+                left = { PlatformControlsSection(token, onStatus, stringResource(Res.string.master_platform_controls)) },
+                right = { AdminAccountSection(token, onStatus, stringResource(Res.string.master_admin_account)) },
+            )
+            Text(
+                stringResource(Res.string.master_master_data),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
             MasterSectionCard(title = stringResource(Res.string.master_tab_categories)) {
                 Text(stringResource(Res.string.master_new_category), fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(catName, { catName = it }, label = { Text(stringResource(Res.string.field_name)) }, modifier = Modifier.fillMaxWidth())

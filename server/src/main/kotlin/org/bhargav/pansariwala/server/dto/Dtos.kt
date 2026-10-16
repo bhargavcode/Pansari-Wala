@@ -320,6 +320,29 @@ data class AdminPartnerPatch(val active: Boolean? = null)
 @Serializable
 data class AdminOrderActionRequest(val reason: String? = null)
 
+/** Mirrors `PlatformSettingsDoc`; see it for zero-means-off fields. */
+@Serializable
+data class PlatformSettingsDto(
+    val platformFeeInr: Double = 10.0,
+    val deliveryBasePerKmInr: Double = 8.0,
+    val deliverySurchargePercent: Double = 30.0,
+    val minDeliveryChargeInr: Double = 0.0,
+    val maxDeliveryChargeInr: Double = 0.0,
+    val freeDeliveryAboveInr: Double = 0.0,
+    val minOrderValueInr: Double = 0.0,
+    val partnerPayoutPerKmInr: Double = 8.0,
+    val partnerRingKm: Double = 8.0,
+    val offerTtlMinutes: Int = 5,
+    val defaultShopDeliveryRadiusKm: Double = 20.0,
+    val onlineOrderingEnabled: Boolean = true,
+    val orderingPausedMessage: String = "",
+    val partnerRegistrationEnabled: Boolean = true,
+    val updatedAt: Long = 0L,
+)
+
+@Serializable
+data class AdminPasswordChange(val currentPassword: String, val newPassword: String)
+
 /** Mirrors `ProductVariantDoc`; see it for [sellMode] semantics. */
 @Serializable
 data class ProductVariantDto(

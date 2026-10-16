@@ -28,6 +28,8 @@ import kotlinx.io.readByteArray
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.dto.AdminLoginRequest
 import org.bhargav.pansariwala.server.dto.AdminOrderActionRequest
+import org.bhargav.pansariwala.server.dto.AdminPasswordChange
+import org.bhargav.pansariwala.server.dto.PlatformSettingsDto
 import org.bhargav.pansariwala.server.dto.AdminPartnerPatch
 import org.bhargav.pansariwala.server.dto.AdminShopCreate
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
@@ -600,6 +602,21 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.requireRole("ADMIN")
             val body = call.receive<AdminPartnerPatch>()
             store.patchAdminPartner(call.parameters["id"]!!, body.active)
+            call.respond(OkResponse())
+        }
+
+        get("/admin/platform-settings") {
+            call.requireRole("ADMIN")
+            call.respond(store.platformSettings())
+        }
+        post("/admin/platform-settings") {
+            call.requireRole("ADMIN")
+            call.respond(store.savePlatformSettings(call.receive<PlatformSettingsDto>()))
+        }
+        post("/admin/account/password") {
+            call.requireRole("ADMIN")
+            val body = call.receive<AdminPasswordChange>()
+            store.changeAdminPassword(call.userId(), body.currentPassword, body.newPassword)
             call.respond(OkResponse())
         }
 

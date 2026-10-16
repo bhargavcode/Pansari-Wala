@@ -38,6 +38,8 @@ import org.bhargav.pansariwala.server.db.OfferDoc
 import org.bhargav.pansariwala.server.db.OrderDoc
 import org.bhargav.pansariwala.server.db.OtpDoc
 import org.bhargav.pansariwala.server.db.PartnerDoc
+import org.bhargav.pansariwala.server.db.PlatformSettingsDoc
+import org.bhargav.pansariwala.server.dto.PlatformSettingsDto
 import org.bhargav.pansariwala.server.db.ProductDoc
 import org.bhargav.pansariwala.server.db.ShopDoc
 import org.bhargav.pansariwala.server.db.ShopFeaturesDoc
@@ -138,13 +140,12 @@ private val VARIANT_SELL_MODES = setOf(VARIANT_PACK, VARIANT_LOOSE, VARIANT_BUND
 private const val DEFAULT_LOOSE_STEP = 0.05
 private const val QTY_EPSILON = 1e-6
 private val LOOSE_UNITS = setOf("KG", "LITRE", "GRAM")
-private const val PARTNER_RING_KM = 8.0
-/** How long an unpicked job stays listable for partners in range (not the 15s accept UI flash). */
-private const val OFFER_TTL_MS = 5 * 60_000L
-private const val DELIVERY_BASE_PER_KM = 8.0
+private const val PLATFORM_SETTINGS_ID = "global"
+private const val PLATFORM_SETTINGS_CACHE_MS = 30_000L
 private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
 private const val MIN_SHOP_PASSWORD = 4
+private const val MIN_ADMIN_PASSWORD = 6
 private const val DAY_MS = 86_400_000L
 private val LOGIN_USERNAME_REGEX = Regex("^[a-z0-9._@-]{3,40}$")
 private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
@@ -188,6 +189,8 @@ class AppStore(
     private val otp = OtpService(config, security, otpCol)
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
     private val shopVisitCol = mongo.db.getCollection<ShopVisitDoc>("shop_visits")
+    private val platformSettingsCol = mongo.db.getCollection<PlatformSettingsDoc>("platform_settings")
+    @Volatile private var platformCache: Pair<Long, PlatformSettingsDoc>? = null
     private val partnerLiteProjection = exclude(
         "platePhoto",
         "vehiclePhoto",
@@ -244,6 +247,91 @@ class AppStore(
         val token = security.issueJwt(row.id, "ADMIN", displayName = "Admin")
         return TokenResponse(token, null, "ADMIN", row.id, null, "Admin")
     }
+
+    fun changeAdminPassword(adminId: String, currentPassword: String, newPassword: String) {
+        val row = adminUserCol.find(eq("_id", adminId)).firstOrNull() ?: error("Admin not found")
+        require(security.passwordMatches(currentPassword.trim(), row.passwordHash)) { "Current password is incorrect" }
+        val next = newPassword.trim()
+        require(next.length >= MIN_ADMIN_PASSWORD) { "New password must be at least $MIN_ADMIN_PASSWORD characters" }
+        adminUserCol.updateOne(eq("_id", adminId), set("passwordHash", security.hashPassword(next)))
+    }
+
+    /** Cached for [PLATFORM_SETTINGS_CACHE_MS]; quote/checkout hit this on every request. */
+    private fun platform(): PlatformSettingsDoc {
+        val now = System.currentTimeMillis()
+        platformCache?.let { (at, doc) -> if (now - at < PLATFORM_SETTINGS_CACHE_MS) return doc }
+        val doc = platformSettingsCol.find(eq("_id", PLATFORM_SETTINGS_ID)).firstOrNull() ?: PlatformSettingsDoc()
+        platformCache = now to doc
+        return doc
+    }
+
+    fun platformSettings(): PlatformSettingsDto = platform().toDto()
+
+    fun savePlatformSettings(body: PlatformSettingsDto): PlatformSettingsDto {
+        fun money(v: Double, label: String) = require(v in 0.0..100_000.0) { "$label must be 0-100000" }
+        money(body.platformFeeInr, "Platform fee")
+        money(body.deliveryBasePerKmInr, "Delivery per km")
+        money(body.minDeliveryChargeInr, "Min delivery charge")
+        money(body.maxDeliveryChargeInr, "Max delivery charge")
+        money(body.freeDeliveryAboveInr, "Free delivery above")
+        money(body.minOrderValueInr, "Min order value")
+        money(body.partnerPayoutPerKmInr, "Partner payout per km")
+        require(body.deliverySurchargePercent in 0.0..500.0) { "Surcharge must be 0-500%" }
+        require(body.maxDeliveryChargeInr == 0.0 || body.maxDeliveryChargeInr >= body.minDeliveryChargeInr) {
+            "Max delivery charge must be at least the min"
+        }
+        require(body.partnerRingKm in 1.0..100.0) { "Partner range must be 1-100 km" }
+        require(body.offerTtlMinutes in 1..120) { "Offer expiry must be 1-120 minutes" }
+        require(body.defaultShopDeliveryRadiusKm in 1.0..100.0) { "Delivery radius must be 1-100 km" }
+        val doc = PlatformSettingsDoc(
+            id = PLATFORM_SETTINGS_ID,
+            platformFeeInr = body.platformFeeInr,
+            deliveryBasePerKmInr = body.deliveryBasePerKmInr,
+            deliverySurchargePercent = body.deliverySurchargePercent,
+            minDeliveryChargeInr = body.minDeliveryChargeInr,
+            maxDeliveryChargeInr = body.maxDeliveryChargeInr,
+            freeDeliveryAboveInr = body.freeDeliveryAboveInr,
+            minOrderValueInr = body.minOrderValueInr,
+            partnerPayoutPerKmInr = body.partnerPayoutPerKmInr,
+            partnerRingKm = body.partnerRingKm,
+            offerTtlMinutes = body.offerTtlMinutes,
+            defaultShopDeliveryRadiusKm = body.defaultShopDeliveryRadiusKm,
+            onlineOrderingEnabled = body.onlineOrderingEnabled,
+            orderingPausedMessage = body.orderingPausedMessage.trim().take(200),
+            partnerRegistrationEnabled = body.partnerRegistrationEnabled,
+            updatedAt = System.currentTimeMillis(),
+        )
+        platformSettingsCol.replaceOne(eq("_id", PLATFORM_SETTINGS_ID), doc, ReplaceOptions().upsert(true))
+        platformCache = System.currentTimeMillis() to doc
+        return doc.toDto()
+    }
+
+    private fun PlatformSettingsDoc.toDto() = PlatformSettingsDto(
+        platformFeeInr = platformFeeInr,
+        deliveryBasePerKmInr = deliveryBasePerKmInr,
+        deliverySurchargePercent = deliverySurchargePercent,
+        minDeliveryChargeInr = minDeliveryChargeInr,
+        maxDeliveryChargeInr = maxDeliveryChargeInr,
+        freeDeliveryAboveInr = freeDeliveryAboveInr,
+        minOrderValueInr = minOrderValueInr,
+        partnerPayoutPerKmInr = partnerPayoutPerKmInr,
+        partnerRingKm = partnerRingKm,
+        offerTtlMinutes = offerTtlMinutes,
+        defaultShopDeliveryRadiusKm = defaultShopDeliveryRadiusKm,
+        onlineOrderingEnabled = onlineOrderingEnabled,
+        orderingPausedMessage = orderingPausedMessage,
+        partnerRegistrationEnabled = partnerRegistrationEnabled,
+        updatedAt = updatedAt,
+    )
+
+    private fun PlatformSettingsDoc.deliveryCharge(distanceKm: Double, subtotalAfterDiscount: Double): Double {
+        if (freeDeliveryAboveInr > 0 && subtotalAfterDiscount >= freeDeliveryAboveInr) return 0.0
+        val base = deliveryBasePerKmInr * distanceKm
+        val charge = (base + base * deliverySurchargePercent / 100.0).coerceAtLeast(minDeliveryChargeInr)
+        return if (maxDeliveryChargeInr > 0) charge.coerceAtMost(maxDeliveryChargeInr) else charge
+    }
+
+    private val PlatformSettingsDoc.offerTtlMs: Long get() = offerTtlMinutes * 60_000L
 
     private fun usernameFilter(username: String) =
         regex("username", "^${Regex.escape(username.trim())}$", "i")
@@ -536,22 +624,32 @@ class AppStore(
         val subtotal = lines.sumOf { it.second }
         val dist = haversine(request.userLat, request.userLng, shop.lat, shop.lng)
         val discount = offerDiscount(liveOffers(request.shopId), lines, subtotal, shop.discountPercent)
-        val base = 8.0 * dist
-        val delivery = base + base * 0.30
-        val fee = 10.0
+        val settings = platform()
+        val delivery = settings.deliveryCharge(dist, subtotal - discount)
+        val fee = settings.platformFeeInr
         return QuoteDto(subtotal, discount, fee, delivery, (subtotal - discount + fee + delivery).coerceAtLeast(0.0), dist)
     }
 
     /** Non-payment checks (profile, cart, stock, delivery radius). Call before creating a Razorpay order. */
     fun validateCheckout(userId: String, request: PlaceOrderRequest): CustomerDto {
         require(request.items.isNotEmpty()) { "Cart is empty" }
+        val settings = platform()
+        require(settings.onlineOrderingEnabled) {
+            settings.orderingPausedMessage.ifBlank { "Online ordering is paused. Please try again later." }
+        }
         val customer = me(userId)
         require(customer.name.isNotBlank() && customer.address.isNotBlank()) { "Complete your profile" }
         val shop = shopById(request.shopId)
         val drop = resolveDrop(customer, request)
         val dist = haversine(drop.lat, drop.lng, shop.lat, shop.lng)
         require(dist <= shop.deliveryRadiusKm) { "Out of shop delivery range" }
-        resolveLines(request.shopId, request.items)
+        val lines = resolveLines(request.shopId, request.items)
+        if (settings.minOrderValueInr > 0) {
+            require(lines.sumOf { it.lineTotal } + QTY_EPSILON >= settings.minOrderValueInr) {
+                "Minimum order value is ₹${settings.minOrderValueInr.toLong()}"
+            }
+        }
+        lines
             .groupBy { it.product.id to it.variant?.id }
             .values
             .forEach { group ->
@@ -993,14 +1091,14 @@ class AppStore(
             broadcastOffer(existing, shop, order.deliveryAddress.orEmpty())
             return toOfferDto(existing, dummyPartner())
         }
-        val expires = now + OFFER_TTL_MS
+        val expires = now + platform().offerTtlMs
         val offerId = security.randomId("offr")
         val customerLat = order.customerLat ?: shop.lat
         val customerLng = order.customerLng ?: shop.lng
         // Stored drop = shop→customer. Partner→shop is computed per partner in toOfferDto.
         val dropKm = haversine(shop.lat, shop.lng, customerLat, customerLng)
         val totalKm = (dropKm * 2).coerceAtLeast(0.5)
-        val payout = (DELIVERY_BASE_PER_KM * totalKm).let { kotlin.math.round(it * 100) / 100.0 }
+        val payout = (platform().partnerPayoutPerKmInr * totalKm).let { kotlin.math.round(it * 100) / 100.0 }
         val offer = DeliveryOfferDoc(
             id = offerId,
             orderId = orderId,
@@ -1148,7 +1246,7 @@ class AppStore(
     }
 
     /**
-     * Marks unpicked offers past [OFFER_TTL_MS] as EXPIRED and returns their orders to PACKING
+     * Marks unpicked offers past the platform offer TTL as EXPIRED and returns their orders to PACKING
      * so the shop sees "Request delivery" again. Returns the number of offers expired.
      */
     fun expireStaleOffers(now: Long = System.currentTimeMillis()): Int {
@@ -1201,7 +1299,7 @@ class AppStore(
                 val shop = shops[offer.shopId] ?: return@mapNotNull null
                 toOfferDto(offer, partner, shop, orders[offer.orderId])
             }
-            .filter { it.shopDistanceKm <= PARTNER_RING_KM }
+            .filter { it.shopDistanceKm <= platform().partnerRingKm }
             .sortedBy { it.shopDistanceKm }
     }
 
@@ -1227,7 +1325,7 @@ class AppStore(
                 error("ALREADY_TAKEN")
             }
             val dto = toOfferDto(offer, partner)
-            require(dto.shopDistanceKm <= PARTNER_RING_KM) { "Outside serving area" }
+            require(dto.shopDistanceKm <= platform().partnerRingKm) { "Outside serving area" }
             deliveryOfferCol.updateOne(
                 eq("_id", offerId),
                 combine(set("status", "ACCEPTED"), set("acceptedBy", partnerId)),
@@ -1258,6 +1356,7 @@ class AppStore(
     }
 
     fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse {
+        require(platform().partnerRegistrationEnabled) { "New partner registrations are closed right now" }
         val name = request.name.trim()
         val email = request.email.trim()
         val address = request.address.trim()
@@ -1816,6 +1915,7 @@ class AppStore(
                 active = active,
                 paymentsEnabled = true,
                 discountPercent = 0.0,
+                deliveryRadiusKm = platform().defaultShopDeliveryRadiusKm,
                 upiId = config.defaultShopUpi,
                 address = composedAddress.ifBlank { address },
                 shopType = shopType.ifBlank { "GENERAL_STORE" },
@@ -2569,7 +2669,7 @@ class AppStore(
             .projection(partnerLiteProjection)
             .toList()
         val nearby = partners.filter { partner ->
-            partner.hasGpsFix() && toOfferDto(offer, partner, shop).shopDistanceKm <= PARTNER_RING_KM
+            partner.hasGpsFix() && toOfferDto(offer, partner, shop).shopDistanceKm <= platform().partnerRingKm
         }
         nearby.forEach { partner ->
             val dto = toOfferDto(offer, partner, shop).copy(dropAddress = dropAddress.ifBlank { offer.dropAddress })
@@ -2610,7 +2710,7 @@ class AppStore(
             else -> shopDist
         }
         val totalKm = shopDist + dropDist
-        val payout = if (offer.payout > 0) offer.payout else DELIVERY_BASE_PER_KM * totalKm
+        val payout = if (offer.payout > 0) offer.payout else platform().partnerPayoutPerKmInr * totalKm
         val etaMin = ((shopDist / 20.0) * 60).toInt().coerceAtLeast(3)
         return DeliveryOfferDto(
             id = offer.id,

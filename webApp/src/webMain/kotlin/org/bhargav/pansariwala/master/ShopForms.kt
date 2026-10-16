@@ -114,6 +114,9 @@ import pansariwala.shared.generated.resources.master_login_password_reset
 import pansariwala.shared.generated.resources.master_login_username
 import pansariwala.shared.generated.resources.master_shop_login
 import pansariwala.shared.generated.resources.master_shop_login_hint
+import pansariwala.shared.generated.resources.master_choose_from_device
+import pansariwala.shared.generated.resources.master_remove_image
+import pansariwala.shared.generated.resources.master_upload_failed
 
 /** Offline fallback; the live list comes from `/master/shop-types`. */
 private val DefaultShopTypeChoices = ShopType.entries.map {
@@ -151,6 +154,7 @@ internal fun ShopEditorScreen(
     var registration by rememberSaveable { mutableStateOf("") }
     var taxId by rememberSaveable { mutableStateOf("") }
     var imageUrl by rememberSaveable { mutableStateOf("") }
+    var uploadingImage by remember { mutableStateOf(false) }
     var lat by rememberSaveable { mutableStateOf(AppConstants.DEFAULT_MAP_LAT) }
     var lng by rememberSaveable { mutableStateOf(AppConstants.DEFAULT_MAP_LNG) }
     var active by rememberSaveable { mutableStateOf(true) }
@@ -246,10 +250,34 @@ internal fun ShopEditorScreen(
                 ) {
                     // Column 1 — image + general + type
                     MasterSectionCard(modifier = Modifier.widthIn(min = 260.dp)) {
+                        val uploadFailed = stringResource(Res.string.master_upload_failed)
+                        val pickImage: () -> Unit = {
+                            if (!uploadingImage) {
+                                scope.launch {
+                                    uploadingImage = true
+                                    runCatching { uploadMasterImageOrNull(api, token, AppConstants.S3Prefix.MASTER_SHOP_IMAGES) }
+                                        .onSuccess { url -> if (url != null) imageUrl = url }
+                                        .onFailure { onStatus(it.message ?: uploadFailed) }
+                                    uploadingImage = false
+                                }
+                            }
+                        }
                         DashedUploadBox(
                             imageUrl = imageUrl.ifBlank { null },
                             label = stringResource(Res.string.master_upload_shop_image),
+                            uploading = uploadingImage,
+                            onClick = pickImage,
                         )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = pickImage, enabled = !uploadingImage) {
+                                Text(stringResource(Res.string.master_choose_from_device))
+                            }
+                            if (imageUrl.isNotBlank()) {
+                                OutlinedButton(onClick = { imageUrl = "" }, enabled = !uploadingImage) {
+                                    Text(stringResource(Res.string.master_remove_image))
+                                }
+                            }
+                        }
                         OutlinedTextField(
                             imageUrl,
                             { imageUrl = it },
@@ -480,13 +508,14 @@ private fun ShopTypePicker(types: List<ShopTypeDto>, selected: String, onSelect:
 }
 
 @Composable
-private fun DashedUploadBox(imageUrl: String?, label: String) {
+private fun DashedUploadBox(imageUrl: String?, label: String, uploading: Boolean, onClick: () -> Unit) {
     val stroke = MaterialTheme.colorScheme.outlineVariant
     Box(
         Modifier
             .fillMaxWidth()
             .height(140.dp)
             .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = !uploading, onClick = onClick)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .drawBehind {
                 drawRoundRect(
@@ -500,7 +529,9 @@ private fun DashedUploadBox(imageUrl: String?, label: String) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        if (imageUrl != null) {
+        if (uploading) {
+            CircularProgressIndicator(Modifier.size(36.dp))
+        } else if (imageUrl != null) {
             ImageThumb(imageUrl, Modifier.size(120.dp))
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
