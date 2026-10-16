@@ -28,7 +28,8 @@ fun recaptchaPageHtml(siteKey: String, title: String, cancelLabel: String): Stri
     }
   }
   function onLoad() {
-    grecaptcha.render('box', { sitekey: '$siteKey', size: 'normal', callback: post, 'expired-callback': function () { grecaptcha.reset(); } });
+    var reset = function () { grecaptcha.reset(); };
+    grecaptcha.render('box', { sitekey: '$siteKey', size: 'normal', callback: post, 'expired-callback': reset, 'error-callback': reset });
   }
 </script>
 <script src="https://www.google.com/recaptcha/api.js?onload=onLoad&render=explicit" async defer></script>

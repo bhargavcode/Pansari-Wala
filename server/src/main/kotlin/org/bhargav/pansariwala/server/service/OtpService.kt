@@ -154,6 +154,11 @@ class OtpService(
             firebase.sendCode("+91$phone", proof)
         } catch (e: FirebasePhoneAuthException) {
             println("WARN: Firebase sendVerificationCode failed for ${mask(phone)}: HTTP ${e.httpStatus} ${e.detail}")
+            // Firebase answers a rejected Play Integrity token (sideloaded / App Distribution builds) with a bare
+            // HTTP 500; report it as app verification so the client retries with reCAPTCHA.
+            if (!proof.playIntegrityToken.isNullOrBlank() && e.httpStatus >= 500) {
+                throw OtpException(400, OtpErrorCode.APP_VERIFICATION_FAILED, "App verification failed. Please try again")
+            }
             throw e.toOtpException(sending = true)
         } catch (e: java.io.IOException) {
             println("WARN: Firebase unreachable for ${mask(phone)}: ${e.message}")

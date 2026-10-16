@@ -72,19 +72,27 @@ class ServerPhoneAuthGateway(
     private val api: PansariApi,
     private val verifier: OtpAppVerifier,
 ) : PhoneAuthGateway {
+    /** Set once Firebase rejects this install's Play Integrity token; later sends go straight to reCAPTCHA. */
+    private var integrityRejected = false
+
     override suspend fun sendOtp(phone: String): Result<PhoneOtpSession> = runCatching {
         val digits = digitsPhone(phone)
         val config = api.otpConfig()
         if (config.mode != AppConstants.OTP_MODE_FIREBASE) return@runCatching request(digits, OtpAppProof())
-        val proof = verifier.proof(e164Phone(digits), config)
+        val proof = verifier.proof(e164Phone(digits), config, forceRecaptcha = integrityRejected)
         try {
             request(digits, proof)
         } catch (e: ApiException) {
-            val integrityRejected = e.code == OtpErrorCodes.APP_VERIFICATION_FAILED && proof.playIntegrityToken != null
-            if (!integrityRejected) throw e
+            if (proof.playIntegrityToken == null || e.code !in INTEGRITY_RETRY_CODES) throw e
+            integrityRejected = true
             request(digits, verifier.proof(e164Phone(digits), config, forceRecaptcha = true))
         }
     }.onFailure { it.rethrowIfStructuredCancellation() }
+
+    private companion object {
+        /** Older servers report Firebase's HTTP 500 for a bad integrity token as a delivery failure. */
+        val INTEGRITY_RETRY_CODES = setOf(OtpErrorCodes.APP_VERIFICATION_FAILED, OtpErrorCodes.DELIVERY_FAILED)
+    }
 
     private suspend fun request(digits: String, proof: OtpAppProof): PhoneOtpSession =
         api.requestOtp(

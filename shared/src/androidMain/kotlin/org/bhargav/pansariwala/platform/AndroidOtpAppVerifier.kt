@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Base64
 import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.google.android.play.core.integrity.IntegrityManagerFactory
@@ -15,6 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.bhargav.pansariwala.api.OtpConfigDto
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.getString
@@ -30,8 +32,8 @@ class AndroidOtpAppVerifier(private val context: Context) : OtpAppVerifier {
 
     override suspend fun proof(e164Phone: String, config: OtpConfigDto, forceRecaptcha: Boolean): OtpAppProof {
         val identity = OtpAppProof(androidPackage = context.packageName, androidCertSha1 = signingCertSha1())
-        if (!forceRecaptcha) {
-            val token = runCatching { playIntegrityToken(e164Phone) }
+        if (!forceRecaptcha && installedFromPlayStore()) {
+            val token = runCatching { withTimeoutOrNull(PLAY_INTEGRITY_TIMEOUT_MS) { playIntegrityToken(e164Phone) } }
                 .onFailure { if (it is CancellationException) throw it }
                 .getOrNull()
             if (token != null) return identity.copy(playIntegrityToken = token)
@@ -69,6 +71,7 @@ class AndroidOtpAppVerifier(private val context: Context) : OtpAppVerifier {
                 val webView = WebView(activity)
                 webView.settings.javaScriptEnabled = true
                 webView.settings.domStorageEnabled = true
+                CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
                 webView.addJavascriptInterface(
                     object {
                         @JavascriptInterface
@@ -93,17 +96,25 @@ class AndroidOtpAppVerifier(private val context: Context) : OtpAppVerifier {
                 dialog.setOnCancelListener {
                     if (cont.isActive) cont.resumeWithException(OtpVerificationCancelledException())
                 }
+                dialog.setOnDismissListener { webView.post { webView.destroy() } }
                 webView.loadDataWithBaseURL("https://${config.authDomain}", html, "text/html", "utf-8", null)
                 dialog.show()
-                cont.invokeOnCancellation {
-                    webView.post {
-                        dialog.dismiss()
-                        webView.destroy()
-                    }
-                }
+                cont.invokeOnCancellation { webView.post { dialog.dismiss() } }
             }
         }
     }
+
+    /** Play Integrity only vouches for Play Store installs; App Distribution / adb builds always fail it. */
+    @Suppress("DEPRECATION")
+    private fun installedFromPlayStore(): Boolean = runCatching {
+        val pm = context.packageManager
+        val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            pm.getInstallSourceInfo(context.packageName).installingPackageName
+        } else {
+            pm.getInstallerPackageName(context.packageName)
+        }
+        installer == PLAY_STORE_INSTALLER
+    }.getOrDefault(false)
 
     @Suppress("DEPRECATION")
     private fun signingCertSha1(): String? = runCatching {
@@ -117,4 +128,9 @@ class AndroidOtpAppVerifier(private val context: Context) : OtpAppVerifier {
         val cert = certs?.firstOrNull() ?: return@runCatching null
         MessageDigest.getInstance("SHA-1").digest(cert.toByteArray()).joinToString("") { "%02X".format(it) }
     }.getOrNull()
+
+    private companion object {
+        const val PLAY_STORE_INSTALLER = "com.android.vending"
+        const val PLAY_INTEGRITY_TIMEOUT_MS = 10_000L
+    }
 }
