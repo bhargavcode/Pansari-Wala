@@ -3,7 +3,7 @@
 
 android_enabled = true
 # Push release APKs to Firebase App Distribution (needs android_enabled = true)
-android_distribute = true
+android_distribute = false
 ios_enabled = false
-web_enabled = true
+web_enabled = false
 server_enabled = true

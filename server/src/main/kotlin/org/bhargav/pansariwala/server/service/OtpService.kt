@@ -153,7 +153,7 @@ class OtpService(
         return try {
             firebase.sendCode("+91$phone", proof)
         } catch (e: FirebasePhoneAuthException) {
-            println("WARN: Firebase sendVerificationCode failed for ${mask(phone)}: ${e.reason}")
+            println("WARN: Firebase sendVerificationCode failed for ${mask(phone)}: HTTP ${e.httpStatus} ${e.detail}")
             throw e.toOtpException(sending = true)
         } catch (e: java.io.IOException) {
             println("WARN: Firebase unreachable for ${mask(phone)}: ${e.message}")
@@ -168,6 +168,7 @@ class OtpService(
             firebase.signIn(row.firebaseSession, code)
         } catch (e: FirebasePhoneAuthException) {
             if (e.reason == "INVALID_CODE") return false
+            println("WARN: Firebase signInWithPhoneNumber failed for ${mask(row.phone)}: HTTP ${e.httpStatus} ${e.detail}")
             if (e.reason == "SESSION_EXPIRED" || e.reason == "INVALID_SESSION_INFO") col.deleteOne(eq("_id", row.sessionId))
             throw e.toOtpException(sending = false)
         } catch (e: java.io.IOException) {
@@ -188,7 +189,11 @@ class OtpService(
         "MISSING_RECAPTCHA_TOKEN", "CAPTCHA_CHECK_FAILED", "INVALID_CERT_HASH", "MISSING_CERT_HASH",
         "APP_NOT_AUTHORIZED", "MISSING_ANDROID_PACKAGE_NAME" ->
             OtpException(400, OtpErrorCode.APP_VERIFICATION_FAILED, "App verification failed. Please try again")
-        else -> if (sending) {
+        "OPERATION_NOT_ALLOWED", "BILLING_NOT_ENABLED", "PROJECT_NOT_FOUND", "API_KEY_INVALID" ->
+            OtpException(503, OtpErrorCode.SMS_UNAVAILABLE, "OTP service is temporarily unavailable")
+        else -> if (httpStatus == 403) {
+            OtpException(503, OtpErrorCode.SMS_UNAVAILABLE, "OTP service is temporarily unavailable")
+        } else if (sending) {
             OtpException(503, OtpErrorCode.DELIVERY_FAILED, "Could not send OTP. Please try again")
         } else {
             OtpException(503, OtpErrorCode.DELIVERY_FAILED, "Could not verify OTP. Please try again")

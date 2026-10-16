@@ -22,7 +22,11 @@ data class OtpAppProof(
 )
 
 /** Firebase rejected the call; [reason] is the Identity Toolkit error code (e.g. `INVALID_CODE`). */
-class FirebasePhoneAuthException(val reason: String, val httpStatus: Int) : RuntimeException(reason)
+class FirebasePhoneAuthException(
+    val reason: String,
+    val httpStatus: Int,
+    val detail: String = reason,
+) : RuntimeException(detail)
 
 /** Server side of Firebase phone auth via the Identity Toolkit REST API (send + verify). */
 class FirebasePhoneAuthClient(private val config: ServerConfig) {
@@ -90,7 +94,7 @@ class FirebasePhoneAuthClient(private val config: ServerConfig) {
         val message = obj["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content.orEmpty()
         // Identity Toolkit sends e.g. "INVALID_PHONE_NUMBER : TOO_SHORT"; the code is the part before " : ".
         val reason = message.substringBefore(" ").substringBefore(":").trim().ifBlank { "HTTP_${response.statusCode()}" }
-        throw FirebasePhoneAuthException(reason, response.statusCode())
+        throw FirebasePhoneAuthException(reason, response.statusCode(), message)
     }
 
     companion object {
