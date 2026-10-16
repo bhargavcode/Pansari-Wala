@@ -3,8 +3,18 @@ package org.bhargav.pansariwala.master
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpResponseValidator
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.ResponseException
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import org.jetbrains.compose.resources.getString
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.master_network_error
 import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.statement.bodyAsText
@@ -33,6 +43,17 @@ class MasterApiException(message: String, val status: Int) : Exception(message)
 /** Session hooks shared by every screen; the shell sets [onExpired] to drop back to login on 401. */
 object MasterSession {
     var onExpired: (() -> Unit)? = null
+
+    /** True when the JWT `exp` claim is in the past (or the token is unreadable). */
+    @OptIn(ExperimentalEncodingApi::class)
+    fun isExpired(token: String, nowEpochMs: Long): Boolean {
+        val payload = token.split('.').getOrNull(1) ?: return true
+        val exp = runCatching {
+            val bytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL).decode(payload)
+            masterJson.parseToJsonElement(bytes.decodeToString()).jsonObject["exp"]?.jsonPrimitive?.longOrNull
+        }.getOrNull() ?: return true
+        return exp * 1_000L <= nowEpochMs
+    }
 }
 
 @Serializable private data class ApiErrorBody(val error: String = "")
@@ -51,7 +72,11 @@ private val masterClient: HttpClient by lazy {
         }
         HttpResponseValidator {
             handleResponseExceptionWithRequest { cause, request ->
-                val response = (cause as? ResponseException)?.response ?: return@handleResponseExceptionWithRequest
+                val response = (cause as? ResponseException)?.response
+                if (response == null) {
+                    if (cause is CancellationException && cause !is HttpRequestTimeoutException) throw cause
+                    throw MasterApiException(getString(Res.string.master_network_error), 0)
+                }
                 val status = response.status
                 if (status == HttpStatusCode.Unauthorized &&
                     !request.url.encodedPath.endsWith(AppConstants.MasterWeb.LOGIN_PATH)

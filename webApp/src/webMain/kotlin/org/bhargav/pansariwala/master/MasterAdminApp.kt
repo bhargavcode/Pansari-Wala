@@ -66,7 +66,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.bhargav.pansariwala.navigateToLanding
@@ -108,14 +110,26 @@ import pansariwala.shared.generated.resources.master_request_access
 @Composable
 fun MasterAdminApp() {
     val tokenKey = AppConstants.MasterWeb.TOKEN_STORAGE_KEY
-    var token by remember {
-        mutableStateOf(webStorageGet(tokenKey) ?: webSessionGet(tokenKey))
+    val storedToken = remember { webStorageGet(tokenKey) ?: webSessionGet(tokenKey) }
+    val storedExpired = remember {
+        storedToken != null && MasterSession.isExpired(storedToken, AppClock.nowMillis())
     }
-    var sessionExpired by remember { mutableStateOf(false) }
+    var token by remember { mutableStateOf(storedToken.takeUnless { storedExpired }) }
+    var sessionExpired by remember { mutableStateOf(storedExpired) }
     fun clearSession() {
         webStorageRemove(tokenKey)
         webSessionRemove(tokenKey)
         token = null
+    }
+    LaunchedEffect(Unit) {
+        if (storedExpired) clearSession()
+    }
+    LaunchedEffect(token) {
+        val current = token ?: return@LaunchedEffect
+        while (!MasterSession.isExpired(current, AppClock.nowMillis())) {
+            delay(AppConstants.MasterWeb.SESSION_CHECK_INTERVAL_MS)
+        }
+        MasterSession.onExpired?.invoke()
     }
     DisposableEffect(Unit) {
         MasterSession.onExpired = {

@@ -292,6 +292,7 @@ object AppConstants {
         /** Admin lists can be large; still bounded so the UI never spins forever. */
         const val REQUEST_TIMEOUT_MS: Long = 30_000L
         const val CONNECT_TIMEOUT_MS: Long = 10_000L
+        const val SESSION_CHECK_INTERVAL_MS: Long = 60_000L
         const val SIDEBAR_WIDTH_DP: Int = 220
         const val COMPACT_BREAKPOINT_DP: Int = 840
     }

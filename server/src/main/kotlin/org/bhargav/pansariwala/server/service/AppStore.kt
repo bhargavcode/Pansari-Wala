@@ -8,6 +8,7 @@ import com.mongodb.client.model.Filters.gt
 import com.mongodb.client.model.Filters.gte
 import com.mongodb.client.model.Updates.inc
 import com.mongodb.client.model.Filters.`in`
+import com.mongodb.client.model.Filters.nin
 import com.mongodb.client.model.Filters.or
 import com.mongodb.client.model.Filters.lt
 import com.mongodb.client.model.Projections.exclude
@@ -270,9 +271,9 @@ class AppStore(
         val normalized = Security.normalizePhone(phone)
         require(normalized.length == 10) { "Invalid phone" }
         val sessionId = security.randomId("otp")
-        // No SMS provider → fixed code so sideloaded / iOS Personal Team builds can sign in.
-        // Real SMS (SMS_API_URL) → random code (or 123456 when AUTH_DEV_MODE=true).
-        val useFixedOtp = config.devAuth || !config.smsConfigured
+        // Android/iOS use Firebase Phone Auth; this path serves web. Fixed 123456 only with AUTH_DEV_MODE=true.
+        val useFixedOtp = config.devAuth
+        check(useFixedOtp || config.smsConfigured) { "SMS OTP is not configured" }
         val code = if (useFixedOtp) "123456" else (100000 + kotlin.random.Random.nextInt(900000)).toString()
         otpCol.deleteMany(eq("phone", normalized))
         otpCol.insertOne(
@@ -431,8 +432,14 @@ class AppStore(
         query: String,
         categories: Set<String> = emptySet(),
     ): List<ShopDto> {
-        val shopFilter = if (categories.isEmpty()) eq("active", true)
-        else and(eq("active", true), `in`("shopType", categories))
+        val disabledTypes = shopTypeCol.find(eq("active", false)).toList().map { it.id }.toSet()
+        val allowedTypes = categories - disabledTypes
+        if (categories.isNotEmpty() && allowedTypes.isEmpty()) return emptyList()
+        val shopFilter = when {
+            allowedTypes.isNotEmpty() -> and(eq("active", true), `in`("shopType", allowedTypes))
+            disabledTypes.isNotEmpty() -> and(eq("active", true), nin("shopType", disabledTypes))
+            else -> eq("active", true)
+        }
         val offerCounts = offerCountCol.aggregate(
             listOf(Aggregates.group("\$shopId", Accumulators.sum("n", 1))),
         ).toList().associate { it.getString("_id") to (it.getInteger("n") ?: 0) }

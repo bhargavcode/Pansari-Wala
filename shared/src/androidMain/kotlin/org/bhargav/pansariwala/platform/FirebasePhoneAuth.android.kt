@@ -59,7 +59,8 @@ class AndroidFirebasePhoneAuth : PhoneAuthGateway {
                     resumeOnce(Result.success(PhoneOtpSession(sessionId = verificationId, usesFirebase = true)))
                 }
             }
-            val options = PhoneAuthOptions.newBuilder(FirebaseAuth.getInstance())
+            val auth = FirebaseAuth.getInstance().apply { useAppLanguage() }
+            val options = PhoneAuthOptions.newBuilder(auth)
                 .setPhoneNumber(e164Phone(phone))
                 .setTimeout(AppConstants.OTP_TIMEOUT_SEC, TimeUnit.SECONDS)
                 .setActivity(activity)

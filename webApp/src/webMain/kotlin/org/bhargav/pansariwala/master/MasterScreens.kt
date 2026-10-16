@@ -185,6 +185,7 @@ import pansariwala.shared.generated.resources.master_features
 import pansariwala.shared.generated.resources.master_number_of_shops
 import pansariwala.shared.generated.resources.master_stars_label
 import pansariwala.shared.generated.resources.master_active
+import pansariwala.shared.generated.resources.master_inactive
 import pansariwala.shared.generated.resources.master_sales_overview
 import pansariwala.shared.generated.resources.master_txn_trends
 import pansariwala.shared.generated.resources.master_upload_image
@@ -1244,8 +1245,28 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
                     }
                 }) { Text(stringResource(Res.string.master_save)) }
                 shopTypes.forEach { t ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${t.name} [${t.id}]")
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("${t.name} [${t.id}]", modifier = Modifier.weight(1f))
+                        Text(
+                            stringResource(if (t.active) Res.string.master_active else Res.string.master_inactive),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (t.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        )
+                        Switch(
+                            checked = t.active,
+                            onCheckedChange = { enabled ->
+                                scope.launch {
+                                    runCatching { api.saveShopType(token, ShopTypeUpsert(id = t.id, name = t.name, active = enabled)) }
+                                        .onSuccess { refresh() }
+                                        .onFailure { onStatus(it.message.orEmpty()) }
+                                }
+                            },
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                        )
                         TextButton(onClick = {
                             scope.launch {
                                 runCatching { api.deleteShopType(token, t.id) }

@@ -97,6 +97,7 @@ final class FirebasePhoneOtpHost: IosPhoneOtpHost {
     private let uiDelegate = PhoneAuthUIDelegate()
 
     func sendOtp(e164Phone: String, callback: IosOtpSendCallback) {
+        Auth.auth().useAppLanguage()
         PhoneAuthProvider.provider().verifyPhoneNumber(e164Phone, uiDelegate: uiDelegate) { verificationID, error in
             if let verificationID {
                 callback.onSuccess(verificationId: verificationID)
