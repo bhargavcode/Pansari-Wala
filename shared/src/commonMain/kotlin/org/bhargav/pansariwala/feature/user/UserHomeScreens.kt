@@ -85,6 +85,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.account_all_orders
 import pansariwala.shared.generated.resources.account_help
+import pansariwala.shared.generated.resources.app_name
 import pansariwala.shared.generated.resources.account_recent_three
 import pansariwala.shared.generated.resources.account_transactions
 import pansariwala.shared.generated.resources.action_logout
@@ -310,6 +311,32 @@ fun MarketScreen(
     val cartLines by cart.lines.collectAsStateWithLifecycle()
     val cartShopId by cart.shopId.collectAsStateWithLifecycle()
     val cartShopName by cart.shopName.collectAsStateWithLifecycle()
+    val cartRestored by cart.restored.collectAsStateWithLifecycle()
+    val sortedShopTypes = ShopType.entries.map { it to shopTypeLabel(it) }.sortedBy { it.second.lowercase() }
+    var showResumeSheet by remember { mutableStateOf(false) }
+    LaunchedEffect(cartRestored) {
+        if (cartRestored && !cart.resumePromptShown && cart.lines.value.isNotEmpty() && cart.shopId.value != null) {
+            cart.resumePromptShown = true
+            showResumeSheet = true
+        }
+    }
+    val resumeShopId = cartShopId
+    if (showResumeSheet && resumeShopId != null && cartLines.isNotEmpty()) {
+        ResumeCartSheet(
+            shopName = cartShopName ?: resumeShopId,
+            lines = cartLines,
+            subtotal = cart.subtotal,
+            onResume = {
+                showResumeSheet = false
+                onContinueOrder(resumeShopId)
+            },
+            onClearCart = {
+                showResumeSheet = false
+                cart.clear()
+            },
+            onDismiss = { showResumeSheet = false },
+        )
+    }
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var draftSort by remember(state.showFilterSheet) { mutableStateOf(state.sortOption) }
     var draftTypes by remember(state.showFilterSheet) { mutableStateOf(state.selectedShopTypes) }
@@ -372,7 +399,7 @@ fun MarketScreen(
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text(stringResource(Res.string.market_shop_types), fontWeight = FontWeight.SemiBold)
-                ShopType.entries.forEach { type ->
+                sortedShopTypes.forEach { (type, label) ->
                     Row(
                         Modifier.fillMaxWidth().clickable {
                             draftTypes = draftTypes.toMutableSet().apply {
@@ -382,7 +409,7 @@ fun MarketScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Checkbox(checked = type in draftTypes, onCheckedChange = null)
-                        Text(shopTypeLabel(type))
+                        Text(label)
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -405,6 +432,18 @@ fun MarketScreen(
     }
 
     PansariScreen(
+        topBar = {
+            PansariTopBar(
+                title = stringResource(Res.string.app_name),
+                onBack = null,
+                actions = {
+                    CartBadgeButton(
+                        itemCount = CartStore.countItems(cartLines),
+                        onClick = { cartShopId?.let(onContinueOrder) },
+                    )
+                },
+            )
+        },
         error = state.error.toErrorBanner(),
         onErrorAction = {
             handleErrorBannerAction(it, onRetry = viewModel::search, onDismiss = viewModel::dismissError)
@@ -412,11 +451,8 @@ fun MarketScreen(
         isLoading = state.loading && state.shops.isEmpty(),
         isRefreshing = state.loading && state.shops.isNotEmpty(),
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 16.dp),
-        ) {
-          item(key = "header", contentType = "header") { Column {
+      Column(Modifier.fillMaxSize()) {
+          Column {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(
                     stringResource(Res.string.market_greeting, state.userName.ifBlank { "there" }),
@@ -428,15 +464,6 @@ fun MarketScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 4.dp).clickable(onClick = onChangeLocation),
-                )
-            }
-            if (cartLines.isNotEmpty() && cartShopId != null) {
-                ContinueLastOrderCard(
-                    shopName = cartShopName ?: cartShopId.orEmpty(),
-                    lines = cartLines,
-                    subtotal = cart.subtotal,
-                    onContinue = { onContinueOrder(cartShopId!!) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
             Row(
@@ -466,15 +493,19 @@ fun MarketScreen(
                     onClick = viewModel::selectAllShopTypes,
                     label = { Text(stringResource(Res.string.market_shop_type_all)) },
                 )
-                ShopType.entries.forEach { type ->
+                sortedShopTypes.forEach { (type, label) ->
                     FilterChip(
                         selected = type in state.selectedShopTypes,
                         onClick = { viewModel.toggleShopType(type) },
-                        label = { Text(shopTypeLabel(type)) },
+                        label = { Text(label) },
                     )
                 }
             }
-          } }
+          }
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
             if (state.shops.isEmpty() && !state.loading) {
                 item(key = "empty", contentType = "empty") {
                     Text(
@@ -492,6 +523,7 @@ fun MarketScreen(
                 )
             }
         }
+      }
     }
 }
 

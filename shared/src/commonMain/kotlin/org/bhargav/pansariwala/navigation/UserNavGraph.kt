@@ -27,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -41,9 +40,7 @@ import kotlinx.serialization.modules.polymorphic
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.feature.user.AccountHomeScreen
 import org.bhargav.pansariwala.feature.user.AddressScreen
-import org.bhargav.pansariwala.feature.user.CartFloatingPill
 import org.bhargav.pansariwala.feature.user.CartScreen
-import org.bhargav.pansariwala.feature.user.CartStore
 import org.bhargav.pansariwala.feature.user.CheckoutScreen
 import org.bhargav.pansariwala.feature.user.HelpScreen
 import org.bhargav.pansariwala.feature.user.MarketScreen
@@ -63,7 +60,6 @@ import org.bhargav.pansariwala.feature.user.UserThemeScreen
 import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.notification.NotificationRouter
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_show
 import pansariwala.shared.generated.resources.error_session_expired_login
@@ -308,11 +304,6 @@ private fun UserShell(
     onChangeLocation: () -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
-    val cart: CartStore = koinInject()
-    val cartLines by cart.lines.collectAsStateWithLifecycle(emptyList())
-    val cartShopId by cart.shopId.collectAsStateWithLifecycle(null)
-    val cartCount = CartStore.countItems(cartLines)
-
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Column(Modifier.weight(1f).padding(bottom = 4.dp)) {
@@ -352,13 +343,6 @@ private fun UserShell(
                     label = { Text(stringResource(Res.string.tab_profile)) },
                 )
             }
-        }
-        if (cartCount > 0 && cartShopId != null && tab == 0) {
-            CartFloatingPill(
-                itemCount = cartCount,
-                onClick = { onOpenCart(cartShopId!!) },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
-            )
         }
     }
 }

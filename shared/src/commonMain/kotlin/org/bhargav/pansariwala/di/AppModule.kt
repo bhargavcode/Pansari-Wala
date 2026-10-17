@@ -92,7 +92,7 @@ val appModule = module {
     single<ShopRepository> { SyncingShopRepository(createShopRepository(), get()) }
     singleOf(::OfflineOrderSync)
     single { AppPreferences(get()) }
-    single { CartStore() }
+    single { CartStore(get()) }
     single<PrinterSettingsStore> { SessionPrinterSettingsStore(get()) }
     singleOf(::PosPrintService)
     single<PansariApi> { KtorPansariApi(createPlatformHttpClient(), ApiRuntime.baseUrl, get()) }

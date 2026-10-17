@@ -3,7 +3,9 @@ package org.bhargav.pansariwala.data.local
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.api.ShopFeaturesDto
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
@@ -232,6 +234,20 @@ class AppPreferences(
         )
     }
 
+    suspend fun getSavedCart(): SavedCart? =
+        store.getString(AppConstants.Prefs.SAVED_CART)?.let { raw ->
+            runCatching { json.decodeFromString(SavedCart.serializer(), raw) }.getOrNull()
+        }
+
+    /** Null or an empty cart removes the saved copy. */
+    suspend fun setSavedCart(cart: SavedCart?) {
+        if (cart == null || cart.lines.isEmpty()) {
+            store.remove(setOf(AppConstants.Prefs.SAVED_CART))
+        } else {
+            store.putStrings(mapOf(AppConstants.Prefs.SAVED_CART to json.encodeToString(SavedCart.serializer(), cart)))
+        }
+    }
+
     /** Online duty is derived from the cached partner profile (no separate pref). */
     suspend fun getPartnerOnlineDuty(): Boolean = getCachedPartnerProfile()?.online == true
 
@@ -293,10 +309,26 @@ class AppPreferences(
                 Keys.cachedCustomerProfile,
                 Keys.legacyPartnerOnlineDuty,
                 Keys.profileComplete,
+                AppConstants.Prefs.SAVED_CART,
             ),
         )
     }
 }
+
+/** Customer cart persisted across app restarts. */
+@Serializable
+data class SavedCart(
+    val shopId: String,
+    val shopName: String? = null,
+    val lines: List<SavedCartLine> = emptyList(),
+)
+
+@Serializable
+data class SavedCartLine(
+    val product: Product,
+    val variantId: String? = null,
+    val quantity: Double,
+)
 
 private const val PERMISSION_SEPARATOR = ","
 

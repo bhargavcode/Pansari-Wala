@@ -37,6 +37,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -61,6 +71,11 @@ import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_continue
 import pansariwala.shared.generated.resources.checkout_payable
 import pansariwala.shared.generated.resources.home_continue_last_order
+import pansariwala.shared.generated.resources.checkout_subtotal
+import pansariwala.shared.generated.resources.home_resume_checkout
+import pansariwala.shared.generated.resources.home_resume_clear_cart
+import pansariwala.shared.generated.resources.home_resume_later
+import pansariwala.shared.generated.resources.home_resume_more_items
 import pansariwala.shared.generated.resources.location_fetching
 import pansariwala.shared.generated.resources.order_number_label
 import pansariwala.shared.generated.resources.shop_distance
@@ -328,68 +343,99 @@ private fun ShopOffersSummary(shop: MarketplaceShop, onShowAllOffers: () -> Unit
 
 private val SHOP_LIST_HERO_HEIGHT = 170.dp
 
+/** Offered on home when a cart was left from an earlier session. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ContinueLastOrderCard(
+fun ResumeCartSheet(
     shopName: String,
     lines: List<CartStore.Line>,
     subtotal: Double,
-    onContinue: () -> Unit,
-    modifier: Modifier = Modifier,
+    onResume: () -> Unit,
+    onClearCart: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    if (lines.isEmpty()) return
-    Card(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onContinue),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.raisedCard),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                stringResource(Res.string.home_continue_last_order),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(shopName, fontWeight = FontWeight.SemiBold)
-            lines.forEach { line ->
+        Column(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.ShoppingCart, null, tint = MaterialTheme.colorScheme.primary)
                 Text(
-                    listOfNotNull(line.product.name, line.variant?.label).joinToString(" · ") +
-                        " × ${line.option.quantityLabel(line.quantity)} · ${line.lineTotal.asMoney()}",
-                    style = MaterialTheme.typography.bodySmall,
+                    stringResource(Res.string.home_continue_last_order),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp),
                 )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stringResource(Res.string.checkout_payable), fontWeight = FontWeight.Medium)
-                Text(subtotal.asMoney(), fontWeight = FontWeight.Bold)
+            Text(shopName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    lines.take(RESUME_SHEET_MAX_LINES).forEach { line ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                listOfNotNull(line.product.name, line.variant?.label).joinToString(" · ") +
+                                    " × ${line.option.quantityLabel(line.quantity)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(line.lineTotal.asMoney(), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    if (lines.size > RESUME_SHEET_MAX_LINES) {
+                        Text(
+                            stringResource(Res.string.home_resume_more_items, lines.size - RESUME_SHEET_MAX_LINES),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(stringResource(Res.string.checkout_subtotal), fontWeight = FontWeight.Medium)
+                        Text(subtotal.asMoney(), fontWeight = FontWeight.Bold)
+                    }
+                }
             }
             UserPrimaryButton(
-                text = stringResource(Res.string.action_continue),
-                onClick = onContinue,
+                text = stringResource(Res.string.home_resume_checkout),
+                onClick = onResume,
             )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = onClearCart) {
+                    Text(stringResource(Res.string.home_resume_clear_cart), color = MaterialTheme.colorScheme.error)
+                }
+                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.home_resume_later)) }
+            }
         }
     }
 }
 
+/** Top-bar cart action; the badge shows the item count when the cart is not empty. */
 @Composable
-fun CartFloatingPill(
-    itemCount: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (itemCount <= 0) return
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.primary,
-        shadowElevation = PansariElevation.fab,
-    ) {
-        Text(
-            text = stringResource(Res.string.user_cart_items, itemCount),
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            color = MaterialTheme.colorScheme.onPrimary,
-            fontWeight = FontWeight.SemiBold,
-        )
+fun CartBadgeButton(itemCount: Int, onClick: () -> Unit) {
+    val description = stringResource(Res.string.user_cart_items, itemCount)
+    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = description }) {
+        BadgedBox(
+            badge = {
+                if (itemCount > 0) Badge { Text(if (itemCount > MAX_BADGE_COUNT) "$MAX_BADGE_COUNT+" else "$itemCount") }
+            },
+        ) {
+            Icon(Icons.Default.ShoppingCart, contentDescription = null)
+        }
     }
 }
+
+private const val RESUME_SHEET_MAX_LINES = 4
+private const val MAX_BADGE_COUNT = 99
 
 @Composable
 fun QuantityStepper(

@@ -1,9 +1,21 @@
 package org.bhargav.pansariwala.feature.user
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.data.local.AppPreferences
+import org.bhargav.pansariwala.data.local.SavedCart
+import org.bhargav.pansariwala.data.local.SavedCartLine
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.ProductVariant
@@ -78,16 +90,10 @@ fun Product.options(): List<PurchaseOption> =
 /** Products needing a choice (variants or a weight) open the picker instead of a one-tap "+". */
 val Product.needsPicker: Boolean get() = variants.size > 1 || options().first().isLoose
 
-class CartStore {
-    data class Line(val product: Product, val variant: ProductVariant?, val quantity: Double) {
-        val option: PurchaseOption get() = PurchaseOption(product, variant)
-        val key: String get() = option.key
-        val unitPrice: Double get() = option.unitPrice
-        val lineTotal: Double get() = unitPrice * quantity
-        /** Line total before the product offer; equals [lineTotal] when there is no offer. */
-        val baseLineTotal: Double get() = option.basePrice * quantity
-        val isLoose: Boolean get() = option.isLoose
-    }
+/** Process-wide cart; restored from [preferences] at start and saved (debounced) on every change. */
+@OptIn(FlowPreview::class)
+class CartStore(private val preferences: AppPreferences) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _shopId = MutableStateFlow<String?>(null)
     val shopId: StateFlow<String?> = _shopId.asStateFlow()
@@ -97,6 +103,44 @@ class CartStore {
 
     private val _lines = MutableStateFlow<List<Line>>(emptyList())
     val lines: StateFlow<List<Line>> = _lines.asStateFlow()
+
+    private val _restored = MutableStateFlow(false)
+    /** True once the saved cart (if any) has been loaded; gates the home "resume cart" prompt. */
+    val restored: StateFlow<Boolean> = _restored.asStateFlow()
+
+    /** Resume prompt is offered once per app launch. */
+    var resumePromptShown: Boolean = false
+
+    init {
+        scope.launch {
+            runCatching { preferences.getSavedCart() }.getOrNull()?.let { saved ->
+                if (_lines.value.isEmpty() && saved.lines.isNotEmpty()) {
+                    _shopId.value = saved.shopId
+                    _shopName.value = saved.shopName
+                    _lines.value = saved.lines.map { Line(it.product, it.product.variant(it.variantId), it.quantity) }
+                }
+            }
+            _restored.value = true
+            combine(_shopId, _shopName, _lines) { id, name, lines ->
+                id?.let { shop ->
+                    SavedCart(shop, name, lines.map { SavedCartLine(it.product, it.variant?.id, it.quantity) })
+                }
+            }
+                .drop(1)
+                .debounce(AppConstants.CART_SAVE_DEBOUNCE_MS)
+                .collect { runCatching { preferences.setSavedCart(it) } }
+        }
+    }
+
+    data class Line(val product: Product, val variant: ProductVariant?, val quantity: Double) {
+        val option: PurchaseOption get() = PurchaseOption(product, variant)
+        val key: String get() = option.key
+        val unitPrice: Double get() = option.unitPrice
+        val lineTotal: Double get() = unitPrice * quantity
+        /** Line total before the product offer; equals [lineTotal] when there is no offer. */
+        val baseLineTotal: Double get() = option.basePrice * quantity
+        val isLoose: Boolean get() = option.isLoose
+    }
 
     fun bindShop(shopId: String, shopName: String? = null) {
         if (_shopId.value != shopId) {

@@ -638,6 +638,10 @@
     <string name="checkout_loading_addresses">Loading your addresses…</string>
     <string name="action_add_address">Add address</string>
     <string name="home_continue_last_order">Proceed your last order</string>
+    <string name="home_resume_checkout">Resume checkout</string>
+    <string name="home_resume_clear_cart">Clear cart</string>
+    <string name="home_resume_later">Later</string>
+    <string name="home_resume_more_items">+%1$d more items</string>
     <string name="error_checkout_out_of_range">Hey you are out of range of shop range</string>
     <string name="error_checkout_address_required">Select or add a delivery address before paying.</string>
     <string name="action_continue">Continue</string>

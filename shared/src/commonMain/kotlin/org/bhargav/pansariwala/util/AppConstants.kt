@@ -211,6 +211,7 @@ object AppConstants {
     const val IMAGE_MEMORY_CACHE_BYTES: Long = 96L * 1024 * 1024
     const val IMAGE_DISK_CACHE_BYTES: Long = 150L * 1024 * 1024
     const val IMAGE_DISK_CACHE_DIR: String = "image_cache"
+    const val CART_SAVE_DEBOUNCE_MS: Long = 400L
     const val IMAGE_CAROUSEL_INTERVAL_MS: Long = 2_000L
     const val UPLOAD_AUTO_RETRY_COUNT: Int = 1
     const val UPLOAD_MAX_RAW_BYTES: Int = 12_000_000
@@ -224,6 +225,7 @@ object AppConstants {
         const val PARTNER_ID: String = "pref_partner_id"
         const val CACHED_PARTNER_PROFILE: String = "pref_cached_partner_profile"
         const val CACHED_CUSTOMER_PROFILE: String = "pref_cached_customer_profile"
+        const val SAVED_CART: String = "pref_saved_cart"
         const val ROLE: String = "pref_auth_role"
         const val FCM_TOKEN: String = "pref_fcm_token"
         const val FCM_TOKEN_USER_ID: String = "pref_fcm_token_user_id"

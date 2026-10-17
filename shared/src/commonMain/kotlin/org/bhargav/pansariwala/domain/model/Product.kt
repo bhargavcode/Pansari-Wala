@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.domain.model
 
+import kotlinx.serialization.Serializable
+
 enum class ProductCategory(val displayName: String, val displayNameHi: String) {
     FORTUNE_BRANDED("Fortune / Branded", "फॉर्च्यून / ब्रांडेड"),
     GENERAL_GROCERY("General Grocery", "किराना"),
@@ -56,6 +58,7 @@ enum class SellMode {
  * A sellable option of a [Product] (size, colour, pack size, item count or loose weight).
  * For [SellMode.LOOSE], [price] is per [baseUnit] and cart quantities are in [baseUnit].
  */
+@Serializable
 data class ProductVariant(
     val id: String,
     val label: String,
@@ -78,6 +81,7 @@ data class ProductVariant(
     val primaryImageUrl: String? get() = imageUrls.firstOrNull { it.isNotBlank() }
 }
 
+@Serializable
 data class Product(
     val id: String,
     val shopId: String,
@@ -132,6 +136,7 @@ enum class DiscountType {
 }
 
 /** Product-scope shop offer: [DiscountType.PERCENT] off, or [DiscountType.FLAT] ₹ off each unit. */
+@Serializable
 data class ProductOffer(
     val id: String,
     val title: String,
