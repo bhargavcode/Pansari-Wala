@@ -19,6 +19,7 @@ sealed interface UserRoute : NavKey {
         val query: String = "",
     ) : UserRoute
     @Serializable data class ShopProduct(val shopId: String, val productId: String) : UserRoute
+    @Serializable data class ShopOffers(val shopId: String) : UserRoute
     @Serializable data class Checkout(val shopId: String) : UserRoute
     @Serializable data class ThankYou(val orderId: String) : UserRoute
     @Serializable data class OrderDetails(val orderId: String) : UserRoute

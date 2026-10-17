@@ -49,6 +49,7 @@ data class ShopDetailsDto(
     val taxId: String = "",
     val operatingHours: List<ShopHoursDayDto> = emptyList(),
     val loginUsername: String = "",
+    val deliveryUntil: String = "",
 )
 
 @Serializable
@@ -95,6 +96,8 @@ data class ShopProfilePatch(
     val upiId: String? = null,
     val deliveryRadiusKm: Double? = null,
     val discountPercent: Double? = null,
+    /** "HH:mm"; empty string clears the cutoff. */
+    val deliveryUntil: String? = null,
 )
 
 @Serializable

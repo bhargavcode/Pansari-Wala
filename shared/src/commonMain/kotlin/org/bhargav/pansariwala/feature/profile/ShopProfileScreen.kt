@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -120,6 +121,13 @@ import pansariwala.shared.generated.resources.profile_field_owner_email
 import pansariwala.shared.generated.resources.profile_field_owner_name
 import pansariwala.shared.generated.resources.profile_field_owner_phone
 import pansariwala.shared.generated.resources.profile_field_radius
+import pansariwala.shared.generated.resources.action_apply
+import pansariwala.shared.generated.resources.shop_delivery_until_clear
+import pansariwala.shared.generated.resources.shop_delivery_until_hint
+import pansariwala.shared.generated.resources.shop_delivery_until_label
+import pansariwala.shared.generated.resources.shop_delivery_until_none
+import pansariwala.shared.generated.resources.time_format_am
+import pansariwala.shared.generated.resources.time_format_pm
 import pansariwala.shared.generated.resources.profile_field_rating
 import pansariwala.shared.generated.resources.profile_field_registration
 import pansariwala.shared.generated.resources.profile_field_state
@@ -331,6 +339,10 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, access: ShopAccess, viewModel:
             DetailRow(Res.string.profile_field_owner_email, shop.ownerEmail)
             DetailRow(Res.string.profile_field_upi, shop.upiId)
             DetailRow(Res.string.profile_field_radius, shop.deliveryRadiusKm.formatOne())
+            DetailRow(
+                Res.string.shop_delivery_until_label,
+                formatDeliveryUntil(shop.deliveryUntil) ?: stringResource(Res.string.shop_delivery_until_none),
+            )
             DetailRow(Res.string.profile_field_discount, shop.discountPercent.formatOne())
             DetailRow(Res.string.profile_field_registration, shop.registrationNumber)
             DetailRow(Res.string.profile_field_tax, shop.taxId)
@@ -562,6 +574,7 @@ private fun ShopDetailsDialog(
         Field(Res.string.profile_field_owner_email, draft.ownerEmail, KeyboardType.Email) { v -> onChange { it.copy(ownerEmail = v) } }
         Field(Res.string.profile_field_upi, draft.upiId) { v -> onChange { it.copy(upiId = v) } }
         Field(Res.string.profile_field_radius, draft.deliveryRadiusKm, KeyboardType.Decimal) { v -> onChange { it.copy(deliveryRadiusKm = v) } }
+        DeliveryUntilField(draft.deliveryUntil) { v -> onChange { it.copy(deliveryUntil = v) } }
         Field(Res.string.profile_field_discount, draft.discountPercent, KeyboardType.Decimal) { v -> onChange { it.copy(discountPercent = v) } }
         Field(Res.string.profile_field_registration, draft.registrationNumber) { v -> onChange { it.copy(registrationNumber = v) } }
         Field(Res.string.profile_field_tax, draft.taxId) { v -> onChange { it.copy(taxId = v) } }
@@ -704,6 +717,66 @@ private fun Field(
         modifier = Modifier.fillMaxWidth(),
     )
 }
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DeliveryUntilField(value: String, onChange: (String) -> Unit) {
+    var picking by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Box {
+            OutlinedTextField(
+                value = formatDeliveryUntil(value) ?: stringResource(Res.string.shop_delivery_until_none),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(Res.string.shop_delivery_until_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Box(Modifier.matchParentSize().clickable { picking = true })
+        }
+        Text(
+            stringResource(Res.string.shop_delivery_until_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (!picking) return
+    val parts = value.split(":").mapNotNull { it.toIntOrNull() }
+    val pickerState = androidx.compose.material3.rememberTimePickerState(
+        initialHour = parts.getOrNull(0) ?: DEFAULT_DELIVERY_CUTOFF_HOUR,
+        initialMinute = parts.getOrNull(1) ?: 0,
+        is24Hour = false,
+    )
+    AlertDialog(
+        onDismissRequest = { picking = false },
+        title = { Text(stringResource(Res.string.shop_delivery_until_label)) },
+        text = { androidx.compose.material3.TimePicker(state = pickerState) },
+        confirmButton = {
+            TextButton(onClick = {
+                onChange("${pickerState.hour.toString().padStart(2, '0')}:${pickerState.minute.toString().padStart(2, '0')}")
+                picking = false
+            }) { Text(stringResource(Res.string.action_apply)) }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                onChange("")
+                picking = false
+            }) { Text(stringResource(Res.string.shop_delivery_until_clear)) }
+        },
+    )
+}
+
+/** "17:00" → "5:00 PM"; null when no cutoff is set. */
+@Composable
+private fun formatDeliveryUntil(value: String): String? {
+    val parts = value.split(":").mapNotNull { it.toIntOrNull() }
+    if (parts.size != 2) return null
+    val (hour, minute) = parts
+    val clock = "${if (hour % 12 == 0) 12 else hour % 12}:${minute.toString().padStart(2, '0')}"
+    return stringResource(if (hour < 12) Res.string.time_format_am else Res.string.time_format_pm, clock)
+}
+
+private const val DEFAULT_DELIVERY_CUTOFF_HOUR = 17
 
 @Composable
 private fun DetailRow(label: StringResource, value: String) {

@@ -59,11 +59,18 @@ data class Order(
     val dropoffInstructions: String? = null,
     val deliveryOtp: String? = null,
     val pickupPhotoUrls: List<String> = emptyList(),
+    /** Customer collects at the shop; no delivery partner involved. */
+    val selfPickup: Boolean = false,
     val partnerId: String? = null,
     val partnerName: String? = null,
     val partnerPhone: String? = null,
     val partnerVehicleReg: String? = null,
     val rating: OrderRating? = null,
+    /** Delivery partner's rating of the customer for this order (shop / partner views only). */
+    val customerRatingByPartner: OrderRating? = null,
+    /** Customer's average partner rating across all orders; null when never rated. */
+    val customerRatingAvg: Double? = null,
+    val customerRatingCount: Int = 0,
     val quote: CheckoutQuote? = null,
     val paymentId: String? = null,
     val paymentMethod: String = "ONLINE",

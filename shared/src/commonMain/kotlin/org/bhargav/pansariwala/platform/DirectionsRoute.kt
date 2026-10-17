@@ -9,23 +9,58 @@ import io.ktor.client.request.parameter
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.util.AppConstants
+import kotlin.math.ceil
+import kotlin.math.round
 
 data class LatLngPoint(val lat: Double, val lng: Double)
 
-/**
- * Driving route following roads (Google Directions).
- * Falls back to a straight segment if the request fails.
- */
+/** Road route; [distanceMeters] / [durationSeconds] are null when only a straight segment is known. */
+data class DrivingRoute(
+    val points: List<LatLngPoint>,
+    val distanceMeters: Double?,
+    val durationSeconds: Double?,
+) {
+    val distanceKm: Double? get() = distanceMeters?.div(1_000.0)
+    val durationMinutes: Int? get() = durationSeconds?.let { ceil(it / 60.0).toInt().coerceAtLeast(1) }
+}
+
+private val routeCache = mutableMapOf<String, DrivingRoute>()
+private val routeCacheLock = Mutex()
+
+/** ~11 m grid: small GPS jitter reuses the cached route instead of re-requesting. */
+private fun routeKey(originLat: Double, originLng: Double, destLat: Double, destLng: Double): String =
+    listOf(originLat, originLng, destLat, destLng).joinToString(",") { (round(it * 10_000.0) / 10_000.0).toString() }
+
+/** Driving route points following roads; a straight segment if no router answers. */
 suspend fun fetchDrivingRoute(
     originLat: Double,
     originLng: Double,
     destLat: Double,
     destLng: Double,
-): List<LatLngPoint> {
-    val straight = listOf(LatLngPoint(originLat, originLng), LatLngPoint(destLat, destLng))
+): List<LatLngPoint> = fetchDrivingRouteDetails(originLat, originLng, destLat, destLng).points
+
+/**
+ * Google Directions first, then the public OSRM router (OpenStreetMap) when Google refuses
+ * (e.g. REQUEST_DENIED because billing is off). Successful road routes are cached.
+ */
+suspend fun fetchDrivingRouteDetails(
+    originLat: Double,
+    originLng: Double,
+    destLat: Double,
+    destLng: Double,
+): DrivingRoute {
+    val key = routeKey(originLat, originLng, destLat, destLng)
+    routeCacheLock.withLock { routeCache[key] }?.let { return it }
+    val straight = DrivingRoute(
+        points = listOf(LatLngPoint(originLat, originLng), LatLngPoint(destLat, destLng)),
+        distanceMeters = null,
+        durationSeconds = null,
+    )
     val client = createPlatformHttpClient().config {
         install(HttpTimeout) {
             connectTimeoutMillis = AppConstants.HTTP_EXTERNAL_TIMEOUT_MS
@@ -37,12 +72,35 @@ suspend fun fetchDrivingRoute(
         }
     }
     return try {
-        fetchGoogleDrivingRoute(client, originLat, originLng, destLat, destLng) ?: straight
-    } catch (_: Throwable) {
-        straight
+        val route = runCatching { fetchGoogleDrivingRoute(client, originLat, originLng, destLat, destLng) }.getOrNull()
+            ?: runCatching { fetchOsrmDrivingRoute(client, originLat, originLng, destLat, destLng) }.getOrNull()
+        if (route != null) routeCacheLock.withLock { routeCache[key] = route }
+        route ?: straight
     } finally {
         client.close()
     }
+}
+
+private suspend fun fetchOsrmDrivingRoute(
+    client: HttpClient,
+    originLat: Double,
+    originLng: Double,
+    destLat: Double,
+    destLng: Double,
+): DrivingRoute? {
+    val response = client.get("${AppConstants.OSRM_ROUTE_URL}$originLng,$originLat;$destLng,$destLat") {
+        parameter("overview", "full")
+        parameter("geometries", "polyline")
+    }.body<OsrmRouteResponse>()
+    if (!response.code.equals("Ok", ignoreCase = true)) return null
+    val route = response.routes.firstOrNull() ?: return null
+    val points = decodePolyline(route.geometry)
+    if (points.size < 2) return null
+    return DrivingRoute(
+        points = listOf(LatLngPoint(originLat, originLng)) + points + LatLngPoint(destLat, destLng),
+        distanceMeters = route.distance,
+        durationSeconds = route.duration,
+    )
 }
 
 private suspend fun fetchGoogleDrivingRoute(
@@ -51,7 +109,7 @@ private suspend fun fetchGoogleDrivingRoute(
     originLng: Double,
     destLat: Double,
     destLng: Double,
-): List<LatLngPoint>? {
+): DrivingRoute? {
     val response = client.get(AppConstants.GOOGLE_DIRECTIONS_URL) {
         parameter("origin", "$originLat,$originLng")
         parameter("destination", "$destLat,$destLng")
@@ -65,7 +123,11 @@ private suspend fun fetchGoogleDrivingRoute(
     val points = detailed.ifEmpty { decodePolyline(route.overviewPolyline?.points.orEmpty()) }
     if (points.size < 2) return null
     // Snap ends to the exact partner / destination so the line starts and ends on the markers.
-    return listOf(LatLngPoint(originLat, originLng)) + points + LatLngPoint(destLat, destLng)
+    return DrivingRoute(
+        points = listOf(LatLngPoint(originLat, originLng)) + points + LatLngPoint(destLat, destLng),
+        distanceMeters = route.legs.sumOf { it.distance?.value ?: 0.0 }.takeIf { it > 0.0 },
+        durationSeconds = route.legs.sumOf { it.duration?.value ?: 0.0 }.takeIf { it > 0.0 },
+    )
 }
 
 fun decodePolyline(encoded: String): List<LatLngPoint> {
@@ -115,6 +177,27 @@ private data class GoogleRoute(
 @Serializable
 private data class GoogleLeg(
     val steps: List<GoogleStep> = emptyList(),
+    val distance: GoogleValue? = null,
+    val duration: GoogleValue? = null,
+)
+
+/** Metres for distance, seconds for duration. */
+@Serializable
+private data class GoogleValue(
+    val value: Double = 0.0,
+)
+
+@Serializable
+private data class OsrmRouteResponse(
+    val code: String = "",
+    val routes: List<OsrmRoute> = emptyList(),
+)
+
+@Serializable
+private data class OsrmRoute(
+    val geometry: String = "",
+    val distance: Double = 0.0,
+    val duration: Double = 0.0,
 )
 
 @Serializable

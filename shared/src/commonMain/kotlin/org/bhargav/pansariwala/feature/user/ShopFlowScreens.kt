@@ -58,10 +58,6 @@ import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.feature.order.DeliveringItemsList
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import androidx.compose.material3.Card
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.rememberModalBottomSheetState
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.feature.delivery.PickupPhotoStrip
 import org.bhargav.pansariwala.i18n.asString
@@ -78,7 +74,6 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.catalog_shop_categories
-import pansariwala.shared.generated.resources.shop_outside_delivery
 import pansariwala.shared.generated.resources.account_all_orders
 import pansariwala.shared.generated.resources.account_transactions
 import pansariwala.shared.generated.resources.action_add_address
@@ -91,20 +86,15 @@ import pansariwala.shared.generated.resources.action_proceed_payment
 import pansariwala.shared.generated.resources.action_save_rating
 import pansariwala.shared.generated.resources.action_update_rating
 import pansariwala.shared.generated.resources.cart_title
-import pansariwala.shared.generated.resources.shop_distance
 import pansariwala.shared.generated.resources.catalog_no_products
-import pansariwala.shared.generated.resources.catalog_no_ratings
-import pansariwala.shared.generated.resources.catalog_rating_filter
-import pansariwala.shared.generated.resources.catalog_rating_filter_all
-import pansariwala.shared.generated.resources.catalog_rating_filter_title
-import pansariwala.shared.generated.resources.catalog_rating_stars
 import pansariwala.shared.generated.resources.catalog_search_products
-import pansariwala.shared.generated.resources.catalog_shop_rating_count
-import pansariwala.shared.generated.resources.catalog_tab_products
-import pansariwala.shared.generated.resources.catalog_tab_ratings
-import pansariwala.shared.generated.resources.action_apply
-import pansariwala.shared.generated.resources.action_clear
 import pansariwala.shared.generated.resources.checkout_delivery
+import pansariwala.shared.generated.resources.action_okay
+import pansariwala.shared.generated.resources.shop_closed_message
+import pansariwala.shared.generated.resources.shop_closed_title
+import pansariwala.shared.generated.resources.checkout_pickup_address_fallback
+import pansariwala.shared.generated.resources.checkout_pickup_body
+import pansariwala.shared.generated.resources.checkout_pickup_title
 import pansariwala.shared.generated.resources.checkout_discount
 import pansariwala.shared.generated.resources.checkout_discount_applied
 import pansariwala.shared.generated.resources.checkout_offers_expand
@@ -156,46 +146,17 @@ fun ShopCatalogScreen(
     val cartLines = rememberCartLines(cart)
     val picker = rememberVariantPicker()
     VariantPickerHost(picker, cart)
-    val ratingFilterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var draftRatingStars by remember(data?.showRatingFilterSheet) {
-        mutableStateOf(data?.ratingFilterStars ?: emptySet())
-    }
-
-    if (data?.showRatingFilterSheet == true) {
-        ModalBottomSheet(
-            onDismissRequest = viewModel::hideRatingFilterSheet,
-            sheetState = ratingFilterSheetState,
-        ) {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(Res.string.catalog_rating_filter_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                (5 downTo 1).forEach { stars ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable {
-                            draftRatingStars = draftRatingStars.toMutableSet().apply {
-                                if (contains(stars)) remove(stars) else add(stars)
-                            }
-                        },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        androidx.compose.material3.Checkbox(checked = stars in draftRatingStars, onCheckedChange = null)
-                        Text(stringResource(Res.string.catalog_rating_stars, stars))
-                    }
-                }
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(onClick = { draftRatingStars = emptySet() }) {
-                        Text(stringResource(Res.string.action_clear))
-                    }
-                    UserPrimaryButton(
-                        text = stringResource(Res.string.action_apply),
-                        onClick = {
-                            viewModel.setRatingFilter(draftRatingStars)
-                            viewModel.hideRatingFilterSheet()
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
+    if (data?.showRatingsSheet == true) {
+        ShopRatingsSheet(
+            shop = data.shop,
+            ratings = viewModel.filteredRatings(data),
+            allRatings = data.ratings,
+            loaded = data.ratingsLoaded,
+            selectedStars = data.ratingFilterStars,
+            onToggleStars = viewModel::toggleRatingFilter,
+            onClearFilter = viewModel::clearRatingFilter,
+            onDismiss = viewModel::closeRatings,
+        )
     }
 
     PansariScreen(
@@ -213,116 +174,31 @@ fun ShopCatalogScreen(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
+                data?.shop?.let { shop ->
+                    if (!shop.deliveryAvailable) {
+                        item(key = "pickup_only", contentType = "strip") {
+                            PickupOnlyStrip(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
+                        }
+                    }
+                    item(key = "shop", contentType = "shop") {
+                        ShopHeroHeader(
+                            shop = shop,
+                            onRatingsClick = viewModel::openRatings,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
                 item(key = "search", contentType = "search") {
                     OutlinedTextField(
                         value = data?.productQuery.orEmpty(),
                         onValueChange = viewModel::setProductQuery,
                         label = { Text(stringResource(Res.string.catalog_search_products)) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                         singleLine = true,
                     )
                 }
-                data?.shop?.let { shop -> item(key = "shop", contentType = "shop") {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    ) {
-                        Row(
-                            Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(shop.name.take(1), fontWeight = FontWeight.Bold)
-                            }
-                            Column(modifier = Modifier.padding(start = 12.dp)) {
-                                Text(shop.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                ShopRatingBadge(
-                                    rating = shop.rating,
-                                    ratingCount = shop.ratingCount,
-                                    onClick = { viewModel.selectTab(CatalogTab.RATINGS) },
-                                )
-                                Text(
-                                    stringResource(
-                                        Res.string.shop_distance,
-                                        shop.distanceKm.let { (it * 10).toInt() / 10.0 }.toString(),
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                if (!shop.deliversToYou) {
-                                    Text(
-                                        stringResource(Res.string.shop_outside_delivery),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } }
-                item(key = "tabs", contentType = "tabs") {
-                    TabRow(
-                        selectedTabIndex = if (data?.selectedTab == CatalogTab.RATINGS) 1 else 0,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    ) {
-                        Tab(
-                            selected = data?.selectedTab == CatalogTab.PRODUCTS,
-                            onClick = { viewModel.selectTab(CatalogTab.PRODUCTS) },
-                            text = { Text(stringResource(Res.string.catalog_tab_products)) },
-                        )
-                        Tab(
-                            selected = data?.selectedTab == CatalogTab.RATINGS,
-                            onClick = { viewModel.selectTab(CatalogTab.RATINGS) },
-                            text = { Text(stringResource(Res.string.catalog_tab_ratings)) },
-                        )
-                    }
-                }
                 when {
                     data == null -> Unit
-                    data.selectedTab == CatalogTab.RATINGS -> {
-                        item(key = "rating_filter", contentType = "rating_filter") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                                .clickable(onClick = viewModel::showRatingFilterSheet),
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(stringResource(Res.string.catalog_rating_filter), fontWeight = FontWeight.Medium)
-                                Text(
-                                    if (data.ratingFilterStars.isEmpty()) {
-                                        stringResource(Res.string.catalog_rating_filter_all)
-                                    } else {
-                                        data.ratingFilterStars.sortedDescending().joinToString(", ") { "$it★" }
-                                    },
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                        }
-                        val ratings = viewModel.filteredRatings(data)
-                        when {
-                            !data.ratingsLoaded -> item(key = "ratings_loading", contentType = "progress") {
-                                LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
-                            }
-                            ratings.isEmpty() -> item(key = "ratings_empty", contentType = "empty") {
-                                Text(
-                                    stringResource(Res.string.catalog_no_ratings),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(16.dp),
-                                )
-                            }
-                            else -> items(ratings, key = { "r-${it.id}" }, contentType = { "review" }) { review ->
-                                Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                                    ShopReviewCard(review = review)
-                                }
-                            }
-                        }
-                    }
                     else -> {
                         if (!data.isSearchActive && data.sections.size > 1) {
                             item(key = "category_chips", contentType = "chips") {
@@ -384,9 +260,28 @@ fun CartScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val picker = rememberVariantPicker()
     VariantPickerHost(picker, cart)
+    state.closedShopName?.let { name ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissShopClosed,
+            title = { Text(stringResource(Res.string.shop_closed_title)) },
+            text = { Text(stringResource(Res.string.shop_closed_message, name)) },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissShopClosed) { Text(stringResource(Res.string.action_okay)) }
+            },
+        )
+    }
     PansariScreen(
         title = stringResource(Res.string.cart_title),
         onBack = onBack,
+        error = state.error.toErrorBanner(),
+        onErrorAction = {
+            handleErrorBannerAction(
+                it,
+                onRetry = { viewModel.proceedToCheckout(shopId, onCheckout) },
+                onDismiss = viewModel::dismissError,
+            )
+        },
+        isLoading = state.checkingShop,
     ) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -402,8 +297,8 @@ fun CartScreen(
         }
         UserPrimaryButton(
             text = stringResource(Res.string.action_proceed_payment, state.subtotal.asMoney()),
-            onClick = onCheckout,
-            enabled = state.lines.isNotEmpty(),
+            onClick = { viewModel.proceedToCheckout(shopId, onCheckout) },
+            enabled = state.lines.isNotEmpty() && !state.checkingShop,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
@@ -493,6 +388,19 @@ fun CheckoutScreen(
         }
         if (state.loadingQuote && quote == null) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+        if (state.selfPickup) {
+            SectionCard(title = stringResource(Res.string.checkout_pickup_title)) {
+                Text(
+                    stringResource(
+                        Res.string.checkout_pickup_body,
+                        state.shop?.let { shop -> listOf(shop.name, shop.address).filter { it.isNotBlank() }.joinToString(", ") }
+                            ?.ifBlank { null }
+                            ?: stringResource(Res.string.checkout_pickup_address_fallback),
+                    ),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
         if (quote != null) {
             SectionCard(

@@ -301,6 +301,7 @@ fun MarketScreen(
     onOpenShop: (String) -> Unit,
     onContinueOrder: (String) -> Unit,
     onChangeLocation: () -> Unit = {},
+    onShowShopOffers: (String) -> Unit = onOpenShop,
     viewModel: MarketViewModel = koinViewModel(),
     cart: CartStore = koinInject(),
 ) {
@@ -486,6 +487,7 @@ fun MarketScreen(
                 ShopDiscoveryCard(
                     shop = shop,
                     onClick = { onOpenShop(shop.id) },
+                    onShowAllOffers = { onShowShopOffers(shop.id) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                 )
             }

@@ -91,9 +91,16 @@ data class MarketplaceShop(
     val location: GeoPoint,
     val shopType: ShopType = ShopType.GENERAL_STORE,
     val offerCount: Int = 0,
+    /** Titles of the biggest live offers, largest first. */
+    val topOffers: List<String> = emptyList(),
     val discountPercent: Double = 0.0,
     val deliveryRadiusKm: Double = 20.0,
     val deliversToYou: Boolean = true,
+    val address: String = "",
+    /** "HH:mm" daily delivery cutoff; blank = delivers all day. */
+    val deliveryUntil: String = "",
+    /** False past [deliveryUntil]: orders become self-pickup with no delivery charge. */
+    val deliveryAvailable: Boolean = true,
 )
 
 data class CatalogSection(
@@ -138,6 +145,12 @@ data class ShopOffer(
     val title: String,
     val description: String,
     val discountPercent: Double,
+    val type: DiscountType = DiscountType.PERCENT,
+    val value: Double = discountPercent,
+    val minBillAmount: Double = 0.0,
+    val endsAtEpochMs: Long? = null,
+    /** Products a product-scope offer applies to; empty for whole-bill offers. */
+    val products: List<Product> = emptyList(),
 )
 
 @kotlinx.serialization.Serializable

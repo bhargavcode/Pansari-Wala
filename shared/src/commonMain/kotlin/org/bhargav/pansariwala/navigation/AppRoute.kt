@@ -42,6 +42,9 @@ sealed interface AppRoute : NavKey {
     data object OnlineOrders : AppRoute
 
     @Serializable
+    data class CustomerRatings(val customerId: String, val customerName: String = "") : AppRoute
+
+    @Serializable
     data object PrinterSettings : AppRoute
 
     @Serializable
@@ -63,6 +66,7 @@ fun AppRoute.screenName(): String = when (this) {
     is AppRoute.OrderEditor -> "order_editor"
     is AppRoute.OrdersWorkspace -> "orders_workspace"
     AppRoute.OnlineOrders -> "online_orders"
+    is AppRoute.CustomerRatings -> "customer_ratings"
     AppRoute.PrinterSettings -> "printer_settings"
     AppRoute.Reports -> "reports"
     AppRoute.ShopProfile -> "shop_profile"

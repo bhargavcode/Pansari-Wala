@@ -425,8 +425,11 @@ class KtorPansariApi(
             parameter("to", toEpochMs)
         }.body<PartnerDashboardDto>().toModel()
 
-    override suspend fun partnerEarnings(): PartnerEarnings =
-        client.get("partners/earnings").body<PartnerEarningsDto>().toModel()
+    override suspend fun partnerEarnings(fromMs: Long?, toMs: Long?): PartnerEarnings =
+        client.get("partners/earnings") {
+            fromMs?.let { parameter("from", it) }
+            toMs?.let { parameter("to", it) }
+        }.body<PartnerEarningsDto>().toModel()
 
     override suspend fun setPartnerOnline(online: Boolean) {
         client.post("partners/online") { setBody(PartnerOnlineRequest(online)) }
@@ -483,6 +486,18 @@ class KtorPansariApi(
         client.post("partners/jobs/$orderId/deliver") {
             setBody(DeliverRequest(otp))
         }.body<OrderDto>().toModel()
+
+    override suspend fun rateCustomer(orderId: String, stars: Int, comment: String?): Order =
+        client.post("partners/jobs/$orderId/customer-rating") {
+            setBody(RateOrderRequest(stars, comment))
+        }.body<OrderDto>().toModel()
+
+    override suspend fun customerRatings(customerId: String, stars: Set<Int>, page: Int, size: Int): CustomerRatingPageDto =
+        client.get("shop/customers/$customerId/ratings") {
+            if (stars.isNotEmpty()) parameter("stars", stars.sorted().joinToString(","))
+            parameter("page", page)
+            parameter("size", size)
+        }.body()
 
     override suspend fun pullSync(): SyncPullResponse = client.get("sync/pull").body()
 

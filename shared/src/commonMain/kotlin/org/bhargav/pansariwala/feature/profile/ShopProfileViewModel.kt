@@ -64,6 +64,8 @@ data class ShopDetailsDraft(
     val discountPercent: String = "",
     val registrationNumber: String = "",
     val taxId: String = "",
+    /** "HH:mm" or blank for all-day delivery. */
+    val deliveryUntil: String = "",
 )
 
 data class StaffDraft(
@@ -211,6 +213,7 @@ class ShopProfileViewModel(
             discountPercent = discount,
             registrationNumber = draft.registrationNumber.trim(),
             taxId = draft.taxId.trim(),
+            deliveryUntil = draft.deliveryUntil,
         )
         saveProfile(patch) { it.copy(detailsDraft = null) }
     }
@@ -421,4 +424,5 @@ private fun ShopDetailsDto.toDraft() = ShopDetailsDraft(
     discountPercent = discountPercent.toPlainString(),
     registrationNumber = registrationNumber,
     taxId = taxId,
+    deliveryUntil = deliveryUntil,
 )

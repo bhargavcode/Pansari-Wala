@@ -363,6 +363,18 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             withContext(Dispatchers.IO) { store.deleteOffer(call.userId(), call.parameters["id"]!!) }
             call.respond(OkResponse())
         }
+        get("/shop/customers/{customerId}/ratings") {
+            val shopId = call.requireShopId()
+            val stars = call.parameters["stars"].orEmpty()
+                .split(',').mapNotNull { it.trim().toIntOrNull() }.filter { it in 1..5 }.toSet()
+            val page = call.parameters["page"]?.toIntOrNull() ?: 0
+            val size = call.parameters["size"]?.toIntOrNull() ?: 20
+            call.respond(
+                withContext(Dispatchers.IO) {
+                    store.customerRatingsForShop(shopId, call.parameters["customerId"]!!, stars, page, size)
+                },
+            )
+        }
         get("/shop/ratings") {
             call.requireShopId()
             call.respond(withContext(Dispatchers.IO) { store.shopRatingsForStaff(call.userId()) })
@@ -408,7 +420,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(OkResponse())
         }
         get("/partners/earnings") {
-            call.respond(withContext(Dispatchers.IO) { store.partnerEarnings(call.userId()) })
+            val from = call.request.queryParameters["from"]?.toLongOrNull()
+            val to = call.request.queryParameters["to"]?.toLongOrNull()
+            call.respond(withContext(Dispatchers.IO) { store.partnerEarnings(call.userId(), from, to) })
         }
         post("/partners/online") {
             val body = call.receive<PartnerOnlineRequest>()
@@ -481,6 +495,14 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         post("/partners/jobs/{id}/deliver") {
             val body = call.receive<DeliverRequest>()
             call.respond(store.deliver(call.userId(), call.parameters["id"]!!, body.otp))
+        }
+        post("/partners/jobs/{id}/customer-rating") {
+            val body = call.receive<RateOrderRequest>()
+            call.respond(
+                withContext(Dispatchers.IO) {
+                    store.rateCustomer(call.userId(), call.parameters["id"]!!, body.stars, body.comment)
+                },
+            )
         }
 
         get("/admin/shops") {
@@ -597,6 +619,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 upiId = body.upiId,
                 deliveryRadiusKm = body.deliveryRadiusKm,
                 discountPercent = body.discountPercent,
+                deliveryUntil = body.deliveryUntil,
             )
             call.respond(OkResponse())
         }

@@ -2,7 +2,16 @@ package org.bhargav.pansariwala.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.launch
 import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Dispatchers
@@ -144,6 +153,7 @@ object IosLocationEngine {
 
     suspend fun currentFix(): GeoPoint = withContext(Dispatchers.Main) {
         if (!isGranted()) throw LocationPermissionDeniedException()
+        if (!locationServicesEnabled()) throw LocationServicesDisabledException()
         val cached = lastFix
         try {
             withTimeout(AppConstants.LOCATION_FETCH_TIMEOUT_MS) {
@@ -171,19 +181,51 @@ class IosDeviceLocation : DeviceLocation {
     override suspend fun currentOrDefault(): GeoPoint = IosLocationEngine.currentFix()
 }
 
+/** Checked off the main thread: Apple warns the call can block UI. */
+private suspend fun locationServicesEnabled(): Boolean =
+    withContext(Dispatchers.Default) { CLLocationManager.locationServicesEnabled() }
+
 @Composable
 actual fun RequestLocationPermission(
     trigger: Boolean,
     onConsumed: () -> Unit,
     onResult: (granted: Boolean) -> Unit,
 ) {
-    LaunchedEffect(trigger) {
-        if (!trigger) return@LaunchedEffect
-        IosLocationEngine.requestWhenInUse { granted ->
-            onConsumed()
-            onResult(granted)
+    val latestOnResult by rememberUpdatedState(onResult)
+    val scope = rememberCoroutineScope()
+    var showServicesOff by remember { mutableStateOf(false) }
+    var awaitingSettingsReturn by remember { mutableStateOf(false) }
+
+    fun requestPermission() {
+        IosLocationEngine.requestWhenInUse { granted -> latestOnResult(granted) }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (!awaitingSettingsReturn) return@LifecycleEventEffect
+        awaitingSettingsReturn = false
+        scope.launch {
+            if (locationServicesEnabled()) requestPermission() else latestOnResult(false)
         }
     }
+
+    LaunchedEffect(trigger) {
+        if (!trigger) return@LaunchedEffect
+        onConsumed()
+        if (locationServicesEnabled()) requestPermission() else showServicesOff = true
+    }
+
+    LocationServicesOffDialog(
+        visible = showServicesOff,
+        onTurnOn = {
+            showServicesOff = false
+            awaitingSettingsReturn = true
+            openAppLocationSettings()
+        },
+        onDismiss = {
+            showServicesOff = false
+            latestOnResult(false)
+        },
+    )
 }
 
 actual fun canOpenLocationSettings(): Boolean = true

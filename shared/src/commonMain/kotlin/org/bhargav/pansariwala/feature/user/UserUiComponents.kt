@@ -40,8 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.ShopReview
 import org.bhargav.pansariwala.domain.model.ShopSortOption
@@ -60,6 +62,9 @@ import pansariwala.shared.generated.resources.location_fetching
 import pansariwala.shared.generated.resources.order_number_label
 import pansariwala.shared.generated.resources.shop_distance
 import pansariwala.shared.generated.resources.shop_open_now
+import pansariwala.shared.generated.resources.shop_offers_active
+import pansariwala.shared.generated.resources.shop_offers_active_one
+import pansariwala.shared.generated.resources.shop_offers_show_all
 import pansariwala.shared.generated.resources.shop_rating
 import pansariwala.shared.generated.resources.shop_type_electronics
 import pansariwala.shared.generated.resources.shop_type_general_store
@@ -246,12 +251,16 @@ fun ShopDiscoveryCard(
     shop: MarketplaceShop,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onShowAllOffers: () -> Unit = onClick,
 ) {
     Card(
         modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.card),
     ) {
+        if (!shop.deliveryAvailable) {
+            PickupOnlyStrip(Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp))
+        }
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -321,7 +330,54 @@ fun ShopDiscoveryCard(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+                ShopOffersSummary(shop, onShowAllOffers)
             }
+        }
+    }
+}
+
+@Composable
+private fun ShopOffersSummary(shop: MarketplaceShop, onShowAllOffers: () -> Unit) {
+    if (shop.offerCount <= 0) return
+    Column(
+        modifier = Modifier.padding(top = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.tertiaryContainer,
+            shape = RoundedCornerShape(8.dp),
+        ) {
+            Text(
+                text = if (shop.offerCount == 1) {
+                    stringResource(Res.string.shop_offers_active_one)
+                } else {
+                    stringResource(Res.string.shop_offers_active, shop.offerCount)
+                },
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
+        shop.topOffers.take(AppConstants.SHOP_CARD_TOP_OFFERS).forEach { title ->
+            Text(
+                text = "• $title",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.tertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (shop.offerCount > AppConstants.SHOP_CARD_TOP_OFFERS) {
+            Text(
+                text = stringResource(Res.string.shop_offers_show_all),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable(onClick = onShowAllOffers).padding(vertical = 2.dp),
+            )
         }
     }
 }

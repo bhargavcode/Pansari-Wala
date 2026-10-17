@@ -18,6 +18,7 @@ import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
+import org.bhargav.pansariwala.platform.LocationServicesDisabledException
 import org.bhargav.pansariwala.platform.reverseGeocode
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
@@ -208,6 +209,9 @@ class AddressViewModel(
                 location.currentOrDefault()
             } catch (_: LocationPermissionDeniedException) {
                 _state.update { it.copy(locating = false, showLocationRationale = true) }
+                return@launch
+            } catch (_: LocationServicesDisabledException) {
+                _state.update { it.copy(locating = false, requestLocationPermission = true) }
                 return@launch
             } catch (_: Throwable) {
                 _state.update { it.copy(locating = false, error = UiText.res(Res.string.location_unavailable)) }

@@ -141,11 +141,15 @@ data class ShopDto(
     val lat: Double,
     val lng: Double,
     val offerCount: Int = 0,
+    val topOffers: List<String> = emptyList(),
     val discountPercent: Double = 0.0,
     val upiId: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
     val deliversToYou: Boolean = true,
+    val address: String = "",
+    val deliveryUntil: String = "",
+    val deliveryAvailable: Boolean = true,
 )
 
 @Serializable
@@ -292,6 +296,32 @@ data class OfferDto(
     val title: String,
     val description: String,
     val discountPercent: Double,
+    val scope: String = "BILL",
+    val discountType: String = "PERCENT",
+    val value: Double = discountPercent,
+    val minBillAmount: Double = 0.0,
+    val endsAtEpochMs: Long? = null,
+    val products: List<ProductDto> = emptyList(),
+)
+
+@Serializable
+data class CustomerRatingDto(
+    val orderId: String,
+    val stars: Int,
+    val comment: String? = null,
+    val partnerName: String = "",
+    val createdAtEpochMs: Long,
+)
+
+@Serializable
+data class CustomerRatingPageDto(
+    val items: List<CustomerRatingDto> = emptyList(),
+    val page: Int = 0,
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
+    val average: Double = 0.0,
+    val ratingCount: Int = 0,
+    val starCounts: Map<Int, Int> = emptyMap(),
 )
 
 @Serializable
@@ -307,6 +337,7 @@ data class PlaceOrderRequest(
     val addressId: String? = null,
     val userLat: Double? = null,
     val userLng: Double? = null,
+    val selfPickup: Boolean = false,
 )
 
 @Serializable
@@ -315,6 +346,7 @@ data class QuoteRequest(
     val items: List<PlaceOrderItemDto>,
     val userLat: Double,
     val userLng: Double,
+    val selfPickup: Boolean = false,
 )
 
 @Serializable
@@ -380,6 +412,7 @@ data class OrderDto(
     val dropoffInstructions: String? = null,
     val deliveryOtp: String? = null,
     val pickupPhotoUrls: List<String> = emptyList(),
+    val selfPickup: Boolean = false,
     val partnerId: String? = null,
     val partnerName: String? = null,
     val partnerPhone: String? = null,
@@ -399,6 +432,10 @@ data class OrderDto(
     val quote: QuoteDto? = null,
     val ratingStars: Int? = null,
     val ratingComment: String? = null,
+    val customerRatingStars: Int? = null,
+    val customerRatingComment: String? = null,
+    val customerRatingAvg: Double? = null,
+    val customerRatingCount: Int = 0,
     val cancelReason: String? = null,
     val partnerProgress: String = "",
     val packedProductIds: List<String> = emptyList(),
@@ -503,6 +540,8 @@ data class PartnerEarningsDto(
     val deliveredCount: Int,
     val acceptanceRatePercent: Int,
     val weeklyEarnings: List<PartnerDailyEarningDto>,
+    val rangeEarnings: Double = 0.0,
+    val rangeDeliveredCount: Int = 0,
 )
 
 @Serializable
@@ -624,10 +663,14 @@ fun ShopDto.toModel() = MarketplaceShop(
     isOpen = isOpen,
     location = GeoPoint(lat, lng),
     offerCount = offerCount,
+    topOffers = topOffers,
     discountPercent = discountPercent,
     deliveryRadiusKm = deliveryRadiusKm,
     shopType = ShopType.fromApi(shopType),
     deliversToYou = deliversToYou,
+    address = address,
+    deliveryUntil = deliveryUntil,
+    deliveryAvailable = deliveryAvailable,
 )
 
 fun CatalogSectionDto.toModel() = org.bhargav.pansariwala.domain.model.CatalogSection(
@@ -838,11 +881,15 @@ fun OrderDto.toModel() = Order(
     dropoffInstructions = dropoffInstructions,
     deliveryOtp = deliveryOtp,
     pickupPhotoUrls = pickupPhotoUrls,
+    selfPickup = selfPickup,
     partnerId = partnerId,
     partnerName = partnerName,
     partnerPhone = partnerPhone,
     partnerVehicleReg = partnerVehicleReg,
     rating = ratingStars?.let { OrderRating(it, ratingComment, createdAtEpochMs) },
+    customerRatingByPartner = customerRatingStars?.let { OrderRating(it, customerRatingComment, createdAtEpochMs) },
+    customerRatingAvg = customerRatingAvg,
+    customerRatingCount = customerRatingCount,
     quote = quote?.toModel(),
     paymentId = paymentId,
     paymentMethod = paymentMethod,
@@ -862,7 +909,17 @@ fun OrderDto.toModel() = Order(
     discount = discount,
 )
 
-fun OfferDto.toModel() = ShopOffer(id, title, description, discountPercent)
+fun OfferDto.toModel() = ShopOffer(
+    id = id,
+    title = title,
+    description = description,
+    discountPercent = discountPercent,
+    type = org.bhargav.pansariwala.domain.model.DiscountType.fromName(discountType),
+    value = value,
+    minBillAmount = minBillAmount,
+    endsAtEpochMs = endsAtEpochMs,
+    products = products.filter { it.active }.map { it.toModel() },
+)
 
 fun DeliveryOfferDto.toModel() = DeliveryOffer(
     id = id,
@@ -920,6 +977,8 @@ fun PartnerEarningsDto.toModel() = PartnerEarnings(
     deliveredCount = deliveredCount,
     acceptanceRatePercent = acceptanceRatePercent,
     weeklyEarnings = weeklyEarnings.map { PartnerDailyEarning(it.dayLabel, it.amount) },
+    rangeEarnings = rangeEarnings,
+    rangeDeliveredCount = rangeDeliveredCount,
 )
 
 fun TxnDto.toModel() = MoneyTxn(id, orderId, amount, title, createdAtEpochMs)

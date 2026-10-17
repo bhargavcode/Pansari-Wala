@@ -20,6 +20,7 @@ import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
+import org.bhargav.pansariwala.platform.LocationServicesDisabledException
 import org.bhargav.pansariwala.platform.LocationUnavailableException
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
@@ -274,19 +275,20 @@ class MarketViewModel(
 
     private fun handleLocationFailure(err: Throwable) {
         val denied = err is LocationPermissionDeniedException
+        val servicesOff = err is LocationServicesDisabledException
         val unavailable = err is LocationUnavailableException
         _state.update {
             it.copy(
                 fetchingLocation = false,
                 loading = false,
                 error = when {
-                    denied -> null
+                    denied || servicesOff -> null
                     unavailable -> UiText.res(Res.string.location_unavailable)
                     else -> err.toApiUiText()
                 },
-                locationPermissionGranted = !denied,
+                locationPermissionGranted = !denied && !servicesOff,
                 showLocationDeniedDialog = denied,
-                requestLocationPermission = denied,
+                requestLocationPermission = denied || servicesOff,
             )
         }
     }

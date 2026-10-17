@@ -52,10 +52,21 @@ object AppConstants {
     const val DEFAULT_MAP_LNG: Double = 77.2090
     const val GOOGLE_MAPS_API_KEY: String = "AIzaSyCd8M0FflE0xOkx_Yy3LwHAHR6CyY0JpRI"
     const val GOOGLE_DIRECTIONS_URL: String = "https://maps.googleapis.com/maps/api/directions/json"
+    /** Public OSRM demo router (fair-use); path continues with "lng,lat;lng,lat". */
+    const val OSRM_ROUTE_URL: String = "https://router.project-osrm.org/route/v1/driving/"
     const val GOOGLE_PLACES_AUTOCOMPLETE_URL: String = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
     const val GOOGLE_PLACES_DETAILS_URL: String = "https://maps.googleapis.com/maps/api/place/details/json"
     const val GOOGLE_GEOCODE_URL: String = "https://maps.googleapis.com/maps/api/geocode/json"
+    /** Keyless OpenStreetMap geocoder used when Google denies the request (billing off, key restricted). */
+    const val PHOTON_SEARCH_URL: String = "https://photon.komoot.io/api/"
+    const val PHOTON_REVERSE_URL: String = "https://photon.komoot.io/reverse"
+    const val PHOTON_RESULT_LIMIT: Int = 6
     const val PLACE_SEARCH_DEBOUNCE_MS: Long = 350L
+    /** Must not exceed the server's MAX_RATING_REPLY. */
+    const val RATING_COMMENT_MAX_CHARS: Int = 500
+    const val CUSTOMER_RATINGS_PAGE_SIZE: Int = 20
+    /** Offer titles listed on a shop card before the "Show all" link. */
+    const val SHOP_CARD_TOP_OFFERS: Int = 3
     const val DEFAULT_SHOP_DELIVERY_RADIUS_KM: Double = 20.0
     const val PARTNER_MAP_ROUTE_COLOR: Long = 0xFF0D7377
     const val PARTNER_MAP_ROUTE_WIDTH: Float = 12f

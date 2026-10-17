@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.platform
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,15 +11,25 @@ import android.net.Uri
 import android.os.Looper
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -28,6 +39,9 @@ import org.bhargav.pansariwala.util.AppConstants
 import org.koin.core.context.GlobalContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+
+/** Only describes the request to Play Services' "turn on location" check; no updates are started. */
+private const val LOCATION_SETTINGS_INTERVAL_MS = 10_000L
 
 private val locationPermissions = arrayOf(
     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -53,7 +67,7 @@ class AndroidDeviceLocation(
             throw LocationPermissionDeniedException()
         }
         if (!context.isLocationEnabled()) {
-            throw LocationUnavailableException()
+            throw LocationServicesDisabledException()
         }
         lastKnown(AppConstants.LOCATION_MAX_AGE_MS)?.let { return it }
         val fused = LocationServices.getFusedLocationProviderClient(context)
@@ -146,23 +160,74 @@ actual fun RequestLocationPermission(
     onResult: (granted: Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(
+    val latestOnResult by rememberUpdatedState(onResult)
+    var showServicesOff by remember { mutableStateOf(false) }
+    var awaitingSettingsReturn by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        val granted = results.values.any { it }
-        onResult(granted)
+        latestOnResult(results.values.any { it })
+    }
+
+    fun requestPermission() {
+        if (context.hasLocationPermission()) latestOnResult(true) else permissionLauncher.launch(locationPermissions)
+    }
+
+    val resolutionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK || context.isLocationEnabled()) {
+            requestPermission()
+        } else {
+            latestOnResult(false)
+        }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (!awaitingSettingsReturn) return@LifecycleEventEffect
+        awaitingSettingsReturn = false
+        if (context.isLocationEnabled()) requestPermission() else latestOnResult(false)
     }
 
     LaunchedEffect(trigger) {
         if (!trigger) return@LaunchedEffect
-        if (context.hasLocationPermission()) {
-            onConsumed()
-            onResult(true)
+        onConsumed()
+        if (context.isLocationEnabled()) {
+            requestPermission()
             return@LaunchedEffect
         }
-        launcher.launch(locationPermissions)
-        onConsumed()
+        val settingsRequest = LocationSettingsRequest.Builder()
+            .addLocationRequest(
+                LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_SETTINGS_INTERVAL_MS).build(),
+            )
+            .setAlwaysShow(true)
+            .build()
+        LocationServices.getSettingsClient(context).checkLocationSettings(settingsRequest)
+            .addOnSuccessListener { requestPermission() }
+            .addOnFailureListener { error ->
+                val resolvable = error as? ResolvableApiException
+                val launched = resolvable != null && runCatching {
+                    resolutionLauncher.launch(IntentSenderRequest.Builder(resolvable.resolution).build())
+                }.isSuccess
+                if (!launched) showServicesOff = true
+            }
     }
+
+    LocationServicesOffDialog(
+        visible = showServicesOff,
+        onTurnOn = {
+            showServicesOff = false
+            awaitingSettingsReturn = true
+            context.startActivity(
+                Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        },
+        onDismiss = {
+            showServicesOff = false
+            latestOnResult(false)
+        },
+    )
 }
 
 actual fun canOpenLocationSettings(): Boolean = true

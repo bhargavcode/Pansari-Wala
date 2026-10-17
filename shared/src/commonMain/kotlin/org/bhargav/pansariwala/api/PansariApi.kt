@@ -103,7 +103,7 @@ interface PansariApi {
     suspend fun partnerProfile(): PartnerProfile
     suspend fun updatePartnerProfilePhoto(profilePhotoUrl: String)
     suspend fun partnerDashboard(fromEpochMs: Long, toEpochMs: Long): PartnerDashboard
-    suspend fun partnerEarnings(): PartnerEarnings
+    suspend fun partnerEarnings(fromMs: Long? = null, toMs: Long? = null): PartnerEarnings
     suspend fun setPartnerOnline(online: Boolean)
     suspend fun updatePartnerLocation(lat: Double, lng: Double)
     suspend fun incomingOffer(): DeliveryOffer?
@@ -119,6 +119,9 @@ interface PansariApi {
     suspend fun submitPickup(orderId: String, photoOne: String, photoTwo: String): Order
     suspend fun arrivedAtCustomer(orderId: String): Order
     suspend fun deliverOrder(orderId: String, otp: String): Order
+    suspend fun rateCustomer(orderId: String, stars: Int, comment: String?): Order
+    /** Shop staff: partner ratings of [customerId]; [stars] empty → all. */
+    suspend fun customerRatings(customerId: String, stars: Set<Int>, page: Int, size: Int): CustomerRatingPageDto
 
     suspend fun pullSync(): SyncPullResponse
     suspend fun pushSync(request: SyncPushRequest): SyncPushResponse

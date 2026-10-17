@@ -36,6 +36,7 @@ import org.bhargav.pansariwala.server.db.MasterProductDoc
 import org.bhargav.pansariwala.server.db.ProductVariantDoc
 import org.bhargav.pansariwala.server.db.MongoApp
 import org.bhargav.pansariwala.server.db.OfferDoc
+import org.bhargav.pansariwala.server.db.CustomerRatingDoc
 import org.bhargav.pansariwala.server.db.OrderDoc
 import org.bhargav.pansariwala.server.db.OtpDoc
 import org.bhargav.pansariwala.server.db.PartnerDoc
@@ -79,6 +80,8 @@ import org.bhargav.pansariwala.server.dto.MasterProductUpsert
 import org.bhargav.pansariwala.server.dto.ProductVariantDto
 import org.bhargav.pansariwala.server.dto.MasterProductPageDto
 import org.bhargav.pansariwala.server.dto.OfferDto
+import org.bhargav.pansariwala.server.dto.CustomerRatingDto
+import org.bhargav.pansariwala.server.dto.CustomerRatingPageDto
 import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.OrderPageDto
 import org.bhargav.pansariwala.server.dto.OrderItemDto
@@ -143,6 +146,9 @@ private const val MAX_CATALOG_PAGE_SIZE = 50
 private const val DEFAULT_SHOP_CATEGORY = "GENERAL_GROCERY"
 private const val MAX_ORDER_PAGE_SIZE = 20
 private const val MAX_MASTER_PAGE_SIZE = 100
+private const val TOP_OFFERS_ON_CARD = 3
+/** Shops are in India; delivery cutoffs are wall-clock times there regardless of server zone. */
+private val SHOP_ZONE: java.time.ZoneId = java.time.ZoneId.of("Asia/Kolkata")
 private const val VARIANT_PACK = "PACK"
 private const val VARIANT_LOOSE = "LOOSE"
 private const val VARIANT_BUNDLE = "BUNDLE"
@@ -189,7 +195,7 @@ class AppStore(
     private val productCol = mongo.db.getCollection<ProductDoc>("products")
     private val priceHistoryCol = mongo.db.getCollection<PriceHistoryDoc>("price_history")
     private val offerCol = mongo.db.getCollection<OfferDoc>("offers")
-    private val offerCountCol = mongo.db.getCollection<Document>("offers")
+    private val customerRatingCol = mongo.db.getCollection<CustomerRatingDoc>("customer_ratings")
     private val orderCol = mongo.db.getCollection<OrderDoc>("orders")
     /** Raw orders collection for id-only projections (OrderDoc codec rejects partial docs). */
     private val orderIdCol = mongo.db.getCollection<Document>("orders")
@@ -499,24 +505,25 @@ class AppStore(
             disabledTypes.isNotEmpty() -> and(eq("active", true), nin("shopType", disabledTypes))
             else -> eq("active", true)
         }
-        val offerCounts = offerCountCol.aggregate(
-            listOf(Aggregates.group("\$shopId", Accumulators.sum("n", 1))),
-        ).toList().associate { it.getString("_id") to (it.getInteger("n") ?: 0) }
         // Customer radius decides visibility; the shop's own delivery radius only flags deliverability,
         // otherwise a shop with a small delivery radius silently disappears from a wider search.
-        return shopCol.find(shopFilter).toList()
-            .map { it.toCustomerDto(lat, lng, offerCounts[it.id] ?: 0) }
-            .filter { it.distanceKm <= radiusKm }
+        val shops = shopCol.find(shopFilter).toList()
+            .filter { haversine(lat, lng, it.lat, it.lng) <= radiusKm }
             .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
+        if (shops.isEmpty()) return emptyList()
+        val now = System.currentTimeMillis()
+        val liveByShop = offerCol.find(`in`("shopId", shops.map { it.id })).toList()
+            .filter { it.isLive(now) }
+            .groupBy { it.shopId }
+        return shops
+            .map { it.toCustomerDto(lat, lng, liveByShop[it.id].orEmpty()) }
             .sortedBy { it.distanceKm }
     }
 
-    fun shopForCustomer(shopId: String, lat: Double, lng: Double): ShopDto {
-        val offerCount = offerCol.countDocuments(eq("shopId", shopId)).toInt()
-        return shopById(shopId).toCustomerDto(lat, lng, offerCount)
-    }
+    fun shopForCustomer(shopId: String, lat: Double, lng: Double): ShopDto =
+        shopById(shopId).toCustomerDto(lat, lng, liveOffers(shopId))
 
-    private fun ShopDoc.toCustomerDto(lat: Double, lng: Double, offerCount: Int): ShopDto {
+    private fun ShopDoc.toCustomerDto(lat: Double, lng: Double, liveOffers: List<OfferDoc>): ShopDto {
         val dist = haversine(lat, lng, this.lat, this.lng)
         return ShopDto(
             id = id,
@@ -525,17 +532,46 @@ class AppStore(
             rating = rating,
             ratingCount = ratingCount,
             distanceKm = dist,
-            isOpen = isOpen,
+            isOpen = openNow(),
             lat = this.lat,
             lng = this.lng,
-            offerCount = offerCount,
+            offerCount = liveOffers.size,
+            topOffers = liveOffers.sortedByDescending { it.headlineRank() }.take(TOP_OFFERS_ON_CARD).map { it.title },
             discountPercent = discountPercent,
             upiId = upiId.ifBlank { config.defaultShopUpi },
             deliveryRadiusKm = deliveryRadiusKm,
             shopType = shopType,
+            address = address,
             deliversToYou = dist <= deliveryRadiusKm,
+            deliveryUntil = deliveryUntil,
+            deliveryAvailable = deliveryAvailableNow(),
         )
     }
+
+    /**
+     * Open = active, taking online orders, and inside today's operating hours (shop time). No hours
+     * configured means always open; a day missing from a configured week counts as closed.
+     */
+    private fun ShopDoc.openNow(): Boolean {
+        if (!isOpen || !active || !features.onlineOrders) return false
+        if (operatingHours.isEmpty()) return true
+        val now = java.time.LocalDateTime.now(SHOP_ZONE)
+        val today = now.dayOfWeek.name.take(3)
+        val hours = operatingHours.firstOrNull { it.day.trim().take(3).equals(today, ignoreCase = true) } ?: return false
+        if (hours.closed) return false
+        val start = parseHhMm(hours.start) ?: return true
+        val end = parseHhMm(hours.end) ?: return true
+        val time = now.toLocalTime()
+        return if (end > start) time >= start && time < end else time >= start || time < end
+    }
+
+    private fun ShopDoc.deliveryAvailableNow(): Boolean {
+        val cutoff = parseHhMm(deliveryUntil) ?: return true
+        return java.time.LocalTime.now(SHOP_ZONE) < cutoff
+    }
+
+    private fun parseHhMm(value: String): java.time.LocalTime? =
+        value.takeIf { it.isNotBlank() }?.let { runCatching { java.time.LocalTime.parse(it.trim()) }.getOrNull() }
 
     /** [includeInactive] is for the shop's own devices; customers only see active products. */
     fun catalog(shopId: String, includeInactive: Boolean = false): List<ProductDto> {
@@ -808,10 +844,39 @@ class AppStore(
         )
     }
 
-    fun offers(shopId: String): List<OfferDto> =
-        liveOffers(shopId).map {
-            OfferDto(it.id, it.title, it.description, if (it.discountType == OfferType.PERCENT) it.value else 0.0)
+    fun offers(shopId: String): List<OfferDto> {
+        val live = liveOffers(shopId).sortedByDescending { it.headlineRank() }
+        val productIds = live.filter { it.scope == OfferScope.PRODUCT }.flatMap { it.productIds }.toSet()
+        val products = if (productIds.isEmpty()) {
+            emptyMap()
+        } else {
+            productCol.find(and(eq("shopId", shopId), `in`("_id", productIds), ne("active", false))).toList()
+                .map { it.toDto() }
+                .withOffers(shopId)
+                .associateBy { it.id }
         }
+        return live.map {
+            OfferDto(
+                id = it.id,
+                title = it.title,
+                description = it.description,
+                discountPercent = if (it.discountType == OfferType.PERCENT) it.value else 0.0,
+                scope = it.scope,
+                discountType = it.discountType,
+                value = it.value,
+                minBillAmount = it.minBillAmount,
+                endsAtEpochMs = it.endsAt,
+                products = if (it.scope == OfferScope.PRODUCT) it.productIds.mapNotNull(products::get) else emptyList(),
+            )
+        }
+    }
+
+    /** Percent-equivalent size for ranking offers; a FLAT offer is measured against its minimum bill when set. */
+    private fun OfferDoc.headlineRank(): Double = when {
+        discountType != OfferType.FLAT -> value
+        minBillAmount > 0.0 -> value * 100.0 / minBillAmount
+        else -> value
+    }
 
     private fun liveOffers(shopId: String, now: Long = System.currentTimeMillis()): List<OfferDoc> =
         offerCol.find(eq("shopId", shopId)).toList().filter { it.isLive(now) }
@@ -824,7 +889,7 @@ class AppStore(
         val dist = haversine(request.userLat, request.userLng, shop.lat, shop.lng)
         val discount = offerDiscount(liveOffers(request.shopId), lines, shop.discountPercent)
         val settings = platform()
-        val delivery = settings.deliveryCharge(dist, subtotal - discount)
+        val delivery = if (request.selfPickup) 0.0 else settings.deliveryCharge(dist, subtotal - discount)
         val fee = settings.platformFeeInr
         return QuoteDto(subtotal, discount, fee, delivery, (subtotal - discount + fee + delivery).coerceAtLeast(0.0), dist)
     }
@@ -839,9 +904,15 @@ class AppStore(
         val customer = me(userId)
         require(customer.name.isNotBlank() && customer.address.isNotBlank()) { "Complete your profile" }
         val shop = shopById(request.shopId)
-        val drop = resolveDrop(customer, request)
-        val dist = haversine(drop.lat, drop.lng, shop.lat, shop.lng)
-        require(dist <= shop.deliveryRadiusKm) { "Out of shop delivery range" }
+        require(shop.openNow()) { "${shop.name} is closed and not taking orders right now." }
+        if (!request.selfPickup) {
+            require(shop.deliveryAvailableNow()) {
+                "This shop is not delivering right now. Order for pickup and collect at the shop."
+            }
+            val drop = resolveDrop(customer, request)
+            val dist = haversine(drop.lat, drop.lng, shop.lat, shop.lng)
+            require(dist <= shop.deliveryRadiusKm) { "Out of shop delivery range" }
+        }
         val lines = resolveLines(request.shopId, request.items)
         if (settings.minOrderValueInr > 0) {
             require(lines.sumOf { it.lineTotal } + QTY_EPSILON >= settings.minOrderValueInr) {
@@ -939,7 +1010,7 @@ class AppStore(
         val drop = resolveDrop(customer, request)
         val shop = shopById(request.shopId)
         val shopUpi = shop.upiId.ifBlank { config.defaultShopUpi }
-        val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng))
+        val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng, request.selfPickup))
         val resolved = resolveLines(request.shopId, request.items)
         val items = resolved.map { line ->
             val image = (line.variant?.imageUrls.orEmpty() + line.product.imageUrls).firstOrNull { assets.isValidRef(it) }
@@ -971,8 +1042,13 @@ class AppStore(
                 customerPhone = customer.phone,
                 customerLat = drop.lat,
                 customerLng = drop.lng,
-                deliveryAddress = drop.formatted,
-                dropoffInstructions = "Drop at doorstep unless customer says otherwise",
+                deliveryAddress = if (request.selfPickup) shop.address else drop.formatted,
+                dropoffInstructions = if (request.selfPickup) {
+                    "Customer will collect at the shop"
+                } else {
+                    "Drop at doorstep unless customer says otherwise"
+                },
+                selfPickup = request.selfPickup,
                 deliveryOtp = otp,
                 paymentId = request.razorpayPaymentId ?: "pay_dev",
                 paymentMethod = paymentMethod,
@@ -1106,7 +1182,7 @@ class AppStore(
 
     /** [fromMs] inclusive / [toMs] exclusive bound `createdAt` so reports don't pull the full order history. */
     fun shopOrders(shopId: String, fromMs: Long? = null, toMs: Long? = null): List<OrderDto> =
-        mapOrders(
+        mapOrdersWithCustomerRatings(
             orderCol.find(
                 and(
                     listOfNotNull(
@@ -1157,7 +1233,7 @@ class AppStore(
             .toList()
         val newCount = orderCol.countDocuments(and(base, eq("status", "RECEIVED"))).toInt()
         return OrderPageDto(
-            items = mapOrders(rows),
+            items = mapOrdersWithCustomerRatings(rows),
             page = safePage,
             pageSize = size,
             totalCount = total,
@@ -1273,6 +1349,7 @@ class AppStore(
     ): DeliveryOfferDto {
         val order = getOrder(orderId)
         require(order.shopId == shopId) { "Forbidden" }
+        require(!order.selfPickup) { "Pickup order: hand it over at the counter and mark it collected" }
         require(order.status in setOf("PACKING", "LOOKING_FOR_PARTNER")) { "Pack order first" }
         if (packedProductIds != null) {
             val orderItemIds = order.items.map { it.productId }.toSet()
@@ -1681,7 +1758,8 @@ class AppStore(
         )
     }
 
-    fun partnerEarnings(partnerId: String): PartnerEarningsDto {
+    /** [fromMs]/[toMs] bound the range totals as [fromMs, toMs); absent bounds default to today. */
+    fun partnerEarnings(partnerId: String, fromMs: Long? = null, toMs: Long? = null): PartnerEarningsDto {
         val start = startOfToday()
         val delivered = orderCol.find(
             and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))),
@@ -1706,19 +1784,106 @@ class AppStore(
                 .dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }
             PartnerDailyEarningDto(label, amount)
         }
+        val rangeFrom = fromMs ?: start
+        val rangeTo = toMs ?: (start + 86_400_000L)
+        val rangeIds = delivered.filter { it.createdAt in rangeFrom until rangeTo }.map { it.id }.toSet()
         return PartnerEarningsDto(
             todayEarnings = todayEarnings,
             totalEarnings = totalEarnings,
             deliveredCount = delivered.size,
             acceptanceRatePercent = acceptanceRate,
             weeklyEarnings = weekly,
+            rangeEarnings = acceptedOffers.filter { it.orderId in rangeIds }.sumOf { it.payout },
+            rangeDeliveredCount = rangeIds.size,
         )
     }
 
     fun partnerJob(partnerId: String, orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.partnerId == partnerId) { "Forbidden" }
-        return row.toDto().copy(deliveryOtp = null)
+        return mapOrdersWithCustomerRatings(listOf(row)).first().copy(deliveryOtp = null)
+    }
+
+    /** Partner rates the customer once per delivered order; re-submitting replaces the earlier rating. */
+    fun rateCustomer(partnerId: String, orderId: String, stars: Int, comment: String?): OrderDto {
+        require(stars in 1..5) { "Stars must be 1-5" }
+        val text = comment?.trim()?.takeIf { it.isNotEmpty() }
+        require((text?.length ?: 0) <= MAX_RATING_REPLY) { "Comment is too long" }
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.partnerId == partnerId) { "Forbidden" }
+        require(row.status in listOf("DELIVERED", "COMPLETED")) { "Rate after delivery" }
+        val customerId = row.customerId ?: error("Order has no customer")
+        val doc = CustomerRatingDoc(
+            id = orderId,
+            customerId = customerId,
+            shopId = row.shopId,
+            partnerId = partnerId,
+            partnerName = partnerLite(partnerId)?.name.orEmpty(),
+            stars = stars,
+            comment = text,
+            createdAt = System.currentTimeMillis(),
+        )
+        customerRatingCol.replaceOne(eq("_id", orderId), doc, ReplaceOptions().upsert(true))
+        return partnerJob(partnerId, orderId)
+    }
+
+    /**
+     * A customer's partner ratings for shop staff, newest first. Only visible to shops the customer
+     * has ordered from. [stars] empty → all.
+     */
+    fun customerRatingsForShop(
+        shopId: String,
+        customerId: String,
+        stars: Set<Int>,
+        page: Int,
+        pageSize: Int,
+    ): CustomerRatingPageDto {
+        require(orderCol.countDocuments(and(eq("shopId", shopId), eq("customerId", customerId))) > 0) { "Forbidden" }
+        val size = pageSize.coerceIn(1, MAX_ORDER_PAGE_SIZE)
+        val safePage = page.coerceAtLeast(0)
+        val all = customerRatingCol.find(eq("customerId", customerId)).toList()
+        val starCounts = all.groupingBy { it.stars }.eachCount()
+        val filter = if (stars.isEmpty()) {
+            eq("customerId", customerId)
+        } else {
+            and(eq("customerId", customerId), `in`("stars", stars.toList()))
+        }
+        val total = customerRatingCol.countDocuments(filter).toInt()
+        val rows = customerRatingCol.find(filter)
+            .sort(Sorts.descending("createdAt"))
+            .skip(safePage * size)
+            .limit(size)
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
+        return CustomerRatingPageDto(
+            items = rows.map { CustomerRatingDto(it.id, it.stars, it.comment, it.partnerName, it.createdAt) },
+            page = safePage,
+            totalCount = total,
+            hasMore = (safePage + 1) * size < total,
+            average = if (all.isEmpty()) 0.0 else all.map { it.stars }.average(),
+            ratingCount = all.size,
+            starCounts = starCounts,
+        )
+    }
+
+    /** Shop / partner views only: customers never see what partners wrote about them. */
+    private fun mapOrdersWithCustomerRatings(rows: List<OrderDoc>): List<OrderDto> {
+        val dtos = mapOrders(rows)
+        val customerIds = rows.mapNotNull { it.customerId }.distinct()
+        if (customerIds.isEmpty()) return dtos
+        val ratings = customerRatingCol.find(`in`("customerId", customerIds)).toList()
+            .groupBy { it.customerId }
+        val own = customerRatingCol.find(`in`("_id", rows.map { it.id })).toList().associateBy { it.id }
+        return dtos.map { dto ->
+            val forCustomer = dto.customerId?.let(ratings::get).orEmpty()
+            val mine = own[dto.id]
+            dto.copy(
+                customerRatingStars = mine?.stars,
+                customerRatingComment = mine?.comment,
+                customerRatingAvg = forCustomer.takeIf { it.isNotEmpty() }?.map { it.stars }?.average(),
+                customerRatingCount = forCustomer.size,
+            )
+        }
     }
 
     fun arrivedAtStore(partnerId: String, orderId: String): OrderDto {
@@ -2236,8 +2401,10 @@ class AppStore(
         upiId: String? = null,
         deliveryRadiusKm: Double? = null,
         discountPercent: Double? = null,
+        deliveryUntil: String? = null,
     ) {
         val shop = shopById(shopId)
+        require(deliveryUntil.isNullOrBlank() || parseHhMm(deliveryUntil) != null) { "Delivery time must be HH:mm" }
         require(deliveryRadiusKm == null || deliveryRadiusKm in 1.0..100.0) { "Delivery radius must be 1-100 km" }
         require(discountPercent == null || discountPercent in 0.0..90.0) { "Discount must be 0-90%" }
         if (name != null) require(name.isNotBlank()) { "Shop name is required" }
@@ -2279,6 +2446,7 @@ class AppStore(
             if (upiId != null) add(set("upiId", upiId.trim()))
             if (deliveryRadiusKm != null) add(set("deliveryRadiusKm", deliveryRadiusKm))
             if (discountPercent != null) add(set("discountPercent", discountPercent))
+            if (deliveryUntil != null) add(set("deliveryUntil", parseHhMm(deliveryUntil)?.toString().orEmpty()))
         }
         if (updates.isNotEmpty()) {
             shopCol.updateOne(eq("_id", shopId), combine(updates))
@@ -2345,6 +2513,7 @@ class AppStore(
             upiId = patch.upiId,
             deliveryRadiusKm = patch.deliveryRadiusKm,
             discountPercent = patch.discountPercent,
+            deliveryUntil = patch.deliveryUntil,
         )
         return shopProfile(userId)
     }
@@ -2781,6 +2950,7 @@ class AppStore(
         registrationNumber = registrationNumber,
         taxId = taxId,
         operatingHours = operatingHours.map { ShopHoursDayDto(it.day, it.start, it.end, it.closed) },
+        deliveryUntil = deliveryUntil,
     )
 
     private fun AdminShopDto.toLegacyShopDto() = ShopDto(
@@ -3071,6 +3241,7 @@ class AppStore(
             dropoffInstructions = dropoffInstructions,
             deliveryOtp = deliveryOtp,
             pickupPhotoUrls = assets.toUrls(pickupPhotos),
+            selfPickup = selfPickup,
             partnerId = partnerId,
             partnerName = partnerRow?.name ?: ownPartnerName,
             partnerPhone = partnerRow?.phone ?: ownPartnerPhone,

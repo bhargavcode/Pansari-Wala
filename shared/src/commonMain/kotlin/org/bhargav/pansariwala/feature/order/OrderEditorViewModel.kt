@@ -65,6 +65,8 @@ data class CartLine(
 data class OrderEditorUiState(
     val loading: Boolean = true,
     val isEditing: Boolean = false,
+    /** Original order time when editing; null for a new order. */
+    val createdAtEpochMs: Long? = null,
     val customerName: String = "",
     val searchQuery: String = "",
     val catalog: List<Product> = emptyList(),
@@ -288,6 +290,7 @@ class OrderEditorViewModel(
                     it.copy(
                         loading = false,
                         isEditing = true,
+                        createdAtEpochMs = existing.createdAtEpochMs,
                         customerName = existing.customerName.orEmpty(),
                         catalog = catalog,
                         cart = cart,

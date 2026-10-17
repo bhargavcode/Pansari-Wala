@@ -72,6 +72,8 @@ data class ShopDoc(
     val registrationNumber: String = "",
     val taxId: String = "",
     val operatingHours: List<ShopHoursDayDoc> = emptyList(),
+    /** Daily delivery cutoff "HH:mm" in shop time; blank = delivers all day. After it, orders are pickup-only. */
+    val deliveryUntil: String = "",
 )
 
 @Serializable
@@ -267,6 +269,19 @@ data class OfferDoc(
     val createdAt: Long = 0L,
 )
 
+/** A delivery partner's rating of the customer for one delivered order; [id] is the order id. */
+@Serializable
+data class CustomerRatingDoc(
+    @SerialName("_id") val id: String,
+    val customerId: String,
+    val shopId: String,
+    val partnerId: String,
+    val partnerName: String = "",
+    val stars: Int,
+    val comment: String? = null,
+    val createdAt: Long,
+)
+
 /** A delivery rider on a shop's own roster; [partnerId] set when the phone matches a partner-app account. */
 @Serializable
 data class ShopPartnerDoc(
@@ -295,6 +310,7 @@ data class OrderDoc(
     val dropoffInstructions: String? = null,
     val deliveryOtp: String? = null,
     val pickupPhotos: List<String> = emptyList(),
+    val selfPickup: Boolean = false,
     val paymentId: String? = null,
     val paymentMethod: String = "ONLINE",
     val razorpayOrderId: String? = null,
@@ -607,6 +623,10 @@ private fun ensureIndexes(db: MongoDatabase) {
     }
     db.getCollection<ShopDoc>("shops").createIndex(Indexes.ascending("active"))
     db.getCollection<OfferDoc>("offers").createIndex(Indexes.ascending("shopId"))
+    db.getCollection<CustomerRatingDoc>("customer_ratings").apply {
+        createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.ascending("stars")))
+    }
     db.getCollection<ShopVisitDoc>("shop_visits")
         .createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.ascending("day")))
     db.getCollection<OtpDoc>("otp_challenges").createIndex(Indexes.ascending("phone"))

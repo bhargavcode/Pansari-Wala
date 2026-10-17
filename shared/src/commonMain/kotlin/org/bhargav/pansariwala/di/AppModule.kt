@@ -37,6 +37,7 @@ import org.bhargav.pansariwala.feature.delivery.PartnerJobViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerLocationAccessViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerLoginViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterViewModel
+import org.bhargav.pansariwala.feature.order.CustomerRatingsViewModel
 import org.bhargav.pansariwala.feature.order.OnlineOrdersViewModel
 import org.bhargav.pansariwala.feature.user.AccountViewModel
 import org.bhargav.pansariwala.feature.user.CartStore
@@ -48,6 +49,7 @@ import org.bhargav.pansariwala.feature.user.PhoneAuthViewModel
 import org.bhargav.pansariwala.feature.user.AddressViewModel
 import org.bhargav.pansariwala.feature.user.UserLocationAccessViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogViewModel
+import org.bhargav.pansariwala.feature.user.ShopOffersViewModel
 import org.bhargav.pansariwala.feature.user.CategoryProductsViewModel
 import org.bhargav.pansariwala.feature.user.ProductDetailViewModel
 import org.bhargav.pansariwala.feature.user.ThankYouViewModel
@@ -117,6 +119,7 @@ val appModule = module {
     viewModelOf(::AccountViewModel)
     viewModelOf(::UserSettingsViewModel)
     viewModelOf(::ShopCatalogViewModel)
+    viewModelOf(::ShopOffersViewModel)
     viewModel { CategoryProductsViewModel(get()) }
     viewModelOf(::ProductDetailViewModel)
     viewModelOf(::CartViewModel)
@@ -130,6 +133,7 @@ val appModule = module {
     viewModelOf(::PartnerJobViewModel)
     viewModelOf(::PartnerEarningsViewModel)
     viewModelOf(::OnlineOrdersViewModel)
+    viewModelOf(::CustomerRatingsViewModel)
     viewModelOf(::PrinterSettingsViewModel)
     viewModelOf(::ReportsViewModel)
     viewModelOf(::ShopProfileViewModel)

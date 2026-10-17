@@ -54,6 +54,11 @@ import org.bhargav.pansariwala.notification.OrderUpdate
 import org.bhargav.pansariwala.notification.OrderUpdates
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.AppClock
+import org.bhargav.pansariwala.feature.reports.ReportRange
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_address_required
 import pansariwala.shared.generated.resources.error_email_invalid
@@ -576,6 +581,11 @@ data class PartnerHomeUiState(
     val requestLocationPermission: Boolean = false,
     val showLocationDeniedDialog: Boolean = false,
     val locationPermissionGranted: Boolean = false,
+    val earnings: PartnerEarnings? = null,
+    val earningsPeriod: PartnerEarningsPeriod = PartnerEarningsPeriod.TODAY,
+    val earningsRange: ReportRange? = null,
+    val earningsLoading: Boolean = false,
+    val showEarningsRangePicker: Boolean = false,
 )
 
 private data class HomeRefreshPayload(
@@ -598,8 +608,46 @@ class PartnerHomeViewModel(
     private val flashedOfferIds = mutableSetOf<String>()
     /** Jobs finished on this device; a refresh that raced the completion must not bring them back. */
     private val finishedOrderIds = mutableSetOf<String>()
+    private val tz = TimeZone.currentSystemDefault()
+    private var earningsFrom: LocalDate? = null
+    private var earningsTo: LocalDate? = null
+    private var earningsJob: Job? = null
 
     fun dismissError() { _state.update { it.copy(error = null) } }
+
+    fun selectEarningsPeriod(period: PartnerEarningsPeriod) {
+        if (period == PartnerEarningsPeriod.CUSTOM) {
+            _state.update { it.copy(showEarningsRangePicker = true) }
+            return
+        }
+        _state.update { it.copy(earningsPeriod = period) }
+        loadEarnings()
+    }
+
+    fun dismissEarningsRangePicker() { _state.update { it.copy(showEarningsRangePicker = false) } }
+
+    /** Picker values are UTC-midnight millis; [toUtcMs] null means a single day. */
+    fun setEarningsCustomRange(fromUtcMs: Long, toUtcMs: Long?) {
+        earningsFrom = Instant.fromEpochMilliseconds(fromUtcMs).toLocalDateTime(TimeZone.UTC).date
+        earningsTo = toUtcMs?.let { Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.UTC).date } ?: earningsFrom
+        _state.update { it.copy(earningsPeriod = PartnerEarningsPeriod.CUSTOM, showEarningsRangePicker = false) }
+        loadEarnings()
+    }
+
+    private fun loadEarnings() {
+        earningsJob?.cancel()
+        val today = Instant.fromEpochMilliseconds(AppClock.nowMillis()).toLocalDateTime(tz).date
+        val range = _state.value.earningsPeriod.range(today, earningsFrom, earningsTo)
+        _state.update { it.copy(earningsLoading = true, earningsRange = range) }
+        earningsJob = viewModelScope.launch {
+            runCatching { api.partnerEarnings(range.fromMs(tz), range.toMs(tz)) }
+                .onSuccess { earnings -> _state.update { it.copy(earnings = earnings, earningsLoading = false) } }
+                .onFailure { e ->
+                    e.rethrowIfStructuredCancellation()
+                    _state.update { it.copy(earningsLoading = false, error = e.toApiUiText()) }
+                }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -676,6 +724,7 @@ class PartnerHomeViewModel(
     }
 
     fun refresh() {
+        loadEarnings()
         viewModelScope.launch {
             val keepContent = _state.value.profile != null ||
                 _state.value.acceptedJobs.isNotEmpty() ||
@@ -1210,6 +1259,23 @@ class PartnerJobViewModel(
                 }
                 .onFailure {
                     _state.update { s -> s.copy(submitting = false, error = UiText.res(Res.string.error_generic)) }
+                }
+        }
+    }
+
+    fun rateCustomer(stars: Int, comment: String, onDone: () -> Unit) {
+        val orderId = _state.value.order?.id ?: return
+        if (stars !in 1..5) return
+        viewModelScope.launch {
+            _state.update { it.copy(submitting = true, error = null) }
+            runCatching { api.rateCustomer(orderId, stars, comment.trim().ifBlank { null }) }
+                .onSuccess { order ->
+                    _state.update { it.copy(submitting = false, order = order) }
+                    onDone()
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { s -> s.copy(submitting = false, error = err.toApiUiText()) }
                 }
         }
     }

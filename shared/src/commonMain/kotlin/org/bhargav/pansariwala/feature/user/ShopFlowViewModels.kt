@@ -48,8 +48,6 @@ import pansariwala.shared.generated.resources.error_razorpay_cancelled
 import pansariwala.shared.generated.resources.error_razorpay_failed
 import pansariwala.shared.generated.resources.error_razorpay_unavailable
 
-enum class CatalogTab { PRODUCTS, RATINGS }
-
 data class CatalogData(
     val shop: MarketplaceShop? = null,
     val sections: List<CatalogSection> = emptyList(),
@@ -59,9 +57,8 @@ data class CatalogData(
     val ratingsLoaded: Boolean = false,
     val cartCount: Int = 0,
     val productQuery: String = "",
-    val selectedTab: CatalogTab = CatalogTab.PRODUCTS,
     val ratingFilterStars: Set<Int> = emptySet(),
-    val showRatingFilterSheet: Boolean = false,
+    val showRatingsSheet: Boolean = false,
 ) {
     val isSearchActive: Boolean get() = productQuery.isNotBlank()
     val visibleSections: List<CatalogSection> get() = if (isSearchActive) searchSections else sections
@@ -125,7 +122,7 @@ class ShopCatalogViewModel(
                 }
             }.onSuccess { data ->
                 _state.value = AsyncUiState.Success(data)
-                if (data.selectedTab == CatalogTab.RATINGS) loadRatings(force = true)
+                if (data.showRatingsSheet) loadRatings(force = true)
             }.onFailure { err ->
                 err.rethrowIfStructuredCancellation()
                 val message = err.toApiUiText()
@@ -167,9 +164,13 @@ class ShopCatalogViewModel(
         }
     }
 
-    fun selectTab(tab: CatalogTab) {
-        updateSuccess { it.copy(selectedTab = tab) }
-        if (tab == CatalogTab.RATINGS) loadRatings()
+    fun openRatings() {
+        updateSuccess { it.copy(showRatingsSheet = true) }
+        loadRatings()
+    }
+
+    fun closeRatings() {
+        updateSuccess { it.copy(showRatingsSheet = false) }
     }
 
     private fun loadRatings(force: Boolean = false) {
@@ -187,14 +188,6 @@ class ShopCatalogViewModel(
         }
     }
 
-    fun showRatingFilterSheet() {
-        updateSuccess { it.copy(showRatingFilterSheet = true) }
-    }
-
-    fun hideRatingFilterSheet() {
-        updateSuccess { it.copy(showRatingFilterSheet = false) }
-    }
-
     fun toggleRatingFilter(stars: Int) {
         updateSuccess { data ->
             val next = data.ratingFilterStars.toMutableSet().apply {
@@ -202,10 +195,6 @@ class ShopCatalogViewModel(
             }
             data.copy(ratingFilterStars = next)
         }
-    }
-
-    fun setRatingFilter(stars: Set<Int>) {
-        updateSuccess { it.copy(ratingFilterStars = stars) }
     }
 
     fun clearRatingFilter() {
@@ -228,10 +217,16 @@ class ShopCatalogViewModel(
 data class CartUiState(
     val lines: List<CartStore.Line> = emptyList(),
     val subtotal: Double = 0.0,
+    val checkingShop: Boolean = false,
+    /** Name of the shop when the pre-checkout check found it closed; drives the closed dialog. */
+    val closedShopName: String? = null,
+    val error: UiText? = null,
 )
 
 class CartViewModel(
     private val cart: CartStore,
+    private val api: PansariApi,
+    private val location: DeviceLocation,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CartUiState())
     val state: StateFlow<CartUiState> = _state.asStateFlow()
@@ -239,10 +234,35 @@ class CartViewModel(
     init {
         viewModelScope.launch {
             cart.lines.collect { lines ->
-                _state.update { CartUiState(lines = lines, subtotal = cart.subtotal) }
+                _state.update { it.copy(lines = lines, subtotal = cart.subtotal) }
             }
         }
     }
+
+    /** Re-reads the shop's live open status; only continues to checkout while it is open. */
+    fun proceedToCheckout(shopId: String, onProceed: () -> Unit) {
+        if (_state.value.checkingShop) return
+        viewModelScope.launch {
+            _state.update { it.copy(checkingShop = true, error = null) }
+            runCatching {
+                val geo = location.currentOrDefault()
+                api.shopInfo(shopId, geo.lat, geo.lng)
+            }.onSuccess { shop ->
+                _state.update { it.copy(checkingShop = false) }
+                if (shop.isOpen) {
+                    onProceed()
+                } else {
+                    _state.update { it.copy(closedShopName = shop.name) }
+                }
+            }.onFailure { err ->
+                err.rethrowIfStructuredCancellation()
+                _state.update { it.copy(checkingShop = false, error = err.toApiUiText()) }
+            }
+        }
+    }
+
+    fun dismissShopClosed() { _state.update { it.copy(closedShopName = null) } }
+    fun dismissError() { _state.update { it.copy(error = null) } }
 
     fun increment(lineKey: String) { cart.increment(lineKey) }
     fun decrement(lineKey: String) { cart.decrement(lineKey) }
@@ -259,6 +279,8 @@ data class CheckoutUiState(
     val addresses: List<SavedAddress> = emptyList(),
     val selectedAddressId: String? = null,
     val shop: MarketplaceShop? = null,
+    /** Shop is past its delivery cutoff: order is collected at the shop with no delivery charge. */
+    val selfPickup: Boolean = false,
     val snackbar: UiText? = null,
     val error: UiText? = null,
 )
@@ -309,21 +331,21 @@ class CheckoutViewModel(
             val dropLng = drop?.lng ?: AppConstants.DEFAULT_MAP_LNG
             val items = cart.lines.value.map { PlaceOrderItemDto(it.product.id, it.quantity, it.variant?.id) }
             coroutineScope {
-                val quote = async {
-                    runCatching {
-                        api.quote(org.bhargav.pansariwala.api.QuoteRequest(shopId, items, dropLat, dropLng))
-                    }.onFailure { err ->
-                        err.rethrowIfStructuredCancellation()
-                        _state.update { it.copy(error = err.toApiUiText()) }
-                    }.getOrNull()
-                }
                 val offers = async { runCatching { api.shopOffers(shopId) }.getOrDefault(emptyList()) }
-                val shop = async { runCatching { api.shopInfo(shopId, dropLat, dropLng) }.getOrNull() }
+                val shop = runCatching { api.shopInfo(shopId, dropLat, dropLng) }.getOrNull()
+                val selfPickup = shop?.deliveryAvailable == false
+                val quote = runCatching {
+                    api.quote(org.bhargav.pansariwala.api.QuoteRequest(shopId, items, dropLat, dropLng, selfPickup))
+                }.onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { it.copy(error = err.toApiUiText()) }
+                }.getOrNull()
                 _state.update {
                     it.copy(
-                        quote = quote.await(),
+                        quote = quote,
                         offers = offers.await(),
-                        shop = shop.await(),
+                        shop = shop,
+                        selfPickup = selfPickup,
                         loadingQuote = false,
                     )
                 }
@@ -355,10 +377,11 @@ class CheckoutViewModel(
                 val selectedId = _state.value.selectedAddressId
                 require(!selectedId.isNullOrBlank()) { AppConstants.Checkout.ERROR_ADDRESS_REQUIRED }
 
+                val selfPickup = _state.value.selfPickup
                 val userRadius = preferences.getSearchRadiusKm()
                 val shopRadius = _state.value.shop?.deliveryRadiusKm
                     ?: AppConstants.DEFAULT_SHOP_DELIVERY_RADIUS_KM
-                if (quote.deliveryDistanceKm > userRadius || quote.deliveryDistanceKm > shopRadius) {
+                if (!selfPickup && (quote.deliveryDistanceKm > userRadius || quote.deliveryDistanceKm > shopRadius)) {
                     error(AppConstants.Checkout.ERROR_OUT_OF_RANGE)
                 }
 
@@ -368,6 +391,7 @@ class CheckoutViewModel(
                     addressId = selectedId,
                     userLat = _state.value.addresses.firstOrNull { it.id == selectedId }?.location?.lat,
                     userLng = _state.value.addresses.firstOrNull { it.id == selectedId }?.location?.lng,
+                    selfPickup = selfPickup,
                 )
                 api.validateOrder(request)
                 val profile = preferences.getCachedCustomerProfile()

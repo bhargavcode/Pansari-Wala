@@ -53,6 +53,8 @@ import org.bhargav.pansariwala.media.ImageUploadFeature
 import org.bhargav.pansariwala.media.PhotoUploadUi
 import org.bhargav.pansariwala.media.rememberImageSourceLauncher
 import org.bhargav.pansariwala.platform.DeviceLocation
+import org.bhargav.pansariwala.platform.DrivingRoute
+import org.bhargav.pansariwala.platform.fetchDrivingRouteDetails
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedDialog
 import org.bhargav.pansariwala.platform.RequestLocationPermission
 import org.bhargav.pansariwala.platform.openAppLocationSettings
@@ -67,6 +69,7 @@ import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.feature.user.InteractiveStarRating
 import org.bhargav.pansariwala.util.asMoney
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -96,11 +99,9 @@ import pansariwala.shared.generated.resources.partner_arrive_need_proximity
 import pansariwala.shared.generated.resources.partner_action_arrived_store
 import pansariwala.shared.generated.resources.partner_action_complete_delivery
 import pansariwala.shared.generated.resources.partner_action_decline
-import pansariwala.shared.generated.resources.partner_action_done
 import pansariwala.shared.generated.resources.partner_action_login
 import pansariwala.shared.generated.resources.partner_action_sign_up
-import pansariwala.shared.generated.resources.partner_action_start_delivery
-import pansariwala.shared.generated.resources.partner_action_take_photos
+import pansariwala.shared.generated.resources.partner_action_submit_out_for_delivery
 import pansariwala.shared.generated.resources.partner_action_verify_bags
 import pansariwala.shared.generated.resources.partner_bag_photo
 import pansariwala.shared.generated.resources.partner_call_customer
@@ -161,7 +162,11 @@ import pansariwala.shared.generated.resources.partner_signup_prompt
 import pansariwala.shared.generated.resources.partner_submit_images
 import pansariwala.shared.generated.resources.partner_summary_distance
 import pansariwala.shared.generated.resources.partner_summary_payout
-import pansariwala.shared.generated.resources.partner_summary_rating
+import pansariwala.shared.generated.resources.partner_rate_customer_comment
+import pansariwala.shared.generated.resources.partner_rate_customer_required
+import pansariwala.shared.generated.resources.partner_rate_customer_submit
+import pansariwala.shared.generated.resources.partner_rate_customer_title
+import pansariwala.shared.generated.resources.partner_rate_customer_title_generic
 import pansariwala.shared.generated.resources.partner_summary_time
 import pansariwala.shared.generated.resources.partner_online_waiting
 import pansariwala.shared.generated.resources.partner_offline_prompt
@@ -483,6 +488,17 @@ fun PartnerHomeScreen(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    item(key = "earnings_profile") {
+                        PartnerEarningsProfileCard(
+                            profile = state.profile,
+                            earnings = state.earnings,
+                            period = state.earningsPeriod,
+                            range = state.earningsRange,
+                            loading = state.earningsLoading,
+                            onSelectPeriod = viewModel::selectEarningsPeriod,
+                            onProfileClick = onEarnings,
+                        )
+                    }
                     item {
                         PartnerAcceptedOrdersSection(
                             jobs = state.acceptedJobs,
@@ -530,6 +546,12 @@ fun PartnerHomeScreen(
         if (state.showOfferTakenSheet) {
             PartnerOfferTakenSheet(onOkay = viewModel::dismissOfferTakenSheet)
         }
+        if (state.showEarningsRangePicker) {
+            org.bhargav.pansariwala.feature.reports.CustomRangeDialog(
+                onDismiss = viewModel::dismissEarningsRangePicker,
+                onConfirm = viewModel::setEarningsCustomRange,
+            )
+        }
     }
     }
 }
@@ -566,8 +588,14 @@ fun PartnerNavigateToStoreScreen(
     val origin = rememberPartnerOrigin(orderId, deviceLocation)
     val shopLabel = order?.shopName?.takeIf { it.isNotBlank() }
         ?: stringResource(Res.string.partner_route_to_store)
-    val km = order?.shopDistanceKm() ?: 0.0
-    val mins = order?.deliveryDurationMin ?: 6
+    val road = rememberRoadRoute(
+        origin?.lat,
+        origin?.lng,
+        order?.shopLat ?: AppConstants.DEFAULT_MAP_LAT,
+        order?.shopLng ?: AppConstants.DEFAULT_MAP_LNG,
+    )
+    val km = road?.distanceKm ?: order?.shopDistanceKm() ?: 0.0
+    val mins = road?.durationMinutes ?: order?.deliveryDurationMin ?: 6
     val headerMeta = order?.let {
         stringResource(
             Res.string.partner_route_header_meta,
@@ -632,6 +660,23 @@ fun PartnerNavigateToStoreScreen(
             }
         }
     }
+}
+
+/** Road distance / ETA for the header and card; null until a router answers (then order estimates are shown). */
+@Composable
+private fun rememberRoadRoute(
+    originLat: Double?,
+    originLng: Double?,
+    destLat: Double,
+    destLng: Double,
+): DrivingRoute? {
+    var route by remember(originLat, originLng, destLat, destLng) { mutableStateOf<DrivingRoute?>(null) }
+    LaunchedEffect(originLat, originLng, destLat, destLng) {
+        if (originLat == null || originLng == null) return@LaunchedEffect
+        route = fetchDrivingRouteDetails(originLat, originLng, destLat, destLng)
+            .takeIf { it.distanceMeters != null }
+    }
+    return route
 }
 
 private fun org.bhargav.pansariwala.domain.model.Order.shopDistanceKm(): Double =
@@ -738,8 +783,8 @@ fun PartnerCapturePhotosScreen(
                     upload = state.photoTwoUpload,
                 )
                 PartnerPrimaryButton(
-                    text = stringResource(Res.string.partner_action_take_photos),
-                    onClick = { viewModel.verifyBags {} },
+                    text = stringResource(Res.string.partner_action_submit_out_for_delivery),
+                    onClick = { viewModel.submitPickup(onPhotosReady) },
                     enabled = state.photoOne.isNotBlank() && state.photoTwo.isNotBlank() && !state.submitting &&
                         !state.photoOneUpload.uploading && !state.photoTwoUpload.uploading,
                 )
@@ -759,7 +804,7 @@ fun PartnerCapturePhotosScreen(
                     imageUrl = state.photoTwo,
                 )
                 PartnerPrimaryButton(
-                    text = stringResource(Res.string.partner_action_start_delivery),
+                    text = stringResource(Res.string.partner_action_submit_out_for_delivery),
                     onClick = { viewModel.submitPickup(onPhotosReady) },
                     enabled = !state.submitting,
                 )
@@ -788,8 +833,9 @@ fun PartnerDeliverToCustomerScreen(
     val canArrive = withinRadius || forceArriveEnabled
     val customerLabel = order?.customerName?.takeIf { it.isNotBlank() }
         ?: stringResource(Res.string.partner_route_to_customer)
-    val km = order?.quote?.deliveryDistanceKm ?: order?.totalDistanceKm?.div(2) ?: 2.0
-    val mins = order?.deliveryDurationMin ?: 8
+    val road = rememberRoadRoute(origin?.lat ?: order?.shopLat, origin?.lng ?: order?.shopLng, destLat, destLng)
+    val km = road?.distanceKm ?: order?.quote?.deliveryDistanceKm ?: order?.totalDistanceKm?.div(2) ?: 2.0
+    val mins = road?.durationMinutes ?: order?.deliveryDurationMin ?: 8
     val headerMeta = order?.let {
         stringResource(
             Res.string.partner_route_header_meta,
@@ -1021,6 +1067,9 @@ fun PartnerDeliveryCompleteScreen(
 ) {
     androidx.compose.runtime.LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val existing = state.order?.customerRatingByPartner
+    var stars by remember(existing) { mutableStateOf(existing?.stars ?: 0) }
+    var comment by remember(existing) { mutableStateOf(existing?.comment.orEmpty()) }
     PansariScreen(
         title = stringResource(Res.string.partner_delivery_complete),
         onBack = onBack,
@@ -1037,6 +1086,7 @@ fun PartnerDeliveryCompleteScreen(
         Column(
             Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -1045,13 +1095,40 @@ fun PartnerDeliveryCompleteScreen(
                 Text(stringResource(Res.string.partner_summary_payout, (order.partnerPayoutInr ?: order.quote?.deliveryCharge ?: 0.0).asMoney()))
                 Text(stringResource(Res.string.partner_summary_distance, ((order.totalDistanceKm ?: 0.0).let { (it * 10).toInt() / 10.0 }).toString()))
                 Text(stringResource(Res.string.partner_summary_time, (order.deliveryDurationMin ?: 1).toString()))
-                Text(stringResource(Res.string.partner_summary_rating))
-                Text("★★★★★", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.headlineSmall)
+                HorizontalDivider()
+                Text(
+                    order.customerName?.takeIf { it.isNotBlank() }
+                        ?.let { stringResource(Res.string.partner_rate_customer_title, it) }
+                        ?: stringResource(Res.string.partner_rate_customer_title_generic),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                InteractiveStarRating(
+                    stars = stars,
+                    onStarsChange = { stars = it },
+                    enabled = !state.submitting,
+                )
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { if (it.length <= AppConstants.RATING_COMMENT_MAX_CHARS) comment = it },
+                    label = { Text(stringResource(Res.string.partner_rate_customer_comment)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    enabled = !state.submitting,
+                )
+                if (stars == 0) {
+                    Text(
+                        stringResource(Res.string.partner_rate_customer_required),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(8.dp))
             PartnerPrimaryButton(
-                text = stringResource(Res.string.partner_action_done),
-                onClick = onDone,
+                text = stringResource(Res.string.partner_rate_customer_submit),
+                onClick = { viewModel.rateCustomer(stars, comment, onDone) },
+                enabled = stars in 1..5 && !state.submitting && state.order != null,
             )
         }
     }

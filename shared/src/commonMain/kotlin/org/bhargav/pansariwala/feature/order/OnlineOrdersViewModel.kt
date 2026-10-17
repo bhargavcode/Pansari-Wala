@@ -153,13 +153,18 @@ class OnlineOrdersViewModel(
         upsertOrder(fresh)
     }
 
+    /** Action responses omit the customer rating summary; keep the one loaded with the list. */
+    private fun Order.keepCustomerRating(previous: Order): Order =
+        if (customerRatingAvg != null) this
+        else copy(customerRatingAvg = previous.customerRatingAvg, customerRatingCount = previous.customerRatingCount)
+
     /** Replaces, inserts (newest first) or removes [order] depending on whether it fits the current tab/search. */
     private fun upsertOrder(order: Order) {
         _uiState.update { state ->
             val exists = state.orders.any { it.id == order.id }
             val fits = state.tab.accepts(order.status) && order.matchesQuery(state.query)
             val orders = when {
-                exists && fits -> state.orders.map { if (it.id == order.id) order else it }
+                exists && fits -> state.orders.map { if (it.id == order.id) order.keepCustomerRating(it) else it }
                 exists -> state.orders.filterNot { it.id == order.id }
                 fits -> listOf(order) + state.orders
                 else -> state.orders
@@ -250,6 +255,11 @@ class OnlineOrdersViewModel(
 
     fun markPacking(id: String) = runOrderAction(id) {
         api.setOrderStatus(id, OrderStatus.PACKING.name)
+    }
+
+    /** Self-pickup orders end at the counter: the customer collected, no partner involved. */
+    fun markCollected(id: String) = runOrderAction(id) {
+        api.setOrderStatus(id, OrderStatus.COMPLETED.name)
     }
 
     fun togglePacked(orderId: String, productId: String) {

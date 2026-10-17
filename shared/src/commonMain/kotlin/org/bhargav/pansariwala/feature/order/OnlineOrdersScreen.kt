@@ -97,6 +97,13 @@ import androidx.compose.ui.Modifier
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.feature.printer.orderPrintActions
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.Surface
+import pansariwala.shared.generated.resources.customer_rating_badge_cd
+import pansariwala.shared.generated.resources.order_action_mark_collected
+import pansariwala.shared.generated.resources.order_pickup_badge
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -110,6 +117,7 @@ import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.settings.CancelOrderReason
 import org.bhargav.pansariwala.util.asMoney
+import org.bhargav.pansariwala.printing.formatPrintDateTime
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -149,6 +157,7 @@ import pansariwala.shared.generated.resources.status_cancelled
 @Composable
 fun OnlineOrdersScreen(
     onBack: () -> Unit,
+    onOpenCustomerRatings: (customerId: String, customerName: String) -> Unit = { _, _ -> },
     viewModel: OnlineOrdersViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -234,8 +243,39 @@ fun OnlineOrdersScreen(
                 ) {
                 SectionCard(
                     title = "${order.id} · ${order.customerName.orEmpty().ifBlank { order.id }} · ${onlineOrderStatusLabel(order.status)}",
-                    action = { PrintMenuButton(actions = remember(order) { orderPrintActions(order) }) },
+                    action = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (order.selfPickup) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.padding(end = 6.dp),
+                                ) {
+                                    Text(
+                                        stringResource(Res.string.order_pickup_badge),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                            val customerId = order.customerId
+                            val avg = order.customerRatingAvg
+                            if (customerId != null && avg != null) {
+                                CustomerRatingBadge(
+                                    average = avg,
+                                    onClick = { onOpenCustomerRatings(customerId, order.customerName.orEmpty()) },
+                                )
+                            }
+                            PrintMenuButton(actions = remember(order) { orderPrintActions(order) })
+                        }
+                    },
                 ) {
+                    Text(
+                        formatPrintDateTime(order.createdAtEpochMs),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     when {
                         order.status == OrderStatus.PACKING -> PackingChecklist(
                             order = order,
@@ -270,6 +310,7 @@ fun OnlineOrdersScreen(
                         onAssignOwnPartner = { viewModel.openAssignPartner(order.id) },
                         onCompleteSelfDelivery = { viewModel.openSelfDeliverComplete(order.id) },
                         onCancel = { viewModel.openCancel(order.id) },
+                        onMarkCollected = { viewModel.markCollected(order.id) },
                     )
                 }
                 }
@@ -350,6 +391,28 @@ fun OnlineOrdersScreen(
 }
 
 @Composable
+private fun CustomerRatingBadge(average: Double, onClick: () -> Unit) {
+    val label = formatRating(average)
+    val description = stringResource(Res.string.customer_rating_badge_cd, label)
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        modifier = Modifier.semantics { contentDescription = description },
+    ) {
+        Text(
+            "★$label",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
+
+internal fun formatRating(value: Double): String = ((value * 10).roundToInt() / 10.0).toString()
+
+@Composable
 private fun OnlineOrderStatusNote(order: Order) {
     val note = when (order.status) {
         OrderStatus.LOOKING_FOR_PARTNER -> stringResource(Res.string.online_order_looking_partner)
@@ -387,8 +450,9 @@ private fun OnlineOrderActions(
     onAssignOwnPartner: () -> Unit,
     onCompleteSelfDelivery: () -> Unit,
     onCancel: () -> Unit,
+    onMarkCollected: () -> Unit,
 ) {
-    val canSelfDeliver = !order.hasAssignedPartner && (
+    val canSelfDeliver = !order.selfPickup && !order.hasAssignedPartner && (
         (order.status == OrderStatus.PACKING && packedCount > 0) ||
             order.status == OrderStatus.LOOKING_FOR_PARTNER
         )
@@ -416,7 +480,9 @@ private fun OnlineOrderActions(
     val nextLabel = when (order.status) {
         OrderStatus.RECEIVED -> stringResource(Res.string.action_accept_order)
         OrderStatus.ACCEPTED -> stringResource(Res.string.action_packing)
-        OrderStatus.PACKING -> if (packedCount in 1 until order.items.size) {
+        OrderStatus.PACKING -> if (order.selfPickup) {
+            stringResource(Res.string.order_action_mark_collected)
+        } else if (packedCount in 1 until order.items.size) {
             stringResource(Res.string.action_request_delivery_partial, packedCount, order.items.size)
         } else {
             stringResource(Res.string.action_request_delivery)
@@ -427,7 +493,7 @@ private fun OnlineOrderActions(
     val nextAction = when (order.status) {
         OrderStatus.RECEIVED -> onAccept
         OrderStatus.ACCEPTED -> onPacking
-        OrderStatus.PACKING -> onRequestPartner
+        OrderStatus.PACKING -> if (order.selfPickup) onMarkCollected else onRequestPartner
         else -> null
     }
     if (nextAction == null && !order.canCancel) return

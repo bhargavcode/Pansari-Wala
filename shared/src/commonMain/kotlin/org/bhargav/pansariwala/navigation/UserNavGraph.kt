@@ -53,6 +53,7 @@ import org.bhargav.pansariwala.feature.user.PhoneAuthScreen
 import org.bhargav.pansariwala.feature.user.UserLocationAccessScreen
 import org.bhargav.pansariwala.feature.user.ProfileSetupScreen
 import org.bhargav.pansariwala.feature.user.ShopCatalogScreen
+import org.bhargav.pansariwala.feature.user.ShopOffersScreen
 import org.bhargav.pansariwala.feature.user.ThankYouScreen
 import org.bhargav.pansariwala.feature.user.TransactionsScreen
 import org.bhargav.pansariwala.feature.user.UserLanguageScreen
@@ -82,6 +83,7 @@ private val userNavConfig = SavedStateConfiguration {
             subclass(UserRoute.ShopCatalog::class, UserRoute.ShopCatalog.serializer())
             subclass(UserRoute.ShopCategory::class, UserRoute.ShopCategory.serializer())
             subclass(UserRoute.ShopProduct::class, UserRoute.ShopProduct.serializer())
+            subclass(UserRoute.ShopOffers::class, UserRoute.ShopOffers.serializer())
             subclass(UserRoute.Cart::class, UserRoute.Cart.serializer())
             subclass(UserRoute.Checkout::class, UserRoute.Checkout.serializer())
             subclass(UserRoute.ThankYou::class, UserRoute.ThankYou.serializer())
@@ -180,6 +182,7 @@ fun UserNavGraph() {
                     UserRoute.Shell -> NavEntry(route) {
                         UserShell(
                             onOpenShop = { push(UserRoute.ShopCatalog(it)) },
+                            onShowShopOffers = { push(UserRoute.ShopOffers(it)) },
                             onOpenCart = { shopId -> push(UserRoute.Cart(shopId)) },
                             onOrder = { push(UserRoute.OrderDetails(it)) },
                             onAllOrders = { push(UserRoute.OrdersList) },
@@ -219,6 +222,15 @@ fun UserNavGraph() {
                         org.bhargav.pansariwala.feature.user.ShopProductDetailScreen(
                             shopId = route.shopId,
                             productId = route.productId,
+                            onOpenCart = { push(UserRoute.Cart(route.shopId)) },
+                            onBack = { pop() },
+                        )
+                    }
+                    is UserRoute.ShopOffers -> NavEntry(route) {
+                        ShopOffersScreen(
+                            shopId = route.shopId,
+                            onOpenProduct = { push(UserRoute.ShopProduct(route.shopId, it)) },
+                            onOpenShop = { push(UserRoute.ShopCatalog(route.shopId)) },
                             onOpenCart = { push(UserRoute.Cart(route.shopId)) },
                             onBack = { pop() },
                         )
@@ -283,6 +295,7 @@ fun UserNavGraph() {
 @Composable
 private fun UserShell(
     onOpenShop: (String) -> Unit,
+    onShowShopOffers: (String) -> Unit,
     onOpenCart: (String) -> Unit,
     onOrder: (String) -> Unit,
     onAllOrders: () -> Unit,
@@ -308,6 +321,7 @@ private fun UserShell(
                         onOpenShop = onOpenShop,
                         onContinueOrder = onOpenCart,
                         onChangeLocation = onChangeLocation,
+                        onShowShopOffers = onShowShopOffers,
                     )
                     1 -> AccountHomeScreen(
                         onRecent = onOrder,

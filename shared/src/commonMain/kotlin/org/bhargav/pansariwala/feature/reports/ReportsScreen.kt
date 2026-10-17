@@ -413,7 +413,7 @@ private fun pageWindow(page: Int, pageCount: Int): List<Int?> {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomRangeDialog(onDismiss: () -> Unit, onConfirm: (Long, Long?) -> Unit) {
+internal fun CustomRangeDialog(onDismiss: () -> Unit, onConfirm: (Long, Long?) -> Unit) {
     val pickerState = rememberDateRangePickerState()
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -469,7 +469,7 @@ private fun OrderChannel.toReportChannel(): ReportChannel =
 
 private fun Int.two(): String = toString().padStart(2, '0')
 
-private fun LocalDate.short(): String = "${day.two()}/${month.number.two()}/$year"
+internal fun LocalDate.short(): String = "${day.two()}/${month.number.two()}/$year"
 
 private fun bucketLabel(b: ReportBucket, months: List<String>, multiYear: Boolean): String {
     val monthName = months.getOrElse(b.month - 1) { b.month.toString() }

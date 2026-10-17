@@ -51,6 +51,7 @@ import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.i18n.localizeCustomerName
 import org.bhargav.pansariwala.settings.CancelOrderReason
 import org.bhargav.pansariwala.util.asMoney
+import org.bhargav.pansariwala.printing.formatPrintDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
@@ -237,6 +238,11 @@ private fun OrdersListPane(
                         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                         Text(
+                            text = formatPrintDateTime(order.createdAtEpochMs),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
                             text = localizeCustomerName(order.customerName),
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             color = if (selected) {
@@ -298,6 +304,11 @@ private fun OrderDetailsPane(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            formatPrintDateTime(order.createdAtEpochMs),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             localizeCustomerName(order.customerName),

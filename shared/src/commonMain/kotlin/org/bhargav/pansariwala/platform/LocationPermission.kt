@@ -8,6 +8,10 @@ import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_no
+import pansariwala.shared.generated.resources.action_not_now
+import pansariwala.shared.generated.resources.location_services_off_message
+import pansariwala.shared.generated.resources.location_services_off_title
+import pansariwala.shared.generated.resources.location_services_turn_on
 import pansariwala.shared.generated.resources.location_permission_denied_message
 import pansariwala.shared.generated.resources.location_permission_denied_title
 import pansariwala.shared.generated.resources.location_permission_open_settings
@@ -28,6 +32,36 @@ expect fun RequestLocationPermission(
 expect fun canOpenLocationSettings(): Boolean
 
 expect fun openAppLocationSettings()
+
+/** Shown by platform [RequestLocationPermission] when the device location switch (GPS) is off. */
+@Composable
+internal fun LocationServicesOffDialog(
+    visible: Boolean,
+    onTurnOn: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (!visible) return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.location_services_off_title)) },
+        text = {
+            Text(
+                stringResource(Res.string.location_services_off_message),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onTurnOn) {
+                Text(stringResource(Res.string.location_services_turn_on))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(Res.string.action_not_now))
+            }
+        },
+    )
+}
 
 @Composable
 fun LocationPermissionDeniedDialog(

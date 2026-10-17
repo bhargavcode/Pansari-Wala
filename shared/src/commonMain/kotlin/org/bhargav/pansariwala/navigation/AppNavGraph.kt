@@ -70,6 +70,7 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.OrderEditor::class, AppRoute.OrderEditor.serializer())
             subclass(AppRoute.OrdersWorkspace::class, AppRoute.OrdersWorkspace.serializer())
             subclass(AppRoute.OnlineOrders::class, AppRoute.OnlineOrders.serializer())
+            subclass(AppRoute.CustomerRatings::class, AppRoute.CustomerRatings.serializer())
             subclass(AppRoute.PrinterSettings::class, AppRoute.PrinterSettings.serializer())
             subclass(AppRoute.Reports::class, AppRoute.Reports.serializer())
             subclass(AppRoute.ShopProfile::class, AppRoute.ShopProfile.serializer())
@@ -259,7 +260,18 @@ fun AppNavGraph(
                     }
 
                     AppRoute.OnlineOrders -> NavEntry(route) {
-                        org.bhargav.pansariwala.feature.order.OnlineOrdersScreen(onBack = { pop() })
+                        org.bhargav.pansariwala.feature.order.OnlineOrdersScreen(
+                            onBack = { pop() },
+                            onOpenCustomerRatings = { id, name -> push(AppRoute.CustomerRatings(id, name)) },
+                        )
+                    }
+
+                    is AppRoute.CustomerRatings -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.order.CustomerRatingsScreen(
+                            customerId = route.customerId,
+                            customerName = route.customerName,
+                            onBack = { pop() },
+                        )
                     }
 
                     AppRoute.Reports -> NavEntry(route) {

@@ -76,6 +76,7 @@ import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
+import org.bhargav.pansariwala.printing.formatPrintDateTime
 import org.bhargav.pansariwala.util.asQuantity
 import org.bhargav.pansariwala.voice.RequestMicrophonePermission
 import org.jetbrains.compose.resources.stringResource
@@ -146,7 +147,7 @@ fun OrderEditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Column(modifier = Modifier.weight(1f).padding(16.dp)) {
-                    OrderHeader(state.isEditing, onBack)
+                    OrderHeader(state.isEditing, state.createdAtEpochMs, onBack)
                     CustomerField(state.customerName, viewModel::onCustomerNameChange)
                     CartSection(state, viewModel)
                 }
@@ -162,12 +163,22 @@ fun OrderEditorScreen(
 }
 
 @Composable
-private fun OrderHeader(isEditing: Boolean, onBack: () -> Unit) {
-    PansariTopBar(
-        title = stringResource(if (isEditing) Res.string.edit_order else Res.string.create_order),
-        onBack = onBack,
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-    )
+private fun OrderHeader(isEditing: Boolean, createdAtEpochMs: Long?, onBack: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        PansariTopBar(
+            title = stringResource(if (isEditing) Res.string.edit_order else Res.string.create_order),
+            onBack = onBack,
+            modifier = Modifier.fillMaxWidth().padding(bottom = if (createdAtEpochMs != null) 4.dp else 12.dp),
+        )
+        if (createdAtEpochMs != null) {
+            Text(
+                formatPrintDateTime(createdAtEpochMs),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, bottom = 12.dp),
+            )
+        }
+    }
 }
 
 @Composable
@@ -348,7 +359,7 @@ private fun SearchOrSuggestedItems(
     Column(modifier = Modifier.fillMaxSize()) {
         if (showHeader) {
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                OrderHeader(state.isEditing, onBack)
+                OrderHeader(state.isEditing, state.createdAtEpochMs, onBack)
                 CustomerField(state.customerName, viewModel::onCustomerNameChange)
                 CartSection(state, viewModel)
             }

@@ -50,6 +50,7 @@ import org.bhargav.pansariwala.ui.errorBannerOrNull
 import org.bhargav.pansariwala.ui.isBlockingLoad
 import org.bhargav.pansariwala.ui.isRefreshing
 import org.bhargav.pansariwala.util.asMoney
+import org.bhargav.pansariwala.printing.formatPrintDateTime
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -396,6 +397,11 @@ private fun OrdersCard(
                                 order.totalValue.asMoney(),
                             ),
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = formatPrintDateTime(order.createdAtEpochMs),
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }

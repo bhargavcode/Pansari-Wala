@@ -77,4 +77,6 @@ data class PartnerEarnings(
     val deliveredCount: Int,
     val acceptanceRatePercent: Int,
     val weeklyEarnings: List<PartnerDailyEarning>,
+    val rangeEarnings: Double = 0.0,
+    val rangeDeliveredCount: Int = 0,
 )

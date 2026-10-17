@@ -9,7 +9,10 @@ interface DeviceLocation {
 
 class LocationPermissionDeniedException : Exception("Location permission denied")
 
-class LocationUnavailableException : Exception("Location unavailable")
+open class LocationUnavailableException(message: String = "Location unavailable") : Exception(message)
+
+/** Device location (GPS) switch is off; re-run [RequestLocationPermission] to prompt the user to turn it on. */
+class LocationServicesDisabledException : LocationUnavailableException("Location services disabled")
 
 class FallbackLocation : DeviceLocation {
     override suspend fun currentOrDefault(): GeoPoint =
