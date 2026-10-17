@@ -43,7 +43,11 @@ import androidx.compose.ui.unit.dp
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.bhargav.pansariwala.api.createPlatformHttpClient
@@ -76,11 +80,7 @@ fun NetworkImage(
         }
         if (target == null) return@LaunchedEffect
         loading = true
-        bitmap = runCatching {
-            val response = ImageBitmapCache.client.get(target)
-            if (!response.status.isSuccess()) return@runCatching null
-            decodeImageOffMain(response.readRawBytes())?.also { ImageBitmapCache.put(target, it) }
-        }.getOrNull()
+        bitmap = ImageBitmapCache.load(target)
         loading = false
     }
     Box(modifier, contentAlignment = Alignment.Center) {
@@ -104,20 +104,58 @@ suspend fun decodeImageOffMain(bytes: ByteArray): ImageBitmap? =
         runCatching { bytes.decodeToImageBitmap().takeIf { it.width > 0 && it.height > 0 } }.getOrNull()
     }
 
-/** Main-thread-only LRU of decoded remote images, so lists don't re-download on recomposition. */
+/**
+ * Main-thread-only image cache: size-bounded LRU of decoded bitmaps, then the platform disk cache,
+ * then the network. Concurrent requests for one URL share a single download, and loads outlive the
+ * requesting item so scrolling/refreshing/filtering a list never restarts them.
+ */
 private object ImageBitmapCache {
-    val client by lazy { createPlatformHttpClient() }
+    private val client by lazy { createPlatformHttpClient() }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val entries = LinkedHashMap<String, ImageBitmap>()
+    private val inFlight = HashMap<String, Deferred<ImageBitmap?>>()
+    private var totalBytes = 0L
 
     fun get(url: String): ImageBitmap? = entries.remove(url)?.also { entries[url] = it }
 
-    fun put(url: String, bitmap: ImageBitmap) {
-        entries.remove(url)
+    suspend fun load(url: String): ImageBitmap? {
+        get(url)?.let { return it }
+        val job = inFlight.getOrPut(url) {
+            scope.async {
+                try {
+                    fetch(url)?.also { put(url, it) }
+                } finally {
+                    inFlight.remove(url)
+                }
+            }
+        }
+        return runCatching { job.await() }.getOrNull()
+    }
+
+    private suspend fun fetch(url: String): ImageBitmap? {
+        val key = imageCacheKey(url)
+        readImageDiskCache(key)?.let { cached -> decodeImageOffMain(cached)?.let { return it } }
+        return runCatching {
+            val response = client.get(url)
+            if (!response.status.isSuccess()) return@runCatching null
+            val bytes = response.readRawBytes()
+            decodeImageOffMain(bytes)?.also { writeImageDiskCache(key, bytes) }
+        }.getOrNull()
+    }
+
+    private fun put(url: String, bitmap: ImageBitmap) {
+        entries.remove(url)?.let { totalBytes -= it.byteSize() }
         entries[url] = bitmap
-        while (entries.size > AppConstants.IMAGE_BITMAP_CACHE_SIZE) {
-            entries.remove(entries.keys.first())
+        totalBytes += bitmap.byteSize()
+        while (totalBytes > AppConstants.IMAGE_MEMORY_CACHE_BYTES && entries.size > 1) {
+            val eldest = entries.keys.first()
+            entries.remove(eldest)?.let { totalBytes -= it.byteSize() }
         }
     }
+
+    private fun ImageBitmap.byteSize(): Long = width.toLong() * height * BYTES_PER_PIXEL
+
+    private const val BYTES_PER_PIXEL = 4
 }
 
 /** Translucent spinner overlay drawn over a local preview while it uploads. */

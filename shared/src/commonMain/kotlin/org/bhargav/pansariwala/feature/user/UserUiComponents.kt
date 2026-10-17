@@ -34,6 +34,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -253,134 +256,77 @@ fun ShopDiscoveryCard(
     modifier: Modifier = Modifier,
     onShowAllOffers: () -> Unit = onClick,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.card),
-    ) {
-        if (!shop.deliveryAvailable) {
-            PickupOnlyStrip(Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp))
-        }
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = shop.name.take(2).uppercase(),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
-            Column(
-                modifier = Modifier.padding(start = 12.dp).weight(1f),
-            ) {
-                Text(
-                    text = shop.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(Res.string.shop_rating, ((shop.rating * 10).roundToInt() / 10.0).toString(), shop.ratingCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(
-                            Res.string.shop_distance,
-                            shop.distanceKm.let { (it * 10).roundToInt() / 10.0 }.toString(),
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Surface(
-                        color = if (shop.isOpen) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.errorContainer
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        shadowElevation = PansariElevation.chip,
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (shop.isOpen) Res.string.shop_open_now else Res.string.shop_closed,
-                            ),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-                if (!shop.deliversToYou) {
-                    Text(
-                        text = stringResource(Res.string.shop_outside_delivery),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+    val hasFooter = !shop.deliveryAvailable || shop.offerCount > 0
+    ShopHeroHeader(
+        shop = shop,
+        onRatingsClick = onClick,
+        onClick = onClick,
+        heroHeight = SHOP_LIST_HERO_HEIGHT,
+        modifier = modifier,
+        footer = if (hasFooter) {
+            {
+                if (!shop.deliveryAvailable) PickupOnlyStrip()
                 ShopOffersSummary(shop, onShowAllOffers)
             }
-        }
-    }
+        } else {
+            null
+        },
+    )
 }
 
 @Composable
 private fun ShopOffersSummary(shop: MarketplaceShop, onShowAllOffers: () -> Unit) {
     if (shop.offerCount <= 0) return
-    Column(
-        modifier = Modifier.padding(top = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Surface(
-            color = MaterialTheme.colorScheme.tertiaryContainer,
-            shape = RoundedCornerShape(8.dp),
-        ) {
-            Text(
-                text = if (shop.offerCount == 1) {
-                    stringResource(Res.string.shop_offers_active_one)
-                } else {
-                    stringResource(Res.string.shop_offers_active, shop.offerCount)
-                },
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-        }
-        shop.topOffers.take(AppConstants.SHOP_CARD_TOP_OFFERS).forEach { title ->
-            Text(
-                text = "• $title",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.tertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (shop.offerCount > AppConstants.SHOP_CARD_TOP_OFFERS) {
-            Text(
-                text = stringResource(Res.string.shop_offers_show_all),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable(onClick = onShowAllOffers).padding(vertical = 2.dp),
-            )
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.LocalOffer,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = if (shop.offerCount == 1) {
+                        stringResource(Res.string.shop_offers_active_one)
+                    } else {
+                        stringResource(Res.string.shop_offers_active, shop.offerCount)
+                    },
+                    modifier = Modifier.padding(start = 6.dp).weight(1f),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+                if (shop.offerCount > AppConstants.SHOP_CARD_TOP_OFFERS) {
+                    Text(
+                        text = stringResource(Res.string.shop_offers_show_all),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable(onClick = onShowAllOffers).padding(4.dp),
+                    )
+                }
+            }
+            shop.topOffers.take(AppConstants.SHOP_CARD_TOP_OFFERS).forEach { title ->
+                Text(
+                    text = "• $title",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
+
+private val SHOP_LIST_HERO_HEIGHT = 170.dp
 
 @Composable
 fun ContinueLastOrderCard(

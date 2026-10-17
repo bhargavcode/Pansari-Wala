@@ -207,7 +207,10 @@ object AppConstants {
     const val PHOTO_MAX_PRODUCT_IMAGES: Int = 4
     const val PHOTO_THUMB_EDGE_PX: Int = 256
     const val PHOTO_THUMB_JPEG_QUALITY: Int = 75
-    const val IMAGE_BITMAP_CACHE_SIZE: Int = 48
+    /** Decoded-bitmap memory budget (ARGB bytes); entries are evicted LRU past this. */
+    const val IMAGE_MEMORY_CACHE_BYTES: Long = 96L * 1024 * 1024
+    const val IMAGE_DISK_CACHE_BYTES: Long = 150L * 1024 * 1024
+    const val IMAGE_DISK_CACHE_DIR: String = "image_cache"
     const val IMAGE_CAROUSEL_INTERVAL_MS: Long = 2_000L
     const val UPLOAD_AUTO_RETRY_COUNT: Int = 1
     const val UPLOAD_MAX_RAW_BYTES: Int = 12_000_000

@@ -1,10 +1,13 @@
 package org.bhargav.pansariwala.feature.user
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -90,20 +93,26 @@ fun PickupOnlyStrip(modifier: Modifier = Modifier) {
     }
 }
 
-/** Shop image (or gradient placeholder) with name, address, distance and a tappable rating chip at the bottom. */
+/**
+ * Shop image (or gradient placeholder) with name, address, distance and a tappable rating chip at the
+ * bottom. Shared by the shop page header and the shop list; [footer] renders below the image.
+ */
 @Composable
 fun ShopHeroHeader(
     shop: MarketplaceShop,
     onRatingsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    heroHeight: Dp = HERO_HEIGHT,
+    onClick: (() -> Unit)? = null,
+    footer: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.raisedCard),
     ) {
-        Box(Modifier.fillMaxWidth().height(HERO_HEIGHT)) {
+        Box(Modifier.fillMaxWidth().height(heroHeight)) {
             if (isHttpImageUrl(shop.imageUrl.orEmpty())) {
                 NetworkImage(url = shop.imageUrl, contentDescription = shop.name, modifier = Modifier.fillMaxSize())
             } else {
@@ -184,6 +193,13 @@ fun ShopHeroHeader(
                     }
                 }
             }
+        }
+        footer?.let { content ->
+            Column(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = content,
+            )
         }
     }
 }
