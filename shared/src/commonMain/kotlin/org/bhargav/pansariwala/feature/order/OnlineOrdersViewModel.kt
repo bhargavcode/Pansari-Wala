@@ -29,6 +29,17 @@ import pansariwala.shared.generated.resources.error_session_expired
 
 /** POS online-order filter tabs; [statuses] empty → every status. */
 enum class OnlineOrderTab(val statuses: List<OrderStatus>) {
+    /** Every open order: not yet delivered, completed, rejected or cancelled. */
+    ACTIVE(
+        listOf(
+            OrderStatus.RECEIVED,
+            OrderStatus.ACCEPTED,
+            OrderStatus.PACKING,
+            OrderStatus.LOOKING_FOR_PARTNER,
+            OrderStatus.PARTNER_ACCEPTED,
+            OrderStatus.ON_THE_WAY,
+        ),
+    ),
     NEW(listOf(OrderStatus.RECEIVED)),
     ACCEPTED(listOf(OrderStatus.ACCEPTED)),
     PACKING(listOf(OrderStatus.PACKING)),

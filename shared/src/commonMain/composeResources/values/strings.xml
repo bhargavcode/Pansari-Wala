@@ -689,13 +689,14 @@
     <string name="online_orders_title">Online orders</string>
     <string name="online_orders_empty">No online orders yet.</string>
     <string name="online_orders_search_hint">Search order id, customer or phone</string>
+    <string name="online_orders_tab_active">All orders</string>
     <string name="online_orders_tab_new">New</string>
     <string name="online_orders_tab_accepted">Accepted</string>
     <string name="online_orders_tab_packing">Packing</string>
     <string name="online_orders_tab_delivery">Out for delivery</string>
     <string name="online_orders_tab_delivered">Delivered</string>
     <string name="online_orders_tab_cancelled">Cancelled</string>
-    <string name="online_orders_tab_all">All orders</string>
+    <string name="online_orders_tab_all">History</string>
     <string name="action_assign_own_partner">Assign own partner</string>
     <string name="own_partner_sheet_title">Your delivery partners</string>
     <string name="own_partner_add">Add delivery partner</string>

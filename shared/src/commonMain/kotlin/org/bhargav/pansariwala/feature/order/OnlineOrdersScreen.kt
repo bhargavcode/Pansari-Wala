@@ -50,6 +50,7 @@ import pansariwala.shared.generated.resources.action_clear
 import pansariwala.shared.generated.resources.action_refresh
 import pansariwala.shared.generated.resources.online_orders_search_hint
 import pansariwala.shared.generated.resources.online_orders_tab_accepted
+import pansariwala.shared.generated.resources.online_orders_tab_active
 import pansariwala.shared.generated.resources.online_orders_tab_all
 import pansariwala.shared.generated.resources.online_orders_tab_cancelled
 import pansariwala.shared.generated.resources.online_orders_tab_delivered
@@ -706,6 +707,7 @@ private fun OnlineOrderTabs(
 @Composable
 private fun onlineOrderTabLabel(tab: OnlineOrderTab): String = stringResource(
     when (tab) {
+        OnlineOrderTab.ACTIVE -> Res.string.online_orders_tab_active
         OnlineOrderTab.NEW -> Res.string.online_orders_tab_new
         OnlineOrderTab.ACCEPTED -> Res.string.online_orders_tab_accepted
         OnlineOrderTab.PACKING -> Res.string.online_orders_tab_packing
