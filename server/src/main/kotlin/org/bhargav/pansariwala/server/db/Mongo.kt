@@ -451,12 +451,17 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     if (db.getCollection<ShopDoc>("shops").countDocuments() == 0L) {
         seed(db, security, config)
     }
-    ensureShopUpis(db)
-    ensureDemoShopUsers(db, security)
+    bestEffortSeed("shop UPIs") { ensureShopUpis(db) }
+    bestEffortSeed("demo shop users") { ensureDemoShopUsers(db, security) }
     ensureMasterAdmin(db, security, config)
-    ensureShopTypes(db)
-    ensurePrototypeShops(db)
+    bestEffortSeed("shop types") { ensureShopTypes(db) }
+    bestEffortSeed("prototype shops") { ensurePrototypeShops(db) }
     return MongoApp(client, db)
+}
+
+/** Demo/backfill seeding must never keep the API from starting. */
+private inline fun bestEffortSeed(name: String, block: () -> Unit) {
+    runCatching(block).onFailure { println("WARN: seeding $name failed: ${it.message}") }
 }
 
 private fun ensureDemoShopUsers(db: MongoDatabase, security: Security) {
@@ -465,7 +470,7 @@ private fun ensureDemoShopUsers(db: MongoDatabase, security: Security) {
         ShopUserDoc("user_owner", "shop_1", "owner", security.hashPassword("1234"), "Owner", "SHOP"),
         ShopUserDoc("user_cashier", "shop_1", "cashier", security.hashPassword("1234"), "Cashier", "SHOP"),
     ).forEach { demo ->
-        if (users.find(eq("username", demo.username)).firstOrNull() == null) {
+        if (users.find(or(eq("_id", demo.id), eq("username", demo.username))).firstOrNull() == null) {
             users.insertOne(demo)
         }
     }
