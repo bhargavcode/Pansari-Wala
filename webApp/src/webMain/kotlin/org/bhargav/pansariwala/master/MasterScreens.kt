@@ -74,6 +74,25 @@ import pansariwala.shared.generated.resources.master_charges
 import pansariwala.shared.generated.resources.master_company
 import pansariwala.shared.generated.resources.master_console_title
 import pansariwala.shared.generated.resources.master_contact
+import pansariwala.shared.generated.resources.master_delivery_payments
+import pansariwala.shared.generated.resources.master_login_username
+import pansariwala.shared.generated.resources.master_operating_hours
+import pansariwala.shared.generated.resources.master_shop_open_status
+import pansariwala.shared.generated.resources.master_shop_status
+import pansariwala.shared.generated.resources.profile_field_address
+import pansariwala.shared.generated.resources.profile_field_discount
+import pansariwala.shared.generated.resources.profile_field_owner_email
+import pansariwala.shared.generated.resources.profile_field_owner_name
+import pansariwala.shared.generated.resources.profile_field_owner_phone
+import pansariwala.shared.generated.resources.profile_field_radius
+import pansariwala.shared.generated.resources.profile_field_registration
+import pansariwala.shared.generated.resources.profile_field_tax
+import pansariwala.shared.generated.resources.profile_field_upi
+import pansariwala.shared.generated.resources.profile_payments_enabled
+import pansariwala.shared.generated.resources.shop_closed
+import pansariwala.shared.generated.resources.shop_delivery_until_label
+import pansariwala.shared.generated.resources.shop_delivery_until_none
+import pansariwala.shared.generated.resources.shop_open_now
 import pansariwala.shared.generated.resources.master_cost
 import pansariwala.shared.generated.resources.master_customer
 import pansariwala.shared.generated.resources.master_date_filter
@@ -371,38 +390,45 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                         }
                     }
                 }
+                val patch: (suspend () -> Unit) -> Unit = { call ->
+                    scope.launch {
+                        runCatching { call() }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
+                    }
+                }
+                val features = shop.features
                 ResponsiveColumns(
                     left = {
+                        MasterSectionCard(title = stringResource(Res.string.master_shop_status)) {
+                            ActiveInactiveToggle(shop.active) { on -> patch { api.patchShop(token, shop.id, active = on) } }
+                            FeatureToggleRow(stringResource(Res.string.profile_payments_enabled), shop.paymentsEnabled) {
+                                patch { api.patchShop(token, shop.id, paymentsEnabled = !shop.paymentsEnabled) }
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
                         MasterSectionCard(title = stringResource(Res.string.master_features)) {
-                            FeatureToggleRow(stringResource(Res.string.master_feature_voice), shop.features.voiceSearch) {
-                                scope.launch {
-                                    val f = shop.features.copy(voiceSearch = !shop.features.voiceSearch)
-                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                                }
+                            FeatureToggleRow(stringResource(Res.string.master_feature_voice), features.voiceSearch) {
+                                patch { api.patchShop(token, shop.id, features = features.copy(voiceSearch = !features.voiceSearch)) }
                             }
-                            FeatureToggleRow(stringResource(Res.string.master_feature_barcode), shop.features.barcodeSearch) {
-                                scope.launch {
-                                    val f = shop.features.copy(barcodeSearch = !shop.features.barcodeSearch)
-                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                                }
+                            FeatureToggleRow(stringResource(Res.string.master_feature_barcode), features.barcodeSearch) {
+                                patch { api.patchShop(token, shop.id, features = features.copy(barcodeSearch = !features.barcodeSearch)) }
                             }
-                            FeatureToggleRow(stringResource(Res.string.master_feature_reports), shop.features.reportGeneration) {
-                                scope.launch {
-                                    val f = shop.features.copy(reportGeneration = !shop.features.reportGeneration)
-                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                                }
+                            FeatureToggleRow(stringResource(Res.string.master_feature_reports), features.reportGeneration) {
+                                patch { api.patchShop(token, shop.id, features = features.copy(reportGeneration = !features.reportGeneration)) }
                             }
-                            FeatureToggleRow(stringResource(Res.string.master_feature_online), shop.features.onlineOrders) {
-                                scope.launch {
-                                    val f = shop.features.copy(onlineOrders = !shop.features.onlineOrders)
-                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                                }
+                            FeatureToggleRow(stringResource(Res.string.master_feature_online), features.onlineOrders) {
+                                patch { api.patchShop(token, shop.id, features = features.copy(onlineOrders = !features.onlineOrders)) }
                             }
-                            FeatureToggleRow(stringResource(Res.string.master_feature_inventory), shop.features.inventoryAlerts) {
-                                scope.launch {
-                                    val f = shop.features.copy(inventoryAlerts = !shop.features.inventoryAlerts)
-                                    runCatching { api.patchShop(token, shop.id, features = f) }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                                }
+                            FeatureToggleRow(stringResource(Res.string.master_feature_inventory), features.inventoryAlerts) {
+                                patch { api.patchShop(token, shop.id, features = features.copy(inventoryAlerts = !features.inventoryAlerts)) }
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        MasterSectionCard(title = stringResource(Res.string.master_operating_hours)) {
+                            withFullWeek(shop.operatingHours).forEach { day ->
+                                LabelValue(
+                                    day.day,
+                                    if (day.closed) stringResource(Res.string.shop_closed) else "${day.start} – ${day.end}",
+                                )
                             }
                         }
                     },
@@ -410,12 +436,36 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                         MasterSectionCard(title = stringResource(Res.string.master_transactions_title)) {
                             StatsGrid(
                                 listOf(
-                                    stringResource(Res.string.master_shop_id) to shop.id,
-                                    stringResource(Res.string.master_total_rating) to "${shop.ratingCount}",
-                                    stringResource(Res.string.master_shop_orders) to "${shop.rating} ★",
+                                    stringResource(Res.string.master_shop_orders) to "${detail?.orderCount ?: 0}",
                                     stringResource(Res.string.master_card_users) to "${detail?.uniqueCustomers ?: 0}",
+                                    stringResource(Res.string.master_shop_rating) to "${shop.rating} ★",
+                                    stringResource(Res.string.master_total_rating) to "${shop.ratingCount}",
                                 ),
                             )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        MasterSectionCard(title = stringResource(Res.string.master_delivery_payments)) {
+                            LabelValue(stringResource(Res.string.profile_field_upi), shop.upiId.ifBlank { "—" })
+                            LabelValue(stringResource(Res.string.profile_field_radius), shop.deliveryRadiusKm.plainNumber())
+                            LabelValue(stringResource(Res.string.profile_field_discount), "${shop.discountPercent.plainNumber()}%")
+                            LabelValue(
+                                stringResource(Res.string.shop_delivery_until_label),
+                                shop.deliveryUntil.ifBlank { stringResource(Res.string.shop_delivery_until_none) },
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        MasterSectionCard(title = stringResource(Res.string.master_contact)) {
+                            LabelValue(stringResource(Res.string.profile_field_owner_name), shop.ownerName.ifBlank { "—" })
+                            LabelValue(stringResource(Res.string.profile_field_owner_phone), shop.ownerPhone.ifBlank { "—" })
+                            LabelValue(stringResource(Res.string.profile_field_owner_email), shop.ownerEmail.ifBlank { "—" })
+                            LabelValue(
+                                stringResource(Res.string.profile_field_address),
+                                listOf(shop.address, shop.city, shop.state, shop.zip, shop.country)
+                                    .filter { it.isNotBlank() }.joinToString(", ").ifBlank { "—" },
+                            )
+                            LabelValue(stringResource(Res.string.profile_field_registration), shop.registrationNumber.ifBlank { "—" })
+                            LabelValue(stringResource(Res.string.profile_field_tax), shop.taxId.ifBlank { "—" })
+                            LabelValue(stringResource(Res.string.master_login_username), shop.loginUsername.ifBlank { "—" })
                         }
                     },
                 )
@@ -443,6 +493,10 @@ private fun ShopInfoGrid(shop: ShopDto) {
     LabelValue(stringResource(Res.string.master_shop_rating), "${shop.rating} ${stringResource(Res.string.master_stars_label)}")
     LabelValue(stringResource(Res.string.master_join_date), formatEpochDate(shop.joinedAtEpochMs))
     LabelValue(stringResource(Res.string.master_shop_type), shopTypeDisplayName(shop.shopType))
+    LabelValue(
+        stringResource(Res.string.master_shop_open_status),
+        stringResource(if (shop.isOpen) Res.string.shop_open_now else Res.string.shop_closed),
+    )
 }
 
 @Composable

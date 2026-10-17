@@ -63,7 +63,19 @@ import pansariwala.shared.generated.resources.master_edit_shop_title
 import pansariwala.shared.generated.resources.master_feature_barcode
 import pansariwala.shared.generated.resources.master_feature_inventory
 import pansariwala.shared.generated.resources.master_feature_online
-import pansariwala.shared.generated.resources.master_feature_online_search
+import pansariwala.shared.generated.resources.master_delivery_payments
+import pansariwala.shared.generated.resources.master_delivery_until_help
+import pansariwala.shared.generated.resources.master_err_delivery_radius
+import pansariwala.shared.generated.resources.master_err_delivery_until
+import pansariwala.shared.generated.resources.master_err_discount
+import pansariwala.shared.generated.resources.master_placeholder_upi
+import pansariwala.shared.generated.resources.master_placeholder_delivery_until
+import pansariwala.shared.generated.resources.profile_field_discount
+import pansariwala.shared.generated.resources.profile_field_radius
+import pansariwala.shared.generated.resources.profile_field_upi
+import pansariwala.shared.generated.resources.profile_payments_enabled
+import pansariwala.shared.generated.resources.shop_closed
+import pansariwala.shared.generated.resources.shop_delivery_until_label
 import pansariwala.shared.generated.resources.master_feature_reports
 import pansariwala.shared.generated.resources.master_feature_voice
 import pansariwala.shared.generated.resources.master_features
@@ -160,20 +172,15 @@ internal fun ShopEditorScreen(
     var active by rememberSaveable { mutableStateOf(true) }
     var voice by rememberSaveable { mutableStateOf(true) }
     var barcode by rememberSaveable { mutableStateOf(true) }
-    var onlineSearch by rememberSaveable { mutableStateOf(true) }
     var online by rememberSaveable { mutableStateOf(true) }
     var inventory by rememberSaveable { mutableStateOf(true) }
     var reports by rememberSaveable { mutableStateOf(true) }
-    var monStart by rememberSaveable { mutableStateOf("09:00") }
-    var monEnd by rememberSaveable { mutableStateOf("21:00") }
-    var tueStart by rememberSaveable { mutableStateOf("09:00") }
-    var tueEnd by rememberSaveable { mutableStateOf("21:00") }
-    var wedStart by rememberSaveable { mutableStateOf("09:00") }
-    var wedEnd by rememberSaveable { mutableStateOf("21:00") }
-    var thuStart by rememberSaveable { mutableStateOf("09:00") }
-    var thuEnd by rememberSaveable { mutableStateOf("21:00") }
-    var friStart by rememberSaveable { mutableStateOf("09:00") }
-    var friEnd by rememberSaveable { mutableStateOf("21:00") }
+    var paymentsEnabled by rememberSaveable { mutableStateOf(true) }
+    var upiId by rememberSaveable { mutableStateOf("") }
+    var radiusKm by rememberSaveable { mutableStateOf("") }
+    var discountPct by rememberSaveable { mutableStateOf("") }
+    var deliveryUntil by rememberSaveable { mutableStateOf("") }
+    var hours by remember { mutableStateOf(WEEK_DAYS.map { ShopHoursDayDto(it) }) }
     var shopTypes by remember { mutableStateOf(DefaultShopTypeChoices) }
     var loaded by remember { mutableStateOf(false) }
 
@@ -208,29 +215,24 @@ internal fun ShopEditorScreen(
                 reports = s.features.reportGeneration
                 online = s.features.onlineOrders
                 inventory = s.features.inventoryAlerts
-                onlineSearch = s.features.reportGeneration
-                val byDay = s.operatingHours.associateBy { it.day }
-                byDay["Mon"]?.let { monStart = it.start; monEnd = it.end }
-                byDay["Tue"]?.let { tueStart = it.start; tueEnd = it.end }
-                byDay["Wed"]?.let { wedStart = it.start; wedEnd = it.end }
-                byDay["Thu"]?.let { thuStart = it.start; thuEnd = it.end }
-                byDay["Fri"]?.let { friStart = it.start; friEnd = it.end }
+                paymentsEnabled = s.paymentsEnabled
+                upiId = s.upiId
+                radiusKm = s.deliveryRadiusKm.plainNumber()
+                discountPct = s.discountPercent.plainNumber()
+                deliveryUntil = s.deliveryUntil
+                hours = withFullWeek(s.operatingHours)
             }.onFailure { onStatus(it.message.orEmpty()) }
         }
     }
 
-    fun hours() = listOf(
-        ShopHoursDayDto("Mon", monStart, monEnd),
-        ShopHoursDayDto("Tue", tueStart, tueEnd),
-        ShopHoursDayDto("Wed", wedStart, wedEnd),
-        ShopHoursDayDto("Thu", thuStart, thuEnd),
-        ShopHoursDayDto("Fri", friStart, friEnd),
-    )
+    fun updateDay(day: String, transform: (ShopHoursDayDto) -> ShopHoursDayDto) {
+        hours = hours.map { if (it.day == day) transform(it) else it }
+    }
 
     fun features() = ShopFeaturesDto(
         voiceSearch = voice,
         barcodeSearch = barcode,
-        reportGeneration = reports || onlineSearch,
+        reportGeneration = reports,
         onlineOrders = online,
         inventoryAlerts = inventory,
     )
@@ -332,17 +334,37 @@ internal fun ShopEditorScreen(
                         LabeledField(stringResource(Res.string.master_registration_number), registration, stringResource(Res.string.master_placeholder_reg)) { registration = it }
                         LabeledField(stringResource(Res.string.master_tax_id), taxId, stringResource(Res.string.master_placeholder_tax)) { taxId = it }
                         SectionTitle(stringResource(Res.string.master_operating_hours))
-                        HoursRowCompact("Mon", monStart, monEnd, { monStart = it }, { monEnd = it })
-                        HoursRowCompact("Tue", tueStart, tueEnd, { tueStart = it }, { tueEnd = it })
-                        HoursRowCompact("Wed", wedStart, wedEnd, { wedStart = it }, { wedEnd = it })
-                        HoursRowCompact("Thu", thuStart, thuEnd, { thuStart = it }, { thuEnd = it })
-                        HoursRowCompact("Fri", friStart, friEnd, { friStart = it }, { friEnd = it })
+                        hours.forEach { day ->
+                            HoursRowCompact(
+                                day = day.day,
+                                start = day.start,
+                                end = day.end,
+                                closed = day.closed,
+                                onStart = { v -> updateDay(day.day) { it.copy(start = v) } },
+                                onEnd = { v -> updateDay(day.day) { it.copy(end = v) } },
+                                onClosedChange = { v -> updateDay(day.day) { it.copy(closed = v) } },
+                            )
+                        }
+                        SectionTitle(stringResource(Res.string.master_delivery_payments))
+                        FeatureToggleRow(stringResource(Res.string.profile_payments_enabled), paymentsEnabled) { paymentsEnabled = !paymentsEnabled }
+                        LabeledField(stringResource(Res.string.profile_field_upi), upiId, stringResource(Res.string.master_placeholder_upi)) { upiId = it.trim() }
+                        LabeledField(stringResource(Res.string.profile_field_radius), radiusKm, "") { radiusKm = it }
+                        LabeledField(stringResource(Res.string.profile_field_discount), discountPct, "") { discountPct = it }
+                        LabeledField(
+                            stringResource(Res.string.shop_delivery_until_label),
+                            deliveryUntil,
+                            stringResource(Res.string.master_placeholder_delivery_until),
+                        ) { deliveryUntil = it.trim() }
+                        Text(
+                            stringResource(Res.string.master_delivery_until_help),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         SectionTitle(stringResource(Res.string.master_status))
                         ActiveInactiveToggle(active) { active = it }
                         SectionTitle(stringResource(Res.string.master_features))
                         FeatureToggleRow(stringResource(Res.string.master_feature_voice), voice) { voice = !voice }
                         FeatureToggleRow(stringResource(Res.string.master_feature_barcode), barcode) { barcode = !barcode }
-                        FeatureToggleRow(stringResource(Res.string.master_feature_online_search), onlineSearch) { onlineSearch = !onlineSearch }
                         FeatureToggleRow(stringResource(Res.string.master_feature_online), online) { online = !online }
                         FeatureToggleRow(stringResource(Res.string.master_feature_inventory), inventory) { inventory = !inventory }
                         FeatureToggleRow(stringResource(Res.string.master_feature_reports), reports) { reports = !reports }
@@ -356,9 +378,15 @@ internal fun ShopEditorScreen(
             val errLocation = stringResource(Res.string.master_err_shop_location)
             val errLogin = stringResource(Res.string.master_err_login_username)
             val errPassword = stringResource(Res.string.master_err_login_password, MIN_SHOP_PASSWORD)
+            val errRadius = stringResource(Res.string.master_err_delivery_radius)
+            val errDiscount = stringResource(Res.string.master_err_discount)
+            val errDeliveryUntil = stringResource(Res.string.master_err_delivery_until)
             fun validate(): String? {
                 val phoneDigits = ownerPhone.filter(Char::isDigit).takeLast(10)
                 return when {
+                    radiusKm.isNotBlank() && (radiusKm.toDoubleOrNull() ?: -1.0) <= 0.0 -> errRadius
+                    discountPct.isNotBlank() && (discountPct.toDoubleOrNull() ?: -1.0) !in 0.0..100.0 -> errDiscount
+                    deliveryUntil.isNotBlank() && !HH_MM_REGEX.matches(deliveryUntil) -> errDeliveryUntil
                     name.isBlank() -> errNameRequired
                     address.isBlank() && city.isBlank() -> errAddressRequired
                     ownerPhone.isNotBlank() && phoneDigits.length != 10 -> errPhone
@@ -382,10 +410,24 @@ internal fun ShopEditorScreen(
                         saving = true
                         scope.launch {
                             runCatching {
+                                suspend fun patchDeliveryAndPayments(id: String) = api.patchShop(
+                                    token = token,
+                                    id = id,
+                                    paymentsEnabled = paymentsEnabled,
+                                    upiId = upiId,
+                                    deliveryRadiusKm = radiusKm.toDoubleOrNull(),
+                                    discountPercent = discountPct.toDoubleOrNull(),
+                                    deliveryUntil = deliveryUntil,
+                                )
                                 if (isEdit && shopId != null) {
                                     api.patchShop(
                                         token = token,
                                         id = shopId,
+                                        paymentsEnabled = paymentsEnabled,
+                                        upiId = upiId,
+                                        deliveryRadiusKm = radiusKm.toDoubleOrNull(),
+                                        discountPercent = discountPct.toDoubleOrNull(),
+                                        deliveryUntil = deliveryUntil,
                                         active = active,
                                         features = features(),
                                         imageUrl = imageUrl.ifBlank { null },
@@ -403,12 +445,12 @@ internal fun ShopEditorScreen(
                                         taxId = taxId,
                                         lat = lat,
                                         lng = lng,
-                                        operatingHours = hours(),
+                                        operatingHours = hours,
                                         loginUsername = loginUsername.ifBlank { null },
                                         loginPassword = loginPassword.ifBlank { null },
                                     )
                                 } else {
-                                    api.createShop(
+                                    val created = api.createShop(
                                         token,
                                         ShopCreate(
                                             name = name,
@@ -427,12 +469,13 @@ internal fun ShopEditorScreen(
                                             country = country,
                                             registrationNumber = registration,
                                             taxId = taxId,
-                                            operatingHours = hours(),
+                                            operatingHours = hours,
                                             features = features(),
                                             loginUsername = loginUsername,
                                             loginPassword = loginPassword,
                                         ),
                                     )
+                                    patchDeliveryAndPayments(created.id)
                                 }
                             }.onSuccess {
                                 saving = false
@@ -543,13 +586,37 @@ private fun DashedUploadBox(imageUrl: String?, label: String, uploading: Boolean
 }
 
 @Composable
-private fun HoursRowCompact(day: String, start: String, end: String, onStart: (String) -> Unit, onEnd: (String) -> Unit) {
+private fun HoursRowCompact(
+    day: String,
+    start: String,
+    end: String,
+    closed: Boolean,
+    onStart: (String) -> Unit,
+    onEnd: (String) -> Unit,
+    onClosedChange: (Boolean) -> Unit,
+) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(day, modifier = Modifier.width(32.dp), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(start, onStart, label = { Text(stringResource(Res.string.master_hours_start)) }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(end, onEnd, label = { Text(stringResource(Res.string.master_hours_end)) }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(start, onStart, enabled = !closed, label = { Text(stringResource(Res.string.master_hours_start)) }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(end, onEnd, enabled = !closed, label = { Text(stringResource(Res.string.master_hours_end)) }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
+        FilterChip(
+            selected = closed,
+            onClick = { onClosedChange(!closed) },
+            label = { Text(stringResource(Res.string.shop_closed), style = MaterialTheme.typography.labelSmall) },
+        )
     }
 }
+
+internal val WEEK_DAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+private val HH_MM_REGEX = Regex("^([01]\\d|2[0-3]):[0-5]\\d$")
+
+/** Always returns all seven days so a saved week never silently closes the missing ones. */
+internal fun withFullWeek(saved: List<ShopHoursDayDto>): List<ShopHoursDayDto> {
+    val byDay = saved.associateBy { it.day.take(3).lowercase() }
+    return WEEK_DAYS.map { day -> byDay[day.lowercase()]?.copy(day = day) ?: ShopHoursDayDto(day) }
+}
+
+internal fun Double.plainNumber(): String = if (this % 1.0 == 0.0) toLong().toString() else toString()
 
 @Composable
 fun ActiveInactiveToggle(active: Boolean, onChange: (Boolean) -> Unit) {

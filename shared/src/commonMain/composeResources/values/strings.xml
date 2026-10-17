@@ -260,6 +260,15 @@
     <string name="master_registration_number">Shop Registration Number</string>
     <string name="master_tax_id">Tax ID/VAT</string>
     <string name="master_operating_hours">Operating Hours</string>
+    <string name="master_delivery_payments">Delivery &amp; Payments</string>
+    <string name="master_delivery_until_help">24-hour HH:mm, e.g. 17:00. Leave blank to deliver all day; after this time orders are pickup-only with no delivery charge.</string>
+    <string name="master_placeholder_upi">shopname@upi</string>
+    <string name="master_placeholder_delivery_until">17:00</string>
+    <string name="master_err_delivery_radius">Delivery radius must be a number greater than 0.</string>
+    <string name="master_err_discount">Discount must be between 0 and 100.</string>
+    <string name="master_err_delivery_until">Delivery time must be HH:mm (24-hour), e.g. 17:00.</string>
+    <string name="master_shop_open_status">Open status</string>
+    <string name="master_shop_status">Shop status</string>
     <string name="master_hours_start">Start</string>
     <string name="master_hours_end">End</string>
     <string name="master_amount_group">Amount</string>
@@ -527,6 +536,8 @@
     <string name="market_sort_name_desc">Shop name — Z to A</string>
     <string name="market_shop_types">Shop types</string>
     <string name="market_greeting">Hello, %1$s</string>
+    <string name="market_greeting_guest">there</string>
+    <string name="market_change_location">Change delivery address</string>
     <string name="market_location_unknown">Set your delivery location</string>
     <string name="shop_type_general_store">General store</string>
     <string name="shop_type_hardware">Hardware</string>

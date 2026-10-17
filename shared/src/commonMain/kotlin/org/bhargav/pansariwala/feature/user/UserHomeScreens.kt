@@ -85,7 +85,11 @@ import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.account_all_orders
 import pansariwala.shared.generated.resources.account_help
-import pansariwala.shared.generated.resources.app_name
+import pansariwala.shared.generated.resources.market_change_location
+import pansariwala.shared.generated.resources.market_greeting_guest
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.style.TextOverflow
 import pansariwala.shared.generated.resources.account_recent_three
 import pansariwala.shared.generated.resources.account_transactions
 import pansariwala.shared.generated.resources.action_logout
@@ -434,7 +438,6 @@ fun MarketScreen(
     PansariScreen(
         topBar = {
             PansariTopBar(
-                title = stringResource(Res.string.app_name),
                 onBack = null,
                 actions = {
                     CartBadgeButton(
@@ -442,7 +445,39 @@ fun MarketScreen(
                         onClick = { cartShopId?.let(onContinueOrder) },
                     )
                 },
-            )
+            ) {
+                Column {
+                    Text(
+                        stringResource(
+                            Res.string.market_greeting,
+                            state.userName.ifBlank { stringResource(Res.string.market_greeting_guest) },
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(
+                        Modifier.clickable(onClick = onChangeLocation),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = state.locationLabel.ifBlank { stringResource(Res.string.market_location_unknown) },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = stringResource(Res.string.market_change_location),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
         },
         error = state.error.toErrorBanner(),
         onErrorAction = {
@@ -453,21 +488,8 @@ fun MarketScreen(
     ) {
       Column(Modifier.fillMaxSize()) {
           Column {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text(
-                    stringResource(Res.string.market_greeting, state.userName.ifBlank { "there" }),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = state.locationLabel.ifBlank { stringResource(Res.string.market_location_unknown) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp).clickable(onClick = onChangeLocation),
-                )
-            }
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 OutlinedTextField(

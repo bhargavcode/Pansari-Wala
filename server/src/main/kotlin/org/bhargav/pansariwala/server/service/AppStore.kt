@@ -557,7 +557,8 @@ class AppStore(
         if (operatingHours.isEmpty()) return true
         val now = java.time.LocalDateTime.now(SHOP_ZONE)
         val today = now.dayOfWeek.name.take(3)
-        val hours = operatingHours.firstOrNull { it.day.trim().take(3).equals(today, ignoreCase = true) } ?: return false
+        // A day absent from the list has no hours set (older master edits saved Mon–Fri only); closures use [closed].
+        val hours = operatingHours.firstOrNull { it.day.trim().take(3).equals(today, ignoreCase = true) } ?: return true
         if (hours.closed) return false
         val start = parseHhMm(hours.start) ?: return true
         val end = parseHhMm(hours.end) ?: return true
@@ -2924,7 +2925,7 @@ class AppStore(
         ratingCount = ratingCount,
         lat = lat,
         lng = lng,
-        isOpen = isOpen,
+        isOpen = openNow(),
         active = active,
         paymentsEnabled = paymentsEnabled,
         discountPercent = discountPercent,

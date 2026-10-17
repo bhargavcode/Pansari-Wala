@@ -235,15 +235,24 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         operatingHours: List<ShopHoursDayDto>? = null,
         loginUsername: String? = null,
         loginPassword: String? = null,
+        upiId: String? = null,
+        deliveryRadiusKm: Double? = null,
+        discountPercent: Double? = null,
+        deliveryUntil: String? = null,
     ) {
         client.post(url("/admin/shops/$id")) {
             bearer(token)
             contentType(ContentType.Application.Json)
             setBody(
                 ShopPatch(
-                    active, paymentsEnabled, features, imageUrl, name, address, shopType,
-                    ownerName, ownerPhone, ownerEmail, city, state, zip, country,
-                    registrationNumber, taxId, lat, lng, operatingHours, loginUsername, loginPassword,
+                    active = active, paymentsEnabled = paymentsEnabled, features = features, imageUrl = imageUrl,
+                    name = name, address = address, shopType = shopType,
+                    ownerName = ownerName, ownerPhone = ownerPhone, ownerEmail = ownerEmail,
+                    city = city, state = state, zip = zip, country = country,
+                    registrationNumber = registrationNumber, taxId = taxId, lat = lat, lng = lng,
+                    operatingHours = operatingHours, loginUsername = loginUsername, loginPassword = loginPassword,
+                    upiId = upiId, deliveryRadiusKm = deliveryRadiusKm, discountPercent = discountPercent,
+                    deliveryUntil = deliveryUntil,
                 ),
             )
         }
@@ -600,6 +609,11 @@ data class ShopDto(
     val taxId: String = "",
     val operatingHours: List<ShopHoursDayDto> = emptyList(),
     val loginUsername: String = "",
+    val isOpen: Boolean = true,
+    val upiId: String = "",
+    val deliveryRadiusKm: Double = 20.0,
+    val discountPercent: Double = 0.0,
+    val deliveryUntil: String = "",
 )
 
 @Serializable
@@ -633,6 +647,11 @@ data class ShopPatch(
     val operatingHours: List<ShopHoursDayDto>? = null,
     val loginUsername: String? = null,
     val loginPassword: String? = null,
+    val upiId: String? = null,
+    val deliveryRadiusKm: Double? = null,
+    val discountPercent: Double? = null,
+    /** "HH:mm"; empty string clears the cutoff. */
+    val deliveryUntil: String? = null,
 )
 
 @Serializable

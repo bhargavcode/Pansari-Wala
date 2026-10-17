@@ -134,6 +134,27 @@ fun PansariTopBar(
     onBack: (() -> Unit)?,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
+) = PansariTopBar(
+    onBack = onBack,
+    modifier = modifier,
+    actions = actions,
+    titleContent = {
+        Text(
+            text = title,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    },
+)
+
+@Composable
+fun PansariTopBar(
+    onBack: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+    titleContent: @Composable () -> Unit,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -151,16 +172,11 @@ fun PansariTopBar(
                     Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             }
-            Text(
-                text = title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = if (onBack == null) 16.dp else 0.dp, end = 8.dp),
-            )
+            ) { titleContent() }
             actions()
         }
     }
