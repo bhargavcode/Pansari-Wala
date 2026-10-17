@@ -6,4 +6,4 @@ android_enabled = true
 android_distribute = true
 ios_enabled = false
 web_enabled = true
-server_enabled = false
+server_enabled = true
