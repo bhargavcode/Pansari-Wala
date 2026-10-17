@@ -127,7 +127,6 @@ import pansariwala.shared.generated.resources.partner_earnings_profile
 import pansariwala.shared.generated.resources.partner_login_phone_email
 import pansariwala.shared.generated.resources.partner_login_prompt
 import pansariwala.shared.generated.resources.partner_new_delivery_offer
-import pansariwala.shared.generated.resources.partner_notifications_empty
 import pansariwala.shared.generated.resources.partner_offer_distance
 import pansariwala.shared.generated.resources.partner_offer_order
 import pansariwala.shared.generated.resources.partner_offer_payout
@@ -166,8 +165,6 @@ import pansariwala.shared.generated.resources.partner_summary_rating
 import pansariwala.shared.generated.resources.partner_summary_time
 import pansariwala.shared.generated.resources.partner_online_waiting
 import pansariwala.shared.generated.resources.partner_offline_prompt
-import pansariwala.shared.generated.resources.partner_tab_jobs
-import pansariwala.shared.generated.resources.partner_tab_notifications
 import pansariwala.shared.generated.resources.partner_verification_status
 import pansariwala.shared.generated.resources.partner_weekly_day
 import pansariwala.shared.generated.resources.partner_weekly_summary
@@ -429,7 +426,6 @@ fun PartnerHomeScreen(
     viewModel: PartnerHomeViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var homeTab by remember { mutableStateOf(0) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -477,63 +473,31 @@ fun PartnerHomeScreen(
     ) {
     Box(Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                PartnerHomeTabChip(
-                    label = stringResource(Res.string.partner_tab_jobs),
-                    selected = homeTab == 0,
-                    onClick = { homeTab = 0 },
-                    modifier = Modifier.weight(1f),
-                )
-                PartnerHomeTabChip(
-                    label = stringResource(Res.string.partner_tab_notifications),
-                    selected = homeTab == 1,
-                    onClick = { homeTab = 1 },
-                    modifier = Modifier.weight(1f),
-                )
-            }
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
                 onRefresh = viewModel::pullRefresh,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
-                if (homeTab == 0) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        item {
-                            PartnerAcceptedOrdersSection(
-                                jobs = state.acceptedJobs,
-                                onResume = onResumeJob,
-                            )
-                        }
-                        item {
-                            PartnerAvailableOrdersSection(
-                                offers = state.availableOffers,
-                                online = state.online,
-                                secondsLeftFor = viewModel::offerSecondsRemaining,
-                                onAccept = { offerId -> viewModel.acceptOfferById(offerId, onNavigateToStore) },
-                                onDecline = viewModel::rejectOfferById,
-                                onGoOnline = { viewModel.setOnline(true) },
-                            )
-                        }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    item {
+                        PartnerAcceptedOrdersSection(
+                            jobs = state.acceptedJobs,
+                            onResume = onResumeJob,
+                        )
                     }
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            stringResource(Res.string.partner_notifications_empty),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
+                    item {
+                        PartnerAvailableOrdersSection(
+                            offers = state.availableOffers,
+                            online = state.online,
+                            secondsLeftFor = viewModel::offerSecondsRemaining,
+                            onAccept = { offerId -> viewModel.acceptOfferById(offerId, onNavigateToStore) },
+                            onDecline = viewModel::rejectOfferById,
+                            onGoOnline = { viewModel.setOnline(true) },
+                            partnerName = state.profile?.name,
                         )
                     }
                 }
@@ -567,32 +531,6 @@ fun PartnerHomeScreen(
             PartnerOfferTakenSheet(onOkay = viewModel::dismissOfferTakenSheet)
         }
     }
-    }
-}
-
-@Composable
-private fun PartnerHomeTabChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick),
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

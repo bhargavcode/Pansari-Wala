@@ -13,7 +13,9 @@ import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.memScoped
 import platform.CoreLocation.CLLocationCoordinate2D
 import platform.CoreLocation.CLLocationCoordinate2DMake
+import org.bhargav.pansariwala.util.AppConstants
 import platform.MapKit.MKCoordinateRegionMake
+import platform.MapKit.MKCoordinateRegionMakeWithDistance
 import platform.MapKit.MKCoordinateSpanMake
 import platform.MapKit.MKMapView
 import platform.MapKit.MKMapViewDelegateProtocol
@@ -136,7 +138,11 @@ private fun updateMap(
         )
     } else {
         mapView.setRegion(
-            MKCoordinateRegionMake(dest, MKCoordinateSpanMake(0.02, 0.02)),
+            MKCoordinateRegionMakeWithDistance(
+                dest,
+                AppConstants.PARTNER_MAP_DEFAULT_SPAN_M,
+                AppConstants.PARTNER_MAP_DEFAULT_SPAN_M,
+            ),
             animated = true,
         )
     }

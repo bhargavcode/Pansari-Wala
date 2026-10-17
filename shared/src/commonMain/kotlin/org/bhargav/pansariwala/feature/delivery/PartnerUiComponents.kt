@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,7 +30,14 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.material.icons.filled.ToggleOn
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
@@ -115,6 +123,8 @@ import pansariwala.shared.generated.resources.partner_job_loading
 import pansariwala.shared.generated.resources.partner_jobs_empty_hint
 import pansariwala.shared.generated.resources.partner_jobs_empty_offline
 import pansariwala.shared.generated.resources.partner_jobs_empty_title
+import pansariwala.shared.generated.resources.partner_jobs_offline_title
+import pansariwala.shared.generated.resources.partner_jobs_offline_title_generic
 import pansariwala.shared.generated.resources.partner_navigate
 import pansariwala.shared.generated.resources.partner_new_delivery_offer
 import pansariwala.shared.generated.resources.partner_offer_distance
@@ -452,7 +462,8 @@ fun PartnerMapPlaceholder(
             .then(if (fillHeight) Modifier.fillMaxSize() else Modifier),
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shadowElevation = if (fillHeight) 0.dp else PansariElevation.card,
+        // Google Maps' SurfaceView renders blank under an elevated (shadowed) Compose layer.
+        border = if (fillHeight) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             PartnerLiveMap(
@@ -1110,9 +1121,15 @@ fun PartnerAvailableOrdersSection(
     onDecline: (String) -> Unit,
     onGoOnline: () -> Unit,
     modifier: Modifier = Modifier,
+    partnerName: String? = null,
 ) {
     if (offers.isEmpty()) {
-        PartnerJobsEmptyState(online = online, onGoOnline = onGoOnline, modifier = modifier)
+        PartnerJobsEmptyState(
+            online = online,
+            onGoOnline = onGoOnline,
+            modifier = modifier,
+            partnerName = partnerName,
+        )
     } else {
         Column(
             modifier = modifier
@@ -1148,17 +1165,55 @@ fun PartnerJobsEmptyState(
     online: Boolean,
     onGoOnline: () -> Unit,
     modifier: Modifier = Modifier,
+    partnerName: String? = null,
 ) {
     PartnerInformativeEmptyState(
         emojiOnline = "🛵",
         emojiOffline = "💤",
         online = online,
         title = stringResource(Res.string.partner_jobs_empty_title),
+        titleOffline = partnerName?.takeIf { it.isNotBlank() }
+            ?.let { stringResource(Res.string.partner_jobs_offline_title, it) }
+            ?: stringResource(Res.string.partner_jobs_offline_title_generic),
         hintOnline = stringResource(Res.string.partner_jobs_empty_hint),
-        hintOffline = stringResource(Res.string.partner_jobs_empty_offline),
+        hintOffline = stringResource(Res.string.partner_jobs_empty_offline, SWITCH_ICON_TOKEN),
         showGoOnline = !online,
         onGoOnline = onGoOnline,
         modifier = modifier,
+    )
+}
+
+private const val SWITCH_ICON_TOKEN = "\u0000switch\u0000"
+private const val SWITCH_ICON_ID = "online_switch_icon"
+
+/** Renders [text] with [SWITCH_ICON_TOKEN] replaced by an inline toggle icon. */
+@Composable
+private fun HintWithSwitchIcon(text: String, color: Color) {
+    val parts = text.split(SWITCH_ICON_TOKEN)
+    val annotated = buildAnnotatedString {
+        parts.forEachIndexed { index, part ->
+            append(part)
+            if (index < parts.lastIndex) appendInlineContent(SWITCH_ICON_ID, "[switch]")
+        }
+    }
+    val inline = mapOf(
+        SWITCH_ICON_ID to InlineTextContent(
+            Placeholder(28.sp, 18.sp, PlaceholderVerticalAlign.TextCenter),
+        ) {
+            Icon(
+                Icons.Filled.ToggleOn,
+                contentDescription = null,
+                tint = PackedGreen,
+                modifier = Modifier.fillMaxSize(),
+            )
+        },
+    )
+    Text(
+        annotated,
+        inlineContent = inline,
+        style = MaterialTheme.typography.bodyMedium,
+        color = color,
+        textAlign = TextAlign.Center,
     )
 }
 
@@ -1173,6 +1228,7 @@ private fun PartnerInformativeEmptyState(
     showGoOnline: Boolean,
     onGoOnline: () -> Unit,
     modifier: Modifier = Modifier,
+    titleOffline: String = title,
 ) {
     val pulse = rememberInfiniteTransition(label = "jobs-empty-pulse")
     val scale by pulse.animateFloat(
@@ -1201,16 +1257,15 @@ private fun PartnerInformativeEmptyState(
             },
         )
         Text(
-            title,
+            if (online) title else titleOffline,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleMedium,
+            color = if (online) Color.Unspecified else MaterialTheme.colorScheme.error,
             textAlign = TextAlign.Center,
         )
-        Text(
-            if (online) hintOnline else hintOffline,
-            style = MaterialTheme.typography.bodyMedium,
+        HintWithSwitchIcon(
+            text = if (online) hintOnline else hintOffline,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
         )
         if (showGoOnline) {
             PartnerPrimaryButton(

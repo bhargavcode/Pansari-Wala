@@ -59,6 +59,8 @@ object AppConstants {
     const val DEFAULT_SHOP_DELIVERY_RADIUS_KM: Double = 20.0
     const val PARTNER_MAP_ROUTE_COLOR: Long = 0xFF0D7377
     const val PARTNER_MAP_ROUTE_WIDTH: Float = 12f
+    /** Side length (metres) of the area shown around a single map pin. */
+    const val PARTNER_MAP_DEFAULT_SPAN_M: Double = 2_000.0
 
     const val THANK_YOU_DELAY_MS: Long = 800L
     const val DELIVERY_RING_TIMEOUT_MS: Long = 15 * 60_000L

@@ -861,7 +861,9 @@
     <string name="partner_offline_prompt">Go online to receive offers</string>
     <string name="partner_jobs_empty_title">No jobs right now</string>
     <string name="partner_jobs_empty_hint">Stay online — new delivery offers from nearby shops will appear here automatically.</string>
-    <string name="partner_jobs_empty_offline">Turn on your online switch to start receiving delivery jobs in your area.</string>
+    <string name="partner_jobs_empty_offline">Turn on your online switch %1$s to start receiving delivery jobs in your area.</string>
+    <string name="partner_jobs_offline_title">%1$s, you are offline</string>
+    <string name="partner_jobs_offline_title_generic">You are offline</string>
     <string name="partner_tab_notifications">Notifications</string>
     <string name="partner_action_go_offline">Go Offline</string>
     <string name="partner_action_go_online">Go Online</string>

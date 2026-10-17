@@ -29,6 +29,7 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import org.bhargav.pansariwala.util.AppConstants
+import kotlin.math.cos
 
 @Composable
 actual fun PartnerLiveMap(
@@ -70,15 +71,20 @@ actual fun PartnerLiveMap(
     var destinationIcon by remember { mutableStateOf<BitmapDescriptor?>(null) }
 
     val cameraPositionState = rememberCameraPositionState {
-        this.position = CameraPosition.fromLatLngZoom(dest, 14f)
+        this.position = CameraPosition.fromLatLngZoom(dest, DEFAULT_ZOOM)
     }
-    LaunchedEffect(routePoints, lat, lng) {
-        if (routePoints.size >= 2) {
+    var mapLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(routePoints, lat, lng, mapLoaded) {
+        if (!mapLoaded) {
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(dest, DEFAULT_ZOOM)
+        } else if (routePoints.size >= 2) {
             val boundsBuilder = LatLngBounds.builder()
             routePoints.forEach { boundsBuilder.include(it) }
             cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 120))
         } else {
-            cameraPositionState.position = CameraPosition.fromLatLngZoom(dest, 14f)
+            cameraPositionState.move(
+                CameraUpdateFactory.newLatLngBounds(spanBounds(dest, AppConstants.PARTNER_MAP_DEFAULT_SPAN_M), 0),
+            )
         }
     }
 
@@ -93,6 +99,7 @@ actual fun PartnerLiveMap(
         onMapLoaded = {
             partnerIcon = BitmapDescriptorFactory.fromBitmap(partnerBitmap)
             destinationIcon = BitmapDescriptorFactory.fromBitmap(destinationBitmap)
+            mapLoaded = true
         },
     ) {
         if (origin != null && routePoints.isNotEmpty()) {
@@ -113,6 +120,20 @@ actual fun PartnerLiveMap(
             anchor = Offset(0.5f, 1f),
         )
     }
+}
+
+private const val DEFAULT_ZOOM = 14.5f
+private const val METERS_PER_DEGREE_LAT = 111_320.0
+
+/** Square bounds of [spanMeters] per side centred on [center]. */
+private fun spanBounds(center: LatLng, spanMeters: Double): LatLngBounds {
+    val half = spanMeters / 2.0
+    val dLat = half / METERS_PER_DEGREE_LAT
+    val dLng = half / (METERS_PER_DEGREE_LAT * cos(Math.toRadians(center.latitude)).coerceAtLeast(0.01))
+    return LatLngBounds(
+        LatLng(center.latitude - dLat, center.longitude - dLng),
+        LatLng(center.latitude + dLat, center.longitude + dLng),
+    )
 }
 
 private fun createPartnerMarkerBitmap(sizePx: Int): Bitmap {
