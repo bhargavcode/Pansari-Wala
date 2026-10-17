@@ -1,5 +1,8 @@
 package org.bhargav.pansariwala.feature.splash
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,12 +19,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.app_name
 import pansariwala.shared.generated.resources.app_tagline
+import pansariwala.shared.generated.resources.splash_step_checking_session
+import pansariwala.shared.generated.resources.splash_step_loading_profile
+import pansariwala.shared.generated.resources.splash_step_opening
+import pansariwala.shared.generated.resources.splash_step_preparing_data
 
 @Composable
 fun SplashScreen(
@@ -31,6 +39,8 @@ fun SplashScreen(
     viewModel: SplashViewModel = koinViewModel(),
 ) {
     val destination by viewModel.destination.collectAsState()
+    val step by viewModel.step.collectAsState()
+    val slow by viewModel.slow.collectAsState()
 
     LaunchedEffect(destination) {
         when (destination) {
@@ -63,6 +73,28 @@ fun SplashScreen(
             )
             CircularProgressIndicator(
                 color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        AnimatedVisibility(
+            visible = slow,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+        ) {
+            Text(
+                text = stringResource(
+                    when (step) {
+                        SplashStep.PREPARING_DATA -> Res.string.splash_step_preparing_data
+                        SplashStep.CHECKING_SESSION -> Res.string.splash_step_checking_session
+                        SplashStep.LOADING_PROFILE -> Res.string.splash_step_loading_profile
+                        SplashStep.OPENING -> Res.string.splash_step_opening
+                    },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center,
             )
         }
         }

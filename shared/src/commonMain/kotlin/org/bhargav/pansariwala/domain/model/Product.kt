@@ -11,6 +11,18 @@ enum class ProductCategory(val displayName: String, val displayNameHi: String) {
     companion object {
         fun fromName(value: String): ProductCategory =
             entries.firstOrNull { it.name == value } ?: GENERAL_GROCERY
+
+        /** Master categories are admin-defined; map one by name onto the shop's fixed categories. */
+        fun fromMasterCategoryName(name: String): ProductCategory {
+            val key = name.trim().lowercase()
+            if (key.isEmpty()) return GENERAL_GROCERY
+            return entries.firstOrNull { category ->
+                val display = category.displayName.lowercase()
+                category.name.equals(key.replace(' ', '_'), ignoreCase = true) ||
+                    display.contains(key) || key.contains(display) ||
+                    display.split(" / ", " ").any { it.length > 3 && key.contains(it) }
+            } ?: GENERAL_GROCERY
+        }
     }
 }
 
@@ -86,7 +98,13 @@ data class Product(
     val masterProductId: String? = null,
     /** Inactive products stay in the shop's inventory but are hidden from customers and billing search. */
     val isActive: Boolean = true,
+    /** Best live product offer; lowers the unit price shown and charged. */
+    val offer: ProductOffer? = null,
 ) {
+    /** Price after [offer] for one unit priced [base] (a variant price or [sellingPrice]). */
+    fun salePrice(base: Double = sellingPrice): Double = offer?.unitPriceOn(base) ?: base
+    val hasOffer: Boolean get() = offer != null && salePrice() < sellingPrice
+
     val isLowStock: Boolean get() = stockQty <= lowStockThreshold
     val stockLevel: StockLevel get() = StockLevel.of(stockQty, lowStockThreshold)
     val stockValue: Double get() = stockQty * costPrice
@@ -101,6 +119,29 @@ data class Product(
     val startingPrice: Double get() = variants.minOfOrNull { it.price } ?: sellingPrice
 
     fun variant(id: String?): ProductVariant? = id?.let { vid -> variants.firstOrNull { it.id == vid } }
+}
+
+enum class DiscountType {
+    PERCENT,
+    FLAT,
+    ;
+
+    companion object {
+        fun fromName(value: String?): DiscountType = entries.firstOrNull { it.name == value } ?: PERCENT
+    }
+}
+
+/** Product-scope shop offer: [DiscountType.PERCENT] off, or [DiscountType.FLAT] ₹ off each unit. */
+data class ProductOffer(
+    val id: String,
+    val title: String,
+    val type: DiscountType,
+    val value: Double,
+) {
+    fun unitPriceOn(unitPrice: Double): Double = when (type) {
+        DiscountType.FLAT -> unitPrice - value
+        DiscountType.PERCENT -> unitPrice * (1.0 - value / 100.0)
+    }.coerceIn(0.0, unitPrice)
 }
 
 enum class StockLevel {

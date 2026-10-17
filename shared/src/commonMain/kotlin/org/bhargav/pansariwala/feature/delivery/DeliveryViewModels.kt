@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.delivery
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -49,6 +50,8 @@ import org.bhargav.pansariwala.platform.toPhoneOtpSession
 import org.bhargav.pansariwala.platform.normalizeVehicleReg
 import org.bhargav.pansariwala.platform.searchPlaces
 import org.bhargav.pansariwala.notification.NotificationRouter
+import org.bhargav.pansariwala.notification.OrderUpdate
+import org.bhargav.pansariwala.notification.OrderUpdates
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
@@ -198,9 +201,63 @@ class PartnerRegisterViewModel(
     private val location: DeviceLocation,
     private val imagePicker: ImagePicker,
     private val phoneAuth: PhoneAuthGateway,
+    private val savedState: SavedStateHandle,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(RegisterUiState())
+    private val _state = MutableStateFlow(restoreForm())
     val state: StateFlow<RegisterUiState> = _state.asStateFlow()
+
+    init {
+        // Camera / gallery can push the activity out of memory; keep the form across recreation.
+        viewModelScope.launch {
+            _state.collect { s ->
+                savedState[KEY_NAME] = s.name
+                savedState[KEY_EMAIL] = s.email
+                savedState[KEY_PLACE_QUERY] = s.placeQuery
+                savedState[KEY_ADDRESS] = s.address
+                savedState[KEY_LOCALITY] = s.locality
+                savedState[KEY_LAT] = s.lat
+                savedState[KEY_LNG] = s.lng
+                savedState[KEY_PHONE] = s.phone
+                savedState[KEY_VEHICLE_REG] = s.vehicleReg
+                savedState[KEY_PROFILE_PHOTO] = s.profilePhoto
+                savedState[KEY_DL_PHOTO] = s.dlPhoto
+                savedState[KEY_ID_PHOTO] = s.idPhoto
+                savedState[KEY_VEHICLE_PHOTO] = s.vehiclePhoto
+            }
+        }
+    }
+
+    private fun restoreForm(): RegisterUiState = RegisterUiState(
+        name = savedState[KEY_NAME] ?: "",
+        email = savedState[KEY_EMAIL] ?: "",
+        placeQuery = savedState[KEY_PLACE_QUERY] ?: "",
+        address = savedState[KEY_ADDRESS] ?: "",
+        locality = savedState[KEY_LOCALITY] ?: "",
+        lat = savedState[KEY_LAT],
+        lng = savedState[KEY_LNG],
+        phone = savedState[KEY_PHONE] ?: "",
+        vehicleReg = savedState[KEY_VEHICLE_REG] ?: "",
+        profilePhoto = savedState[KEY_PROFILE_PHOTO] ?: "",
+        dlPhoto = savedState[KEY_DL_PHOTO] ?: "",
+        idPhoto = savedState[KEY_ID_PHOTO] ?: "",
+        vehiclePhoto = savedState[KEY_VEHICLE_PHOTO] ?: "",
+    )
+
+    private companion object {
+        const val KEY_NAME = "reg_name"
+        const val KEY_EMAIL = "reg_email"
+        const val KEY_PLACE_QUERY = "reg_place_query"
+        const val KEY_ADDRESS = "reg_address"
+        const val KEY_LOCALITY = "reg_locality"
+        const val KEY_LAT = "reg_lat"
+        const val KEY_LNG = "reg_lng"
+        const val KEY_PHONE = "reg_phone"
+        const val KEY_VEHICLE_REG = "reg_vehicle_reg"
+        const val KEY_PROFILE_PHOTO = "reg_profile_photo"
+        const val KEY_DL_PHOTO = "reg_dl_photo"
+        const val KEY_ID_PHOTO = "reg_id_photo"
+        const val KEY_VEHICLE_PHOTO = "reg_vehicle_photo"
+    }
 
     fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
@@ -539,6 +596,8 @@ class PartnerHomeViewModel(
     private var timerJob: Job? = null
     /** Offers already shown in the accept flash — stay listable, do not re-popup. */
     private val flashedOfferIds = mutableSetOf<String>()
+    /** Jobs finished on this device; a refresh that raced the completion must not bring them back. */
+    private val finishedOrderIds = mutableSetOf<String>()
 
     fun dismissError() { _state.update { it.copy(error = null) } }
 
@@ -565,6 +624,22 @@ class PartnerHomeViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            OrderUpdates.events.collect { update ->
+                val active = update.status == OrderStatus.PARTNER_ACCEPTED || update.status == OrderStatus.ON_THE_WAY
+                if (!active && update.status != null) {
+                    finishedOrderIds.add(update.orderId)
+                    _state.update { s -> s.copy(acceptedJobs = s.acceptedJobs.filterNot { it.id == update.orderId }) }
+                }
+                refreshJobsAndOffers(presentIncoming = false)
+            }
+        }
+    }
+
+    /** Back on home (e.g. after finishing a job): resync jobs without a full-screen loader. */
+    fun onResume() {
+        syncCachedProfile()
+        if (!_state.value.loading) refreshJobsAndOffers(presentIncoming = false)
     }
 
     fun requestLocationAccessOnLanding() {
@@ -796,8 +871,10 @@ class PartnerHomeViewModel(
             message.contains("failed to connect")
     }
 
+    /** Shows the device fix immediately; a failed server upload must not leave the map on the default city. */
     private suspend fun fetchAndPushLocation(): GeoPoint {
         val geo = location.currentOrDefault()
+        _state.update { it.copy(lat = geo.lat, lng = geo.lng) }
         api.updatePartnerLocation(geo.lat, geo.lng)
         return geo
     }
@@ -851,7 +928,7 @@ class PartnerHomeViewModel(
         val incomingId = presented?.id ?: _state.value.incomingOffer?.id
         _state.update {
             it.copy(
-                acceptedJobs = accepted,
+                acceptedJobs = accepted.filterNot { job -> job.id in finishedOrderIds },
                 availableOffers = if (incomingId == null) {
                     offers
                 } else {
@@ -1159,6 +1236,7 @@ class PartnerJobViewModel(
             runCatching { api.deliverOrder(orderId, otp) }
                 .onSuccess { order ->
                     _state.update { it.copy(submitting = false, order = order) }
+                    OrderUpdates.emit(OrderUpdate(orderId, OrderStatus.DELIVERED))
                     onDone()
                 }
                 .onFailure { e ->

@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import org.bhargav.pansariwala.media.NetworkImage
 import org.bhargav.pansariwala.feature.user.CartStore
+import org.bhargav.pansariwala.feature.user.LineOfferPrice
+import org.bhargav.pansariwala.feature.user.OfferPrice
 import org.bhargav.pansariwala.feature.user.ProductPriceSummary
 import org.bhargav.pansariwala.feature.user.VariantPickerHost
 import org.bhargav.pansariwala.feature.user.needsPicker
@@ -88,6 +90,7 @@ import pansariwala.shared.generated.resources.bill_discount_label
 import pansariwala.shared.generated.resources.bill_discount_percent
 import pansariwala.shared.generated.resources.bill_manual_discount
 import pansariwala.shared.generated.resources.bill_offer_discount
+import pansariwala.shared.generated.resources.bill_product_discount
 import pansariwala.shared.generated.resources.bill_subtotal
 import pansariwala.shared.generated.resources.cart_count
 import pansariwala.shared.generated.resources.cart_empty_hint
@@ -271,11 +274,14 @@ private fun BillDiscountSection(state: OrderEditorUiState, viewModel: OrderEdito
                 label = { Text(stringResource(Res.string.bill_discount_percent)) },
             )
         }
-        if (bill.discount > 0.0) {
+        if (bill.discount > 0.0 || bill.productDiscount > 0.0) {
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Text(stringResource(Res.string.bill_subtotal, bill.subtotal.asMoney()), style = MaterialTheme.typography.bodySmall, color = muted)
+            if (bill.productDiscount > 0.0) {
+                Text(stringResource(Res.string.bill_product_discount, bill.productDiscount.asMoney()), style = MaterialTheme.typography.bodySmall, color = PackedGreen)
+            }
             if (bill.offerDiscount > 0.0) {
-                Text(stringResource(Res.string.bill_offer_discount, bill.offerDiscount.asMoney()), style = MaterialTheme.typography.bodySmall, color = muted)
+                Text(stringResource(Res.string.bill_offer_discount, bill.offerDiscount.asMoney()), style = MaterialTheme.typography.bodySmall, color = PackedGreen)
             }
             if (bill.manualDiscount > 0.0) {
                 Text(stringResource(Res.string.bill_manual_discount, bill.manualDiscount.asMoney()), style = MaterialTheme.typography.bodySmall, color = muted)
@@ -305,11 +311,16 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
                 text = line.variant?.let { "${line.product.name} · ${it.label}" } ?: line.product.name,
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Text(
-                text = "${line.option.priceLabel()} · ${line.lineTotal.asMoney()}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (line.lockedUnitPrice == null) {
+                line.option.OfferPrice(priceStyle = MaterialTheme.typography.labelSmall)
+            } else {
+                Text(
+                    text = line.unitPrice.asMoney(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            LineOfferPrice(line.lineTotal, line.baseLineTotal)
         }
         TextButton(onClick = {
             viewModel.changeQuantity(line.key, -1)
@@ -399,6 +410,7 @@ private fun SearchOrSuggestedItems(
                         if (product.hasVariants) {
                             ProductPriceSummary(product)
                         } else {
+                            if (product.hasOffer) ProductPriceSummary(product)
                             Text(
                                 text = stringResource(
                                     Res.string.in_stock,

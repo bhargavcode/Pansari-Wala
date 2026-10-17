@@ -41,6 +41,7 @@ import org.bhargav.pansariwala.server.db.OtpDoc
 import org.bhargav.pansariwala.server.db.PartnerDoc
 import org.bhargav.pansariwala.server.db.PlatformSettingsDoc
 import org.bhargav.pansariwala.server.dto.PlatformSettingsDto
+import org.bhargav.pansariwala.server.dto.ProductOfferDto
 import org.bhargav.pansariwala.server.db.ProductDoc
 import org.bhargav.pansariwala.server.db.ShopDoc
 import org.bhargav.pansariwala.server.db.ShopFeaturesDoc
@@ -96,6 +97,10 @@ import org.bhargav.pansariwala.server.dto.ProductDetailDto
 import org.bhargav.pansariwala.server.dto.PricePointDto
 import org.bhargav.pansariwala.server.db.PriceHistoryDoc
 import org.bhargav.pansariwala.server.dto.ProductPageDto
+import org.bhargav.pansariwala.server.dto.AddFromMasterRequest
+import org.bhargav.pansariwala.server.dto.ShopProductEdit
+import org.bhargav.pansariwala.server.dto.ShopStockSummaryDto
+import org.bhargav.pansariwala.server.dto.StockUpdateRequest
 import org.bhargav.pansariwala.server.dto.QuoteDto
 import org.bhargav.pansariwala.server.dto.QuoteRequest
 import org.bhargav.pansariwala.server.dto.RazorpayOrderDto
@@ -135,6 +140,7 @@ private const val QUERY_MAX_MS = 8_000L
 private const val PRICE_HISTORY_WINDOW_MS = 366L * 24 * 60 * 60 * 1000
 private const val POS_SYNC_PAGE_MAX = 500
 private const val MAX_CATALOG_PAGE_SIZE = 50
+private const val DEFAULT_SHOP_CATEGORY = "GENERAL_GROCERY"
 private const val MAX_ORDER_PAGE_SIZE = 20
 private const val MAX_MASTER_PAGE_SIZE = 100
 private const val VARIANT_PACK = "PACK"
@@ -534,7 +540,18 @@ class AppStore(
     /** [includeInactive] is for the shop's own devices; customers only see active products. */
     fun catalog(shopId: String, includeInactive: Boolean = false): List<ProductDto> {
         val filter = if (includeInactive) eq("shopId", shopId) else and(eq("shopId", shopId), ne("active", false))
-        return productCol.find(filter).toList().map { it.toDto() }
+        return productCol.find(filter).toList().map { it.toDto() }.withOffers(shopId)
+    }
+
+    /** Attaches each product's best live PRODUCT offer so every client can show the sale price. */
+    private fun List<ProductDto>.withOffers(shopId: String): List<ProductDto> {
+        if (isEmpty()) return this
+        val offers = liveOffers(shopId).filter { it.scope == OfferScope.PRODUCT }
+        if (offers.isEmpty()) return this
+        return map { product ->
+            val best = offers.bestProductOffer(product.id, product.sellingPrice) ?: return@map product
+            product.copy(offer = ProductOfferDto(best.id, best.title, best.discountType, best.value))
+        }
     }
 
     private fun productFilter(shopId: String, category: String?, query: String): Bson {
@@ -568,6 +585,7 @@ class AppStore(
                 .limit(limit)
                 .toList()
                 .map { it.toDto() }
+                .withOffers(shopId)
             CatalogSectionDto(category, row.getInteger("n") ?: preview.size, preview)
         }.sortedByDescending { it.totalCount }
     }
@@ -583,6 +601,7 @@ class AppStore(
             .limit(size)
             .toList()
             .map { it.toDto() }
+            .withOffers(shopId)
         return ProductPageDto(
             items = items,
             page = safePage,
@@ -591,6 +610,152 @@ class AppStore(
             hasMore = (safePage + 1) * size < total,
         )
     }
+
+    /** Admin view of one shop's inventory, including inactive products. [status]: all | active | inactive. */
+    fun adminShopProductPage(
+        shopId: String,
+        query: String,
+        category: String?,
+        status: String?,
+        lowStockOnly: Boolean,
+        page: Int,
+        pageSize: Int,
+    ): ProductPageDto {
+        val size = pageSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
+        val safePage = page.coerceAtLeast(0)
+        val parts = mutableListOf(eq("shopId", shopId))
+        if (!category.isNullOrBlank()) parts += eq("category", category)
+        when (status?.lowercase()) {
+            "active" -> parts += ne("active", false)
+            "inactive" -> parts += eq("active", false)
+        }
+        if (lowStockOnly) parts += lowStockExpr()
+        val q = query.trim()
+        if (q.isNotEmpty()) {
+            val pattern = java.util.regex.Pattern.quote(q)
+            parts += or(
+                eq("_id", q),
+                eq("barcode", q),
+                eq("masterProductId", q),
+                regex("name", pattern, "i"),
+                regex("nameHi", pattern, "i"),
+                regex("brandName", pattern, "i"),
+                regex("voiceAlias", pattern, "i"),
+            )
+        }
+        val filter = and(parts)
+        val total = productCol.countDocuments(filter).toInt()
+        val items = productCol.find(filter)
+            .sort(Sorts.ascending("name", "_id"))
+            .skip(safePage * size)
+            .limit(size)
+            .toList()
+            .map { it.toDto() }
+        return ProductPageDto(items, safePage, size, total, (safePage + 1) * size < total)
+    }
+
+    fun adminShopStockSummary(shopId: String): ShopStockSummaryDto {
+        val shop = eq("shopId", shopId)
+        val inactive = productCol.countDocuments(and(shop, eq("active", false))).toInt()
+        val total = productCol.countDocuments(shop).toInt()
+        return ShopStockSummaryDto(
+            total = total,
+            active = total - inactive,
+            inactive = inactive,
+            outOfStock = productCol.countDocuments(and(shop, lte("stockQty", 0.0))).toInt(),
+            lowStock = productCol.countDocuments(and(shop, gt("stockQty", 0.0), lowStockExpr())).toInt(),
+        )
+    }
+
+    /** masterProductId → shop productId for the given master ids already in [shopId]. */
+    fun adminShopMasterLinks(shopId: String, masterIds: List<String>): Map<String, String> {
+        if (masterIds.isEmpty()) return emptyMap()
+        return productCol.find(and(eq("shopId", shopId), `in`("masterProductId", masterIds.take(MAX_CATALOG_PAGE_SIZE))))
+            .toList()
+            .mapNotNull { p -> p.masterProductId?.let { it to p.id } }
+            .toMap()
+    }
+
+    fun adminAddShopProductFromMaster(shopId: String, body: AddFromMasterRequest): ProductDto {
+        shopCol.find(eq("_id", shopId)).firstOrNull() ?: error("Shop not found")
+        val master = masterProductCol.find(eq("_id", body.masterProductId)).firstOrNull()
+            ?: error("Master product not found")
+        if (productCol.find(and(eq("shopId", shopId), eq("masterProductId", master.id))).firstOrNull() != null) {
+            error("${master.name} is already in this shop")
+        }
+        val doc = ProductDoc(
+            id = "prod_${UUID.randomUUID().toString().replace("-", "").take(12)}",
+            shopId = shopId,
+            name = master.name,
+            nameHi = master.nameHi,
+            category = body.category?.takeIf { it.isNotBlank() } ?: DEFAULT_SHOP_CATEGORY,
+            unit = master.unit,
+            barcode = master.barcode?.takeIf { it.isNotBlank() },
+            sellingPrice = (body.sellingPrice ?: master.salePrice).coerceAtLeast(0.0),
+            costPrice = (body.costPrice ?: master.cost).coerceAtLeast(0.0),
+            stockQty = body.stockQty.coerceAtLeast(0.0),
+            lowStockThreshold = (body.lowStockThreshold ?: master.lowStockThreshold).coerceAtLeast(0.0),
+            imageUrls = normalizeProductImageUrls(master.imageUrls, master.imageUrl, master.thumbnailUrl),
+            variants = master.variants.filter { it.active },
+            brandName = master.brandName,
+            masterProductId = master.id,
+        )
+        productCol.insertOne(doc)
+        recordPriceChange(null, doc)
+        return doc.toDto()
+    }
+
+    fun adminUpdateShopProductStock(shopId: String, productId: String, body: StockUpdateRequest): ProductDto {
+        val byId = and(eq("_id", productId), eq("shopId", shopId))
+        val set = body.set
+        val delta = body.delta
+        when {
+            set != null -> {
+                require(set >= 0.0) { "Stock can't be negative" }
+                if (productCol.updateOne(byId, set("stockQty", set)).matchedCount == 0L) error("Product not found")
+            }
+            delta != null && delta != 0.0 -> {
+                // Atomic: a stock-out only applies while enough stock remains.
+                val guard = if (delta < 0.0) and(byId, gte("stockQty", -delta)) else byId
+                if (productCol.updateOne(guard, inc("stockQty", delta)).matchedCount == 0L) {
+                    productCol.find(byId).firstOrNull() ?: error("Product not found")
+                    error("Not enough stock to remove ${-delta}")
+                }
+            }
+            else -> error("Nothing to update")
+        }
+        return productCol.find(byId).firstOrNull()?.toDto() ?: error("Product not found")
+    }
+
+    fun adminSetShopProductActive(shopId: String, productId: String, active: Boolean): ProductDto {
+        val byId = and(eq("_id", productId), eq("shopId", shopId))
+        if (productCol.updateOne(byId, set("active", active)).matchedCount == 0L) error("Product not found")
+        return productCol.find(byId).firstOrNull()!!.toDto()
+    }
+
+    fun adminEditShopProduct(shopId: String, productId: String, body: ShopProductEdit): ProductDto {
+        val byId = and(eq("_id", productId), eq("shopId", shopId))
+        val existing = productCol.find(byId).firstOrNull() ?: error("Product not found")
+        require(body.name.isNotBlank()) { "Name is required" }
+        require(body.sellingPrice >= 0.0 && body.costPrice >= 0.0 && body.lowStockThreshold >= 0.0) {
+            "Prices and low-stock level can't be negative"
+        }
+        val next = existing.copy(
+            name = body.name.trim(),
+            nameHi = body.nameHi.trim(),
+            category = body.category.ifBlank { existing.category },
+            brandName = body.brandName.trim(),
+            barcode = body.barcode?.trim()?.takeIf { it.isNotEmpty() },
+            sellingPrice = body.sellingPrice,
+            costPrice = body.costPrice,
+            lowStockThreshold = body.lowStockThreshold,
+        )
+        productCol.replaceOne(byId, next)
+        recordPriceChange(existing, next)
+        return next.toDto()
+    }
+
+    private fun lowStockExpr(): Bson = Document("\$expr", Document("\$lte", listOf("\$stockQty", "\$lowStockThreshold")))
 
     fun shopProductDetail(shopId: String, productId: String): ProductDetailDto {
         val product = productCol.find(and(eq("_id", productId), eq("shopId", shopId), ne("active", false)))
@@ -601,7 +766,7 @@ class AppStore(
             ?: masterProductCol.find(
                 regex("name", "^${java.util.regex.Pattern.quote(product.name.trim())}$", "i"),
             ).firstOrNull()
-        val dto = product.toDto()
+        val dto = listOf(product.toDto()).withOffers(shopId).first()
         val images = dto.imageUrls.ifEmpty {
             master?.let { assets.toUrls(normalizeProductImageUrls(it.imageUrls, it.imageUrl, it.thumbnailUrl)) }
                 .orEmpty()
@@ -654,10 +819,10 @@ class AppStore(
     fun quote(userId: String, request: QuoteRequest): QuoteDto {
         me(userId)
         val shop = shopById(request.shopId)
-        val lines = resolveLines(request.shopId, request.items).map { it.product.id to it.lineTotal }
-        val subtotal = lines.sumOf { it.second }
+        val lines = resolveLines(request.shopId, request.items).map { PricedLine(it.product.id, it.unitPrice, it.quantity) }
+        val subtotal = lines.sumOf { it.lineTotal }
         val dist = haversine(request.userLat, request.userLng, shop.lat, shop.lng)
-        val discount = offerDiscount(liveOffers(request.shopId), lines, subtotal, shop.discountPercent)
+        val discount = offerDiscount(liveOffers(request.shopId), lines, shop.discountPercent)
         val settings = platform()
         val delivery = settings.deliveryCharge(dist, subtotal - discount)
         val fee = settings.platformFeeInr
@@ -2709,12 +2874,21 @@ class AppStore(
         val nearby = partners.filter { partner ->
             partner.hasGpsFix() && toOfferDto(offer, partner, shop).shopDistanceKm <= platform().partnerRingKm
         }
+        var payout = offer.payout
         nearby.forEach { partner ->
             val dto = toOfferDto(offer, partner, shop).copy(dropAddress = dropAddress.ifBlank { offer.dropAddress })
+            if (payout <= 0) payout = dto.payoutInr
             sockets[partner.id]?.let { session ->
                 runCatching { session.send(Frame.Text(json.encodeToString(dto))) }
             }
         }
+        push.deliveryOffer(
+            partnerIds = nearby.map { it.id },
+            offerId = offer.id,
+            orderId = offer.orderId,
+            shopName = shop.name,
+            payoutInr = payout,
+        )
     }
 
     private fun dummyPartner() = PartnerDoc(

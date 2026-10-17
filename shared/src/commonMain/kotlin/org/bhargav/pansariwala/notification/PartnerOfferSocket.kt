@@ -13,11 +13,6 @@ import org.bhargav.pansariwala.api.DeliveryOfferDto
 import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.util.AppConstants
-import org.bhargav.pansariwala.util.generateId
-import org.jetbrains.compose.resources.getString
-import pansariwala.shared.generated.resources.Res
-import pansariwala.shared.generated.resources.notify_delivery_offer_body
-import pansariwala.shared.generated.resources.notify_delivery_offer_title
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -62,17 +57,11 @@ class PartnerOfferSocket(
                     val offer = runCatching { json.decodeFromString<DeliveryOfferDto>(text) }.getOrNull()
                         ?: continue
                     gateway.show(
-                        ShopNotification(
-                            id = generateId("notif"),
-                            title = getString(Res.string.notify_delivery_offer_title),
-                            body = getString(
-                                Res.string.notify_delivery_offer_body,
-                                offer.shopName,
-                                offer.payoutInr.toInt().toString(),
-                            ),
-                            orderId = offer.orderId,
+                        deliveryOfferNotification(
                             offerId = offer.id,
-                            type = AppConstants.Notification.TYPE_DELIVERY_OFFER,
+                            orderId = offer.orderId,
+                            shopName = offer.shopName,
+                            payout = offer.payoutInr.toInt().toString(),
                         ),
                     )
                 }

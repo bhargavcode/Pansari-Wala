@@ -18,8 +18,10 @@ import org.bhargav.pansariwala.domain.model.PartnerDashboard
 import org.bhargav.pansariwala.domain.model.PartnerDailyEarning
 import org.bhargav.pansariwala.domain.model.PartnerEarnings
 import org.bhargav.pansariwala.domain.model.PartnerProfile
+import org.bhargav.pansariwala.domain.model.DiscountType
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
+import org.bhargav.pansariwala.domain.model.ProductOffer
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.ProductVariant
 import org.bhargav.pansariwala.domain.model.SellMode
@@ -272,6 +274,16 @@ data class ProductDto(
     val brandName: String = "",
     val masterProductId: String? = null,
     val active: Boolean = true,
+    /** Best live PRODUCT offer, attached by the server on catalog reads. */
+    val offer: ProductOfferDto? = null,
+)
+
+@Serializable
+data class ProductOfferDto(
+    val id: String,
+    val title: String,
+    val discountType: String,
+    val value: Double,
 )
 
 @Serializable
@@ -709,6 +721,14 @@ fun ProductDto.toModel() = Product(
     brandName = brandName,
     masterProductId = masterProductId,
     isActive = active,
+    offer = offer?.toModel(),
+)
+
+fun ProductOfferDto.toModel() = ProductOffer(
+    id = id,
+    title = title,
+    type = DiscountType.fromName(discountType),
+    value = value,
 )
 
 fun ProductVariantDto.toModel() = ProductVariant(

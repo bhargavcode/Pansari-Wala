@@ -20,8 +20,6 @@ class PushRegistrar(
 ) {
     suspend fun run(product: AppProduct) {
         val platform = pushPlatform ?: return
-        // Partners get jobs over /ws/delivery; server push covers shop + customer alerts only.
-        if (product == AppProduct.DELIVERY) return
         requestPushToken()
         val session = preferences.accessToken
             .map { jwt -> jwt?.takeIf { it.startsWith(AppConstants.JWT_PREFIX) } }

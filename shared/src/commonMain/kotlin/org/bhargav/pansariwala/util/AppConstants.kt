@@ -56,16 +56,7 @@ object AppConstants {
     const val GOOGLE_PLACES_DETAILS_URL: String = "https://maps.googleapis.com/maps/api/place/details/json"
     const val GOOGLE_GEOCODE_URL: String = "https://maps.googleapis.com/maps/api/geocode/json"
     const val PLACE_SEARCH_DEBOUNCE_MS: Long = 350L
-    const val PHOTON_SEARCH_URL: String = "https://photon.komoot.io/api/"
-    const val PHOTON_REVERSE_URL: String = "https://photon.komoot.io/reverse"
-    const val PHOTON_REVERSE_RADIUS_KM: Int = 10
-    const val NOMINATIM_REVERSE_URL: String = "https://nominatim.openstreetmap.org/reverse"
-    const val NOMINATIM_USER_AGENT: String = "PansariWala/1.0 (org.bhargav.pansariwala)"
-    const val PHOTON_INDIA_BBOX: String = "68.1,6.5,97.4,35.7"
-    const val PHOTON_RESULT_LIMIT: Int = 6
-    const val PHOTON_PLACE_ID_PREFIX: String = "osm:"
     const val DEFAULT_SHOP_DELIVERY_RADIUS_KM: Double = 20.0
-    const val OSRM_ROUTE_URL: String = "https://router.project-osrm.org/route/v1/driving"
     const val PARTNER_MAP_ROUTE_COLOR: Long = 0xFF0D7377
     const val PARTNER_MAP_ROUTE_WIDTH: Float = 12f
 
@@ -86,6 +77,9 @@ object AppConstants {
     const val PARTNER_RING_RADIUS_KM: Double = 8.0
     const val ARRIVAL_PROXIMITY_RADIUS_M: Double = 100.0
     const val ARRIVAL_PROXIMITY_POLL_MS: Long = 4_000L
+    /** Route maps: how often to re-read partner GPS, and the move needed before re-routing. */
+    const val PARTNER_ROUTE_REFRESH_MS: Long = 20_000L
+    const val PARTNER_ROUTE_REFRESH_MOVE_M: Double = 75.0
     /** DEV ONLY — used by DevTripleTapUnlock; remove with that helper. */
     const val DEV_ARRIVAL_UNLOCK_TAPS: Int = 3
     const val DEV_ARRIVAL_UNLOCK_WINDOW_MS: Long = 2_000L
@@ -253,6 +247,10 @@ object AppConstants {
     /** FCM data payload contract with the server (`PushService`). */
     object Push {
         const val EVENT_ORDER_UPDATE: String = "ORDER_UPDATE"
+        const val EVENT_DELIVERY_OFFER: String = "DELIVERY_OFFER"
+        const val ALERT_DELIVERY_OFFER: String = "DELIVERY_OFFER"
+        const val KEY_OFFER_ID: String = "offerId"
+        const val KEY_PAYOUT: String = "payout"
         const val ALERT_ORDER_NEW: String = "ORDER_NEW"
         const val ALERT_PARTNER_TIMEOUT: String = "PARTNER_TIMEOUT"
         const val ALERT_ACCEPTED: String = "ACCEPTED"

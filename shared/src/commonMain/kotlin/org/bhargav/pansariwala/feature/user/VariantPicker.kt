@@ -289,14 +289,15 @@ private fun OptionRow(option: PurchaseOption, selected: Boolean, inCart: Double?
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(option.priceLabel(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                if (option.mrp > option.unitPrice) {
+                option.strikePrice?.let { was ->
                     Text(
-                        stringResource(Res.string.variant_mrp, option.mrp.asMoney()),
+                        stringResource(Res.string.variant_mrp, was.asMoney()),
                         style = MaterialTheme.typography.labelSmall,
                         textDecoration = TextDecoration.LineThrough,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                offLabel(option.strikePrice, option.unitPrice)?.let { OfferTag(it) }
             }
         }
     }
@@ -442,9 +443,10 @@ fun CartLineRow(
                 Text(it.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                "${option.quantityLabel(line.quantity)} × ${option.priceLabel()} = ${line.lineTotal.asMoney()}",
+                "${option.quantityLabel(line.quantity)} × ${option.priceLabel()}",
                 style = MaterialTheme.typography.bodySmall,
             )
+            LineOfferPrice(line.lineTotal, line.baseLineTotal)
             if (line.product.needsPicker) {
                 TextButton(onClick = onEdit, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                     Text(stringResource(Res.string.action_edit))
@@ -467,10 +469,11 @@ fun ProductPriceSummary(product: Product, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (options.size > 1) {
             Text(
-                stringResource(Res.string.variant_from_price, product.startingPrice.asMoney()),
+                stringResource(Res.string.variant_from_price, product.salePrice(product.startingPrice).asMoney()),
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
             )
+            product.offerTag()?.let { OfferTag(it) }
             Text(
                 stringResource(Res.string.variant_options_count, options.size),
                 style = MaterialTheme.typography.bodySmall,
@@ -478,7 +481,7 @@ fun ProductPriceSummary(product: Product, modifier: Modifier = Modifier) {
             )
         } else {
             val option = options.first()
-            Text(option.unitPrice.asMoney(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            option.OfferPrice()
             Text(
                 stringResource(Res.string.catalog_per_unit, option.variant?.label ?: option.quantityUnit.localizedLabel()),
                 style = MaterialTheme.typography.bodySmall,

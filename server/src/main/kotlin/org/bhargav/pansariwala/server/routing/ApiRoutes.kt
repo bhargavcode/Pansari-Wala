@@ -34,6 +34,10 @@ import org.bhargav.pansariwala.server.dto.AdminPartnerPatch
 import org.bhargav.pansariwala.server.dto.AdminShopCreate
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
 import org.bhargav.pansariwala.server.dto.AdminUserPatch
+import org.bhargav.pansariwala.server.dto.AddFromMasterRequest
+import org.bhargav.pansariwala.server.dto.ShopProductActivePatch
+import org.bhargav.pansariwala.server.dto.ShopProductEdit
+import org.bhargav.pansariwala.server.dto.StockUpdateRequest
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
 import org.bhargav.pansariwala.server.dto.CustomerLocationRequest
 import org.bhargav.pansariwala.server.dto.DeliverRequest
@@ -514,6 +518,55 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         get("/admin/shops/{id}") {
             call.requireRole("ADMIN")
             call.respond(store.adminShopDetail(call.parameters["id"]!!))
+        }
+        get("/admin/shops/{id}/products") {
+            call.requireRole("ADMIN")
+            val params = call.request.queryParameters
+            call.respond(
+                store.adminShopProductPage(
+                    shopId = call.parameters["id"]!!,
+                    query = params["q"].orEmpty(),
+                    category = params["category"],
+                    status = params["status"],
+                    lowStockOnly = params["lowStock"].toBoolean(),
+                    page = params["page"]?.toIntOrNull() ?: 0,
+                    pageSize = params["pageSize"]?.toIntOrNull() ?: 25,
+                ),
+            )
+        }
+        get("/admin/shops/{id}/stock-summary") {
+            call.requireRole("ADMIN")
+            call.respond(store.adminShopStockSummary(call.parameters["id"]!!))
+        }
+        get("/admin/shops/{id}/master-links") {
+            call.requireRole("ADMIN")
+            val ids = call.request.queryParameters["ids"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            call.respond(store.adminShopMasterLinks(call.parameters["id"]!!, ids))
+        }
+        post("/admin/shops/{id}/products/from-master") {
+            call.requireRole("ADMIN")
+            call.respond(store.adminAddShopProductFromMaster(call.parameters["id"]!!, call.receive<AddFromMasterRequest>()))
+        }
+        post("/admin/shops/{id}/products/{productId}") {
+            call.requireRole("ADMIN")
+            call.respond(
+                store.adminEditShopProduct(call.parameters["id"]!!, call.parameters["productId"]!!, call.receive<ShopProductEdit>()),
+            )
+        }
+        post("/admin/shops/{id}/products/{productId}/stock") {
+            call.requireRole("ADMIN")
+            call.respond(
+                store.adminUpdateShopProductStock(
+                    call.parameters["id"]!!,
+                    call.parameters["productId"]!!,
+                    call.receive<StockUpdateRequest>(),
+                ),
+            )
+        }
+        post("/admin/shops/{id}/products/{productId}/active") {
+            call.requireRole("ADMIN")
+            val body = call.receive<ShopProductActivePatch>()
+            call.respond(store.adminSetShopProductActive(call.parameters["id"]!!, call.parameters["productId"]!!, body.active))
         }
         post("/admin/shops/{id}") {
             call.requireRole("ADMIN")

@@ -52,6 +52,8 @@ private val CUSTOMER_ROLES = listOf("CUSTOMER", "USER")
 /** Payload contract shared with the app (`AppConstants.Push` in shared). */
 private object PushContract {
     const val EVENT_ORDER_UPDATE = "ORDER_UPDATE"
+    const val EVENT_DELIVERY_OFFER = "DELIVERY_OFFER"
+    const val ALERT_DELIVERY_OFFER = "DELIVERY_OFFER"
     const val ALERT_ORDER_NEW = "ORDER_NEW"
     const val ALERT_PARTNER_TIMEOUT = "PARTNER_TIMEOUT"
     const val ALERT_ACCEPTED = "ACCEPTED"
@@ -170,6 +172,35 @@ class PushService(
                 PushMessage(update.orderId, data, customerAlert(update)),
             )
         }
+    }
+
+    /** New job offer for nearby online partners; reaches them when the app is backgrounded or killed. */
+    fun deliveryOffer(
+        partnerIds: List<String>,
+        offerId: String,
+        orderId: String,
+        shopName: String,
+        payoutInr: Double,
+    ) {
+        if (!enabled || partnerIds.isEmpty()) return
+        val payout = payoutInr.toInt().toString()
+        val data = mapOf(
+            "event" to PushContract.EVENT_DELIVERY_OFFER,
+            "orderId" to orderId,
+            "offerId" to offerId,
+            "shopName" to shopName,
+            "payout" to payout,
+        )
+        val alert = Alert(
+            kind = PushContract.ALERT_DELIVERY_OFFER,
+            key = "${PushContract.ALERT_DELIVERY_OFFER}:$offerId",
+            title = "New delivery job",
+            body = "$shopName · ₹$payout",
+        )
+        send(
+            and(eq("role", "PARTNER"), `in`("principalId", partnerIds)),
+            PushMessage(orderId, data, alert),
+        )
     }
 
     private fun shopAlert(u: OrderUpdate): Alert? {

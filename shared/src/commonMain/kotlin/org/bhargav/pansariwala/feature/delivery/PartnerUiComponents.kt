@@ -103,6 +103,7 @@ import pansariwala.shared.generated.resources.partner_accepted_empty_title
 import pansariwala.shared.generated.resources.partner_accepted_orders_title
 import pansariwala.shared.generated.resources.partner_action_back_home
 import pansariwala.shared.generated.resources.partner_action_decline
+import pansariwala.shared.generated.resources.partner_action_go_offline
 import pansariwala.shared.generated.resources.partner_action_go_online
 import pansariwala.shared.generated.resources.partner_available_orders_title
 import pansariwala.shared.generated.resources.partner_bag_photo
@@ -120,8 +121,6 @@ import pansariwala.shared.generated.resources.partner_offer_distance
 import pansariwala.shared.generated.resources.partner_offer_order
 import pansariwala.shared.generated.resources.partner_offer_payout
 import pansariwala.shared.generated.resources.partner_offer_timer
-import pansariwala.shared.generated.resources.partner_offline_banner
-import pansariwala.shared.generated.resources.partner_online_banner
 import pansariwala.shared.generated.resources.partner_otp_customer_hint
 import pansariwala.shared.generated.resources.partner_pending_verification
 import pansariwala.shared.generated.resources.partner_change_profile_photo
@@ -183,32 +182,44 @@ fun PartnerTopBar(
     )
 }
 
-/** Home bar: profile + status on the left, matching slot on the right for balance. */
+/** Home bar: standard app toolbar with the duty switch and profile avatar as actions. */
 @Composable
 fun PartnerHomeTopBar(
     title: String,
     profilePhotoUrl: String?,
+    online: Boolean,
+    onToggleOnline: (Boolean) -> Unit,
     onProfileClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val contentColor = MaterialTheme.colorScheme.onPrimary
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primary,
-        shadowElevation = PansariElevation.toolbar,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    PansariTopBar(
+        title = title,
+        onBack = null,
+        modifier = modifier,
+        actions = {
+            Text(
+                text = stringResource(
+                    if (online) Res.string.partner_action_go_offline else Res.string.partner_action_go_online,
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Switch(
+                checked = online,
+                onCheckedChange = onToggleOnline,
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp),
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = PackedGreen,
+                ),
+            )
             Box(
                 modifier = Modifier
-                    .padding(start = 4.dp)
-                    .size(40.dp)
+                    .padding(end = 12.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.22f))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
                     .clickable(onClick = onProfileClick),
                 contentAlignment = Alignment.Center,
             ) {
@@ -223,51 +234,12 @@ fun PartnerHomeTopBar(
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = title,
-                        tint = contentColor,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
             }
-            Text(
-                text = title,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 8.dp, end = 8.dp),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-fun PartnerOnlineBanner(
-    online: Boolean,
-    onToggle: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val bg = if (online) Color(0xFF2E7D32) else MaterialTheme.colorScheme.surfaceVariant
-    val fg = if (online) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onToggle(!online) },
-        color = bg,
-    ) {
-        Text(
-            text = stringResource(
-                if (online) Res.string.partner_online_banner else Res.string.partner_offline_banner,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Bold,
-            color = fg,
-        )
-    }
+        },
+    )
 }
 
 @Composable
@@ -412,41 +384,6 @@ fun PartnerSecondaryButton(
         ),
     ) {
         Text(text, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-fun PartnerOnlineToggle(
-    online: Boolean,
-    onToggle: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-    onBackground: Boolean = false,
-) {
-    val onlineColor = if (online) Color(0xFF4CAF50) else Color(0xFFE0E0E0)
-    val labelColor = if (onBackground) Color.White
-        else if (online) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Switch(
-            checked = online,
-            onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = onlineColor,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color(0xFFBDBDBD),
-            ),
-        )
-        Text(
-            text = stringResource(
-                if (online) Res.string.partner_online_banner else Res.string.partner_offline_banner,
-            ),
-            fontWeight = FontWeight.Bold,
-            color = labelColor,
-        )
     }
 }
 

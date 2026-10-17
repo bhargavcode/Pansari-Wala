@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.bhargav.pansariwala.domain.model.GeoPoint
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.GeoDistance
@@ -43,4 +44,31 @@ fun rememberWithinArrivalRadius(
         }
     }
     return within
+}
+
+/**
+ * Partner position for route maps. Re-polled while the screen is open and only replaced after a real
+ * move, so the drawn route follows the rider without re-requesting directions on GPS jitter.
+ */
+@Composable
+fun rememberPartnerOrigin(
+    key: Any?,
+    deviceLocation: DeviceLocation,
+): GeoPoint? {
+    var origin by remember(key) { mutableStateOf<GeoPoint?>(null) }
+    LaunchedEffect(key) {
+        while (true) {
+            val here = withContext(Dispatchers.Default) {
+                runCatching { deviceLocation.currentOrDefault() }.getOrNull()
+            }
+            val last = origin
+            if (here != null && (last == null ||
+                    !GeoDistance.isWithinMeters(last.lat, last.lng, here.lat, here.lng, AppConstants.PARTNER_ROUTE_REFRESH_MOVE_M))
+            ) {
+                origin = here
+            }
+            delay(AppConstants.PARTNER_ROUTE_REFRESH_MS)
+        }
+    }
+    return origin
 }

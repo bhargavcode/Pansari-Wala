@@ -55,23 +55,40 @@ private fun OfferDoc.amountOn(base: Double): Double = when (discountType) {
     else -> base * value / 100.0
 }.coerceAtLeast(0.0)
 
+/** Unit price after a PRODUCT offer: percent off, or flat ₹ off each unit (never below 0). */
+internal fun OfferDoc.unitPriceOn(unitPrice: Double): Double = when (discountType) {
+    OfferType.FLAT -> unitPrice - value
+    else -> unitPrice * (1.0 - value / 100.0)
+}.coerceIn(0.0, unitPrice)
+
+/** Lowest-price live PRODUCT offer for [productId] at [unitPrice], if any. */
+internal fun List<OfferDoc>.bestProductOffer(productId: String, unitPrice: Double): OfferDoc? =
+    filter { it.scope == OfferScope.PRODUCT && productId in it.productIds }
+        .minByOrNull { it.unitPriceOn(unitPrice) }
+        ?.takeIf { it.unitPriceOn(unitPrice) < unitPrice }
+
+internal data class PricedLine(val productId: String, val unitPrice: Double, val quantity: Double) {
+    val lineTotal: Double get() = unitPrice * quantity
+}
+
 /**
- * Best PRODUCT offer per line + the best of (shop-wide %, best eligible BILL offer) on the
- * remaining subtotal. Offers never stack within the same scope.
+ * PRODUCT offers lower each unit price (cart shows the sale price). The best of (shop-wide %, best
+ * eligible BILL offer) then applies to the amount after product offers; BILL eligibility uses that
+ * same amount. Offers never stack within the same scope.
  */
 internal fun offerDiscount(
     offers: List<OfferDoc>,
-    lines: List<Pair<String, Double>>,
-    subtotal: Double,
+    lines: List<PricedLine>,
     shopDiscountPercent: Double,
 ): Double {
-    val productOffers = offers.filter { it.scope == OfferScope.PRODUCT }
-    val lineDiscount = lines.sumOf { (productId, lineTotal) ->
-        productOffers.filter { productId in it.productIds }.maxOfOrNull { it.amountOn(lineTotal) } ?: 0.0
+    val subtotal = lines.sumOf { it.lineTotal }
+    val lineDiscount = lines.sumOf { line ->
+        val offer = offers.bestProductOffer(line.productId, line.unitPrice) ?: return@sumOf 0.0
+        (line.unitPrice - offer.unitPriceOn(line.unitPrice)) * line.quantity
     }
     val afterLines = (subtotal - lineDiscount).coerceAtLeast(0.0)
     val billDiscount = offers
-        .filter { it.scope == OfferScope.BILL && subtotal >= it.minBillAmount }
+        .filter { it.scope == OfferScope.BILL && afterLines >= it.minBillAmount }
         .maxOfOrNull { it.amountOn(afterLines) } ?: 0.0
     val shopWide = afterLines * shopDiscountPercent / 100.0
     return (lineDiscount + maxOf(billDiscount, shopWide)).coerceAtMost(subtotal)

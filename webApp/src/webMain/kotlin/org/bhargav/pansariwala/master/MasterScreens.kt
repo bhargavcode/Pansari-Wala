@@ -116,6 +116,7 @@ import pansariwala.shared.generated.resources.master_save_changes
 import pansariwala.shared.generated.resources.master_search
 import pansariwala.shared.generated.resources.master_settings_title
 import pansariwala.shared.generated.resources.master_shop_details
+import pansariwala.shared.generated.resources.master_shop_products
 import pansariwala.shared.generated.resources.master_shop_details_col
 import pansariwala.shared.generated.resources.master_shop_id
 import pansariwala.shared.generated.resources.master_shop_location
@@ -419,6 +420,9 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                     },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onNavigate(MasterDest.ShopProducts(shop.id, shop.name)) }) {
+                        Text(stringResource(Res.string.master_shop_products))
+                    }
                     Button(onClick = { onNavigate(MasterDest.ShopEdit(shop.id)) }) {
                         Text(stringResource(Res.string.action_edit))
                     }

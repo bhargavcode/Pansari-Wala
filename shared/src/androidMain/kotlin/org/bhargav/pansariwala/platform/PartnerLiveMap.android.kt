@@ -72,7 +72,7 @@ actual fun PartnerLiveMap(
     val cameraPositionState = rememberCameraPositionState {
         this.position = CameraPosition.fromLatLngZoom(dest, 14f)
     }
-    LaunchedEffect(routePoints) {
+    LaunchedEffect(routePoints, lat, lng) {
         if (routePoints.size >= 2) {
             val boundsBuilder = LatLngBounds.builder()
             routePoints.forEach { boundsBuilder.include(it) }

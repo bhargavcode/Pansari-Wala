@@ -865,7 +865,7 @@
     <string name="partner_action_go_offline">Go Offline</string>
     <string name="partner_action_go_online">Go Online</string>
     <string name="partner_new_delivery_offer">NEW DELIVERY ORDER</string>
-    <string name="partner_offer_payout">₹%1$s Payout</string>
+    <string name="partner_offer_payout">%1$s Payout</string>
     <string name="partner_offer_order">Order #%1$s</string>
     <string name="partner_offer_distance">%1$s km total</string>
     <string name="partner_offer_timer">Acceptance timer (%1$ss)</string>
@@ -901,7 +901,7 @@
     <string name="partner_section_dropoff">Dropoff location</string>
     <string name="partner_action_complete_delivery">COMPLETE DELIVERY</string>
     <string name="partner_delivery_complete">DELIVERY COMPLETE</string>
-    <string name="partner_summary_payout">Payout: ₹%1$s</string>
+    <string name="partner_summary_payout">Payout: %1$s</string>
     <string name="partner_summary_distance">Distance: %1$s km</string>
     <string name="partner_summary_time">Time: %1$s mins</string>
     <string name="partner_summary_rating">Rating</string>
@@ -918,7 +918,7 @@
     <string name="partner_notifications_empty">No new notifications</string>
     <string name="partner_active_job">Active delivery</string>
     <string name="partner_resume_job">Resume delivery</string>
-    <string name="partner_item_price">₹%1$s</string>
+    <string name="partner_item_price">%1$s</string>
 
     <!-- Printer -->
     <string name="printer_title">Printer</string>
@@ -1278,7 +1278,13 @@
 
     <!-- Billing discount -->
     <string name="bill_subtotal">Subtotal: %1$s</string>
-    <string name="bill_offer_discount">Offers: −%1$s</string>
+    <string name="bill_product_discount">Product offers: −%1$s</string>
+    <string name="splash_step_preparing_data">Preparing your data…</string>
+    <string name="splash_step_checking_session">Checking your sign-in…</string>
+    <string name="splash_step_loading_profile">Loading your profile…</string>
+    <string name="splash_step_opening">Opening the app…</string>
+    <string name="offer_off_label">%1$s OFF</string>
+    <string name="bill_offer_discount">Invoice offer: −%1$s</string>
     <string name="bill_manual_discount">Discount: −%1$s</string>
     <string name="bill_discount_label">Manual discount</string>
     <string name="bill_discount_hint">Amount</string>
@@ -1389,4 +1395,9 @@
     <string name="inv_label_master_id">Master product ID</string>
     <string name="inv_label_margin">Margin</string>
     <string name="inv_value_none">—</string>
+    <string name="master_shop_products">Shop products</string>
+    <string name="master_shop_products_title">Shop products: %1$s</string>
+    <string name="master_stock_total">Total products</string>
+    <string name="master_manage">Manage</string>
+    <string name="master_edit_details">Edit details</string>
 </resources>

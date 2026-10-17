@@ -16,8 +16,8 @@ import org.bhargav.pansariwala.util.AppConstants
 data class LatLngPoint(val lat: Double, val lng: Double)
 
 /**
- * Driving route following roads (Google Directions, OSRM fallback).
- * Falls back to a straight segment if both providers fail.
+ * Driving route following roads (Google Directions).
+ * Falls back to a straight segment if the request fails.
  */
 suspend fun fetchDrivingRoute(
     originLat: Double,
@@ -37,13 +37,7 @@ suspend fun fetchDrivingRoute(
         }
     }
     return try {
-        runCatching {
-            fetchGoogleDrivingRoute(client, originLat, originLng, destLat, destLng)
-        }.getOrNull()
-            ?: runCatching {
-                fetchOsrmDrivingRoute(client, originLat, originLng, destLat, destLng)
-            }.getOrNull()
-            ?: straight
+        fetchGoogleDrivingRoute(client, originLat, originLng, destLat, destLng) ?: straight
     } catch (_: Throwable) {
         straight
     } finally {
@@ -65,27 +59,13 @@ private suspend fun fetchGoogleDrivingRoute(
         parameter("key", AppConstants.GOOGLE_MAPS_API_KEY)
     }.body<GoogleDirectionsResponse>()
     if (response.status != "OK") return null
-    val encoded = response.routes.firstOrNull()?.overviewPolyline?.points ?: return null
-    val points = decodePolyline(encoded)
-    return points.takeIf { it.size >= 2 }
-}
-
-private suspend fun fetchOsrmDrivingRoute(
-    client: HttpClient,
-    originLat: Double,
-    originLng: Double,
-    destLat: Double,
-    destLng: Double,
-): List<LatLngPoint>? {
-    val path = "${AppConstants.OSRM_ROUTE_URL}/$originLng,$originLat;$destLng,$destLat"
-    val response = client.get(path) {
-        parameter("overview", "full")
-        parameter("geometries", "polyline")
-    }.body<OsrmRouteResponse>()
-    if (response.code != "Ok") return null
-    val encoded = response.routes.firstOrNull()?.geometry ?: return null
-    val points = decodePolyline(encoded)
-    return points.takeIf { it.size >= 2 }
+    val route = response.routes.firstOrNull() ?: return null
+    // Step polylines follow every road bend; overview_polyline is simplified and cuts corners.
+    val detailed = route.legs.flatMap { leg -> leg.steps.flatMap { decodePolyline(it.polyline?.points.orEmpty()) } }
+    val points = detailed.ifEmpty { decodePolyline(route.overviewPolyline?.points.orEmpty()) }
+    if (points.size < 2) return null
+    // Snap ends to the exact partner / destination so the line starts and ends on the markers.
+    return listOf(LatLngPoint(originLat, originLng)) + points + LatLngPoint(destLat, destLng)
 }
 
 fun decodePolyline(encoded: String): List<LatLngPoint> {
@@ -129,20 +109,20 @@ private data class GoogleDirectionsResponse(
 @Serializable
 private data class GoogleRoute(
     @SerialName("overview_polyline") val overviewPolyline: GooglePolyline? = null,
+    val legs: List<GoogleLeg> = emptyList(),
+)
+
+@Serializable
+private data class GoogleLeg(
+    val steps: List<GoogleStep> = emptyList(),
+)
+
+@Serializable
+private data class GoogleStep(
+    val polyline: GooglePolyline? = null,
 )
 
 @Serializable
 private data class GooglePolyline(
     val points: String = "",
-)
-
-@Serializable
-private data class OsrmRouteResponse(
-    val code: String = "",
-    val routes: List<OsrmRoute> = emptyList(),
-)
-
-@Serializable
-private data class OsrmRoute(
-    val geometry: String = "",
 )

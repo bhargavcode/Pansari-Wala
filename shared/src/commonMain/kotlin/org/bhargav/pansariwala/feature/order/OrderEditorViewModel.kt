@@ -58,6 +58,8 @@ data class CartLine(
     val key: String get() = option.key
     val unitPrice: Double get() = lockedUnitPrice ?: option.unitPrice
     val lineTotal: Double get() = quantity * unitPrice
+    /** Line total before the product offer (saved lines keep their stored price). */
+    val baseLineTotal: Double get() = quantity * (lockedUnitPrice ?: option.basePrice)
 }
 
 data class OrderEditorUiState(
@@ -303,7 +305,19 @@ class OrderEditorViewModel(
     private fun loadOffers() {
         viewModelScope.launch {
             runCatching { api.shopManagedOffers(all = false) }
-                .onSuccess { offers -> _uiState.update { it.copy(offers = offers) } }
+                .onSuccess { offers ->
+                    _uiState.update { s ->
+                        val catalog = s.catalog.withOffers(offers)
+                        val byId = catalog.associateBy { it.id }
+                        s.copy(
+                            offers = offers,
+                            catalog = catalog,
+                            cart = s.cart.map { line ->
+                                if (line.lockedUnitPrice != null) line else line.copy(product = byId[line.product.id] ?: line.product)
+                            },
+                        )
+                    }
+                }
                 .onFailure { it.rethrowIfStructuredCancellation() }
         }
     }

@@ -97,7 +97,6 @@ import pansariwala.shared.generated.resources.partner_action_arrived_store
 import pansariwala.shared.generated.resources.partner_action_complete_delivery
 import pansariwala.shared.generated.resources.partner_action_decline
 import pansariwala.shared.generated.resources.partner_action_done
-import pansariwala.shared.generated.resources.partner_action_go_offline
 import pansariwala.shared.generated.resources.partner_action_login
 import pansariwala.shared.generated.resources.partner_action_sign_up
 import pansariwala.shared.generated.resources.partner_action_start_delivery
@@ -435,7 +434,7 @@ fun PartnerHomeScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                viewModel.syncCachedProfile()
+                viewModel.onResume()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -470,16 +469,14 @@ fun PartnerHomeScreen(
             PartnerHomeTopBar(
                 title = state.profile?.name ?: stringResource(Res.string.partner_driver_active),
                 profilePhotoUrl = state.profile?.profilePhoto,
+                online = state.online,
+                onToggleOnline = viewModel::setOnline,
                 onProfileClick = onEarnings,
             )
         },
     ) {
     Box(Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            PartnerOnlineBanner(
-                online = state.online,
-                onToggle = viewModel::setOnline,
-            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -526,23 +523,6 @@ fun PartnerHomeScreen(
                                 onGoOnline = { viewModel.setOnline(true) },
                             )
                         }
-                        item {
-                            PartnerMapPlaceholder(
-                                title = state.profile?.name ?: stringResource(Res.string.partner_driver_active),
-                                subtitle = if (state.online) {
-                                    stringResource(Res.string.partner_online_waiting)
-                                } else {
-                                    stringResource(Res.string.partner_offline_prompt)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(220.dp),
-                                lat = state.lat,
-                                lng = state.lng,
-                                onCurrentLocationClick = viewModel::refreshCurrentLocation,
-                                fetchingLocation = state.fetchingLocation,
-                            )
-                        }
                     }
                 } else {
                     Box(
@@ -558,13 +538,22 @@ fun PartnerHomeScreen(
                     }
                 }
             }
-            if (state.online) {
-                PartnerDangerButton(
-                    text = stringResource(Res.string.partner_action_go_offline),
-                    onClick = { viewModel.setOnline(false) },
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
+            PartnerMapPlaceholder(
+                title = state.profile?.name ?: stringResource(Res.string.partner_driver_active),
+                subtitle = if (state.online) {
+                    stringResource(Res.string.partner_online_waiting)
+                } else {
+                    stringResource(Res.string.partner_offline_prompt)
+                },
+                modifier = Modifier
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
+                    .fillMaxWidth()
+                    .height(220.dp),
+                lat = state.lat,
+                lng = state.lng,
+                onCurrentLocationClick = viewModel::refreshCurrentLocation,
+                fetchingLocation = state.fetchingLocation,
+            )
         }
         state.incomingOffer?.let { offer ->
             PartnerOfferDialog(
@@ -636,10 +625,7 @@ fun PartnerNavigateToStoreScreen(
     LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val order = state.order
-    var origin by remember { mutableStateOf<GeoPoint?>(null) }
-    LaunchedEffect(orderId) {
-        origin = runCatching { deviceLocation.currentOrDefault() }.getOrNull()
-    }
+    val origin = rememberPartnerOrigin(orderId, deviceLocation)
     val shopLabel = order?.shopName?.takeIf { it.isNotBlank() }
         ?: stringResource(Res.string.partner_route_to_store)
     val km = order?.shopDistanceKm() ?: 0.0
@@ -855,10 +841,7 @@ fun PartnerDeliverToCustomerScreen(
     LaunchedEffect(orderId) { viewModel.load(orderId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val order = state.order
-    var origin by remember { mutableStateOf<GeoPoint?>(null) }
-    LaunchedEffect(orderId) {
-        origin = runCatching { deviceLocation.currentOrDefault() }.getOrNull()
-    }
+    val origin = rememberPartnerOrigin(orderId, deviceLocation)
     val destLat = order?.customerLat ?: AppConstants.DEFAULT_MAP_LAT
     val destLng = order?.customerLng ?: AppConstants.DEFAULT_MAP_LNG
     val withinRadius = rememberWithinArrivalRadius(destLat, destLng, deviceLocation)
@@ -1193,8 +1176,8 @@ fun PartnerEarningsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(Res.string.partner_earnings_profile), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     HorizontalDivider()
-                    EarningRow("Today", "₹${earnings.todayEarnings.asMoney()}")
-                    EarningRow("Total", "₹${earnings.totalEarnings.asMoney()}")
+                    EarningRow("Today", earnings.todayEarnings.asMoney())
+                    EarningRow("Total", earnings.totalEarnings.asMoney())
                     EarningRow("Deliveries", earnings.deliveredCount.toString())
                 }
             }
@@ -1239,7 +1222,7 @@ fun PartnerEarningsScreen(
                         Text(stringResource(Res.string.partner_weekly_summary), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         HorizontalDivider()
                         earnings.weeklyEarnings.forEach { day ->
-                            EarningRow(day.dayLabel, "₹${day.amount.asMoney()}")
+                            EarningRow(day.dayLabel, day.amount.asMoney())
                         }
                     }
                 }

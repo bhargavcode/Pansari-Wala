@@ -18,7 +18,9 @@ import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.CategoryStock
+import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.OrderSummary
+import org.bhargav.pansariwala.notification.OrderUpdates
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.SalesSnapshot
 import org.bhargav.pansariwala.ui.AsyncUiState
@@ -49,7 +51,24 @@ class DashboardViewModel(
     val access: StateFlow<ShopAccess> = preferences.shopAccess
         .stateIn(viewModelScope, SharingStarted.Eagerly, ShopAccess.FULL)
 
+    private val onlineToday = MutableStateFlow(SalesSnapshot(0, 0.0))
+
+    /** Today's online orders that are not cancelled/rejected; zero when offline or not permitted. */
+    private fun refreshOnlineToday() {
+        viewModelScope.launch {
+            runCatching { api.shopOnlineOrders(fromMs = AppClock.startOfTodayMillis(), toMs = AppClock.nowMillis()) }
+                .onSuccess { orders ->
+                    val counted = orders.filter { it.status != OrderStatus.CANCELLED && it.status != OrderStatus.REJECTED }
+                    val revenue = counted.sumOf { (it.subtotal - it.discount).coerceAtLeast(0.0) }
+                    onlineToday.value = SalesSnapshot(counted.size, revenue)
+                }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
+
     init {
+        refreshOnlineToday()
+        viewModelScope.launch { OrderUpdates.events.collect { refreshOnlineToday() } }
         viewModelScope.launch {
             runCatching { api.shopProfile() }
                 .onSuccess {
@@ -68,7 +87,13 @@ class DashboardViewModel(
                 shopRepository.observeProducts(shopId),
                 shopRepository.observeRecentOrders(shopId, RECENT_ORDERS_LIMIT),
                 shopRepository.observeTodaySales(shopId, AppClock.startOfTodayMillis()),
-            ) { products, orders, sales ->
+                onlineToday,
+            ) { products, orders, offline, online ->
+                // Room holds POS/offline sales only; online orders live on the server.
+                val sales = SalesSnapshot(
+                    orderCount = offline.orderCount + online.orderCount,
+                    totalValue = offline.totalValue + online.totalValue,
+                )
                 DashboardPayload(products, orders, sales)
             }.catch { error ->
                 _uiState.value = AsyncUiState.Error(error.toApiUiText())

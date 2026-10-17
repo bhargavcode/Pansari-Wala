@@ -210,15 +210,5 @@ private fun Double.toInputString(): String = when {
     else -> this.toString()
 }
 
-/** Master categories are admin-defined; map by name onto the shop's fixed categories. */
-private fun guessCategory(categoryId: String, categories: List<MasterCategoryDto>): ProductCategory {
-    val name = categories.firstOrNull { it.id == categoryId }?.name ?: categoryId
-    val key = name.trim().lowercase()
-    if (key.isEmpty()) return ProductCategory.GENERAL_GROCERY
-    return ProductCategory.entries.firstOrNull { category ->
-        val display = category.displayName.lowercase()
-        category.name.equals(key.replace(' ', '_'), ignoreCase = true) ||
-            display.contains(key) || key.contains(display) ||
-            display.split(" / ", " ").any { it.length > 3 && key.contains(it) }
-    } ?: ProductCategory.GENERAL_GROCERY
-}
+private fun guessCategory(categoryId: String, categories: List<MasterCategoryDto>): ProductCategory =
+    ProductCategory.fromMasterCategoryName(categories.firstOrNull { it.id == categoryId }?.name ?: categoryId)

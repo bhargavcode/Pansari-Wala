@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.coroutineScope
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.i18n.AppLocaleProvider
 import org.bhargav.pansariwala.navigation.AppNavGraph
@@ -69,8 +70,9 @@ fun App(
         notifications.ensureChannels()
         if (product == AppProduct.POS) orderSync.start()
         when (product) {
-            AppProduct.DELIVERY -> {
+            AppProduct.DELIVERY -> coroutineScope {
                 locationTracker.restore()
+                launch { pushRegistrar.run(product) }
                 offerSocket.run()
             }
             AppProduct.POS, AppProduct.USER -> pushRegistrar.run(product)

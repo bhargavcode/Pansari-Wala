@@ -332,6 +332,63 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         }
     }
 
+    suspend fun shopProducts(
+        token: String,
+        shopId: String,
+        query: String,
+        category: String?,
+        status: String,
+        lowStock: Boolean,
+        page: Int,
+        pageSize: Int,
+    ): ShopProductPageDto =
+        client.get(url("/admin/shops/${shopId.encodeURLPathPart()}/products")) {
+            bearer(token)
+            if (query.isNotBlank()) parameter("q", query.trim())
+            category?.let { parameter("category", it) }
+            parameter("status", status)
+            if (lowStock) parameter("lowStock", true)
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+        }.body()
+
+    suspend fun shopStockSummary(token: String, shopId: String): ShopStockSummaryDto =
+        client.get(url("/admin/shops/${shopId.encodeURLPathPart()}/stock-summary")) { bearer(token) }.body()
+
+    suspend fun shopMasterLinks(token: String, shopId: String, masterIds: List<String>): Map<String, String> =
+        if (masterIds.isEmpty()) emptyMap() else client.get(url("/admin/shops/${shopId.encodeURLPathPart()}/master-links")) {
+            bearer(token)
+            parameter("ids", masterIds.joinToString(","))
+        }.body()
+
+    suspend fun addShopProductFromMaster(token: String, shopId: String, body: AddFromMasterBody): ShopProductDto =
+        client.post(url("/admin/shops/${shopId.encodeURLPathPart()}/products/from-master")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun updateShopProductStock(token: String, shopId: String, productId: String, body: StockUpdateBody): ShopProductDto =
+        client.post(url("/admin/shops/${shopId.encodeURLPathPart()}/products/${productId.encodeURLPathPart()}/stock")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun setShopProductActive(token: String, shopId: String, productId: String, active: Boolean): ShopProductDto =
+        client.post(url("/admin/shops/${shopId.encodeURLPathPart()}/products/${productId.encodeURLPathPart()}/active")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(ShopProductActiveBody(active))
+        }.body()
+
+    suspend fun editShopProduct(token: String, shopId: String, productId: String, body: ShopProductEditBody): ShopProductDto =
+        client.post(url("/admin/shops/${shopId.encodeURLPathPart()}/products/${productId.encodeURLPathPart()}")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
     private fun io.ktor.client.request.HttpRequestBuilder.bearer(token: String) {
         headers.append("Authorization", "Bearer $token")
     }
@@ -357,6 +414,52 @@ data class AdminDashboardDto(
 )
 
 typealias ProductVariantDto = org.bhargav.pansariwala.api.ProductVariantDto
+
+/** A product in one shop's inventory (not the master catalog item). */
+typealias ShopProductDto = org.bhargav.pansariwala.api.ProductDto
+
+@Serializable
+data class ShopProductPageDto(
+    val items: List<ShopProductDto> = emptyList(),
+    val page: Int = 0,
+    val pageSize: Int = 0,
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
+)
+
+@Serializable
+data class ShopStockSummaryDto(
+    val total: Int = 0,
+    val active: Int = 0,
+    val inactive: Int = 0,
+    val outOfStock: Int = 0,
+    val lowStock: Int = 0,
+)
+
+@Serializable
+data class AddFromMasterBody(
+    val masterProductId: String,
+    val category: String,
+    val sellingPrice: Double,
+    val costPrice: Double,
+    val stockQty: Double,
+    val lowStockThreshold: Double,
+)
+
+@Serializable data class StockUpdateBody(val delta: Double? = null, val set: Double? = null)
+@Serializable data class ShopProductActiveBody(val active: Boolean)
+
+@Serializable
+data class ShopProductEditBody(
+    val name: String,
+    val nameHi: String,
+    val category: String,
+    val brandName: String,
+    val barcode: String?,
+    val sellingPrice: Double,
+    val costPrice: Double,
+    val lowStockThreshold: Double,
+)
 
 @Serializable
 data class ProductPageDto(

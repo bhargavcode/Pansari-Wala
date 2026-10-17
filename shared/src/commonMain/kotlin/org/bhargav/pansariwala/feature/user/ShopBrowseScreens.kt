@@ -476,7 +476,7 @@ private fun ProductDetailContent(
                                     )
                                 }
                             }
-                            Text(option.priceLabel(), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                            option.OfferPrice()
                         }
                     }
                 }

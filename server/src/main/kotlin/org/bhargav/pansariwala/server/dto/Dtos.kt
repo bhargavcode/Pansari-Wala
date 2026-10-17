@@ -454,6 +454,55 @@ data class ProductDto(
     val brandName: String = "",
     val masterProductId: String? = null,
     val active: Boolean = true,
+    /** Best live PRODUCT offer for this item (read-only; ignored on writes). */
+    val offer: ProductOfferDto? = null,
+)
+
+@Serializable
+data class ProductOfferDto(
+    val id: String,
+    val title: String,
+    /** PERCENT or FLAT (₹ off each unit). */
+    val discountType: String,
+    val value: Double,
+)
+
+@Serializable
+data class AddFromMasterRequest(
+    val masterProductId: String,
+    val category: String? = null,
+    val sellingPrice: Double? = null,
+    val costPrice: Double? = null,
+    val stockQty: Double = 0.0,
+    val lowStockThreshold: Double? = null,
+)
+
+/** Exactly one of [delta] (may be negative) or [set] is applied; [set] wins when both are sent. */
+@Serializable
+data class StockUpdateRequest(val delta: Double? = null, val set: Double? = null)
+
+@Serializable
+data class ShopProductActivePatch(val active: Boolean)
+
+@Serializable
+data class ShopProductEdit(
+    val name: String,
+    val nameHi: String = "",
+    val category: String,
+    val brandName: String = "",
+    val barcode: String? = null,
+    val sellingPrice: Double,
+    val costPrice: Double,
+    val lowStockThreshold: Double,
+)
+
+@Serializable
+data class ShopStockSummaryDto(
+    val total: Int,
+    val active: Int,
+    val inactive: Int,
+    val outOfStock: Int,
+    val lowStock: Int,
 )
 
 @Serializable

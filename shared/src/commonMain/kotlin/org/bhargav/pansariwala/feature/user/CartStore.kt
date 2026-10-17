@@ -13,8 +13,13 @@ import kotlin.math.round
 /** Quantity rules for one purchasable option: a [variant], or the bare [product] when it has none. */
 data class PurchaseOption(val product: Product, val variant: ProductVariant?) {
     val key: String get() = CartStore.lineKey(product.id, variant?.id)
-    val unitPrice: Double get() = variant?.price ?: product.sellingPrice
+    /** Shop price before the product offer. */
+    val basePrice: Double get() = variant?.price ?: product.sellingPrice
+    /** Price charged per unit: [basePrice] after the product offer. */
+    val unitPrice: Double get() = product.salePrice(basePrice)
     val mrp: Double get() = variant?.mrp ?: 0.0
+    /** Struck-through "was" price: the higher of MRP and [basePrice], shown only when above [unitPrice]. */
+    val strikePrice: Double? get() = maxOf(mrp, basePrice).takeIf { it > unitPrice + LooseQty.EPSILON }
     val isLoose: Boolean get() = variant?.isLoose ?: product.isLooseUnit
 
     /** Unit that cart quantities are measured in (kg for loose sugar, pack count otherwise). */
@@ -79,6 +84,8 @@ class CartStore {
         val key: String get() = option.key
         val unitPrice: Double get() = option.unitPrice
         val lineTotal: Double get() = unitPrice * quantity
+        /** Line total before the product offer; equals [lineTotal] when there is no offer. */
+        val baseLineTotal: Double get() = option.basePrice * quantity
         val isLoose: Boolean get() = option.isLoose
     }
 

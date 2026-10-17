@@ -119,10 +119,14 @@ private fun updateMap(
             mapView.addOverlay(polyline, MKOverlayLevelAboveRoads)
         }
 
-        val midLat = (originLat + lat) / 2.0
-        val midLng = (originLng + lng) / 2.0
-        val latDelta = (abs(originLat - lat) * 1.6).coerceAtLeast(0.02)
-        val lngDelta = (abs(originLng - lng) * 1.6).coerceAtLeast(0.02)
+        val minLat = points.minOf { it.lat }
+        val maxLat = points.maxOf { it.lat }
+        val minLng = points.minOf { it.lng }
+        val maxLng = points.maxOf { it.lng }
+        val midLat = (minLat + maxLat) / 2.0
+        val midLng = (minLng + maxLng) / 2.0
+        val latDelta = (abs(maxLat - minLat) * 1.4).coerceAtLeast(0.02)
+        val lngDelta = (abs(maxLng - minLng) * 1.4).coerceAtLeast(0.02)
         mapView.setRegion(
             MKCoordinateRegionMake(
                 CLLocationCoordinate2DMake(midLat, midLng),
