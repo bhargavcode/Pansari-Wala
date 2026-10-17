@@ -268,8 +268,9 @@ class OrderEditorViewModel(
         viewModelScope.launch {
             shopRepository.ensureSeeded()
             shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID
-            val catalog = shopRepository.observeProducts(shopId).first()
-            val byId = catalog.associateBy { it.id }
+            val allProducts = shopRepository.observeProducts(shopId).first()
+            val byId = allProducts.associateBy { it.id }
+            val catalog = allProducts.filter { it.isActive }
 
             val existing = orderId?.let { shopRepository.getOrder(it) }
             if (existing != null) {

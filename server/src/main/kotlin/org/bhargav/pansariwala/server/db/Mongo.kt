@@ -232,6 +232,9 @@ data class ProductDoc(
     val voiceAlias: String? = null,
     val imageUrls: List<String> = emptyList(),
     val variants: List<ProductVariantDoc> = emptyList(),
+    val brandName: String = "",
+    val masterProductId: String? = null,
+    val active: Boolean = true,
 )
 
 /** One row per product price change; [price] is the customer-facing starting price at [at]. */

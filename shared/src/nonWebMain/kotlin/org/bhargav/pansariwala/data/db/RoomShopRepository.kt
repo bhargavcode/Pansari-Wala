@@ -15,7 +15,9 @@ import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
+import org.bhargav.pansariwala.domain.model.ProductStatusFilter
 import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.domain.model.ShopProductFilter
 import org.bhargav.pansariwala.domain.model.ProductVariant
 import org.bhargav.pansariwala.domain.model.SalesSnapshot
 import org.bhargav.pansariwala.domain.model.ShopUser
@@ -81,6 +83,51 @@ class RoomShopRepository(
 
     override suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary> =
         orderDao.ordersBetween(shopId, fromEpochMs, toEpochMs).map { it.toSummary() }
+
+    override fun observeProductPage(shopId: String, filter: ShopProductFilter, limit: Int): Flow<List<Product>> {
+        val q = filter.query.trim()
+        return productDao.observePage(
+            shopId = shopId,
+            category = filter.category?.name,
+            active = filter.activeArg(),
+            lowOnly = if (filter.lowStockOnly) 1 else 0,
+            query = q,
+            pattern = likePattern(q),
+            limit = limit,
+        ).map { list -> list.map { it.toDomain() } }
+    }
+
+    override fun observeProductCount(shopId: String, filter: ShopProductFilter): Flow<Int> {
+        val q = filter.query.trim()
+        return productDao.observeCount(
+            shopId = shopId,
+            category = filter.category?.name,
+            active = filter.activeArg(),
+            lowOnly = if (filter.lowStockOnly) 1 else 0,
+            query = q,
+            pattern = likePattern(q),
+        )
+    }
+
+    override fun observeProduct(productId: String): Flow<Product?> =
+        productDao.observeById(productId).map { it?.toDomain() }
+
+    override suspend fun productIdsByMasterIds(shopId: String, masterIds: Collection<String>): Map<String, String> =
+        masterIds.distinct().chunked(SQLITE_MAX_BIND_ARGS).flatMap { chunk ->
+            productDao.masterLinks(shopId, chunk)
+        }.mapNotNull { link -> link.masterProductId?.let { it to link.id } }.toMap()
+
+    override suspend fun adjustProductStock(productId: String, delta: Double) {
+        productDao.adjustStockLocal(productId, delta)
+    }
+
+    override suspend fun setProductStock(productId: String, stockQty: Double) {
+        productDao.setStockLocal(productId, stockQty)
+    }
+
+    override suspend fun setProductActive(productId: String, active: Boolean) {
+        productDao.setActiveLocal(productId, active)
+    }
 
     override suspend fun productCount(shopId: String): Int = productDao.count(shopId)
 
@@ -169,7 +216,21 @@ private fun Product.toEntity() = ProductEntity(
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.filter { it.isNotBlank() }.take(4).joinToString("|"),
     variantsJson = if (variants.isEmpty()) "" else variantJson.encodeToString(variants.map { it.toDto() }),
+    brandName = brandName,
+    masterProductId = masterProductId,
+    isActive = isActive,
 )
+
+private fun ShopProductFilter.activeArg(): Int = when (status) {
+    ProductStatusFilter.ALL -> -1
+    ProductStatusFilter.ACTIVE -> 1
+    ProductStatusFilter.INACTIVE -> 0
+}
+
+private fun likePattern(query: String): String {
+    val escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return "%$escaped%"
+}
 
 private val variantJson = Json { ignoreUnknownKeys = true }
 
@@ -193,6 +254,9 @@ private fun ProductEntity.toDomain() = Product(
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.split('|').map { it.trim() }.filter { it.isNotBlank() }.take(4),
     variants = decodeVariants(variantsJson),
+    brandName = brandName,
+    masterProductId = masterProductId,
+    isActive = isActive,
 )
 
 private fun UserEntity.toUser() = ShopUser(

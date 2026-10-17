@@ -81,8 +81,14 @@ data class Product(
     val voiceAlias: String?,
     val imageUrls: List<String> = emptyList(),
     val variants: List<ProductVariant> = emptyList(),
+    val brandName: String = "",
+    /** Master catalog item this shop product was created from, if any. */
+    val masterProductId: String? = null,
+    /** Inactive products stay in the shop's inventory but are hidden from customers and billing search. */
+    val isActive: Boolean = true,
 ) {
     val isLowStock: Boolean get() = stockQty <= lowStockThreshold
+    val stockLevel: StockLevel get() = StockLevel.of(stockQty, lowStockThreshold)
     val stockValue: Double get() = stockQty * costPrice
     val primaryImageUrl: String? get() =
         imageUrls.firstOrNull { it.isNotBlank() } ?: variants.firstNotNullOfOrNull { it.primaryImageUrl }
@@ -95,4 +101,48 @@ data class Product(
     val startingPrice: Double get() = variants.minOfOrNull { it.price } ?: sellingPrice
 
     fun variant(id: String?): ProductVariant? = id?.let { vid -> variants.firstOrNull { it.id == vid } }
+}
+
+enum class StockLevel {
+    OUT_OF_STOCK,
+    CRITICAL,
+    LOW,
+    HEALTHY,
+    ;
+
+    companion object {
+        fun of(stockQty: Double, lowStockThreshold: Double): StockLevel = when {
+            stockQty <= 0.0 -> OUT_OF_STOCK
+            stockQty <= lowStockThreshold / 2 -> CRITICAL
+            stockQty <= lowStockThreshold -> LOW
+            else -> HEALTHY
+        }
+    }
+}
+
+enum class ProductStatusFilter { ALL, ACTIVE, INACTIVE }
+
+data class ShopProductFilter(
+    /** Matches name, Hindi name, brand, voice alias (contains) or product id / barcode / master id (exact). */
+    val query: String = "",
+    val category: ProductCategory? = null,
+    val status: ProductStatusFilter = ProductStatusFilter.ALL,
+    val lowStockOnly: Boolean = false,
+) {
+    fun matches(product: Product): Boolean {
+        if (category != null && product.category != category) return false
+        when (status) {
+            ProductStatusFilter.ACTIVE -> if (!product.isActive) return false
+            ProductStatusFilter.INACTIVE -> if (product.isActive) return false
+            ProductStatusFilter.ALL -> Unit
+        }
+        if (lowStockOnly && !product.isLowStock) return false
+        val q = query.trim()
+        if (q.isEmpty()) return true
+        return product.id == q || product.barcode == q || product.masterProductId == q ||
+            product.name.contains(q, ignoreCase = true) ||
+            product.nameHi.contains(q, ignoreCase = true) ||
+            product.brandName.contains(q, ignoreCase = true) ||
+            product.voiceAlias?.contains(q, ignoreCase = true) == true
+    }
 }

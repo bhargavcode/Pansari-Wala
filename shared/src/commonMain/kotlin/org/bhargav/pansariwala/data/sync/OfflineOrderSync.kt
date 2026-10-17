@@ -65,6 +65,21 @@ class SyncingShopRepository(
         inner.upsertProduct(product)
         signal.kick()
     }
+
+    override suspend fun adjustProductStock(productId: String, delta: Double) {
+        inner.adjustProductStock(productId, delta)
+        signal.kick()
+    }
+
+    override suspend fun setProductStock(productId: String, stockQty: Double) {
+        inner.setProductStock(productId, stockQty)
+        signal.kick()
+    }
+
+    override suspend fun setProductActive(productId: String, active: Boolean) {
+        inner.setProductActive(productId, active)
+        signal.kick()
+    }
 }
 
 private enum class Drain {

@@ -5,6 +5,7 @@ import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.SalesSnapshot
+import org.bhargav.pansariwala.domain.model.ShopProductFilter
 import org.bhargav.pansariwala.domain.model.ShopUser
 
 /**
@@ -22,10 +23,22 @@ interface ShopRepository {
     /** Local (POS/offline) orders with `from <= createdAt < to`, newest first. */
     suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary>
 
+    /** First [limit] products matching [filter], ordered by name; grow [limit] to page. */
+    fun observeProductPage(shopId: String, filter: ShopProductFilter, limit: Int): Flow<List<Product>>
+    fun observeProductCount(shopId: String, filter: ShopProductFilter): Flow<Int>
+    fun observeProduct(productId: String): Flow<Product?>
+
     suspend fun productCount(shopId: String): Int
     suspend fun findProduct(idOrBarcode: String): Product?
     suspend fun productsByIds(ids: Collection<String>): List<Product>
+    /** masterProductId → shop productId for master items already added to [shopId]. */
+    suspend fun productIdsByMasterIds(shopId: String, masterIds: Collection<String>): Map<String, String>
     suspend fun upsertProduct(product: Product)
+
+    /** Atomic stock edits queued for sync; [delta] may be negative. */
+    suspend fun adjustProductStock(productId: String, delta: Double)
+    suspend fun setProductStock(productId: String, stockQty: Double)
+    suspend fun setProductActive(productId: String, active: Boolean)
 
     suspend fun getOrder(orderId: String): Order?
     suspend fun saveOrder(order: Order)

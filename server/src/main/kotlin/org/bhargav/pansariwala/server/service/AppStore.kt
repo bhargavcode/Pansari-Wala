@@ -8,6 +8,7 @@ import com.mongodb.client.model.Filters.gt
 import com.mongodb.client.model.Filters.gte
 import com.mongodb.client.model.Updates.inc
 import com.mongodb.client.model.Filters.`in`
+import com.mongodb.client.model.Filters.ne
 import com.mongodb.client.model.Filters.nin
 import com.mongodb.client.model.Filters.or
 import com.mongodb.client.model.Filters.lt
@@ -530,11 +531,14 @@ class AppStore(
         )
     }
 
-    fun catalog(shopId: String): List<ProductDto> =
-        productCol.find(eq("shopId", shopId)).toList().map { it.toDto() }
+    /** [includeInactive] is for the shop's own devices; customers only see active products. */
+    fun catalog(shopId: String, includeInactive: Boolean = false): List<ProductDto> {
+        val filter = if (includeInactive) eq("shopId", shopId) else and(eq("shopId", shopId), ne("active", false))
+        return productCol.find(filter).toList().map { it.toDto() }
+    }
 
     private fun productFilter(shopId: String, category: String?, query: String): Bson {
-        val parts = mutableListOf(eq("shopId", shopId))
+        val parts = mutableListOf(eq("shopId", shopId), ne("active", false))
         if (!category.isNullOrBlank()) parts += eq("category", category)
         val q = query.trim()
         if (q.isNotEmpty()) {
@@ -543,6 +547,7 @@ class AppStore(
                 regex("name", pattern, "i"),
                 regex("nameHi", pattern, "i"),
                 regex("voiceAlias", pattern, "i"),
+                regex("brandName", pattern, "i"),
                 eq("barcode", q),
             )
         }
@@ -588,10 +593,11 @@ class AppStore(
     }
 
     fun shopProductDetail(shopId: String, productId: String): ProductDetailDto {
-        val product = productCol.find(and(eq("_id", productId), eq("shopId", shopId))).firstOrNull()
-            ?: error("Product not found")
-        val master = product.barcode?.takeIf { it.isNotBlank() }
-            ?.let { masterProductCol.find(eq("barcode", it)).firstOrNull() }
+        val product = productCol.find(and(eq("_id", productId), eq("shopId", shopId), ne("active", false)))
+            .firstOrNull() ?: error("Product not found")
+        val master = product.masterProductId?.let { masterProductCol.find(eq("_id", it)).firstOrNull() }
+            ?: product.barcode?.takeIf { it.isNotBlank() }
+                ?.let { masterProductCol.find(eq("barcode", it)).firstOrNull() }
             ?: masterProductCol.find(
                 regex("name", "^${java.util.regex.Pattern.quote(product.name.trim())}$", "i"),
             ).firstOrNull()
@@ -700,6 +706,7 @@ class AppStore(
         val products = productCol.find(and(eq("shopId", shopId), `in`("_id", ids))).toList().associateBy { it.id }
         return items.map { line ->
             val product = products[line.productId] ?: error("Unknown product")
+            require(product.active) { "${product.name}: currently unavailable" }
             val variant = line.variantId?.takeIf { it.isNotBlank() }?.let { vid ->
                 product.variants.firstOrNull { it.id == vid && it.active } ?: error("${product.name}: option unavailable")
             }
@@ -1674,7 +1681,7 @@ class AppStore(
     }
 
     fun pullSync(shopId: String): SyncPullResponse = SyncPullResponse(
-        products = catalog(shopId),
+        products = catalog(shopId, includeInactive = true),
         onlineOrders = shopOrders(shopId),
         masterProducts = masterProducts(),
     )
@@ -2770,12 +2777,18 @@ class AppStore(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
         imageUrls = assets.toUrls(imageUrls.filter { assets.isValidRef(it) }.take(4)),
         variants = variants.filter { it.active }.map { it.toDto() },
+        brandName = brandName,
+        masterProductId = masterProductId,
+        active = active,
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
         imageUrls = assets.toKeys(imageUrls.filter { assets.isValidRef(it) }).distinct().take(4),
         variants = variants.toVariantDocs(),
+        brandName = brandName.trim(),
+        masterProductId = masterProductId?.takeIf { it.isNotBlank() },
+        active = active,
     )
 
     private fun ProductVariantDoc.toDto() = ProductVariantDto(

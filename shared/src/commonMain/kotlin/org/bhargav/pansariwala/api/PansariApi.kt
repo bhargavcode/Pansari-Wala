@@ -51,6 +51,9 @@ interface PansariApi {
         pageSize: Int,
     ): org.bhargav.pansariwala.domain.model.ProductPage
     suspend fun shopProductDetail(shopId: String, productId: String): org.bhargav.pansariwala.domain.model.ProductDetail
+    suspend fun masterCategories(): List<MasterCategoryDto>
+    /** Platform master catalog; [query] matches name, Hindi name, brand or exact barcode. */
+    suspend fun masterProductPage(query: String, categoryId: String?, page: Int, pageSize: Int): MasterProductPageDto
     suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview>
     suspend fun shopOffers(shopId: String): List<ShopOffer>
     suspend fun quote(request: QuoteRequest): QuoteDto

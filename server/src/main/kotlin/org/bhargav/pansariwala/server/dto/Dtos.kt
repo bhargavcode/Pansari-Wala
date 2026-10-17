@@ -451,6 +451,9 @@ data class ProductDto(
     val voiceAlias: String? = null,
     val imageUrls: List<String> = emptyList(),
     val variants: List<ProductVariantDto> = emptyList(),
+    val brandName: String = "",
+    val masterProductId: String? = null,
+    val active: Boolean = true,
 )
 
 @Serializable

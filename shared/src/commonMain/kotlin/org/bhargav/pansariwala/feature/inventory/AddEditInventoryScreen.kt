@@ -54,6 +54,7 @@ import pansariwala.shared.generated.resources.field_selling_price
 import pansariwala.shared.generated.resources.field_stock_qty
 import pansariwala.shared.generated.resources.field_unit
 import pansariwala.shared.generated.resources.field_voice_alias
+import pansariwala.shared.generated.resources.inv_label_brand
 import pansariwala.shared.generated.resources.inventory_lookup_hint
 import pansariwala.shared.generated.resources.product_id_or_barcode
 import pansariwala.shared.generated.resources.update_product
@@ -133,6 +134,13 @@ fun AddEditInventoryScreen(
             value = state.nameHi,
             onValueChange = viewModel::onNameHiChange,
             label = { Text(stringResource(Res.string.field_name_hi)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = state.brandName,
+            onValueChange = viewModel::onBrandNameChange,
+            label = { Text(stringResource(Res.string.inv_label_brand)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )

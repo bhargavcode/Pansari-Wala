@@ -27,6 +27,12 @@ sealed interface AppRoute : NavKey {
     data class InventoryList(val lowStockOnly: Boolean = false) : AppRoute
 
     @Serializable
+    data class ProductDetail(val productId: String) : AppRoute
+
+    @Serializable
+    data object MasterCatalog : AppRoute
+
+    @Serializable
     data class OrderEditor(val orderId: String? = null) : AppRoute
 
     @Serializable
@@ -52,6 +58,8 @@ fun AppRoute.screenName(): String = when (this) {
     AppRoute.Settings -> "settings"
     is AppRoute.AddEditInventory -> "add_edit_inventory"
     is AppRoute.InventoryList -> "inventory_list"
+    is AppRoute.ProductDetail -> "product_detail"
+    AppRoute.MasterCatalog -> "master_catalog"
     is AppRoute.OrderEditor -> "order_editor"
     is AppRoute.OrdersWorkspace -> "orders_workspace"
     AppRoute.OnlineOrders -> "online_orders"

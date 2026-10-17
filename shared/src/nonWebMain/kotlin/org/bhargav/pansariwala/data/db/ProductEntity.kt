@@ -11,6 +11,7 @@ import androidx.room.PrimaryKey
         Index(value = ["shopId"]),
         Index(value = ["barcode"]),
         Index(value = ["category"]),
+        Index(value = ["masterProductId"]),
     ],
 )
 data class ProductEntity(
@@ -36,6 +37,11 @@ data class ProductEntity(
     /** JSON array of `ProductVariantDto`; empty when the product has no variants. */
     @ColumnInfo(defaultValue = "")
     val variantsJson: String = "",
+    @ColumnInfo(defaultValue = "")
+    val brandName: String = "",
+    val masterProductId: String? = null,
+    @ColumnInfo(defaultValue = "1")
+    val isActive: Boolean = true,
 )
 
 /** Pull cursors and other small sync bookmarks. */

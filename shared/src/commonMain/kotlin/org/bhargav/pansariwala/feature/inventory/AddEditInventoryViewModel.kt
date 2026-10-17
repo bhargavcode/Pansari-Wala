@@ -51,6 +51,7 @@ data class AddEditInventoryUiState(
     val stockQty: String = "",
     val lowStockThreshold: String = "",
     val voiceAlias: String = "",
+    val brandName: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
     val imageSlots: List<ImageSlotState> = List(AppConstants.PHOTO_MAX_PRODUCT_IMAGES) { ImageSlotState.Empty },
     val message: UiText? = null,
@@ -102,7 +103,8 @@ class AddEditInventoryViewModel(
     fun dismissError() { _uiState.update { it.copy(error = null) } }
 
     private var shopId: String = SeedData.DEMO_SHOP_ID
-    private var loadedProductId: String? = null
+    private var loadedProduct: Product? = null
+    private val loadedProductId: String? get() = loadedProduct?.id
 
     fun load(productId: String?) {
         viewModelScope.launch {
@@ -125,6 +127,7 @@ class AddEditInventoryViewModel(
     fun onStockQtyChange(value: String) = _uiState.update { it.copy(stockQty = value) }
     fun onThresholdChange(value: String) = _uiState.update { it.copy(lowStockThreshold = value) }
     fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value) }
+    fun onBrandNameChange(value: String) = _uiState.update { it.copy(brandName = value) }
     fun onVariantsChange(value: List<ProductVariantDto>) = _uiState.update { it.copy(variants = value) }
 
     suspend fun uploadVariantImage(): String? {
@@ -206,6 +209,9 @@ class AddEditInventoryViewModel(
             variants = state.variants
                 .filter { it.name.isNotBlank() }
                 .map { v -> v.copy(id = v.id.ifBlank { generateId("v") }).toModel() },
+            brandName = state.brandName.trim(),
+            masterProductId = loadedProduct?.masterProductId,
+            isActive = loadedProduct?.isActive ?: true,
         )
         viewModelScope.launch {
             shopRepository.upsertProduct(product)
@@ -220,7 +226,7 @@ class AddEditInventoryViewModel(
     }
 
     private fun fillFrom(product: Product) {
-        loadedProductId = product.id
+        loadedProduct = product
         imageUploader.seedUrls(product.imageUrls)
         _uiState.update {
             it.copy(
@@ -236,6 +242,7 @@ class AddEditInventoryViewModel(
                 stockQty = product.stockQty.toString(),
                 lowStockThreshold = product.lowStockThreshold.toString(),
                 voiceAlias = product.voiceAlias.orEmpty(),
+                brandName = product.brandName,
                 variants = product.variants.map { it.toDto() },
             )
         }

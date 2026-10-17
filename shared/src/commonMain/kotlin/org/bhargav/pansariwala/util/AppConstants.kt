@@ -22,6 +22,11 @@ object AppConstants {
     /** Start loading the next page when this many items remain below the viewport. */
     const val CATALOG_PREFETCH_DISTANCE: Int = 3
     const val CATALOG_SEARCH_DEBOUNCE_MS: Long = 350L
+    /** Master catalog page size for the POS "Add from master" screen. */
+    const val MASTER_PAGE_SIZE: Int = 30
+    const val INVENTORY_SEARCH_DEBOUNCE_MS: Long = 300L
+    /** One-tap stock in/out steps on the product detail screen. */
+    val INVENTORY_QUICK_STEPS: List<Double> = listOf(1.0, 5.0, 10.0, 25.0)
 
     /** Loose (khula) quantity rules when a product/variant doesn't define its own. */
     object LooseQty {

@@ -222,6 +222,21 @@ class KtorPansariApi(
     ): org.bhargav.pansariwala.domain.model.ProductDetail =
         client.get("shops/$shopId/products/$productId").body<ProductDetailDto>().toModel()
 
+    override suspend fun masterCategories(): List<MasterCategoryDto> = client.get("master/categories").body()
+
+    override suspend fun masterProductPage(
+        query: String,
+        categoryId: String?,
+        page: Int,
+        pageSize: Int,
+    ): MasterProductPageDto =
+        client.get("master/products/page") {
+            if (query.isNotBlank()) parameter("q", query.trim())
+            categoryId?.let { parameter("categoryId", it) }
+            parameter("page", page)
+            parameter("pageSize", pageSize)
+        }.body()
+
     override suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview> =
         client.get("shops/$shopId/ratings").body<List<ShopReviewDto>>().map { it.toModel() }
 

@@ -1,81 +1,108 @@
 package org.bhargav.pansariwala.feature.inventory
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import org.bhargav.pansariwala.designsystem.PansariScreen
-import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.bhargav.pansariwala.designsystem.PansariScreen
+import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.domain.model.ProductCategory
+import org.bhargav.pansariwala.domain.model.ProductStatusFilter
 import org.bhargav.pansariwala.feature.printer.PrintAction
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.media.ProductImageCarousel
-import org.bhargav.pansariwala.ui.AsyncUiState
-import org.bhargav.pansariwala.ui.errorBannerOrNull
-import org.bhargav.pansariwala.ui.isBlockingLoad
-import org.bhargav.pansariwala.util.asMoney
+import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
-import pansariwala.shared.generated.resources.action_edit
-import pansariwala.shared.generated.resources.all_inventory
+import pansariwala.shared.generated.resources.action_clear
 import pansariwala.shared.generated.resources.category_price
-import pansariwala.shared.generated.resources.low_stock_items
+import pansariwala.shared.generated.resources.inv_add_custom
+import pansariwala.shared.generated.resources.inv_add_from_master
+import pansariwala.shared.generated.resources.inv_badge_inactive
+import pansariwala.shared.generated.resources.inv_empty
+import pansariwala.shared.generated.resources.inv_filter_all_categories
+import pansariwala.shared.generated.resources.inv_filter_low_stock
+import pansariwala.shared.generated.resources.inv_products_title
+import pansariwala.shared.generated.resources.inv_search_hint
+import pansariwala.shared.generated.resources.inv_showing_count
+import pansariwala.shared.generated.resources.inv_status_active
+import pansariwala.shared.generated.resources.inv_status_all
+import pansariwala.shared.generated.resources.inv_status_inactive
 import pansariwala.shared.generated.resources.print_action_inventory
-import pansariwala.shared.generated.resources.print_action_label
 import pansariwala.shared.generated.resources.print_action_labels_all
 import pansariwala.shared.generated.resources.print_action_low_stock
-import pansariwala.shared.generated.resources.products_count
 
 @Composable
 fun InventoryListScreen(
     lowStockOnly: Boolean,
     onBack: () -> Unit,
-    onEditProduct: (String) -> Unit,
+    onOpenProduct: (String) -> Unit,
+    onAddCustomProduct: () -> Unit,
+    onAddFromMaster: () -> Unit,
     viewModel: InventoryListViewModel = koinViewModel(),
 ) {
+    LaunchedEffect(lowStockOnly) { viewModel.start(lowStockOnly) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val products = (state as? AsyncUiState.Success)?.data?.products
-        ?.let { list -> if (lowStockOnly) list.filter { it.isLowStock } else list }
-        ?: emptyList()
+    val filter = state.filter
+    val products = state.products
 
     PansariScreen(
-        title = stringResource(if (lowStockOnly) Res.string.low_stock_items else Res.string.all_inventory),
+        title = stringResource(Res.string.inv_products_title),
         onBack = onBack,
-        error = state.errorBannerOrNull(),
-        isLoading = state.isBlockingLoad(),
-        onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = {}) },
+        error = state.error.toErrorBanner(retryable = false),
+        isLoading = state.loading,
+        onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError) },
         actions = {
+            IconButton(onClick = onAddCustomProduct) {
+                Icon(Icons.Filled.Add, contentDescription = stringResource(Res.string.inv_add_custom))
+            }
             PrintMenuButton(
-                actions = remember(products, lowStockOnly) {
+                actions = remember(products, filter.lowStockOnly) {
                     listOf(
-                        if (lowStockOnly) {
+                        if (filter.lowStockOnly) {
                             PrintAction(Res.string.print_action_low_stock) { printInventory(lowStockOnly = true) }
                         } else {
                             PrintAction(Res.string.print_action_inventory) { printInventory(lowStockOnly = false) }
@@ -86,14 +113,6 @@ fun InventoryListScreen(
             )
         },
     ) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            text = stringResource(Res.string.products_count, products.size),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        var visibleCount by remember(lowStockOnly) { mutableIntStateOf(AppConstants.LIST_PAGE_SIZE) }
         val listState = rememberLazyListState()
         val nearEnd by remember {
             derivedStateOf {
@@ -101,37 +120,145 @@ fun InventoryListScreen(
                 last >= listState.layoutInfo.totalItemsCount - AppConstants.LIST_PREFETCH_DISTANCE
             }
         }
-        LaunchedEffect(nearEnd, products.size, visibleCount) {
-            if (nearEnd && visibleCount < products.size) visibleCount += AppConstants.LIST_PAGE_SIZE
-        }
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            items(products.take(visibleCount), key = { it.id }) { product ->
-                InventoryRow(product, onEditProduct)
-                HorizontalDivider()
+        LaunchedEffect(nearEnd, products.size) { if (nearEnd) viewModel.loadMore() }
+        LaunchedEffect(filter) { listState.scrollToItem(0) }
+
+        Column(Modifier.fillMaxSize()) {
+            OutlinedTextField(
+                value = state.searchText,
+                onValueChange = viewModel::onSearchChange,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                singleLine = true,
+                placeholder = { Text(stringResource(Res.string.inv_search_hint)) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (state.searchText.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchChange("") }) {
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(Res.string.action_clear))
+                        }
+                    }
+                },
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item(key = "all") {
+                    FilterChip(
+                        selected = filter.category == null,
+                        onClick = { viewModel.onCategorySelected(null) },
+                        label = { Text(stringResource(Res.string.inv_filter_all_categories)) },
+                    )
+                }
+                items(ProductCategory.entries, key = { it.name }) { category ->
+                    FilterChip(
+                        selected = filter.category == category,
+                        onClick = { viewModel.onCategorySelected(category) },
+                        label = { Text(category.localizedName()) },
+                    )
+                }
             }
-        }
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(ProductStatusFilter.entries, key = { it.name }) { status ->
+                    FilterChip(
+                        selected = filter.status == status,
+                        onClick = { viewModel.onStatusSelected(status) },
+                        label = { Text(stringResource(status.label())) },
+                    )
+                }
+                item(key = "low") {
+                    FilterChip(
+                        selected = filter.lowStockOnly,
+                        onClick = viewModel::onLowStockToggle,
+                        label = { Text(stringResource(Res.string.inv_filter_low_stock)) },
+                    )
+                }
+            }
+            Text(
+                text = stringResource(Res.string.inv_showing_count, products.size, state.totalCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (!state.loading && products.isEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.inv_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    )
+                }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
+                ) {
+                    items(products, key = { it.id }) { product ->
+                        ShopProductRow(product, onClick = { onOpenProduct(product.id) })
+                        HorizontalDivider()
+                    }
+                    if (state.hasMore) {
+                        item(key = "more") {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                    }
+                }
+                ExtendedFloatingActionButton(
+                    onClick = onAddFromMaster,
+                    icon = { Icon(Icons.Filled.LibraryAdd, contentDescription = null) },
+                    text = { Text(stringResource(Res.string.inv_add_from_master)) },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                )
+            }
         }
     }
 }
 
+private fun ProductStatusFilter.label() = when (this) {
+    ProductStatusFilter.ALL -> Res.string.inv_status_all
+    ProductStatusFilter.ACTIVE -> Res.string.inv_status_active
+    ProductStatusFilter.INACTIVE -> Res.string.inv_status_inactive
+}
+
 @Composable
-private fun InventoryRow(product: Product, onEditProduct: (String) -> Unit) {
+private fun ShopProductRow(product: Product, onClick: () -> Unit) {
+    val level = product.stockLevel
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         ProductImageCarousel(
-            imageUrls = product.imageUrls.ifEmpty { listOfNotNull(product.primaryImageUrl) },
-            height = 72.dp,
-            modifier = Modifier.size(72.dp),
+            imageUrls = listOfNotNull(product.primaryImageUrl),
+            height = 64.dp,
+            modifier = Modifier.size(64.dp),
         )
-        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
-            Text(
-                text = product.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-            )
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (!product.isActive) InactiveTag()
+            }
+            if (product.brandName.isNotBlank()) {
+                Text(
+                    text = product.brandName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                )
+            }
             Text(
                 text = stringResource(
                     Res.string.category_price,
@@ -141,24 +268,35 @@ private fun InventoryRow(product: Product, onEditProduct: (String) -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            StockGauge(
+                stockQty = product.stockQty,
+                lowStockThreshold = product.lowStockThreshold,
+                modifier = Modifier.padding(top = 6.dp).fillMaxWidth(0.7f),
+            )
         }
-        androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.End) {
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "${product.stockQty.asQuantity()} ${product.unit.localizedLabel()}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (product.isLowStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = level.color(),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PrintMenuButton(
-                    actions = remember(product) {
-                        listOf(PrintAction(Res.string.print_action_label) { printLabels(listOf(product)) })
-                    },
-                )
-                TextButton(onClick = { onEditProduct(product.id) }) {
-                    Text(stringResource(Res.string.action_edit))
-                }
-            }
+            StockBadge(level)
         }
+    }
+}
+
+@Composable
+internal fun InactiveTag() {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Text(
+            text = stringResource(Res.string.inv_badge_inactive),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
     }
 }

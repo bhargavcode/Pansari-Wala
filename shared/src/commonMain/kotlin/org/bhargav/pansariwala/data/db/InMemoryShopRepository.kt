@@ -12,6 +12,7 @@ import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.SalesSnapshot
+import org.bhargav.pansariwala.domain.model.ShopProductFilter
 import org.bhargav.pansariwala.domain.model.ShopUser
 import org.bhargav.pansariwala.util.AppClock
 
@@ -99,6 +100,42 @@ class InMemoryShopRepository : ShopRepository {
             productRevisions[product.id] = (productRevisions[product.id] ?: 0L) + 1L
             pendingProducts += product.id
         }
+    }
+
+    override fun observeProductPage(shopId: String, filter: ShopProductFilter, limit: Int): Flow<List<Product>> =
+        productsFlow.map { list ->
+            list.asSequence()
+                .filter { it.shopId == shopId && filter.matches(it) }
+                .sortedWith(compareBy<Product, String>(String.CASE_INSENSITIVE_ORDER) { it.name }.thenBy { it.id })
+                .take(limit)
+                .toList()
+        }
+
+    override fun observeProductCount(shopId: String, filter: ShopProductFilter): Flow<Int> =
+        productsFlow.map { list -> list.count { it.shopId == shopId && filter.matches(it) } }
+
+    override fun observeProduct(productId: String): Flow<Product?> =
+        productsFlow.map { list -> list.firstOrNull { it.id == productId } }
+
+    override suspend fun productIdsByMasterIds(shopId: String, masterIds: Collection<String>): Map<String, String> {
+        val wanted = masterIds.toSet()
+        return productsFlow.value
+            .filter { it.shopId == shopId && it.masterProductId in wanted }
+            .associate { it.masterProductId!! to it.id }
+    }
+
+    override suspend fun adjustProductStock(productId: String, delta: Double) =
+        editProduct(productId) { it.copy(stockQty = it.stockQty + delta) }
+
+    override suspend fun setProductStock(productId: String, stockQty: Double) =
+        editProduct(productId) { it.copy(stockQty = stockQty) }
+
+    override suspend fun setProductActive(productId: String, active: Boolean) =
+        editProduct(productId) { it.copy(isActive = active) }
+
+    private suspend fun editProduct(productId: String, transform: (Product) -> Product) {
+        val current = productsFlow.value.firstOrNull { it.id == productId } ?: return
+        upsertProduct(transform(current))
     }
 
     override suspend fun getOrder(orderId: String): Order? =

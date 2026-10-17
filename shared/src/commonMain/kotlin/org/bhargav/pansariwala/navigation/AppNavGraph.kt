@@ -38,6 +38,8 @@ import org.bhargav.pansariwala.analytics.AnalyticsEvent
 import org.bhargav.pansariwala.feature.dashboard.DashboardScreen
 import org.bhargav.pansariwala.feature.inventory.AddEditInventoryScreen
 import org.bhargav.pansariwala.feature.inventory.InventoryListScreen
+import org.bhargav.pansariwala.feature.inventory.MasterCatalogScreen
+import org.bhargav.pansariwala.feature.inventory.InventoryProductDetailScreen
 import org.bhargav.pansariwala.feature.login.LoginScreen
 import org.bhargav.pansariwala.feature.order.OrderEditorScreen
 import org.bhargav.pansariwala.feature.order.OrdersWorkspaceScreen
@@ -63,6 +65,8 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.Settings::class, AppRoute.Settings.serializer())
             subclass(AppRoute.AddEditInventory::class, AppRoute.AddEditInventory.serializer())
             subclass(AppRoute.InventoryList::class, AppRoute.InventoryList.serializer())
+            subclass(AppRoute.ProductDetail::class, AppRoute.ProductDetail.serializer())
+            subclass(AppRoute.MasterCatalog::class, AppRoute.MasterCatalog.serializer())
             subclass(AppRoute.OrderEditor::class, AppRoute.OrderEditor.serializer())
             subclass(AppRoute.OrdersWorkspace::class, AppRoute.OrdersWorkspace.serializer())
             subclass(AppRoute.OnlineOrders::class, AppRoute.OnlineOrders.serializer())
@@ -218,7 +222,24 @@ fun AppNavGraph(
                         InventoryListScreen(
                             lowStockOnly = route.lowStockOnly,
                             onBack = { pop() },
-                            onEditProduct = { productId -> push(AppRoute.AddEditInventory(productId)) },
+                            onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
+                            onAddCustomProduct = { push(AppRoute.AddEditInventory()) },
+                            onAddFromMaster = { push(AppRoute.MasterCatalog) },
+                        )
+                    }
+
+                    is AppRoute.ProductDetail -> NavEntry(route) {
+                        InventoryProductDetailScreen(
+                            productId = route.productId,
+                            onBack = { pop() },
+                            onEdit = { productId -> push(AppRoute.AddEditInventory(productId)) },
+                        )
+                    }
+
+                    AppRoute.MasterCatalog -> NavEntry(route) {
+                        MasterCatalogScreen(
+                            onBack = { pop() },
+                            onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
                         )
                     }
 

@@ -6,10 +6,60 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+/** [active] < 0 = any; [query] exact-matches ids/barcode, [pattern] is its escaped `%…%` LIKE form. */
+private const val PRODUCT_FILTER =
+    "shopId = :shopId" +
+        " AND (:category IS NULL OR category = :category)" +
+        " AND (:active < 0 OR isActive = :active)" +
+        " AND (:lowOnly = 0 OR stockQty <= lowStockThreshold)" +
+        " AND (:query = '' OR id = :query OR barcode = :query OR masterProductId = :query" +
+        " OR name LIKE :pattern ESCAPE '\\' OR nameHi LIKE :pattern ESCAPE '\\'" +
+        " OR brandName LIKE :pattern ESCAPE '\\' OR voiceAlias LIKE :pattern ESCAPE '\\')"
+
+private const val QUEUE_SYNC = "pendingSync = 1, syncRevision = syncRevision + 1"
+
+data class MasterLink(val masterProductId: String?, val id: String)
+
 @Dao
 abstract class ProductDao {
     @Query("SELECT * FROM products WHERE shopId = :shopId ORDER BY name ASC")
     abstract fun observeAll(shopId: String): Flow<List<ProductEntity>>
+
+    @Query("SELECT * FROM products WHERE $PRODUCT_FILTER ORDER BY name COLLATE NOCASE ASC, id ASC LIMIT :limit")
+    abstract fun observePage(
+        shopId: String,
+        category: String?,
+        active: Int,
+        lowOnly: Int,
+        query: String,
+        pattern: String,
+        limit: Int,
+    ): Flow<List<ProductEntity>>
+
+    @Query("SELECT COUNT(*) FROM products WHERE $PRODUCT_FILTER")
+    abstract fun observeCount(
+        shopId: String,
+        category: String?,
+        active: Int,
+        lowOnly: Int,
+        query: String,
+        pattern: String,
+    ): Flow<Int>
+
+    @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
+    abstract fun observeById(id: String): Flow<ProductEntity?>
+
+    @Query("SELECT masterProductId, id FROM products WHERE shopId = :shopId AND masterProductId IN (:masterIds)")
+    abstract suspend fun masterLinks(shopId: String, masterIds: List<String>): List<MasterLink>
+
+    @Query("UPDATE products SET stockQty = stockQty + :delta, $QUEUE_SYNC WHERE id = :id")
+    abstract suspend fun adjustStockLocal(id: String, delta: Double)
+
+    @Query("UPDATE products SET stockQty = :stockQty, $QUEUE_SYNC WHERE id = :id")
+    abstract suspend fun setStockLocal(id: String, stockQty: Double)
+
+    @Query("UPDATE products SET isActive = :active, $QUEUE_SYNC WHERE id = :id")
+    abstract suspend fun setActiveLocal(id: String, active: Boolean)
 
     @Query("SELECT COUNT(*) FROM products WHERE shopId = :shopId")
     abstract suspend fun count(shopId: String): Int

@@ -269,6 +269,9 @@ data class ProductDto(
     val voiceAlias: String? = null,
     val imageUrls: List<String> = emptyList(),
     val variants: List<ProductVariantDto> = emptyList(),
+    val brandName: String = "",
+    val masterProductId: String? = null,
+    val active: Boolean = true,
 )
 
 @Serializable
@@ -529,6 +532,18 @@ data class MasterProductDto(
     val brandName: String = "",
     val salePrice: Double = 0.0,
     val variants: List<ProductVariantDto> = emptyList(),
+    val cost: Double = 0.0,
+    val active: Boolean = true,
+    val lowStockThreshold: Double = 0.0,
+)
+
+@Serializable
+data class MasterProductPageDto(
+    val items: List<MasterProductDto> = emptyList(),
+    val page: Int = 0,
+    val pageSize: Int = 0,
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
 )
 
 @Serializable
@@ -691,6 +706,9 @@ fun ProductDto.toModel() = Product(
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
     variants = variants.filter { it.active }.map { it.toModel() },
+    brandName = brandName,
+    masterProductId = masterProductId,
+    isActive = active,
 )
 
 fun ProductVariantDto.toModel() = ProductVariant(
@@ -746,6 +764,9 @@ fun Product.toDto() = ProductDto(
     voiceAlias = voiceAlias,
     imageUrls = imageUrls.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
     variants = variants.map { it.toDto() },
+    brandName = brandName,
+    masterProductId = masterProductId,
+    active = isActive,
 )
 
 fun Order.toSyncDto() = OrderDto(

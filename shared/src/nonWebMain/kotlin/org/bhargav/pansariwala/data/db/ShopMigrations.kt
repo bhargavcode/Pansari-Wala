@@ -46,3 +46,14 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         connection.execSQL("ALTER TABLE order_items ADD COLUMN variantLabel TEXT")
     }
 }
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE products ADD COLUMN brandName TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("ALTER TABLE products ADD COLUMN masterProductId TEXT")
+        connection.execSQL("ALTER TABLE products ADD COLUMN isActive INTEGER NOT NULL DEFAULT 1")
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_products_masterProductId` ON `products` (`masterProductId`)",
+        )
+    }
+}
