@@ -52,10 +52,11 @@ data class CartLine(
     val product: Product,
     val quantity: Double,
     val variant: ProductVariant? = null,
+    val lockedUnitPrice: Double? = null,
 ) {
     val option: PurchaseOption get() = PurchaseOption(product, variant)
     val key: String get() = option.key
-    val unitPrice: Double get() = option.unitPrice
+    val unitPrice: Double get() = lockedUnitPrice ?: option.unitPrice
     val lineTotal: Double get() = quantity * unitPrice
 }
 
@@ -275,7 +276,9 @@ class OrderEditorViewModel(
                 editingOrderId = existing.id
                 createdAt = existing.createdAtEpochMs
                 val cart = existing.items.mapNotNull { item ->
-                    byId[item.productId]?.let { CartLine(it, item.quantity, item.variantId?.let(it::variant)) }
+                    byId[item.productId]?.let {
+                        CartLine(it, item.quantity, item.variantId?.let(it::variant), lockedUnitPrice = item.unitPrice)
+                    }
                 }
                 // Edits keep the original bill discount as a flat amount instead of re-applying today's offers.
                 _uiState.update {

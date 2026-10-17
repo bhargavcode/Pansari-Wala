@@ -118,7 +118,10 @@ data class ProductDetail(
     val tags: List<String> = emptyList(),
     val weightKg: Double = 0.0,
     val dimensions: String = "",
+    val priceHistory: List<PricePoint> = emptyList(),
 )
+
+data class PricePoint(val atEpochMs: Long, val price: Double)
 
 data class ShopReview(
     val id: String,

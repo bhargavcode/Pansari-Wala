@@ -17,14 +17,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,12 +50,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.bhargav.pansariwala.domain.model.CategoryStock
+import org.bhargav.pansariwala.domain.model.PricePoint
 import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.util.asMoney
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.no_inventory_yet
+import pansariwala.shared.generated.resources.price_trend_3_months
+import pansariwala.shared.generated.resources.price_trend_6_months
+import pansariwala.shared.generated.resources.price_trend_change
+import pansariwala.shared.generated.resources.price_trend_month
+import pansariwala.shared.generated.resources.price_trend_no_change
+import pansariwala.shared.generated.resources.price_trend_point
+import pansariwala.shared.generated.resources.price_trend_week
+import pansariwala.shared.generated.resources.price_trend_year
 import pansariwala.shared.generated.resources.report_chart_empty
 import pansariwala.shared.generated.resources.report_chart_tap_hint
 import pansariwala.shared.generated.resources.report_inventory_total
@@ -60,10 +76,13 @@ import pansariwala.shared.generated.resources.report_online
 import pansariwala.shared.generated.resources.report_point_orders
 import pansariwala.shared.generated.resources.report_point_revenue
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 val OnlineColor = Color(0xFF1565C0)
 val OfflineColor = Color(0xFFEF6C00)
@@ -327,6 +346,148 @@ fun RevenueBarChart(
         )
     }
 }
+
+// ---------- Price trend (stepped line) ----------
+
+enum class PriceTrendRange(val days: Int, val label: StringResource) {
+    WEEK(7, Res.string.price_trend_week),
+    MONTH(30, Res.string.price_trend_month),
+    THREE_MONTHS(90, Res.string.price_trend_3_months),
+    SIX_MONTHS(182, Res.string.price_trend_6_months),
+    YEAR(365, Res.string.price_trend_year),
+}
+
+@Composable
+fun PriceTrendChart(history: List<PricePoint>, currentPrice: Double, modifier: Modifier = Modifier) {
+    var range by remember { mutableStateOf(PriceTrendRange.MONTH) }
+    var selectedFraction by remember(range) { mutableStateOf<Float?>(null) }
+    val now = remember(history) { Clock.System.now().toEpochMilliseconds() }
+    val start = now - range.days * DAY_MS
+    val series = remember(history, currentPrice, range, now) { priceSeries(history, currentPrice, start, now) }
+    val progress = rememberEntryProgress(range)
+    val minPrice = series.minOf { it.price }
+    val maxPrice = series.maxOf { it.price }
+    val pad = if (maxPrice == minPrice) (maxPrice * 0.1).coerceAtLeast(1.0) else (maxPrice - minPrice) * 0.15
+    val low = (minPrice - pad).coerceAtLeast(0.0)
+    val high = maxPrice + pad
+    val measurer = rememberTextMeasurer()
+    val axisColor = MaterialTheme.colorScheme.outlineVariant
+    val lineColor = MaterialTheme.colorScheme.primary
+    val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+    val labelStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val startLabel = shortDate(start)
+    val endLabel = shortDate(now)
+
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .pointerInput(range) {
+                    val left = 40.dp.toPx()
+                    val right = size.width - 4.dp.toPx()
+                    fun fractionAt(x: Float) = ((x - left) / (right - left)).coerceIn(0f, 1f)
+                    detectTapGestures { selectedFraction = fractionAt(it.x) }
+                }
+                .pointerInput(range) {
+                    val left = 40.dp.toPx()
+                    val right = size.width - 4.dp.toPx()
+                    detectHorizontalDragGestures { change, _ ->
+                        selectedFraction = ((change.position.x - left) / (right - left)).coerceIn(0f, 1f)
+                    }
+                },
+        ) {
+            val plot = plotArea(this)
+            fun xOf(t: Long) = plot.left + plot.width * ((t - start).toFloat() / (now - start))
+            fun yOf(p: Double) = plot.bottom - ((p - low) / (high - low) * plot.height).toFloat()
+            listOf(high, (high + low) / 2, low).forEach { value ->
+                val y = yOf(value)
+                drawLine(axisColor, Offset(plot.left, y), Offset(plot.right, y), strokeWidth = 1f)
+                val text = measurer.measure(value.oneDecimal(), labelStyle)
+                drawText(text, topLeft = Offset(plot.left - text.size.width - 4.dp.toPx(), y - text.size.height / 2f))
+            }
+            val startText = measurer.measure(startLabel, labelStyle)
+            drawText(startText, topLeft = Offset(plot.left, plot.bottom + 4.dp.toPx()))
+            val endText = measurer.measure(endLabel, labelStyle)
+            drawText(endText, topLeft = Offset(plot.right - endText.size.width, plot.bottom + 4.dp.toPx()))
+
+            val line = Path()
+            series.forEachIndexed { i, point ->
+                val x = xOf(point.atEpochMs)
+                val y = yOf(point.price)
+                if (i == 0) line.moveTo(x, y) else {
+                    line.lineTo(x, yOf(series[i - 1].price))
+                    line.lineTo(x, y)
+                }
+            }
+            val area = Path().apply {
+                addPath(line)
+                lineTo(plot.right, plot.bottom)
+                lineTo(plot.left, plot.bottom)
+                close()
+            }
+            clipRect(right = plot.left + plot.width * progress) {
+                drawPath(area, lineColor.copy(alpha = 0.12f))
+                drawPath(line, lineColor, style = Stroke(width = 2.5.dp.toPx()))
+            }
+            selectedFraction?.let { f ->
+                val x = plot.left + plot.width * f
+                val price = priceAt(series, start + ((now - start) * f).toLong())
+                drawLine(highlight, Offset(x, plot.top), Offset(x, plot.bottom), strokeWidth = 2.dp.toPx())
+                drawCircle(lineColor, radius = 5.dp.toPx(), center = Offset(x, yOf(price)))
+            }
+        }
+        val first = series.first().price
+        val last = series.last().price
+        SelectionCaption(
+            when {
+                selectedFraction != null -> {
+                    val t = start + ((now - start) * selectedFraction!!).toLong()
+                    stringResource(Res.string.price_trend_point, priceAt(series, t).asMoney(), shortDate(t, withYear = true))
+                }
+                first == last -> stringResource(Res.string.price_trend_no_change)
+                else -> {
+                    val sign = if (last > first) "+" else "-"
+                    val percent = if (first > 0.0) abs((last - first) / first * 100).oneDecimal() else "0"
+                    stringResource(Res.string.price_trend_change, sign + abs(last - first).asMoney(), sign + percent)
+                }
+            },
+        )
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PriceTrendRange.entries.forEach { option ->
+                FilterChip(
+                    selected = option == range,
+                    onClick = { range = option },
+                    label = { Text(stringResource(option.label)) },
+                )
+            }
+        }
+    }
+}
+
+/** Price steps clipped to [start, end]: opens with the price in effect at [start], closes at [end]. */
+private fun priceSeries(history: List<PricePoint>, currentPrice: Double, start: Long, end: Long): List<PricePoint> {
+    val sorted = history.sortedBy { it.atEpochMs }
+    val opening = sorted.lastOrNull { it.atEpochMs <= start }?.price ?: sorted.firstOrNull()?.price ?: currentPrice
+    val changes = sorted.filter { it.atEpochMs in (start + 1)..end }
+    val closing = changes.lastOrNull()?.price ?: opening
+    return listOf(PricePoint(start, opening)) + changes + PricePoint(end, closing)
+}
+
+private fun priceAt(series: List<PricePoint>, t: Long): Double =
+    series.lastOrNull { it.atEpochMs <= t }?.price ?: series.first().price
+
+private fun shortDate(epochMs: Long, withYear: Boolean = false): String {
+    val d = Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(TimeZone.currentSystemDefault())
+    fun Int.two() = toString().padStart(2, '0')
+    val dayMonth = "${d.day.two()}/${d.month.ordinal.plus(1).two()}"
+    return if (withYear) "$dayMonth/${d.year}" else dayMonth
+}
+
+private const val DAY_MS = 24L * 60 * 60 * 1000
 
 // ---------- shared drawing helpers ----------
 

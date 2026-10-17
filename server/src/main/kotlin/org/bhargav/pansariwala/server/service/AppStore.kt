@@ -92,6 +92,8 @@ import org.bhargav.pansariwala.server.dto.PlaceOrderRequest
 import org.bhargav.pansariwala.server.dto.ProductDto
 import org.bhargav.pansariwala.server.dto.CatalogSectionDto
 import org.bhargav.pansariwala.server.dto.ProductDetailDto
+import org.bhargav.pansariwala.server.dto.PricePointDto
+import org.bhargav.pansariwala.server.db.PriceHistoryDoc
 import org.bhargav.pansariwala.server.dto.ProductPageDto
 import org.bhargav.pansariwala.server.dto.QuoteDto
 import org.bhargav.pansariwala.server.dto.QuoteRequest
@@ -129,6 +131,7 @@ import com.mongodb.client.model.Accumulators
 import com.mongodb.client.model.Aggregates
 
 private const val QUERY_MAX_MS = 8_000L
+private const val PRICE_HISTORY_WINDOW_MS = 366L * 24 * 60 * 60 * 1000
 private const val POS_SYNC_PAGE_MAX = 500
 private const val MAX_CATALOG_PAGE_SIZE = 50
 private const val MAX_ORDER_PAGE_SIZE = 20
@@ -177,6 +180,7 @@ class AppStore(
     private val shopTypeCol = mongo.db.getCollection<ShopTypeDoc>("master_shop_types")
     private val assetStore = AssetStore(storage)
     private val productCol = mongo.db.getCollection<ProductDoc>("products")
+    private val priceHistoryCol = mongo.db.getCollection<PriceHistoryDoc>("price_history")
     private val offerCol = mongo.db.getCollection<OfferDoc>("offers")
     private val offerCountCol = mongo.db.getCollection<Document>("offers")
     private val orderCol = mongo.db.getCollection<OrderDoc>("orders")
@@ -606,6 +610,30 @@ class AppStore(
             weightKg = master?.weightKg ?: 0.0,
             dimensions = master?.dimensions.orEmpty(),
             variants = dto.variants,
+            priceHistory = priceHistory(product),
+        )
+    }
+
+    private fun priceHistory(product: ProductDoc, now: Long = System.currentTimeMillis()): List<PricePointDto> {
+        val since = now - PRICE_HISTORY_WINDOW_MS
+        val baseline = priceHistoryCol.find(and(eq("productId", product.id), lt("at", since)))
+            .sort(Sorts.descending("at")).limit(1).firstOrNull()
+        val inWindow = priceHistoryCol.find(and(eq("productId", product.id), gte("at", since)))
+            .sort(Sorts.ascending("at")).toList()
+        val points = listOfNotNull(baseline?.let { PricePointDto(since, it.price) }) +
+            inWindow.map { PricePointDto(it.at, it.price) }
+        val current = product.displayPrice()
+        return if (points.lastOrNull()?.price == current) points else points + PricePointDto(now, current)
+    }
+
+    private fun ProductDoc.displayPrice(): Double =
+        variants.filter { it.active && it.price > 0.0 }.minOfOrNull { it.price } ?: sellingPrice
+
+    private fun recordPriceChange(previous: ProductDoc?, next: ProductDoc) {
+        val price = next.displayPrice()
+        if (previous != null && previous.displayPrice() == price) return
+        priceHistoryCol.insertOne(
+            PriceHistoryDoc(security.randomId("ph"), next.shopId, next.id, price, System.currentTimeMillis()),
         )
     }
 
@@ -1653,11 +1681,10 @@ class AppStore(
 
     fun pushSync(shopId: String, request: SyncPushRequest): SyncPushResponse {
         request.products.filter { it.shopId == shopId }.forEach { product ->
-            productCol.replaceOne(
-                eq("_id", product.id),
-                product.toDoc(),
-                ReplaceOptions().upsert(true),
-            )
+            val previous = productCol.find(eq("_id", product.id)).firstOrNull()
+            val doc = product.toDoc()
+            val stored = productCol.replaceOne(eq("_id", product.id), doc, ReplaceOptions().upsert(true))
+            if (stored.wasAcknowledged()) recordPriceChange(previous, doc)
         }
         // Bills before products: a pushed product carries the device stock, which already includes its bills.
         val accepted = ArrayList<OfflineOrderAck>(request.offlineOrders.size)
@@ -1683,8 +1710,12 @@ class AppStore(
             if (envelope.revision <= 0L || product.id.isBlank() || product.shopId != shopId) continue
             val existing = productCol.find(eq("_id", product.id)).firstOrNull()
             if (existing != null && existing.shopId != shopId) continue
-            val stored = productCol.replaceOne(eq("_id", product.id), product.toDoc(), ReplaceOptions().upsert(true))
-            if (stored.wasAcknowledged()) acceptedProducts += OfflineOrderAck(product.id, envelope.revision)
+            val doc = product.toDoc()
+            val stored = productCol.replaceOne(eq("_id", product.id), doc, ReplaceOptions().upsert(true))
+            if (stored.wasAcknowledged()) {
+                recordPriceChange(existing, doc)
+                acceptedProducts += OfflineOrderAck(product.id, envelope.revision)
+            }
         }
         return SyncPushResponse(accepted, acceptedProducts)
     }

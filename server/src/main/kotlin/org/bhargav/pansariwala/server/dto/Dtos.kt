@@ -480,7 +480,11 @@ data class ProductDetailDto(
     val weightKg: Double = 0.0,
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
+    val priceHistory: List<PricePointDto> = emptyList(),
 )
+
+@Serializable
+data class PricePointDto(val at: Long, val price: Double)
 
 @Serializable
 data class OfferDto(

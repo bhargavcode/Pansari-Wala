@@ -1139,6 +1139,15 @@
     <string name="report_chart_tap_hint">Tap or drag on the chart to see details</string>
     <string name="report_point_orders">%1$s · Online %2$d · Offline %3$d</string>
     <string name="report_point_revenue">%1$s · %2$s (Online %3$s · Offline %4$s)</string>
+    <string name="price_trend_title">Price trend</string>
+    <string name="price_trend_week">1W</string>
+    <string name="price_trend_month">1M</string>
+    <string name="price_trend_3_months">3M</string>
+    <string name="price_trend_6_months">6M</string>
+    <string name="price_trend_year">1Y</string>
+    <string name="price_trend_point">%1$s on %2$s</string>
+    <string name="price_trend_change">%1$s (%2$s%%) in this period</string>
+    <string name="price_trend_no_change">No price change in this period</string>
     <string name="report_list_title">Orders (%1$d)</string>
     <string name="report_list_empty">No orders in this period</string>
     <string name="report_print_sales">Print sales report</string>

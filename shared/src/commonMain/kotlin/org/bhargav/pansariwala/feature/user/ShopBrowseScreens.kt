@@ -92,6 +92,8 @@ import pansariwala.shared.generated.resources.master_variants
 import pansariwala.shared.generated.resources.master_weight
 import pansariwala.shared.generated.resources.product_add_to_cart
 import pansariwala.shared.generated.resources.product_detail_title
+import pansariwala.shared.generated.resources.price_trend_title
+import org.bhargav.pansariwala.feature.reports.PriceTrendChart
 import pansariwala.shared.generated.resources.product_weight_kg
 import pansariwala.shared.generated.resources.user_cart_items
 import pansariwala.shared.generated.resources.variant_in_cart
@@ -436,6 +438,12 @@ private fun ProductDetailContent(
             style = MaterialTheme.typography.labelLarge,
             color = if (outOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
         )
+        SectionCard(title = stringResource(Res.string.price_trend_title)) {
+            PriceTrendChart(
+                history = detail.priceHistory,
+                currentPrice = options.minOfOrNull { it.unitPrice } ?: product.sellingPrice,
+            )
+        }
         if (options.size > 1) {
             SectionCard(title = stringResource(Res.string.master_variants)) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

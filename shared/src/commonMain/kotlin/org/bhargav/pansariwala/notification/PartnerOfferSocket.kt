@@ -2,8 +2,7 @@ package org.bhargav.pansariwala.notification
 
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
-import io.ktor.client.request.header
-import io.ktor.http.HttpHeaders
+import io.ktor.client.request.bearerAuth
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
@@ -53,7 +52,7 @@ class PartnerOfferSocket(
         try {
             client.webSocket(
                 urlString = url,
-                request = { header(HttpHeaders.Authorization, token) },
+                request = { bearerAuth(token) },
             ) {
                 for (frame in incoming) {
                     if (!preferences.getPartnerOnlineDuty()) break

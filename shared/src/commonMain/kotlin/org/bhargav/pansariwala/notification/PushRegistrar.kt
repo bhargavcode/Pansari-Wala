@@ -35,10 +35,14 @@ class PushRegistrar(
             }
     }
 
+    /**
+     * Always upserts (once per app start / session / token change): the server row can be lost while
+     * the local record still says "registered" (cancelled logout, pruned token), which would silence
+     * pushes for this device indefinitely.
+     */
     private suspend fun register(token: String, platform: String) {
         val userId = preferences.getUserId()
         val previous = preferences.getRegisteredPushToken()
-        if (previous == token && preferences.getRegisteredPushUserId() == userId) return
         if (previous != null && previous != token) {
             runCatching { api.unregisterPushToken(previous) }
         }

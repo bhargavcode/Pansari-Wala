@@ -234,6 +234,16 @@ data class ProductDoc(
     val variants: List<ProductVariantDoc> = emptyList(),
 )
 
+/** One row per product price change; [price] is the customer-facing starting price at [at]. */
+@Serializable
+data class PriceHistoryDoc(
+    @SerialName("_id") val id: String,
+    val shopId: String,
+    val productId: String,
+    val price: Double,
+    val at: Long,
+)
+
 @Serializable
 data class OfferDoc(
     @SerialName("_id") val id: String,
@@ -628,6 +638,8 @@ private fun ensureIndexes(db: MongoDatabase) {
             ),
         )
     }
+    db.getCollection<PriceHistoryDoc>("price_history")
+        .createIndex(Indexes.compoundIndex(Indexes.ascending("productId"), Indexes.ascending("at")))
     db.getCollection<MasterProductDoc>("master_products").apply {
         createIndex(Indexes.ascending("barcode"))
         createIndex(Indexes.ascending("name"))
