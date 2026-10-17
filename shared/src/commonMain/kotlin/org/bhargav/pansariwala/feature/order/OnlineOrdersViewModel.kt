@@ -13,7 +13,7 @@ import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.ShopPartnerDto
 import org.bhargav.pansariwala.api.ShopPartnerRequest
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
-import org.bhargav.pansariwala.api.userFacingServerMessage
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.error_otp_invalid
 import org.bhargav.pansariwala.domain.model.Order
@@ -24,9 +24,6 @@ import org.bhargav.pansariwala.notification.OrderUpdate
 import org.bhargav.pansariwala.notification.OrderUpdates
 import org.bhargav.pansariwala.settings.CancelOrderReason
 import pansariwala.shared.generated.resources.Res
-import pansariwala.shared.generated.resources.error_network
-import pansariwala.shared.generated.resources.error_session_expired
-
 /** POS online-order filter tabs; [statuses] empty → every status. */
 enum class OnlineOrderTab(val statuses: List<OrderStatus>) {
     /** Every open order: not yet delivered, completed, rejected or cancelled. */
@@ -455,13 +452,5 @@ class OnlineOrdersViewModel(
         }
     }
 
-    private fun mapOnlineOrdersError(error: Throwable): UiText {
-        val message = error.message.orEmpty()
-        error.userFacingServerMessage()?.let { return UiText.Plain(it) }
-        return if (message.contains("401") || message.contains("Unauthorized")) {
-            UiText.res(Res.string.error_session_expired)
-        } else {
-            UiText.res(Res.string.error_network)
-        }
-    }
+    private fun mapOnlineOrdersError(error: Throwable): UiText = error.toApiUiText()
 }

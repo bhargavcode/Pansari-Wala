@@ -38,5 +38,20 @@ fi
 echo "Uploading $JAR_PATH -> ${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}"
 scp "${SSH_OPTS[@]}" "$JAR_PATH" "${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}.tmp"
 ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" \
-  "mv '${REMOTE_JAR}.tmp' '${REMOTE_JAR}' && sudo systemctl restart '${EC2_SERVICE_NAME}' && sudo systemctl is-active '${EC2_SERVICE_NAME}'"
-echo "Deploy complete."
+  "mv '${REMOTE_JAR}.tmp' '${REMOTE_JAR}' && sudo systemctl restart '${EC2_SERVICE_NAME}'"
+
+# systemd reports "active" as soon as the JVM starts; wait for the API to answer before declaring success.
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${SERVER_PORT:-8080}/health}"
+HEALTH_WAIT_SEC="${HEALTH_WAIT_SEC:-90}"
+if ! ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" "
+  for i in \$(seq 1 ${HEALTH_WAIT_SEC}); do
+    curl -fsS -o /dev/null --max-time 3 '${HEALTH_URL}' && exit 0
+    sleep 1
+  done
+  exit 1"; then
+  echo "::error::${EC2_SERVICE_NAME} did not become healthy at ${HEALTH_URL} within ${HEALTH_WAIT_SEC}s" >&2
+  ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" \
+    "sudo systemctl status '${EC2_SERVICE_NAME}' --no-pager -l | head -20; sudo journalctl -u '${EC2_SERVICE_NAME}' -n 120 --no-pager; free -m; df -h /" >&2 || true
+  exit 1
+fi
+echo "Deploy complete (healthy)."
