@@ -82,6 +82,10 @@ abstract class ProductDao {
     @Query("UPDATE products SET stockQty = stockQty + :delta WHERE id = :id")
     abstract suspend fun adjustStock(id: String, delta: Double)
 
+    /** Order-driven variant stock change; like [adjustStock] it is not queued for product sync. */
+    @Query("UPDATE products SET variantsJson = :variantsJson WHERE id = :id")
+    abstract suspend fun setVariantsJson(id: String, variantsJson: String)
+
     @Query("SELECT * FROM products WHERE shopId = :shopId AND pendingSync = 1")
     abstract suspend fun pending(shopId: String): List<ProductEntity>
 

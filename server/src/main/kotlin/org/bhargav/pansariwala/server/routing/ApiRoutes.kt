@@ -2,7 +2,12 @@ package org.bhargav.pansariwala.server.routing
 
 import com.auth0.jwt.interfaces.Payload
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.content.PartData
+import io.ktor.server.response.header
+import io.ktor.server.response.respondBytes
+import org.bhargav.pansariwala.server.service.ProductSheet
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -132,8 +137,37 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         push.unregister(body.token)
         call.respond(OkResponse())
     }
+    // Public: the sample has no shop data; exports are opened through a one-time token from an authenticated call.
+    get("/files/product-template.xlsx") {
+        call.respondSheet("pansari-products-sample.xlsx", ProductSheet.template())
+    }
+    get("/files/products-export/{token}") {
+        val bytes = withContext(Dispatchers.IO) { store.consumeExportLink(call.parameters["token"]!!) }
+        if (bytes == null) call.respond(HttpStatusCode.NotFound, OkResponse(ok = false))
+        else call.respondSheet("pansari-products.xlsx", bytes)
+    }
 
     authenticate("auth-jwt") {
+        post("/shop/products/import") {
+            val shopId = call.requireShopPerm(store, ShopPerm.INVENTORY)
+            val dryRun = call.request.queryParameters["dryRun"] == "true"
+            val (name, bytes) = receiveSheet(call)
+            call.respond(withContext(Dispatchers.IO) { store.importShopProducts(shopId, bytes, name, dryRun) })
+        }
+        post("/shop/products/export-link") {
+            val shopId = call.requireShopPerm(store, ShopPerm.INVENTORY)
+            call.respond(store.createExportLink(shopId))
+        }
+        post("/admin/master/products/import") {
+            call.requireRole("ADMIN")
+            val dryRun = call.request.queryParameters["dryRun"] == "true"
+            val (name, bytes) = receiveSheet(call)
+            call.respond(withContext(Dispatchers.IO) { store.importMasterProducts(bytes, name, dryRun) })
+        }
+        post("/admin/master/products/export-link") {
+            call.requireRole("ADMIN")
+            call.respond(store.createExportLink(null))
+        }
         post("/push/register") {
             val body = call.receive<PushRegisterRequest>()
             val payload = call.payload()
@@ -888,6 +922,30 @@ private suspend fun receiveUpload(call: ApplicationCall, store: AppStore): org.b
     }
     val data = bytes ?: error("file required")
     return store.uploadAsset(prefix, fileName, data, contentType, thumbnail)
+}
+
+private const val SHEET_MAX_BYTES = 10 * 1024 * 1024
+private const val XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+/** First multipart file part: (file name, bytes). */
+private suspend fun receiveSheet(call: ApplicationCall): Pair<String, ByteArray> {
+    val multipart = call.receiveMultipart()
+    var result: Pair<String, ByteArray>? = null
+    while (true) {
+        val part = multipart.readPart() ?: break
+        if (part is PartData.FileItem && result == null) {
+            result = (part.originalFileName ?: "products.xlsx") to part.provider().readRemaining().readByteArray()
+        }
+        part.dispose()
+    }
+    val sheet = result ?: error("file required")
+    require(sheet.second.size <= SHEET_MAX_BYTES) { "File is too large (max 10 MB)" }
+    return sheet
+}
+
+private suspend fun ApplicationCall.respondSheet(fileName: String, bytes: ByteArray) {
+    response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"$fileName\"")
+    respondBytes(bytes, ContentType.parse(XLSX_MIME))
 }
 
 private fun startOfToday(): Long {

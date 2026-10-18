@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +52,12 @@ import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.action_add
+import pansariwala.shared.generated.resources.action_cancel
 import pansariwala.shared.generated.resources.action_edit
+import pansariwala.shared.generated.resources.action_save
+import pansariwala.shared.generated.resources.variant_pack_count_label
+import pansariwala.shared.generated.resources.variant_pack_count_title
 import pansariwala.shared.generated.resources.catalog_out_of_stock
 import pansariwala.shared.generated.resources.catalog_per_unit
 import pansariwala.shared.generated.resources.qty_with_unit
@@ -104,11 +110,14 @@ class VariantPickerState {
     var request by mutableStateOf<Request?>(null)
         private set
 
-    data class Request(val product: Product, val editKey: String?)
+    /** [optionKey] limits the sheet to one option (a variant card in a flat list). */
+    data class Request(val product: Product, val editKey: String?, val optionKey: String? = null)
 
-    fun open(product: Product, editKey: String? = null) {
-        request = Request(product, editKey)
+    fun open(product: Product, editKey: String? = null, optionKey: String? = null) {
+        request = Request(product, editKey, optionKey)
     }
+
+    fun open(option: PurchaseOption, editKey: String? = null) = open(option.product, editKey, option.key)
 
     fun dismiss() {
         request = null
@@ -126,6 +135,7 @@ fun VariantPickerHost(state: VariantPickerState, cart: CartStore) {
     VariantPickerSheet(
         product = request.product,
         editKey = request.editKey,
+        optionKey = request.optionKey,
         cartLines = lines.filter { it.product.id == request.product.id },
         onConfirm = { targetKey, option, quantity ->
             cart.update(targetKey, option, quantity)
@@ -146,6 +156,7 @@ fun VariantPickerHost(
     VariantPickerSheet(
         product = request.product,
         editKey = request.editKey,
+        optionKey = request.optionKey,
         cartLines = lines.filter { it.product.id == request.product.id },
         onConfirm = onConfirm,
         onDismiss = onDismiss,
@@ -157,11 +168,16 @@ fun VariantPickerHost(
 private fun VariantPickerSheet(
     product: Product,
     editKey: String?,
+    optionKey: String?,
     cartLines: List<CartStore.Line>,
     onConfirm: (targetKey: String, option: PurchaseOption, quantity: Double) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val options = remember(product) { product.options() }
+    val options = remember(product, optionKey, editKey) {
+        val all = product.options()
+        val focus = optionKey ?: editKey
+        all.filter { it.key == focus }.ifEmpty { all }
+    }
     val editing = cartLines.firstOrNull { it.key == editKey }
     var selected by remember(product, editKey) {
         mutableStateOf(editing?.option ?: options.firstOrNull { it.inStock } ?: options.first())
@@ -190,7 +206,11 @@ private fun VariantPickerSheet(
                     contentDescription = product.name,
                 )
                 Column(Modifier.weight(1f)) {
-                    Text(product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (options.size == 1) selected.displayName else product.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
                     if (options.size > 1) {
                         Text(
                             stringResource(Res.string.variant_picker_title),
@@ -215,12 +235,13 @@ private fun VariantPickerSheet(
                 if (selected.isLoose) {
                     LooseQuantityEditor(option = selected, quantity = quantity, onChange = { quantity = it })
                 } else {
-                    QuantityStepper(
-                        label = quantity.asQuantity(),
+                    PackCountStepper(
+                        option = selected,
+                        quantity = quantity,
+                        onSet = { quantity = selected.normalize(it) },
                         onIncrement = { quantity = selected.normalize(quantity + 1) },
                         onDecrement = { quantity = selected.normalize(quantity - 1) },
                         decrementEnabled = quantity > selected.minQty,
-                        incrementEnabled = quantity < selected.maxQty,
                     )
                 }
                 val total = selected.priceFor(quantity).asMoney()
@@ -269,7 +290,7 @@ private fun OptionRow(option: PurchaseOption, selected: Boolean, inCart: Double?
                 val badge = when (variant.sellMode) {
                     SellMode.LOOSE -> stringResource(Res.string.variant_loose)
                     SellMode.BUNDLE -> stringResource(Res.string.variant_bundle_of, variant.bundleCount)
-                    SellMode.PACK -> variant.attributes.values.joinToString(" · ")
+                    SellMode.PACK -> (listOfNotNull(option.packSizeLabel()) + variant.attributes.values).joinToString(" · ")
                 }
                 if (badge.isNotBlank()) {
                     Text(badge, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -373,46 +394,105 @@ private fun LooseQuantityEditor(option: PurchaseOption, quantity: Double, onChan
 private fun displayValue(quantity: Double, subUnit: Boolean): String =
     (if (subUnit) quantity * LooseQty.SUB_UNIT_FACTOR else quantity).asQuantity()
 
+/** "Parle-G · Large" for a variant card, the plain product name otherwise. */
+val PurchaseOption.displayName: String
+    get() = variant?.label?.takeIf { it.isNotBlank() }?.let { "${product.name} · $it" } ?: product.name
+
+/** "100 g" net content of a pack variant, or null when not set. */
+@Composable
+fun PurchaseOption.packSizeLabel(): String? {
+    val v = variant?.takeIf { it.hasPackSize } ?: return null
+    return stringResource(Res.string.qty_with_unit, v.packSize.asQuantity(), v.packUnit.localizedLabel())
+}
+
+/** Pack-count stepper whose number can be tapped to type an exact count. */
+@Composable
+fun PackCountStepper(
+    option: PurchaseOption,
+    quantity: Double,
+    onSet: (Double) -> Unit,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    modifier: Modifier = Modifier,
+    decrementEnabled: Boolean = true,
+) {
+    var typing by remember { mutableStateOf(false) }
+    QuantityStepper(
+        label = quantity.asQuantity(),
+        onIncrement = onIncrement,
+        onDecrement = onDecrement,
+        modifier = modifier,
+        decrementEnabled = decrementEnabled,
+        incrementEnabled = quantity < option.maxQty,
+        onLabelClick = { typing = true },
+    )
+    if (typing) {
+        PackCountDialog(
+            initial = quantity,
+            max = option.maxQty,
+            onConfirm = { typing = false; onSet(it) },
+            onDismiss = { typing = false },
+        )
+    }
+}
+
+@Composable
+private fun PackCountDialog(initial: Double, max: Double, onConfirm: (Double) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial.asQuantity()) }
+    val value = text.toIntOrNull()?.takeIf { it > 0 }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.variant_pack_count_title)) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { raw -> text = raw.filter { it.isDigit() }.take(MAX_PACK_COUNT_DIGITS) },
+                label = { Text(stringResource(Res.string.variant_pack_count_label, max.asQuantity())) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { value?.let { onConfirm(it.toDouble()) } }, enabled = value != null) {
+                Text(stringResource(Res.string.action_save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
+    )
+}
+
+private const val MAX_PACK_COUNT_DIGITS = 5
+
 /**
- * Add / stepper / edit control for a product card. Simple pack products get a one-tap stepper;
- * products with variants or loose quantities open the picker.
+ * Add / stepper control for one option card. Packs and bundles add in one tap and show a stepper
+ * (tap the number to type a count); loose options open the amount sheet.
  */
 @Composable
-fun ProductCartAction(
-    product: Product,
+fun OptionCartAction(
+    option: PurchaseOption,
     lines: List<CartStore.Line>,
     cart: CartStore,
     picker: VariantPickerState,
     modifier: Modifier = Modifier,
 ) {
-    val productLines = lines.filter { it.product.id == product.id }
-    val anyInStock = product.options().any { it.inStock }
+    val line = lines.firstOrNull { it.key == option.key }
     when {
-        !product.needsPicker && productLines.isNotEmpty() -> {
-            val line = productLines.first()
-            QuantityStepper(
-                label = line.quantity.asQuantity(),
-                onIncrement = { cart.increment(line.key) },
-                onDecrement = { cart.decrement(line.key) },
-                incrementEnabled = line.quantity < line.option.maxQty,
-                modifier = modifier,
-            )
+        option.needsPicker && line != null -> OutlinedButton(onClick = { picker.open(option, line.key) }, modifier = modifier) {
+            Text(option.quantityLabel(line.quantity), maxLines = 1)
         }
-        !product.needsPicker -> TextButton(onClick = { cart.add(product) }, enabled = anyInStock, modifier = modifier) {
-            Text("+")
-        }
-        productLines.size == 1 -> OutlinedButton(
-            onClick = { picker.open(product, productLines.first().key) },
-            modifier = modifier,
-        ) {
-            val line = productLines.first()
-            Text(line.option.quantityLabel(line.quantity), maxLines = 1)
-        }
-        productLines.isNotEmpty() -> OutlinedButton(onClick = { picker.open(product) }, modifier = modifier) {
-            Text(stringResource(Res.string.action_edit), maxLines = 1)
-        }
-        else -> OutlinedButton(onClick = { picker.open(product) }, enabled = anyInStock, modifier = modifier) {
+        option.needsPicker -> OutlinedButton(onClick = { picker.open(option) }, enabled = option.inStock, modifier = modifier) {
             Text(stringResource(Res.string.variant_choose), maxLines = 1)
+        }
+        line != null -> PackCountStepper(
+            option = option,
+            quantity = line.quantity,
+            onSet = { cart.setQuantity(line.key, it) },
+            onIncrement = { cart.increment(line.key) },
+            onDecrement = { cart.decrement(line.key) },
+            modifier = modifier,
+        )
+        else -> TextButton(onClick = { cart.add(option, option.defaultQty) }, enabled = option.inStock, modifier = modifier) {
+            Text(stringResource(Res.string.action_add))
         }
     }
 }
@@ -425,6 +505,7 @@ fun CartLineRow(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier,
+    onSetQuantity: ((Double) -> Unit)? = null,
 ) {
     val option = line.option
     Row(
@@ -440,25 +521,54 @@ fun CartLineRow(
         Column(Modifier.weight(1f)) {
             Text(line.product.name, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             line.variant?.let {
-                Text(it.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val detail = listOfNotNull(it.label, option.packSizeLabel()).distinct().joinToString(" · ")
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
                 "${option.quantityLabel(line.quantity)} × ${option.priceLabel()}",
                 style = MaterialTheme.typography.bodySmall,
             )
             LineOfferPrice(line.lineTotal, line.baseLineTotal)
-            if (line.product.needsPicker) {
+            if (option.needsPicker) {
                 TextButton(onClick = onEdit, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                     Text(stringResource(Res.string.action_edit))
                 }
             }
         }
-        QuantityStepper(
-            label = option.quantityLabel(line.quantity),
-            onIncrement = onIncrement,
-            onDecrement = onDecrement,
-            incrementEnabled = line.quantity + option.step <= option.maxQty + LooseQty.EPSILON,
-        )
+        if (!option.isLoose && onSetQuantity != null) {
+            PackCountStepper(
+                option = option,
+                quantity = line.quantity,
+                onSet = onSetQuantity,
+                onIncrement = onIncrement,
+                onDecrement = onDecrement,
+            )
+        } else {
+            QuantityStepper(
+                label = option.quantityLabel(line.quantity),
+                onIncrement = onIncrement,
+                onDecrement = onDecrement,
+                incrementEnabled = line.quantity + option.step <= option.maxQty + LooseQty.EPSILON,
+            )
+        }
+    }
+}
+
+/** Price line for one option card: "₹10.00 · 100 g", "₹48.00 / kg · Loose", "₹220.00 · Bundle of 24". */
+@Composable
+fun OptionPriceSummary(option: PurchaseOption, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        option.OfferPrice()
+        val variant = option.variant
+        val detail = when {
+            option.isLoose -> stringResource(Res.string.variant_loose)
+            variant?.sellMode == SellMode.BUNDLE -> stringResource(Res.string.variant_bundle_of, variant.bundleCount)
+            variant != null -> option.packSizeLabel().orEmpty()
+            else -> stringResource(Res.string.catalog_per_unit, option.quantityUnit.localizedLabel())
+        }
+        if (detail.isNotBlank()) {
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

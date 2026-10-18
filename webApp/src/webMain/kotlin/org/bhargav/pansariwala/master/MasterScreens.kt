@@ -44,6 +44,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.feature.catalog.VariantListEditor
+import org.bhargav.pansariwala.feature.catalog.ProductSheetImportDialog
+import org.bhargav.pansariwala.feature.catalog.SheetImportUiState
+import org.bhargav.pansariwala.i18n.UiText
+import androidx.compose.ui.platform.LocalUriHandler
+import org.bhargav.pansariwala.domain.model.ProductUnit
 import pansariwala.shared.generated.resources.action_next
 import pansariwala.shared.generated.resources.action_previous
 import pansariwala.shared.generated.resources.master_image_column
@@ -135,6 +140,7 @@ import pansariwala.shared.generated.resources.master_sale_price
 import pansariwala.shared.generated.resources.master_save
 import pansariwala.shared.generated.resources.master_save_changes
 import pansariwala.shared.generated.resources.master_search
+import pansariwala.shared.generated.resources.sheet_import_action
 import pansariwala.shared.generated.resources.master_settings_title
 import pansariwala.shared.generated.resources.master_shop_details
 import pansariwala.shared.generated.resources.master_shop_products
@@ -554,6 +560,8 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
     var page by rememberSaveable { mutableStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     var reload by remember { mutableStateOf(0) }
+    var sheet by remember { mutableStateOf<SheetImportUiState?>(null) }
+    var sheetFile by remember { mutableStateOf<WebPickedFile?>(null) }
     val products = pageData.items
     fun refresh() { reload++ }
     LaunchedEffect(token, query, page, reload) {
@@ -568,6 +576,46 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MasterStatCard(title = stringResource(Res.string.master_card_products), value = "${pageData.totalCount}")
                 AddProductPromoCard(onClick = { onNavigate(MasterDest.ProductEdit(null)) })
+                OutlinedButton(onClick = { sheet = SheetImportUiState() }) {
+                    Text(stringResource(Res.string.sheet_import_action))
+                }
+            }
+            sheet?.let { current ->
+                val uriHandler = LocalUriHandler.current
+                fun busy(block: suspend () -> Unit) {
+                    scope.launch {
+                        sheet = sheet?.copy(busy = true, error = null)
+                        runCatching { block() }
+                            .onSuccess { sheet = sheet?.copy(busy = false) }
+                            .onFailure { e -> sheet = sheet?.copy(busy = false, error = UiText.Plain(e.message.orEmpty())) }
+                    }
+                }
+                fun upload(dryRun: Boolean) {
+                    val file = sheetFile ?: return
+                    sheet = sheet?.copy(fileName = file.name)
+                    busy {
+                        val report = api.importProducts(token, file.name, file.bytes, dryRun)
+                        sheet = sheet?.copy(report = report)
+                        if (!report.dryRun) refresh()
+                    }
+                }
+                ProductSheetImportDialog(
+                    state = current,
+                    onDownloadSample = { uriHandler.openUri(api.productTemplateUrl) },
+                    onExport = { busy { uriHandler.openUri(api.productsExportUrl(token)) } },
+                    onPickFile = {
+                        scope.launch {
+                            sheetFile = pickWebFile(AppConstants.ProductSheet.PICKER_EXTENSIONS, AppConstants.ProductSheet.MIME_XLSX)
+                                ?: return@launch
+                            upload(dryRun = true)
+                        }
+                    },
+                    onApply = { upload(dryRun = false) },
+                    onDismiss = {
+                        sheet = null
+                        sheetFile = null
+                    },
+                )
             }
             OutlinedTextField(
                 query,
@@ -686,7 +734,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     var company by rememberSaveable { mutableStateOf("") }
     var sale by rememberSaveable { mutableStateOf("0") }
     var cost by rememberSaveable { mutableStateOf("0") }
-    var unit by rememberSaveable { mutableStateOf("KG") }
+    var unit by rememberSaveable { mutableStateOf(ProductUnit.PIECE.name) }
     var imageUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var sku by rememberSaveable { mutableStateOf("") }
     var stock by rememberSaveable { mutableStateOf("0") }

@@ -266,6 +266,7 @@ class CartViewModel(
 
     fun increment(lineKey: String) { cart.increment(lineKey) }
     fun decrement(lineKey: String) { cart.decrement(lineKey) }
+    fun setQuantity(lineKey: String, quantity: Double) { cart.setQuantity(lineKey, quantity) }
 }
 
 data class CheckoutUiState(

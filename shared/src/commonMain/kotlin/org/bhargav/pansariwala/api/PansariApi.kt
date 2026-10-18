@@ -154,4 +154,13 @@ interface PansariApi {
         contentType: String,
         thumbnailBytes: ByteArray? = null,
     ): UploadResultDto
+
+    /** Products + variants / stock from an .xlsx, .xls or .csv sheet; [dryRun] only validates. */
+    suspend fun importShopProducts(fileName: String, bytes: ByteArray, dryRun: Boolean): ProductImportReportDto
+
+    /** Absolute one-time download URL of this shop's products as a sheet. */
+    suspend fun shopProductsExportUrl(): String
+
+    /** Public sample sheet showing products with variants. */
+    val productTemplateUrl: String
 }

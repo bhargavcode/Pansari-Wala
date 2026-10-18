@@ -76,8 +76,16 @@ data class ProductVariant(
     val stockQty: Double = 0.0,
     val sku: String = "",
     val barcode: String? = null,
+    /** Inactive options stay on the product but are hidden from customers and billing. */
+    val active: Boolean = true,
+    /** Net content of one pack ("100 g" Parle-G); describes the pack, never a sell quantity. */
+    val packSize: Double = 0.0,
+    val packUnit: ProductUnit = ProductUnit.PIECE,
+    /** For [SellMode.BUNDLE]: the pack variant whose stock drops by [bundleCount] per bundle sold. */
+    val baseVariantId: String = "",
 ) {
     val isLoose: Boolean get() = sellMode == SellMode.LOOSE
+    val hasPackSize: Boolean get() = !isLoose && packSize > 0.0
     val primaryImageUrl: String? get() = imageUrls.firstOrNull { it.isNotBlank() }
 }
 
@@ -114,15 +122,32 @@ data class Product(
     val stockValue: Double get() = stockQty * costPrice
     val primaryImageUrl: String? get() =
         imageUrls.firstOrNull { it.isNotBlank() } ?: variants.firstNotNullOfOrNull { it.primaryImageUrl }
-    val hasVariants: Boolean get() = variants.isNotEmpty()
+    /** Options a customer or cashier can buy; inactive variants are hidden. */
+    val activeVariants: List<ProductVariant> get() = variants.filter { it.active }
+    val hasVariants: Boolean get() = activeVariants.isNotEmpty()
 
     /** Weight/volume products without variants are sold loose by [unit]. */
     val isLooseUnit: Boolean get() = unit == ProductUnit.KG || unit == ProductUnit.LITRE || unit == ProductUnit.GRAM
 
     /** Lowest price across options, for "from ₹x" labels. */
-    val startingPrice: Double get() = variants.minOfOrNull { it.price } ?: sellingPrice
+    val startingPrice: Double get() = activeVariants.minOfOrNull { it.price } ?: sellingPrice
 
     fun variant(id: String?): ProductVariant? = id?.let { vid -> variants.firstOrNull { it.id == vid } }
+
+    /**
+     * Stock after one order line moves [delta] (negative = sold). A bundle linked to a pack variant
+     * (carton of 24) moves that pack's stock by `bundleCount × delta` instead of its own.
+     */
+    fun stockChanged(variantId: String?, delta: Double): Product {
+        val sold = variant(variantId) ?: return copy(stockQty = stockQty + delta)
+        val base = sold.takeIf { it.sellMode == SellMode.BUNDLE && it.bundleCount > 0 && it.baseVariantId.isNotBlank() }
+            ?.let { variant(it.baseVariantId) }
+        val target = base ?: sold
+        val units = if (base != null) delta * sold.bundleCount else delta
+        return copy(
+            variants = variants.map { if (it.id == target.id) it.copy(stockQty = (it.stockQty + units).coerceAtLeast(0.0)) else it },
+        )
+    }
 }
 
 enum class DiscountType {

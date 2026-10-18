@@ -2,6 +2,8 @@ package org.bhargav.pansariwala.voice
 
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.domain.model.ProductVariant
+import kotlin.math.abs
 import kotlin.math.min
 
 data class ProductMatch(
@@ -50,6 +52,53 @@ object ProductFuzzyMatcher {
         }
         return spokenQty
     }
+
+    /**
+     * The active variant the speaker meant: a spoken pack size ("parle g 100 gram" → the 100 g pack)
+     * or label words ("parle g bada" → "Large"). Null when there are no variants or none fits.
+     */
+    fun findVariant(query: String, spokenQty: Double, spokenUnit: ProductUnit?, product: Product): ProductVariant? {
+        val variants = product.activeVariants
+        if (variants.isEmpty()) return null
+        spokenUnit?.let { unit ->
+            variants.firstOrNull { it.hasPackSize && sameAmount(it.packSize, it.packUnit, spokenQty, unit) }?.let { return it }
+        }
+        val nameTokens = normalize(product.name).split(' ').toSet()
+        val tokens = normalize(query).split(' ')
+            .filter { it.length >= 2 && it !in nameTokens }
+            .map { SIZE_WORDS[it] ?: it }
+            .toSet()
+        if (tokens.isEmpty()) return null
+        return variants
+            .map { v -> v to normalize((listOf(v.label) + v.attributes.values).joinToString(" ")) }
+            .map { (v, label) -> v to tokens.count { label.contains(it) } }
+            .filter { it.second > 0 }
+            .maxByOrNull { it.second }
+            ?.first
+    }
+
+    private fun sameAmount(packSize: Double, packUnit: ProductUnit, spokenQty: Double, spokenUnit: ProductUnit): Boolean {
+        val a = baseAmount(packSize, packUnit) ?: return false
+        val b = baseAmount(spokenQty, spokenUnit) ?: return false
+        return abs(a - b) < AMOUNT_EPSILON
+    }
+
+    /** Grams (or ml) for weight/volume units; null for counts. */
+    private fun baseAmount(value: Double, unit: ProductUnit): Double? = when (unit) {
+        ProductUnit.GRAM -> value
+        ProductUnit.KG, ProductUnit.LITRE -> value * GRAMS_PER_KG
+        else -> null
+    }
+
+    private const val GRAMS_PER_KG = 1000.0
+    private const val AMOUNT_EPSILON = 0.001
+
+    /** Spoken size words mapped onto the English labels used for pack variants. */
+    private val SIZE_WORDS = mapOf(
+        "chota" to "small", "chhota" to "small", "chote" to "small", "chhote" to "small", "छोटा" to "small",
+        "bada" to "large", "bara" to "large", "bade" to "large", "बड़ा" to "large", "big" to "large",
+        "beech" to "medium", "मीडियम" to "medium", "mid" to "medium",
+    )
 
     private fun scoreProduct(query: String, product: Product): Double {
         val candidates = buildList {

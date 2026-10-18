@@ -15,10 +15,13 @@ data class WebPickedFile(
     val bytes: ByteArray,
 )
 
-suspend fun pickWebImageFile(): WebPickedFile? = suspendCancellableCoroutine { cont ->
+suspend fun pickWebImageFile(): WebPickedFile? =
+    pickWebFile("image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp", "image/jpeg")
+
+suspend fun pickWebFile(accept: String, fallbackMime: String): WebPickedFile? = suspendCancellableCoroutine { cont ->
     val input = document.createElement("input") as HTMLInputElement
     input.type = "file"
-    input.accept = "image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp"
+    input.accept = accept
     input.onchange = {
         val file = input.files?.item(0)
         if (file == null) {
@@ -36,7 +39,7 @@ suspend fun pickWebImageFile(): WebPickedFile? = suspendCancellableCoroutine { c
                         cont.resume(
                             WebPickedFile(
                                 name = file.name,
-                                mimeType = file.type.ifBlank { "image/jpeg" },
+                                mimeType = file.type.ifBlank { fallbackMime },
                                 bytes = bytes,
                             ),
                         )

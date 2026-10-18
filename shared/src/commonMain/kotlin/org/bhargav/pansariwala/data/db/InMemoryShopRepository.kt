@@ -150,14 +150,14 @@ class InMemoryShopRepository : ShopRepository {
             // Restore stock from the previous version (for edits).
             existing?.items?.forEach { item ->
                 products[item.productId]?.let { p ->
-                    products[item.productId] = p.copy(stockQty = p.stockQty + item.quantity)
+                    products[item.productId] = p.stockChanged(item.variantId, item.quantity)
                 }
             }
             // Deduct stock for the new version unless cancelled.
             if (order.status != OrderStatus.CANCELLED) {
                 order.items.forEach { item ->
                     products[item.productId]?.let { p ->
-                        products[item.productId] = p.copy(stockQty = p.stockQty - item.quantity)
+                        products[item.productId] = p.stockChanged(item.variantId, -item.quantity)
                     }
                 }
             }

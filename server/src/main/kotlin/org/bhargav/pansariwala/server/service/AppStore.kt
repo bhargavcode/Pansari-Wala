@@ -95,6 +95,9 @@ import org.bhargav.pansariwala.server.dto.PartnerRegisterRequest
 import org.bhargav.pansariwala.server.dto.PlaceOrderItemDto
 import org.bhargav.pansariwala.server.dto.PlaceOrderRequest
 import org.bhargav.pansariwala.server.dto.ProductDto
+import org.bhargav.pansariwala.server.dto.FileLinkDto
+import org.bhargav.pansariwala.server.dto.ProductImportErrorDto
+import org.bhargav.pansariwala.server.dto.ProductImportReportDto
 import org.bhargav.pansariwala.server.dto.CatalogSectionDto
 import org.bhargav.pansariwala.server.dto.ProductDetailDto
 import org.bhargav.pansariwala.server.dto.PricePointDto
@@ -144,6 +147,9 @@ private const val PRICE_HISTORY_WINDOW_MS = 366L * 24 * 60 * 60 * 1000
 private const val POS_SYNC_PAGE_MAX = 500
 private const val MAX_CATALOG_PAGE_SIZE = 50
 private const val DEFAULT_SHOP_CATEGORY = "GENERAL_GROCERY"
+private val SHOP_CATEGORIES = setOf("FORTUNE_BRANDED", "GENERAL_GROCERY", "PUJA_SAMAGRI", "STANDARD_SPICES", "HIGH_VALUE_SPICES")
+private const val DEFAULT_IMPORT_CATEGORY = "Uncategorized"
+private const val EXPORT_LINK_TTL_MS = 10 * 60 * 1000L
 private const val MAX_ORDER_PAGE_SIZE = 20
 private const val MAX_MASTER_PAGE_SIZE = 100
 private const val TOP_OFFERS_ON_CARD = 3
@@ -586,7 +592,7 @@ class AppStore(
     /** [includeInactive] is for the shop's own devices; customers only see active products. */
     fun catalog(shopId: String, includeInactive: Boolean = false): List<ProductDto> {
         val filter = if (includeInactive) eq("shopId", shopId) else and(eq("shopId", shopId), ne("active", false))
-        return productCol.find(filter).toList().map { it.toDto() }.withOffers(shopId)
+        return productCol.find(filter).toList().map { it.toDto(includeInactiveVariants = includeInactive) }.withOffers(shopId)
     }
 
     /** Attaches each product's best live PRODUCT offer so every client can show the sale price. */
@@ -930,11 +936,11 @@ class AppStore(
             }
         }
         lines
-            .groupBy { it.product.id to it.variant?.id }
+            .groupBy { it.product.id to it.stockVariant?.id }
             .values
             .forEach { group ->
                 val first = group.first()
-                require(first.available + QTY_EPSILON >= group.sumOf { it.quantity }) { "${first.displayName} is out of stock" }
+                require(first.available + QTY_EPSILON >= group.sumOf { it.stockUnits }) { "${first.displayName} is out of stock" }
             }
         return customer
     }
@@ -942,7 +948,14 @@ class AppStore(
     private data class ResolvedLine(val product: ProductDoc, val variant: ProductVariantDoc?, val quantity: Double) {
         val unitPrice: Double get() = variant?.price ?: product.sellingPrice
         val lineTotal: Double get() = unitPrice * quantity
-        val available: Double get() = variant?.stockQty ?: product.stockQty
+        /** A bundle linked to a pack variant (carton of 24) holds no stock of its own; the pack does. */
+        val stockVariant: ProductVariantDoc? get() = variant
+            ?.takeIf { it.sellMode == VARIANT_BUNDLE && it.bundleCount > 0 && it.baseVariantId.isNotBlank() }
+            ?.let { bundle -> product.variants.firstOrNull { it.id == bundle.baseVariantId } }
+            ?: variant
+        /** Quantity in [stockVariant] units: packs for a linked bundle, else the line quantity. */
+        val stockUnits: Double get() = if (stockVariant !== variant) quantity * (variant?.bundleCount ?: 1) else quantity
+        val available: Double get() = stockVariant?.stockQty ?: product.stockQty
         val displayName: String get() = variant?.let { "${product.name} (${it.name})" } ?: product.name
     }
 
@@ -973,10 +986,10 @@ class AppStore(
     private fun isLooseUnit(unit: String): Boolean = unit.uppercase() in LOOSE_UNITS
 
     private fun deductStock(lines: List<ResolvedLine>) {
-        lines.groupBy { it.product.id to it.variant?.id }.values.forEach { group ->
+        lines.groupBy { it.product.id to it.stockVariant?.id }.values.forEach { group ->
             val first = group.first()
-            val left = (first.available - group.sumOf { it.quantity }).coerceAtLeast(0.0)
-            val variant = first.variant
+            val left = (first.available - group.sumOf { it.stockUnits }).coerceAtLeast(0.0)
+            val variant = first.stockVariant
             if (variant == null) {
                 productCol.updateOne(eq("_id", first.product.id), set("stockQty", left))
             } else {
@@ -2183,7 +2196,7 @@ class AppStore(
             name = body.name.trim(),
             nameHi = body.nameHi.trim(),
             categoryId = body.categoryId,
-            unit = body.unit.ifBlank { "KG" },
+            unit = body.unit.ifBlank { "PIECE" },
             barcode = body.barcode?.takeIf { it.isNotBlank() },
             imageUrl = urls.firstOrNull(),
             thumbnailUrl = urls.firstOrNull(),
@@ -2210,6 +2223,226 @@ class AppStore(
 
     fun deleteMasterProduct(id: String) {
         masterProductCol.deleteOne(eq("_id", id))
+    }
+
+    private class ImportTally(val dryRun: Boolean) {
+        var productsCreated = 0
+        var productsUpdated = 0
+        var variantsCreated = 0
+        var variantsUpdated = 0
+        val errors = mutableListOf<ProductImportErrorDto>()
+
+        fun count(isNew: Boolean, merge: VariantMergeResult) {
+            if (isNew) productsCreated++ else productsUpdated++
+            variantsCreated += merge.created
+            variantsUpdated += merge.updated
+        }
+
+        fun report() = ProductImportReportDto(dryRun, productsCreated, productsUpdated, variantsCreated, variantsUpdated, errors)
+    }
+
+    private inline fun ImportTally.row(group: SheetProduct, block: () -> Unit) {
+        runCatching(block).onFailure { errors += ProductImportErrorDto(group.firstRow, it.message ?: "Invalid row") }
+    }
+
+    /** Creates or updates shop products + variants from a sheet ([ProductSheet] layout). */
+    fun importShopProducts(shopId: String, bytes: ByteArray, fileName: String, dryRun: Boolean): ProductImportReportDto {
+        val groups = ProductSheet.group(ProductSheet.read(bytes, fileName))
+        val existing = productCol.find(eq("shopId", shopId)).toList()
+        val byId = existing.associateBy { it.id }
+        val byBarcode = buildMap {
+            existing.forEach { p ->
+                p.barcode?.let { put(it, p) }
+                p.variants.forEach { v -> v.barcode?.let { put(it, p) } }
+            }
+        }
+        val byName = existing.associateBy { ProductSheet.nameKey(it.name, it.brandName) }
+        val tally = ImportTally(dryRun)
+        groups.forEach { g ->
+            tally.row(g) {
+                val id = g.text(SheetCol.PRODUCT_ID)
+                val match = id.takeIf { it.isNotBlank() }?.let { byId[it] ?: error("product_id '$it' is not in this shop") }
+                    ?: g.barcodes.firstNotNullOfOrNull { byBarcode[it] }
+                    ?: byName[ProductSheet.nameKey(g.text(SheetCol.NAME), g.text(SheetCol.BRAND))]
+                val current = match?.toDto(includeInactiveVariants = true)
+                val merge = ProductSheet.mergeVariants(current?.variants.orEmpty(), g.variantRows)
+                val row = g.productRow
+                val name = g.text(SheetCol.NAME).ifBlank { current?.name.orEmpty() }
+                require(name.isNotBlank()) { "name is required for a new product" }
+                val price = row?.number(SheetCol.PRICE)
+                require(current != null || merge.variants.isNotEmpty() || (price ?: 0.0) > 0.0) { "price is required for '$name'" }
+                val category = g.text(SheetCol.CATEGORY).uppercase().replace(' ', '_')
+                    .takeIf { it in SHOP_CATEGORIES } ?: current?.category ?: DEFAULT_SHOP_CATEGORY
+                val dto = ProductDto(
+                    id = current?.id ?: "prod_${UUID.randomUUID().toString().replace("-", "").take(12)}",
+                    shopId = shopId,
+                    name = name,
+                    nameHi = g.text(SheetCol.NAME_HI).ifBlank { current?.nameHi.orEmpty() },
+                    category = category,
+                    unit = g.unit ?: current?.unit ?: "PIECE",
+                    barcode = g.text(SheetCol.BARCODE).ifBlank { null } ?: current?.barcode,
+                    sellingPrice = price ?: current?.sellingPrice ?: merge.variants.minOfOrNull { it.price } ?: 0.0,
+                    costPrice = g.number(SheetCol.COST_PRICE) ?: current?.costPrice ?: 0.0,
+                    stockQty = ((row?.number(SheetCol.STOCK) ?: current?.stockQty ?: 0.0) + (row?.number(SheetCol.STOCK_ADD) ?: 0.0))
+                        .coerceAtLeast(0.0),
+                    lowStockThreshold = g.number(SheetCol.LOW_STOCK_ALERT) ?: current?.lowStockThreshold ?: 0.0,
+                    voiceAlias = g.text(SheetCol.VOICE_ALIAS).ifBlank { null } ?: current?.voiceAlias,
+                    imageUrls = row?.text(SheetCol.IMAGE_URL)?.ifBlank { null }?.let { listOf(it) } ?: current?.imageUrls.orEmpty(),
+                    variants = merge.variants,
+                    brandName = g.text(SheetCol.BRAND).ifBlank { current?.brandName.orEmpty() },
+                    masterProductId = current?.masterProductId,
+                    active = row?.flag(SheetCol.ACTIVE) ?: current?.active ?: true,
+                )
+                val doc = dto.toDoc()
+                if (!dryRun) {
+                    productCol.replaceOne(eq("_id", doc.id), doc, ReplaceOptions().upsert(true))
+                    recordPriceChange(match, doc)
+                }
+                tally.count(match == null, merge)
+            }
+        }
+        return tally.report()
+    }
+
+    /** Creates or updates master catalog products; unknown category names are created. */
+    fun importMasterProducts(bytes: ByteArray, fileName: String, dryRun: Boolean): ProductImportReportDto {
+        val groups = ProductSheet.group(ProductSheet.read(bytes, fileName))
+        val existing = masterProductCol.find().toList().map { it.toDto() }
+        val byId = existing.associateBy { it.id }
+        val byBarcode = buildMap {
+            existing.forEach { p ->
+                p.barcode?.let { put(it, p) }
+                p.variants.forEach { v -> v.barcode?.let { put(it, p) } }
+            }
+        }
+        val byName = existing.associateBy { ProductSheet.nameKey(it.name, it.brandName) }
+        val categories = categoryCol.find().toList().toMutableList()
+        fun categoryId(name: String): String {
+            val key = name.trim()
+            categories.firstOrNull { it.id.equals(key, true) || it.name.equals(key, true) }?.let { return it.id }
+            if (dryRun) return key
+            val created = upsertMasterCategory(MasterCategoryUpsert(name = key))
+            categories += CategoryDoc(created.id, created.name, created.parentId)
+            return created.id
+        }
+        val tally = ImportTally(dryRun)
+        groups.forEach { g ->
+            tally.row(g) {
+                val id = g.text(SheetCol.PRODUCT_ID)
+                val current = byId[id]
+                    ?: g.barcodes.firstNotNullOfOrNull { byBarcode[it] }
+                    ?: byName[ProductSheet.nameKey(g.text(SheetCol.NAME), g.text(SheetCol.BRAND))]
+                val merge = ProductSheet.mergeVariants(current?.variants.orEmpty(), g.variantRows)
+                val row = g.productRow
+                val name = g.text(SheetCol.NAME).ifBlank { current?.name.orEmpty() }
+                require(name.isNotBlank()) { "name is required for a new product" }
+                val price = row?.number(SheetCol.PRICE)
+                val category = g.text(SheetCol.CATEGORY).ifBlank { null }?.let(::categoryId)
+                    ?: current?.categoryId ?: categoryId(DEFAULT_IMPORT_CATEGORY)
+                val brand = g.text(SheetCol.BRAND).ifBlank { current?.brandName.orEmpty() }
+                val upsert = MasterProductUpsert(
+                    id = current?.id ?: id.ifBlank { null },
+                    name = name,
+                    nameHi = g.text(SheetCol.NAME_HI).ifBlank { current?.nameHi.orEmpty() },
+                    categoryId = category,
+                    unit = g.unit ?: current?.unit ?: "PIECE",
+                    barcode = g.text(SheetCol.BARCODE).ifBlank { null } ?: current?.barcode,
+                    imageUrls = row?.text(SheetCol.IMAGE_URL)?.ifBlank { null }?.let { listOf(it) } ?: current?.imageUrls.orEmpty(),
+                    brandName = brand,
+                    companyName = current?.companyName?.ifBlank { null } ?: brand,
+                    subcategoryId = current?.subcategoryId,
+                    salePrice = price ?: current?.salePrice ?: merge.variants.minOfOrNull { it.price } ?: 0.0,
+                    cost = g.number(SheetCol.COST_PRICE) ?: current?.cost ?: 0.0,
+                    active = row?.flag(SheetCol.ACTIVE) ?: current?.active ?: true,
+                    description = g.text(SheetCol.DESCRIPTION).ifBlank { current?.description.orEmpty() },
+                    sku = row?.text(SheetCol.SKU)?.ifBlank { null } ?: current?.sku.orEmpty(),
+                    stockQty = ((row?.number(SheetCol.STOCK) ?: current?.stockQty ?: 0.0) + (row?.number(SheetCol.STOCK_ADD) ?: 0.0))
+                        .coerceAtLeast(0.0),
+                    lowStockThreshold = g.number(SheetCol.LOW_STOCK_ALERT) ?: current?.lowStockThreshold ?: 0.0,
+                    tags = current?.tags.orEmpty(),
+                    weightKg = current?.weightKg ?: 0.0,
+                    dimensions = current?.dimensions.orEmpty(),
+                    variants = merge.variants,
+                )
+                if (!dryRun) upsertMasterProduct(upsert)
+                tally.count(current == null, merge)
+            }
+        }
+        return tally.report()
+    }
+
+    fun exportShopProducts(shopId: String): ByteArray =
+        ProductSheet.write(
+            productCol.find(eq("shopId", shopId)).toList().sortedBy { it.name.lowercase() }.flatMap { p ->
+                val dto = p.toDto(includeInactiveVariants = true)
+                val product = mapOf(
+                    SheetCol.PRODUCT_ID to dto.id, SheetCol.NAME to dto.name, SheetCol.NAME_HI to dto.nameHi,
+                    SheetCol.BRAND to dto.brandName, SheetCol.CATEGORY to dto.category, SheetCol.UNIT to dto.unit,
+                    SheetCol.BARCODE to dto.barcode, SheetCol.COST_PRICE to dto.costPrice,
+                    SheetCol.LOW_STOCK_ALERT to dto.lowStockThreshold, SheetCol.VOICE_ALIAS to dto.voiceAlias,
+                )
+                sheetRows(product, dto.variants, dto.sellingPrice, dto.stockQty, dto.active)
+            },
+        )
+
+    fun exportMasterProducts(): ByteArray {
+        val categoryNames = categoryCol.find().toList().associate { it.id to it.name }
+        return ProductSheet.write(
+            masterProductCol.find().toList().sortedBy { it.name.lowercase() }.flatMap { doc ->
+                val p = doc.toDto()
+                val product = mapOf(
+                    SheetCol.PRODUCT_ID to p.id, SheetCol.NAME to p.name, SheetCol.NAME_HI to p.nameHi,
+                    SheetCol.BRAND to p.brandName, SheetCol.CATEGORY to (categoryNames[p.categoryId] ?: p.categoryId),
+                    SheetCol.UNIT to p.unit, SheetCol.BARCODE to p.barcode, SheetCol.COST_PRICE to p.cost,
+                    SheetCol.LOW_STOCK_ALERT to p.lowStockThreshold, SheetCol.DESCRIPTION to p.description,
+                )
+                sheetRows(product, p.variants, p.salePrice, p.stockQty, p.active)
+            },
+        )
+    }
+
+    /** One row per variant (bundle links written as the base label), or one product row. */
+    private fun sheetRows(
+        product: Map<String, Any?>,
+        variants: List<ProductVariantDto>,
+        price: Double,
+        stock: Double,
+        active: Boolean,
+    ): List<Map<String, Any?>> {
+        if (variants.isEmpty()) {
+            return listOf(product + mapOf(SheetCol.PRICE to price, SheetCol.STOCK to stock, SheetCol.ACTIVE to active))
+        }
+        val labels = variants.associate { it.id to it.name }
+        return variants.map { v ->
+            product + mapOf(
+                SheetCol.VARIANT_ID to v.id, SheetCol.VARIANT_LABEL to v.name, SheetCol.SELL_MODE to v.sellMode,
+                SheetCol.PACK_SIZE to v.packSize.takeIf { it > 0 }, SheetCol.PACK_UNIT to v.packUnit,
+                SheetCol.BUNDLE_COUNT to v.bundleCount.takeIf { it > 0 }, SheetCol.BUNDLE_OF to labels[v.baseVariantId],
+                SheetCol.PRICE to v.price, SheetCol.MRP to v.mrp.takeIf { it > 0 }, SheetCol.STOCK to v.stockQty,
+                SheetCol.VARIANT_BARCODE to v.barcode, SheetCol.SKU to v.sku,
+                SheetCol.MIN_QTY to v.minQty.takeIf { it > 0 }, SheetCol.STEP_QTY to v.stepQty.takeIf { it > 0 },
+                SheetCol.ACTIVE to v.active, SheetCol.IMAGE_URL to v.imageUrls.firstOrNull(),
+            )
+        }
+    }
+
+    private data class ExportLink(val shopId: String?, val expiresAt: Long)
+
+    private val exportLinks = java.util.concurrent.ConcurrentHashMap<String, ExportLink>()
+
+    /** One-time download path so mobile / browser clients can open the export without a bearer token. */
+    fun createExportLink(shopId: String?): FileLinkDto {
+        val now = System.currentTimeMillis()
+        exportLinks.entries.removeIf { it.value.expiresAt < now }
+        val token = UUID.randomUUID().toString().replace("-", "")
+        exportLinks[token] = ExportLink(shopId, now + EXPORT_LINK_TTL_MS)
+        return FileLinkDto("files/products-export/$token")
+    }
+
+    /** Null when the token is unknown, used or expired. Null shopId = master catalog export. */
+    fun consumeExportLink(token: String): ByteArray? {
+        val link = exportLinks.remove(token)?.takeIf { it.expiresAt >= System.currentTimeMillis() } ?: return null
+        return link.shopId?.let(::exportShopProducts) ?: exportMasterProducts()
     }
 
     fun shopTypes(): List<ShopTypeDto> =
@@ -3134,10 +3367,11 @@ class AppStore(
         )
     }
 
-    private fun ProductDoc.toDto() = ProductDto(
+    /** Shop devices get switched-off variants too so they survive the next sync push; customers do not. */
+    private fun ProductDoc.toDto(includeInactiveVariants: Boolean = false) = ProductDto(
         id, shopId, name, nameHi, category, unit, barcode, sellingPrice, costPrice, stockQty, lowStockThreshold, voiceAlias,
         imageUrls = assets.toUrls(imageUrls.filter { assets.isValidRef(it) }.take(4)),
-        variants = variants.filter { it.active }.map { it.toDto() },
+        variants = variants.filter { includeInactiveVariants || it.active }.map { it.toDto() },
         brandName = brandName,
         masterProductId = masterProductId,
         active = active,
@@ -3170,6 +3404,9 @@ class AppStore(
         stockQty = stockQty,
         barcode = barcode,
         active = active,
+        packSize = packSize,
+        packUnit = packUnit,
+        baseVariantId = baseVariantId,
     )
 
     /** Assigns stable ids to new variants and validates loose/bundle settings. */
@@ -3197,6 +3434,9 @@ class AppStore(
             stockQty = v.stockQty.coerceAtLeast(0.0),
             barcode = v.barcode?.trim()?.ifBlank { null },
             active = v.active,
+            packSize = if (loose) 0.0 else v.packSize.coerceAtLeast(0.0),
+            packUnit = if (loose || v.packSize <= 0.0) "" else v.packUnit.trim().uppercase(),
+            baseVariantId = if (mode == VARIANT_BUNDLE) v.baseVariantId.trim() else "",
         )
     }
 

@@ -19,7 +19,9 @@ import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.ProductVariant
+import org.bhargav.pansariwala.domain.model.SellMode
 import org.bhargav.pansariwala.util.AppConstants.LooseQty
+import kotlin.math.floor
 import kotlin.math.round
 
 /** Quantity rules for one purchasable option: a [variant], or the bare [product] when it has none. */
@@ -41,7 +43,18 @@ data class PurchaseOption(val product: Product, val variant: ProductVariant?) {
         else -> product.unit
     }
     val imageUrl: String? get() = variant?.primaryImageUrl ?: product.primaryImageUrl
-    val stock: Double get() = variant?.stockQty ?: product.stockQty
+    /** Bundles linked to a pack variant are limited by how many full bundles that pack's stock makes. */
+    val stock: Double get() {
+        val v = variant ?: return product.stockQty
+        val base = bundleBase ?: return v.stockQty
+        return floor(base.stockQty / v.bundleCount)
+    }
+    /** Pack variant a linked bundle draws its stock from. */
+    val bundleBase: ProductVariant? get() = variant
+        ?.takeIf { it.sellMode == SellMode.BUNDLE && it.bundleCount > 0 && it.baseVariantId.isNotBlank() }
+        ?.let { product.variant(it.baseVariantId) }
+    /** Only loose (weight/volume) options need the quantity sheet; packs and bundles add in one tap. */
+    val needsPicker: Boolean get() = isLoose
     val inStock: Boolean get() = stock >= minQty - LooseQty.EPSILON && stock > 0.0
 
     val step: Double get() = when {
@@ -85,10 +98,18 @@ data class PurchaseOption(val product: Product, val variant: ProductVariant?) {
 }
 
 fun Product.options(): List<PurchaseOption> =
-    if (variants.isEmpty()) listOf(PurchaseOption(this, null)) else variants.map { PurchaseOption(this, it) }
+    activeVariants.let { active ->
+        if (active.isEmpty()) listOf(PurchaseOption(this, null)) else active.map { PurchaseOption(this, it) }
+    }
 
-/** Products needing a choice (variants or a weight) open the picker instead of a one-tap "+". */
-val Product.needsPicker: Boolean get() = variants.size > 1 || options().first().isLoose
+/**
+ * Product-level add (scan of the product barcode, voice) is ambiguous when it has several options,
+ * or needs an amount when its only option is loose.
+ */
+val Product.needsPicker: Boolean get() = options().let { it.size > 1 || it.first().needsPicker }
+
+/** One list card per sellable option: a product with variants becomes one entry per variant. */
+fun List<Product>.toOptionEntries(): List<PurchaseOption> = flatMap { it.options() }
 
 /** Process-wide cart; restored from [preferences] at start and saved (debounced) on every change. */
 @OptIn(FlowPreview::class)

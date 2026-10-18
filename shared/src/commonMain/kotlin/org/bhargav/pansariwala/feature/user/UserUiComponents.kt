@@ -460,6 +460,7 @@ fun QuantityStepper(
     modifier: Modifier = Modifier,
     decrementEnabled: Boolean = true,
     incrementEnabled: Boolean = true,
+    onLabelClick: (() -> Unit)? = null,
 ) {
     Surface(
         modifier = modifier,
@@ -478,7 +479,8 @@ fun QuantityStepper(
         }
         Text(
             text = label,
-            modifier = Modifier.widthIn(min = 28.dp),
+            modifier = Modifier.widthIn(min = 28.dp)
+                .then(if (onLabelClick != null) Modifier.clickable(onClick = onLabelClick) else Modifier),
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -36,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +47,7 @@ import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductStatusFilter
+import org.bhargav.pansariwala.feature.catalog.ProductSheetImportDialog
 import org.bhargav.pansariwala.feature.printer.PrintAction
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.i18n.localizedLabel
@@ -74,6 +77,7 @@ import pansariwala.shared.generated.resources.inv_status_inactive
 import pansariwala.shared.generated.resources.print_action_inventory
 import pansariwala.shared.generated.resources.print_action_labels_all
 import pansariwala.shared.generated.resources.print_action_low_stock
+import pansariwala.shared.generated.resources.sheet_import_action
 
 @Composable
 fun InventoryListScreen(
@@ -83,9 +87,29 @@ fun InventoryListScreen(
     onAddCustomProduct: () -> Unit,
     onAddFromMaster: () -> Unit,
     viewModel: InventoryListViewModel = koinViewModel(),
+    sheetViewModel: ShopSheetImportViewModel = koinViewModel(),
 ) {
     LaunchedEffect(lowStockOnly) { viewModel.start(lowStockOnly) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val sheetState by sheetViewModel.state.collectAsStateWithLifecycle()
+    val sheetUrl by sheetViewModel.openUrl.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
+    LaunchedEffect(sheetUrl) {
+        sheetUrl?.let { url ->
+            runCatching { uriHandler.openUri(url) }
+            sheetViewModel.urlOpened()
+        }
+    }
+    sheetState?.let {
+        ProductSheetImportDialog(
+            state = it,
+            onDownloadSample = sheetViewModel::downloadSample,
+            onExport = sheetViewModel::export,
+            onPickFile = sheetViewModel::pickFile,
+            onApply = sheetViewModel::apply,
+            onDismiss = sheetViewModel::dismiss,
+        )
+    }
     val filter = state.filter
     val products = state.products
 
@@ -98,6 +122,9 @@ fun InventoryListScreen(
         actions = {
             IconButton(onClick = onAddCustomProduct) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(Res.string.inv_add_custom))
+            }
+            IconButton(onClick = sheetViewModel::open) {
+                Icon(Icons.Filled.UploadFile, contentDescription = stringResource(Res.string.sheet_import_action))
             }
             PrintMenuButton(
                 actions = remember(products, filter.lowStockOnly) {

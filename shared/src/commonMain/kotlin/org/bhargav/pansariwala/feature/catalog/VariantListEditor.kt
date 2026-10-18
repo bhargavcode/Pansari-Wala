@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,12 +44,18 @@ import org.bhargav.pansariwala.domain.model.SellMode
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.media.NetworkImage
 import org.bhargav.pansariwala.util.asQuantity
+import org.bhargav.pansariwala.util.generateId
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.master_add_variant
 import pansariwala.shared.generated.resources.master_remove_variant
 import pansariwala.shared.generated.resources.master_sku
 import pansariwala.shared.generated.resources.master_variants
+import pansariwala.shared.generated.resources.variant_editor_active
+import pansariwala.shared.generated.resources.variant_editor_bundle_base
+import pansariwala.shared.generated.resources.variant_editor_bundle_base_none
+import pansariwala.shared.generated.resources.variant_editor_pack_size
+import pansariwala.shared.generated.resources.variant_editor_pack_unit
 import pansariwala.shared.generated.resources.variant_editor_attributes
 import pansariwala.shared.generated.resources.variant_editor_barcode
 import pansariwala.shared.generated.resources.variant_editor_base_unit
@@ -70,6 +77,7 @@ import pansariwala.shared.generated.resources.variant_sell_loose
 import pansariwala.shared.generated.resources.variant_sell_pack
 
 private val LOOSE_UNITS = listOf(ProductUnit.KG, ProductUnit.LITRE, ProductUnit.GRAM)
+private val PACK_UNITS = listOf(ProductUnit.GRAM, ProductUnit.KG, ProductUnit.LITRE, ProductUnit.PIECE)
 
 /**
  * Edits a product's sellable options (Master admin and shop inventory). [onPickImage] uploads an
@@ -101,9 +109,10 @@ fun VariantListEditor(
                     { onChange(variants.toMutableList().also { it.add(index - 1, it.removeAt(index)) }) }
                 } else null,
                 onPickImage = onPickImage,
+                siblings = variants.filterIndexed { i, _ -> i != index },
             )
         }
-        TextButton(onClick = { onChange(variants + ProductVariantDto(name = "")) }) {
+        TextButton(onClick = { onChange(variants + ProductVariantDto(name = "", id = generateId("v"))) }) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(Modifier.width(4.dp))
             Text(stringResource(Res.string.master_add_variant))
@@ -111,15 +120,17 @@ fun VariantListEditor(
     }
 }
 
+/** One option's fields; also used alone by the POS "Add variant" dialog. [siblings] feed the bundle stock link. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun VariantCard(
+internal fun VariantCard(
     slot: String,
     variant: ProductVariantDto,
     onChange: (ProductVariantDto) -> Unit,
-    onRemove: () -> Unit,
+    onRemove: (() -> Unit)?,
     onMoveUp: (() -> Unit)?,
     onPickImage: (suspend () -> String?)?,
+    siblings: List<ProductVariantDto> = emptyList(),
 ) {
     val mode = SellMode.fromName(variant.sellMode)
     val scope = rememberCoroutineScope()
@@ -137,6 +148,10 @@ private fun VariantCard(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(Res.string.variant_editor_active), modifier = Modifier.weight(1f))
+                Switch(checked = variant.active, onCheckedChange = { onChange(variant.copy(active = it)) })
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SellMode.entries.forEach { option ->
                     FilterChip(
@@ -147,6 +162,9 @@ private fun VariantCard(
                                     sellMode = option.name,
                                     baseUnit = if (option == SellMode.LOOSE) variant.baseUnit.ifBlank { ProductUnit.KG.name } else "",
                                     bundleCount = if (option == SellMode.BUNDLE) variant.bundleCount.coerceAtLeast(2) else 0,
+                                    packSize = if (option == SellMode.LOOSE) 0.0 else variant.packSize,
+                                    packUnit = if (option == SellMode.LOOSE) "" else variant.packUnit,
+                                    baseVariantId = if (option == SellMode.BUNDLE) variant.baseVariantId else "",
                                 ),
                             )
                         },
@@ -172,6 +190,41 @@ private fun VariantCard(
                 if (mode == SellMode.BUNDLE) {
                     NumberField("$slot-bundle", variant.bundleCount.toDouble(), stringResource(Res.string.variant_editor_bundle_count)) {
                         onChange(variant.copy(bundleCount = it.toInt()))
+                    }
+                }
+                if (mode != SellMode.LOOSE) {
+                    NumberField("$slot-pack", variant.packSize, stringResource(Res.string.variant_editor_pack_size)) {
+                        onChange(variant.copy(packSize = it, packUnit = variant.packUnit.ifBlank { ProductUnit.GRAM.name }))
+                    }
+                }
+            }
+            if (mode != SellMode.LOOSE && variant.packSize > 0.0) {
+                Text(stringResource(Res.string.variant_editor_pack_unit), style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PACK_UNITS.forEach { unit ->
+                        FilterChip(
+                            selected = variant.packUnit == unit.name,
+                            onClick = { onChange(variant.copy(packUnit = unit.name)) },
+                            label = { Text(unit.localizedLabel()) },
+                        )
+                    }
+                }
+            }
+            val bundleBases = siblings.filter { SellMode.fromName(it.sellMode) == SellMode.PACK && it.id.isNotBlank() }
+            if (mode == SellMode.BUNDLE && bundleBases.isNotEmpty()) {
+                Text(stringResource(Res.string.variant_editor_bundle_base), style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = variant.baseVariantId.isBlank(),
+                        onClick = { onChange(variant.copy(baseVariantId = "")) },
+                        label = { Text(stringResource(Res.string.variant_editor_bundle_base_none)) },
+                    )
+                    bundleBases.forEach { base ->
+                        FilterChip(
+                            selected = variant.baseVariantId == base.id,
+                            onClick = { onChange(variant.copy(baseVariantId = base.id)) },
+                            label = { Text(base.name) },
+                        )
                     }
                 }
             }
@@ -260,8 +313,10 @@ private fun VariantCard(
                 if (onMoveUp != null) {
                     TextButton(onClick = onMoveUp) { Text(stringResource(Res.string.variant_editor_move_up)) }
                 }
-                TextButton(onClick = onRemove) {
-                    Text(stringResource(Res.string.master_remove_variant), color = MaterialTheme.colorScheme.error)
+                if (onRemove != null) {
+                    TextButton(onClick = onRemove) {
+                        Text(stringResource(Res.string.master_remove_variant), color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

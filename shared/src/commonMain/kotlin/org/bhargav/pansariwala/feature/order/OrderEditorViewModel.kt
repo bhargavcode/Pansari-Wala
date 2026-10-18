@@ -23,11 +23,16 @@ import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.ProductVariant
+import org.bhargav.pansariwala.domain.model.SellMode
+import org.bhargav.pansariwala.api.ProductVariantDto
+import org.bhargav.pansariwala.api.toModel
 import org.bhargav.pansariwala.feature.user.CartStore
 import org.bhargav.pansariwala.feature.user.PurchaseOption
 import org.bhargav.pansariwala.feature.user.VariantPickerState
 import org.bhargav.pansariwala.feature.user.needsPicker
+import org.bhargav.pansariwala.feature.user.options
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
@@ -40,6 +45,7 @@ import org.bhargav.pansariwala.voice.SpeechEvent
 import org.bhargav.pansariwala.voice.SpeechToText
 import org.bhargav.pansariwala.voice.VoiceIntentParser
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.variant_saved
 import pansariwala.shared.generated.resources.error_mic_permission
 import pansariwala.shared.generated.resources.error_order_empty
 import pansariwala.shared.generated.resources.error_shop_upi_missing
@@ -80,6 +86,8 @@ data class OrderEditorUiState(
     val catalog: List<Product> = emptyList(),
     val cart: List<CartLine> = emptyList(),
     val variantPicker: VariantPickerState.Request? = null,
+    /** Product whose "Add variant" dialog is open (long-press on a POS card). */
+    val addVariantFor: Product? = null,
     val saved: Boolean = false,
     val showPaymentPicker: Boolean = false,
     val showUpiQr: Boolean = false,
@@ -433,11 +441,67 @@ class OrderEditorViewModel(
     }
 
     fun addProduct(product: Product) {
-        if (product.needsPicker) openPicker(product) else addToCart(product, 1.0)
+        if (product.needsPicker) openPicker(product) else addOption(product.options().first())
     }
 
-    fun openPicker(product: Product, editKey: String? = null) {
-        _uiState.update { it.copy(variantPicker = VariantPickerState.Request(product, editKey)) }
+    /** One variant card: packs add one, loose options open the amount sheet. */
+    fun addVariant(option: PurchaseOption) {
+        if (option.needsPicker) openPicker(option.product, optionKey = option.key) else addOption(option)
+    }
+
+    fun openPicker(product: Product, editKey: String? = null, optionKey: String? = null) {
+        _uiState.update { it.copy(variantPicker = VariantPickerState.Request(product, editKey, optionKey)) }
+    }
+
+    fun startAddVariant(product: Product) = _uiState.update { it.copy(addVariantFor = product) }
+
+    fun dismissAddVariant() = _uiState.update { it.copy(addVariantFor = null) }
+
+    /**
+     * Adds [draft] to the product. A product without variants first turns its current pack into a
+     * variant labelled [currentLabel], so its price, stock and barcode stay sellable.
+     */
+    fun saveVariant(product: Product, draft: ProductVariantDto, currentLabel: String) {
+        val created = draft.copy(name = draft.name.trim(), id = generateId("v")).toModel()
+        val existing = product.variants.ifEmpty {
+            listOf(
+                ProductVariant(
+                    id = generateId("v"),
+                    label = currentLabel.trim(),
+                    sellMode = if (product.isLooseUnit) SellMode.LOOSE else SellMode.PACK,
+                    price = product.sellingPrice,
+                    baseUnit = if (product.isLooseUnit) product.unit else ProductUnit.PIECE,
+                    stockQty = product.stockQty,
+                    barcode = product.barcode,
+                ),
+            )
+        }
+        val updated = product.copy(variants = existing + created)
+        viewModelScope.launch {
+            shopRepository.upsertProduct(updated.copy(offer = null))
+            _uiState.update { state ->
+                state.copy(
+                    addVariantFor = null,
+                    catalog = state.catalog.map { if (it.id == product.id) updated else it },
+                    cart = state.cart.map { if (it.product.id == product.id) it.copy(product = updated) else it },
+                )
+            }
+            showScanMessage(UiText.res(Res.string.variant_saved, product.name))
+        }
+    }
+
+    fun setQuantity(key: String, quantity: Double) {
+        _uiState.update { state ->
+            state.copy(
+                cart = state.cart.mapNotNull { line ->
+                    when {
+                        line.key != key -> line
+                        quantity <= AppConstants.LooseQty.EPSILON -> null
+                        else -> line.copy(quantity = line.option.normalize(quantity))
+                    }
+                },
+            )
+        }
     }
 
     fun dismissPicker() {
@@ -607,19 +671,28 @@ class OrderEditorViewModel(
                 continue
             }
             val product = match.product
-            val qty = ProductFuzzyMatcher.convertQuantity(line.quantity, line.unit, product.unit)
-            val alreadyInCart = _uiState.value.cart
-                .firstOrNull { it.product.id == product.id }
-                ?.quantity
-                ?: 0.0
-            val available = product.stockQty - alreadyInCart
+            val variant = ProductFuzzyMatcher.findVariant(line.productQuery, line.quantity, line.unit, product)
+            val option = variant?.let { PurchaseOption(product, it) } ?: product.options().singleOrNull()
+            if (option == null) {
+                openPicker(product)
+                addedAny = true
+                continue
+            }
+            val qty = when {
+                option.isLoose -> ProductFuzzyMatcher.convertQuantity(line.quantity, line.unit, option.quantityUnit)
+                option.variant == null -> ProductFuzzyMatcher.convertQuantity(line.quantity, line.unit, product.unit)
+                line.unit == null || line.unit == ProductUnit.PIECE || line.unit == ProductUnit.PACKET -> line.quantity
+                else -> 1.0
+            }
+            val alreadyInCart = _uiState.value.cart.firstOrNull { it.key == option.key }?.quantity ?: 0.0
+            val available = option.stock - alreadyInCart
             if (available <= 0.0) {
                 val label = product.nameHi.ifBlank { product.name }
                 messages += UiText.res(Res.string.voice_out_of_stock, label)
                 continue
             }
             val addQty = qty.coerceAtMost(available)
-            addToCart(product, addQty)
+            addToCart(option, addQty)
             addedAny = true
             if (addQty < qty) {
                 val label = product.nameHi.ifBlank { product.name }
@@ -637,17 +710,17 @@ class OrderEditorViewModel(
         }
     }
 
-    private fun addToCart(product: Product, quantity: Double) {
+    private fun addToCart(option: PurchaseOption, quantity: Double) {
         if (quantity <= 0.0) return
         _uiState.update { state ->
-            val key = CartStore.lineKey(product.id, null)
+            val key = option.key
             val existing = state.cart.firstOrNull { it.key == key }
             val cart = if (existing != null) {
                 state.cart.map {
                     if (it.key == key) it.copy(quantity = it.quantity + quantity) else it
                 }
             } else {
-                state.cart + CartLine(product, quantity)
+                state.cart + CartLine(option.product, quantity, option.variant)
             }
             state.copy(cart = cart, error = null)
         }
@@ -707,6 +780,8 @@ class OrderEditorViewModel(
         scanFeedback(state.scannerSettings.beepOnScan, state.scannerSettings.vibrateOnScan)
         if (option.variant == null && option.product.needsPicker) {
             openPicker(option.product)
+        } else if (option.needsPicker) {
+            openPicker(option.product, optionKey = option.key)
         } else {
             addOption(option)
             showScanMessage(UiText.res(Res.string.scanner_added, option.product.name))
@@ -722,7 +797,7 @@ class OrderEditorViewModel(
                     product.barcode?.trim()?.takeIf(String::isNotEmpty)?.let { code ->
                         if (code !in this) put(code, PurchaseOption(product, null))
                     }
-                    product.variants.forEach { variant ->
+                    product.activeVariants.forEach { variant ->
                         variant.barcode?.trim()?.takeIf(String::isNotEmpty)?.let { put(it, PurchaseOption(product, variant)) }
                     }
                 }

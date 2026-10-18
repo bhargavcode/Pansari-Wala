@@ -27,9 +27,15 @@ import org.bhargav.pansariwala.media.NetworkImage
 import org.bhargav.pansariwala.feature.user.CartStore
 import org.bhargav.pansariwala.feature.user.LineOfferPrice
 import org.bhargav.pansariwala.feature.user.OfferPrice
-import org.bhargav.pansariwala.feature.user.ProductPriceSummary
+import org.bhargav.pansariwala.feature.user.OptionPriceSummary
+import org.bhargav.pansariwala.feature.user.PackCountStepper
+import org.bhargav.pansariwala.feature.user.PurchaseOption
 import org.bhargav.pansariwala.feature.user.VariantPickerHost
+import org.bhargav.pansariwala.feature.user.displayName
 import org.bhargav.pansariwala.feature.user.needsPicker
+import org.bhargav.pansariwala.feature.user.options
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import org.bhargav.pansariwala.feature.user.priceLabel
 import org.bhargav.pansariwala.feature.user.quantityLabel
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -166,6 +172,13 @@ fun OrderEditorScreen(
             onDismiss = viewModel::dismissPicker,
         )
     }
+    state.addVariantFor?.let { product ->
+        PosAddVariantDialog(
+            product = product,
+            onSave = { draft, currentLabel -> viewModel.saveVariant(product, draft, currentLabel) },
+            onDismiss = viewModel::dismissAddVariant,
+        )
+    }
 
     RequestMicrophonePermission(
         trigger = state.requestMicPermission,
@@ -253,61 +266,68 @@ private fun PortraitOrderLayout(
     }
 }
 
+/** Every variant of [product] is its own card; long-press a card to add another variant. */
 @Composable
 private fun PosCatalogRow(product: Product, productLines: List<CartLine>, viewModel: OrderEditorViewModel) {
+    Column(Modifier.fillMaxWidth()) {
+        product.options().forEach { option ->
+            PosOptionRow(option, productLines.firstOrNull { it.key == option.key }, viewModel)
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PosOptionRow(option: PurchaseOption, line: CartLine?, viewModel: OrderEditorViewModel) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth()
+            .combinedClickable(
+                onClick = { if (line == null) viewModel.addVariant(option) },
+                onLongClick = { viewModel.startAddVariant(option.product) },
+            )
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         NetworkImage(
-            url = product.primaryImageUrl,
-            contentDescription = product.name,
+            url = option.imageUrl,
+            contentDescription = option.displayName,
             modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
         )
         Column(Modifier.weight(1f)) {
-            Text(product.name, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            ProductStockSummary(product)
+            Text(option.displayName, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            OptionStockSummary(option)
         }
         when {
-            !product.needsPicker && productLines.isNotEmpty() -> {
-                val line = productLines.first()
-                QuantityStepper(
-                    label = line.quantity.asQuantity(),
-                    onIncrement = { viewModel.changeQuantity(line.key, 1) },
-                    onDecrement = { viewModel.changeQuantity(line.key, -1) },
-                )
+            option.needsPicker && line != null -> OutlinedButton(onClick = { viewModel.openPicker(option.product, line.key) }) {
+                Text(option.quantityLabel(line.quantity), maxLines = 1)
             }
-            !product.needsPicker -> OutlinedButton(onClick = { viewModel.addProduct(product) }) {
-                Text(stringResource(Res.string.action_add))
-            }
-            productLines.size == 1 -> OutlinedButton(onClick = { viewModel.openPicker(product, productLines.first().key) }) {
-                val line = productLines.first()
-                Text(line.option.quantityLabel(line.quantity), maxLines = 1)
-            }
-            productLines.isNotEmpty() -> OutlinedButton(onClick = { viewModel.openPicker(product) }) {
-                Text(stringResource(Res.string.action_edit), maxLines = 1)
-            }
-            else -> OutlinedButton(onClick = { viewModel.openPicker(product) }) {
+            option.needsPicker -> OutlinedButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
                 Text(stringResource(Res.string.pos_choose_option), maxLines = 1)
+            }
+            line != null -> PackCountStepper(
+                option = option,
+                quantity = line.quantity,
+                onSet = { viewModel.setQuantity(line.key, it) },
+                onIncrement = { viewModel.changeQuantity(line.key, 1) },
+                onDecrement = { viewModel.changeQuantity(line.key, -1) },
+            )
+            else -> OutlinedButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
+                Text(stringResource(Res.string.action_add))
             }
         }
     }
 }
 
 @Composable
-private fun ProductStockSummary(product: Product) {
-    if (product.hasVariants) {
-        ProductPriceSummary(product)
-        return
-    }
-    if (product.hasOffer) ProductPriceSummary(product)
+private fun OptionStockSummary(option: PurchaseOption) {
+    OptionPriceSummary(option)
     Text(
         text = stringResource(
             Res.string.in_stock,
-            product.sellingPrice.asMoney(),
-            product.stockQty.asQuantity(),
-            product.unit.localizedLabel(),
+            option.unitPrice.asMoney(),
+            option.stock.asQuantity(),
+            option.quantityUnit.localizedLabel(),
         ),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -567,12 +587,12 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
         )
         Spacer(Modifier.width(8.dp))
         Column(
-            modifier = Modifier.weight(1f).clickable(enabled = line.product.needsPicker) {
+            modifier = Modifier.weight(1f).clickable(enabled = line.option.needsPicker) {
                 viewModel.openPicker(line.product, line.key)
             },
         ) {
             Text(
-                text = line.variant?.let { "${line.product.name} · ${it.label}" } ?: line.product.name,
+                text = line.option.displayName,
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (line.lockedUnitPrice == null) {
@@ -586,16 +606,26 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
             }
             LineOfferPrice(line.lineTotal, line.baseLineTotal)
         }
-        TextButton(onClick = {
-            viewModel.changeQuantity(line.key, -1)
-        }) { Text("−") }
-        Text(
-            text = line.option.quantityLabel(line.quantity),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        TextButton(onClick = {
-            viewModel.changeQuantity(line.key, 1)
-        }) { Text("+") }
+        if (line.option.isLoose) {
+            TextButton(onClick = {
+                viewModel.changeQuantity(line.key, -1)
+            }) { Text("−") }
+            Text(
+                text = line.option.quantityLabel(line.quantity),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            TextButton(onClick = {
+                viewModel.changeQuantity(line.key, 1)
+            }) { Text("+") }
+        } else {
+            PackCountStepper(
+                option = line.option,
+                quantity = line.quantity,
+                onSet = { viewModel.setQuantity(line.key, it) },
+                onIncrement = { viewModel.changeQuantity(line.key, 1) },
+                onDecrement = { viewModel.changeQuantity(line.key, -1) },
+            )
+        }
         TextButton(onClick = { viewModel.removeLine(line.key) }) {
             Text(stringResource(Res.string.action_remove))
         }
@@ -634,26 +664,10 @@ private fun SearchOrSuggestedItems(
             VoiceArea(state, viewModel)
         }
 
+        val linesByProduct = remember(state.cart) { state.cart.groupBy { it.product.id } }
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             items(state.filteredCatalog, key = { it.id }) { product ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    NetworkImage(
-                        url = product.primaryImageUrl,
-                        contentDescription = product.name,
-                        modifier = Modifier.size(48.dp).clip(MaterialTheme.shapes.small),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(product.name, style = MaterialTheme.typography.bodyMedium)
-                        ProductStockSummary(product)
-                    }
-                    OutlinedButton(onClick = { viewModel.addProduct(product) }) {
-                        Text(stringResource(Res.string.action_add))
-                    }
-                }
+                PosCatalogRow(product, linesByProduct[product.id].orEmpty(), viewModel)
                 HorizontalDivider()
             }
         }

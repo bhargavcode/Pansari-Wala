@@ -584,4 +584,34 @@ class KtorPansariApi(
             )
         }.body()
     }
+
+    override suspend fun importShopProducts(fileName: String, bytes: ByteArray, dryRun: Boolean): ProductImportReportDto =
+        client.post("shop/products/import") {
+            parameter("dryRun", dryRun.toString())
+            timeout {
+                requestTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+                socketTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+            }
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            "file",
+                            bytes,
+                            Headers.build {
+                                append(HttpHeaders.ContentType, AppConstants.ProductSheet.MIME_XLSX)
+                                append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                            },
+                        )
+                    },
+                ),
+            )
+        }.body()
+
+    override suspend fun shopProductsExportUrl(): String =
+        absoluteUrl(client.post("shop/products/export-link").body<FileLinkDto>().path)
+
+    override val productTemplateUrl: String get() = absoluteUrl(AppConstants.ProductSheet.TEMPLATE_PATH)
+
+    private fun absoluteUrl(path: String): String = baseUrl.trimEnd('/') + "/" + path.trimStart('/')
 }

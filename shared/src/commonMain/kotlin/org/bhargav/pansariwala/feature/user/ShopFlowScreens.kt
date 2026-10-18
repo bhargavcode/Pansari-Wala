@@ -291,6 +291,7 @@ fun CartScreen(
                     onEdit = { picker.open(line.product, line.key) },
                     onIncrement = { viewModel.increment(line.key) },
                     onDecrement = { viewModel.decrement(line.key) },
+                    onSetQuantity = { viewModel.setQuantity(line.key, it) },
                 )
                 HorizontalDivider()
             }

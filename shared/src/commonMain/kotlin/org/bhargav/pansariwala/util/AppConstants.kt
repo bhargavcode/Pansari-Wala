@@ -28,6 +28,21 @@ object AppConstants {
     /** One-tap stock in/out steps on the product detail screen. */
     val INVENTORY_QUICK_STEPS: List<Double> = listOf(1.0, 5.0, 10.0, 25.0)
 
+    /** Product / inventory spreadsheet import-export. */
+    object ProductSheet {
+        const val TEMPLATE_PATH = "files/product-template.xlsx"
+        const val MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        /** Pickers accept these; the server reads .xlsx, .xls and .csv. */
+        val PICKER_MIME_TYPES: List<String> = listOf(
+            MIME_XLSX,
+            "application/vnd.ms-excel",
+            "text/csv",
+            "text/comma-separated-values",
+            "application/octet-stream",
+        )
+        const val PICKER_EXTENSIONS = ".xlsx,.xls,.csv"
+    }
+
     /** Loose (khula) quantity rules when a product/variant doesn't define its own. */
     object LooseQty {
         /** kg / litre step (50 g / 50 ml). */

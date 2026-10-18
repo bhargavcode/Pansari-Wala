@@ -25,6 +25,7 @@ actual val platformModule: Module = module {
     single<OtpAppVerifier> { AndroidOtpAppVerifier(androidContext()) }
     single<PhoneAuthGateway> { ServerPhoneAuthGateway(get(), get()) }
     single<ImagePicker> { AndroidImagePicker() }
+    single<org.bhargav.pansariwala.platform.DocumentPicker> { org.bhargav.pansariwala.platform.AndroidDocumentPicker() }
     single<RazorpayCheckout> { AndroidRazorpayCheckout() }
     single {
         PrinterManager(

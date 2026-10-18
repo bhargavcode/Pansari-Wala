@@ -229,7 +229,27 @@ data class ProductVariantDto(
     val stockQty: Double = 0.0,
     val barcode: String? = null,
     val active: Boolean = true,
+    val packSize: Double = 0.0,
+    val packUnit: String = "",
+    val baseVariantId: String = "",
 )
+
+@Serializable
+data class ProductImportErrorDto(val row: Int, val message: String)
+
+/** Mirrors the server import report; [dryRun] = checked only, nothing saved. */
+@Serializable
+data class ProductImportReportDto(
+    val dryRun: Boolean,
+    val productsCreated: Int = 0,
+    val productsUpdated: Int = 0,
+    val variantsCreated: Int = 0,
+    val variantsUpdated: Int = 0,
+    val errors: List<ProductImportErrorDto> = emptyList(),
+)
+
+@Serializable
+data class FileLinkDto(val path: String)
 
 @Serializable
 data class ProductDetailDto(
@@ -791,6 +811,10 @@ fun ProductVariantDto.toModel() = ProductVariant(
     stockQty = stockQty,
     sku = sku,
     barcode = barcode,
+    active = active,
+    packSize = packSize,
+    packUnit = if (packSize > 0.0) ProductUnit.fromName(packUnit) else ProductUnit.PIECE,
+    baseVariantId = baseVariantId,
 )
 
 fun ProductVariant.toDto() = ProductVariantDto(
@@ -810,6 +834,10 @@ fun ProductVariant.toDto() = ProductVariantDto(
     imageUrls = imageUrls,
     stockQty = stockQty,
     barcode = barcode,
+    active = active,
+    packSize = packSize,
+    packUnit = if (packSize > 0.0) packUnit.name else "",
+    baseVariantId = baseVariantId,
 )
 
 fun Product.toDto() = ProductDto(

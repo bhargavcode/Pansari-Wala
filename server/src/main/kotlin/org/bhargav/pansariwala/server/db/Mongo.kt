@@ -243,6 +243,11 @@ data class ProductVariantDoc(
     val stockQty: Double = 0.0,
     val barcode: String? = null,
     val active: Boolean = true,
+    /** Net content of one PACK/BUNDLE unit (e.g. 100 + "GRAM"); informational, not a sell quantity. */
+    val packSize: Double = 0.0,
+    val packUnit: String = "",
+    /** For BUNDLE: the PACK variant whose stock drops by [bundleCount] per bundle sold. */
+    val baseVariantId: String = "",
 )
 
 @Serializable
@@ -519,7 +524,53 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     bestEffortSeed("shop types") { ensureShopTypes(db) }
     bestEffortSeed("prototype shops") { ensurePrototypeShops(db) }
     bestEffortSeed("subscription plans") { ensureSubscriptionPlans(db) }
+    bestEffortSeed("pack variants") { ensurePackVariants(db) }
     return MongoApp(client, db)
+}
+
+private data class PackPattern(val regex: Regex, val unit: String, val factor: Double, val short: String)
+
+private val PACK_PATTERNS = listOf(
+    PackPattern(Regex("""(\d+(?:\.\d+)?)\s*(kg|kilo)s?\b""", RegexOption.IGNORE_CASE), "KG", 1.0, "kg"),
+    PackPattern(Regex("""(\d+(?:\.\d+)?)\s*(g|gm|gms|gram|grams)\b""", RegexOption.IGNORE_CASE), "GRAM", 1.0, "g"),
+    PackPattern(Regex("""(\d+(?:\.\d+)?)\s*(l|ltr|litre|liter)s?\b""", RegexOption.IGNORE_CASE), "LITRE", 1.0, "ltr"),
+    PackPattern(Regex("""(\d+(?:\.\d+)?)\s*ml\b""", RegexOption.IGNORE_CASE), "LITRE", 0.001, "ml"),
+)
+
+/**
+ * Shop products copied from the master catalog as "Parle-G 100g" with unit KG were sold as loose
+ * weight. Turns each into unit PIECE with one PACK variant carrying the pack size, price, stock and
+ * barcode. Only master-linked, variant-less items whose name has a pack size are touched; idempotent.
+ */
+private fun ensurePackVariants(db: MongoDatabase) {
+    val products = db.getCollection<ProductDoc>("products")
+    val candidates = products.find(
+        and(
+            com.mongodb.client.model.Filters.`in`("unit", listOf("KG", "GRAM", "LITRE")),
+            ne("masterProductId", null),
+            or(exists("variants", false), com.mongodb.client.model.Filters.size("variants", 0)),
+        ),
+    ).toList()
+    var changed = 0
+    candidates.forEach { product ->
+        val (pattern, match) = PACK_PATTERNS.firstNotNullOfOrNull { p -> p.regex.find(product.name)?.let { p to it } }
+            ?: return@forEach
+        val raw = match.groupValues[1].toDoubleOrNull() ?: return@forEach
+        val label = "${raw.toBigDecimal().stripTrailingZeros().toPlainString()} ${pattern.short}"
+        val variant = ProductVariantDoc(
+            name = label,
+            price = product.sellingPrice,
+            id = "v_${product.id}",
+            sellMode = "PACK",
+            stockQty = product.stockQty,
+            barcode = product.barcode,
+            packSize = raw * pattern.factor,
+            packUnit = pattern.unit,
+        )
+        products.replaceOne(eq("_id", product.id), product.copy(unit = "PIECE", variants = listOf(variant)))
+        changed++
+    }
+    if (changed > 0) println("INFO: converted $changed weight-in-name shop products to pack variants")
 }
 
 /** Demo/backfill seeding must never keep the API from starting. */

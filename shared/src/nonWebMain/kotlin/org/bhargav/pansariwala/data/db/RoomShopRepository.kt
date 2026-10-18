@@ -155,11 +155,23 @@ class RoomShopRepository(
         // Restore stock for the previous version (edits), then deduct for the new one
         // unless the order is cancelled (stock already restored / should not deduct).
         val previousItems = orderDao.getItems(order.id)
-        previousItems.forEach { productDao.adjustStock(it.productId, it.quantity) }
+        previousItems.forEach { adjustItemStock(it.productId, it.variantId, it.quantity) }
         orderDao.saveOrderGraph(order.toEntity(), order.items.map { it.toEntity(order.id) })
         if (order.status != OrderStatus.CANCELLED) {
-            order.items.forEach { productDao.adjustStock(it.productId, -it.quantity) }
+            order.items.forEach { adjustItemStock(it.productId, it.variantId, -it.quantity) }
         }
+    }
+
+    /** Variant lines (incl. linked bundles) update the variant JSON; plain lines the product stock. */
+    private suspend fun adjustItemStock(productId: String, variantId: String?, delta: Double) {
+        val entity = variantId?.takeIf { it.isNotBlank() }?.let { productDao.findById(productId) }
+        val product = entity?.toDomain()
+        if (product?.variant(variantId) == null) {
+            productDao.adjustStock(productId, delta)
+            return
+        }
+        val updated = product.stockChanged(variantId, delta)
+        productDao.setVariantsJson(productId, variantJson.encodeToString(updated.variants.map { it.toDto() }))
     }
 
     override suspend fun pendingOfflineOrders(shopId: String): List<PendingOfflineOrder> =

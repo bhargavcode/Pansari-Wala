@@ -119,21 +119,36 @@ internal fun CatalogProductRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val outOfStock = product.options().none { it.inStock }
+    Column(modifier.fillMaxWidth()) {
+        product.options().forEach { option ->
+            CatalogOptionRow(option = option, lines = lines, cart = cart, picker = picker, onClick = onClick)
+        }
+    }
+}
+
+/** One variant (or a variant-less product) as its own list card. */
+@Composable
+private fun CatalogOptionRow(
+    option: PurchaseOption,
+    lines: List<CartStore.Line>,
+    cart: CartStore,
+    picker: VariantPickerState,
+    onClick: () -> Unit,
+) {
     Row(
-        modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         NetworkImage(
-            url = product.primaryImageUrl,
+            url = option.imageUrl,
             modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
-            contentDescription = product.name,
+            contentDescription = option.displayName,
         )
         Column(Modifier.weight(1f)) {
-            Text(product.name, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            ProductPriceSummary(product)
-            if (outOfStock) {
+            Text(option.displayName, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            OptionPriceSummary(option)
+            if (!option.inStock) {
                 Text(
                     stringResource(Res.string.catalog_out_of_stock),
                     style = MaterialTheme.typography.labelSmall,
@@ -141,7 +156,7 @@ internal fun CatalogProductRow(
                 )
             }
         }
-        ProductCartAction(product = product, lines = lines, cart = cart, picker = picker)
+        OptionCartAction(option = option, lines = lines, cart = cart, picker = picker)
     }
 }
 
@@ -449,12 +464,7 @@ private fun ProductDetailContent(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     options.forEach { option ->
                         val inCart = productLines.firstOrNull { it.key == option.key }
-                        Row(
-                            Modifier.fillMaxWidth().clickable(enabled = option.inStock) {
-                                picker.open(product, inCart?.key)
-                            }.padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             NetworkImage(
                                 url = option.imageUrl,
                                 modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)),
@@ -462,6 +472,7 @@ private fun ProductDetailContent(
                             )
                             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                 Text(option.variant?.label.orEmpty(), fontWeight = FontWeight.Medium)
+                                OptionPriceSummary(option)
                                 if (inCart != null) {
                                     Text(
                                         stringResource(Res.string.variant_in_cart, option.quantityLabel(inCart.quantity)),
@@ -476,21 +487,24 @@ private fun ProductDetailContent(
                                     )
                                 }
                             }
-                            option.OfferPrice()
+                            OptionCartAction(option = option, lines = lines, cart = cart, picker = picker)
                         }
                     }
                 }
             }
-        }
-        if (product.needsPicker || productLines.isEmpty()) {
-            UserPrimaryButton(
-                text = stringResource(Res.string.product_add_to_cart),
-                onClick = { if (product.needsPicker) picker.open(product) else cart.add(product) },
-                enabled = !outOfStock,
-                modifier = Modifier.fillMaxWidth(),
-            )
         } else {
-            ProductCartAction(product = product, lines = lines, cart = cart, picker = picker)
+            val option = options.first()
+            val line = productLines.firstOrNull()
+            if (option.needsPicker || line == null) {
+                UserPrimaryButton(
+                    text = stringResource(Res.string.product_add_to_cart),
+                    onClick = { if (option.needsPicker) picker.open(option, line?.key) else cart.add(option, option.defaultQty) },
+                    enabled = !outOfStock,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                OptionCartAction(option = option, lines = lines, cart = cart, picker = picker)
+            }
         }
         SectionCard(title = stringResource(Res.string.master_general_info)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -188,6 +188,42 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             )
         }.body()
 
+    val productTemplateUrl: String get() = url("/" + AppConstants.ProductSheet.TEMPLATE_PATH)
+
+    suspend fun importProducts(
+        token: String,
+        fileName: String,
+        bytes: ByteArray,
+        dryRun: Boolean,
+    ): org.bhargav.pansariwala.api.ProductImportReportDto =
+        client.post(url("/admin/master/products/import")) {
+            bearer(token)
+            timeout {
+                requestTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+                socketTimeoutMillis = AppConstants.HTTP_UPLOAD_TIMEOUT_MS
+            }
+            parameter("dryRun", dryRun)
+            setBody(
+                io.ktor.client.request.forms.MultiPartFormDataContent(
+                    io.ktor.client.request.forms.formData {
+                        append(
+                            "file",
+                            bytes,
+                            io.ktor.http.Headers.build {
+                                append(io.ktor.http.HttpHeaders.ContentType, AppConstants.ProductSheet.MIME_XLSX)
+                                append(io.ktor.http.HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                            },
+                        )
+                    },
+                ),
+            )
+        }.body()
+
+    /** One-time link (no auth header needed) so the browser can download the export. */
+    suspend fun productsExportUrl(token: String): String =
+        url("/" + client.post(url("/admin/master/products/export-link")) { bearer(token) }
+            .body<org.bhargav.pansariwala.api.FileLinkDto>().path.trimStart('/'))
+
     suspend fun deleteProduct(token: String, id: String) {
         client.delete(url("/admin/master/products/$id")) { bearer(token) }
     }
@@ -526,7 +562,7 @@ data class ProductDto(
     val name: String,
     val nameHi: String = "",
     val categoryId: String,
-    val unit: String = "KG",
+    val unit: String = "PIECE",
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
@@ -554,7 +590,7 @@ data class ProductUpsert(
     val name: String,
     val nameHi: String = "",
     val categoryId: String,
-    val unit: String = "KG",
+    val unit: String = "PIECE",
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,

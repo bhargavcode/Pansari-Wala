@@ -290,15 +290,15 @@ private fun KpiRow(summary: ReportSummary, channel: ReportChannel) {
                 stringResource(Res.string.report_online),
                 "${summary.onlineOrders} · ${summary.onlineRevenue.asMoney()}",
                 tile,
-                container = OnlineColor.copy(alpha = 0.15f),
-                onContainer = OnlineColor,
+                container = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 1f),
+                onContainer = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             StatTile(
                 stringResource(Res.string.report_offline),
                 "${summary.offlineOrders} · ${summary.offlineRevenue.asMoney()}",
                 tile,
-                container = OfflineColor.copy(alpha = 0.15f),
-                onContainer = OfflineColor,
+                container = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 1.5f),
+                onContainer = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
         StatTile(

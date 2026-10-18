@@ -58,4 +58,6 @@ dependencies {
     implementation(libs.mongodb.driver.kotlin.sync)
     implementation(libs.bson.kotlinx)
     implementation(libs.logback.classic)
+    implementation(libs.apache.poi.ooxml)
+    testImplementation(libs.kotlin.testJunit)
 }

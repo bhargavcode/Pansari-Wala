@@ -372,6 +372,9 @@ data class ProductVariantDto(
     val stockQty: Double = 0.0,
     val barcode: String? = null,
     val active: Boolean = true,
+    val packSize: Double = 0.0,
+    val packUnit: String = "",
+    val baseVariantId: String = "",
 )
 
 @Serializable
@@ -623,6 +626,24 @@ data class VerifyPaymentRequest(
 
 @Serializable
 data class OkResponse(val ok: Boolean = true)
+
+@Serializable
+data class ProductImportErrorDto(val row: Int, val message: String)
+
+/** Result of a product / inventory spreadsheet import; [dryRun] = checked only, nothing saved. */
+@Serializable
+data class ProductImportReportDto(
+    val dryRun: Boolean,
+    val productsCreated: Int = 0,
+    val productsUpdated: Int = 0,
+    val variantsCreated: Int = 0,
+    val variantsUpdated: Int = 0,
+    val errors: List<ProductImportErrorDto> = emptyList(),
+)
+
+/** Short-lived public download path (relative to the API base), e.g. a product export. */
+@Serializable
+data class FileLinkDto(val path: String)
 
 @Serializable
 data class ShopPaymentInfoDto(val shopName: String, val upiId: String = "")
@@ -899,7 +920,7 @@ data class MasterProductUpsert(
     val name: String,
     val nameHi: String = "",
     val categoryId: String,
-    val unit: String = "KG",
+    val unit: String = "PIECE",
     val barcode: String? = null,
     val imageUrl: String? = null,
     val thumbnailUrl: String? = null,
