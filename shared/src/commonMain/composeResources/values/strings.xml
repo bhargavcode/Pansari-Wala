@@ -1355,6 +1355,7 @@
     <string name="catalog_product_count">%1$s Products</string>
     <string name="catalog_show_more">Show more</string>
     <string name="catalog_shop_categories">Shop by category</string>
+    <string name="catalog_category_other">Other</string>
     <string name="catalog_search_in_category">Search in %1$s</string>
     <string name="catalog_search_all_hint">Search all products in this shop</string>
     <string name="catalog_out_of_stock">Out of stock</string>

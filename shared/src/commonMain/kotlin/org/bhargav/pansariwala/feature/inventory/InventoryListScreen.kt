@@ -45,13 +45,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.Product
-import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductStatusFilter
 import org.bhargav.pansariwala.feature.catalog.ProductSheetImportDialog
 import org.bhargav.pansariwala.feature.printer.PrintAction
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.i18n.localizedLabel
-import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.media.ProductImageCarousel
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
@@ -112,6 +110,7 @@ fun InventoryListScreen(
     }
     val filter = state.filter
     val products = state.products
+    val categoryNames = remember(state.categories) { state.categoryNames }
 
     PansariScreen(
         title = stringResource(Res.string.inv_products_title),
@@ -172,16 +171,16 @@ fun InventoryListScreen(
             ) {
                 item(key = "all") {
                     FilterChip(
-                        selected = filter.category == null,
+                        selected = filter.categoryId == null,
                         onClick = { viewModel.onCategorySelected(null) },
                         label = { Text(stringResource(Res.string.inv_filter_all_categories)) },
                     )
                 }
-                items(ProductCategory.entries, key = { it.name }) { category ->
+                items(state.rootCategories, key = { it.id }) { category ->
                     FilterChip(
-                        selected = filter.category == category,
-                        onClick = { viewModel.onCategorySelected(category) },
-                        label = { Text(category.localizedName()) },
+                        selected = filter.categoryId == category.id,
+                        onClick = { viewModel.onCategorySelected(category.id) },
+                        label = { Text(category.name) },
                     )
                 }
             }
@@ -225,7 +224,11 @@ fun InventoryListScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
                 ) {
                     items(products, key = { it.id }) { product ->
-                        ShopProductRow(product, onClick = { onOpenProduct(product.id) })
+                        ShopProductRow(
+                            product,
+                            categoryName = categoryNames[product.subCategoryId ?: product.categoryId].orEmpty(),
+                            onClick = { onOpenProduct(product.id) },
+                        )
                         HorizontalDivider()
                     }
                     if (state.hasMore) {
@@ -254,7 +257,7 @@ private fun ProductStatusFilter.label() = when (this) {
 }
 
 @Composable
-private fun ShopProductRow(product: Product, onClick: () -> Unit) {
+private fun ShopProductRow(product: Product, categoryName: String, onClick: () -> Unit) {
     val level = product.stockLevel
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
@@ -287,11 +290,11 @@ private fun ShopProductRow(product: Product, onClick: () -> Unit) {
                 )
             }
             Text(
-                text = stringResource(
-                    Res.string.category_price,
-                    product.category.localizedName(),
-                    product.sellingPrice.asMoney(),
-                ),
+                text = if (categoryName.isBlank()) {
+                    product.sellingPrice.asMoney()
+                } else {
+                    stringResource(Res.string.category_price, categoryName, product.sellingPrice.asMoney())
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

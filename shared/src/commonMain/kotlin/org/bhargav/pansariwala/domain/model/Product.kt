@@ -199,12 +199,13 @@ enum class ProductStatusFilter { ALL, ACTIVE, INACTIVE }
 data class ShopProductFilter(
     /** Matches name, Hindi name, brand, voice alias (contains) or product id / barcode / master id (exact). */
     val query: String = "",
-    val category: ProductCategory? = null,
+    /** Master category or sub-category id. */
+    val categoryId: String? = null,
     val status: ProductStatusFilter = ProductStatusFilter.ALL,
     val lowStockOnly: Boolean = false,
 ) {
     fun matches(product: Product): Boolean {
-        if (category != null && product.category != category) return false
+        if (categoryId != null && product.categoryId != categoryId && product.subCategoryId != categoryId) return false
         when (status) {
             ProductStatusFilter.ACTIVE -> if (!product.isActive) return false
             ProductStatusFilter.INACTIVE -> if (product.isActive) return false

@@ -15,12 +15,14 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.api.MasterCategoryDto
+import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.Product
-import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductStatusFilter
 import org.bhargav.pansariwala.domain.model.ShopProductFilter
 import org.bhargav.pansariwala.i18n.UiText
@@ -32,15 +34,20 @@ data class InventoryListUiState(
     val filter: ShopProductFilter = ShopProductFilter(),
     val products: List<Product> = emptyList(),
     val totalCount: Int = 0,
+    /** Admin-defined master categories (roots and sub-categories); empty until loaded or offline. */
+    val categories: List<MasterCategoryDto> = emptyList(),
     val error: UiText? = null,
 ) {
     val hasMore: Boolean get() = products.size < totalCount
+    val rootCategories: List<MasterCategoryDto> get() = categories.filter { it.parentId.isNullOrBlank() }
+    val categoryNames: Map<String, String> get() = categories.associate { it.id to it.name }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class InventoryListViewModel(
     private val shopRepository: ShopRepository,
     private val preferences: AppPreferences,
+    private val api: PansariApi,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(InventoryListUiState())
@@ -56,6 +63,11 @@ class InventoryListViewModel(
         if (initialized) return
         initialized = true
         filter.value = filter.value.copy(lowStockOnly = lowStockOnly)
+        viewModelScope.launch {
+            runCatching { api.masterCategories() }
+                .onSuccess { all -> _uiState.update { it.copy(categories = all.sortedBy { c -> c.name.lowercase() }) } }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
         viewModelScope.launch {
             shopRepository.ensureSeeded()
             val shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID
@@ -87,7 +99,7 @@ class InventoryListViewModel(
         _uiState.update { it.copy(searchText = value) }
     }
 
-    fun onCategorySelected(category: ProductCategory?) = updateFilter { it.copy(category = category) }
+    fun onCategorySelected(categoryId: String?) = updateFilter { it.copy(categoryId = categoryId) }
     fun onStatusSelected(status: ProductStatusFilter) = updateFilter { it.copy(status = status) }
     fun onLowStockToggle() = updateFilter { it.copy(lowStockOnly = !it.lowStockOnly) }
     fun dismissError() = _uiState.update { it.copy(error = null) }

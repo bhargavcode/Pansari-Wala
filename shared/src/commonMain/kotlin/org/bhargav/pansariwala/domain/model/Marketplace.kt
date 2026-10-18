@@ -103,8 +103,14 @@ data class MarketplaceShop(
     val deliveryAvailable: Boolean = true,
 )
 
+/** Admin-defined master category; [id] is [AppConstants.UNCATEGORIZED_CATEGORY_ID] for products without one. */
+data class CatalogCategory(val id: String, val name: String) {
+    val isUncategorized: Boolean
+        get() = id == org.bhargav.pansariwala.util.AppConstants.UNCATEGORIZED_CATEGORY_ID || name.isBlank()
+}
+
 data class CatalogSection(
-    val category: ProductCategory,
+    val category: CatalogCategory,
     val totalCount: Int,
     val preview: List<Product>,
 )
@@ -126,6 +132,7 @@ data class ProductDetail(
     val weightKg: Double = 0.0,
     val dimensions: String = "",
     val priceHistory: List<PricePoint> = emptyList(),
+    val categoryName: String = "",
 )
 
 data class PricePoint(val atEpochMs: Long, val price: Double)

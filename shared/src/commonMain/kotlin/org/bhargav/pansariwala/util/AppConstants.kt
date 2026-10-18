@@ -14,6 +14,8 @@ object AppConstants {
     const val CATALOG_PREVIEW_PER_CATEGORY: Int = 5
     /** Page size for the category product list (server caps at 50). */
     const val CATALOG_PAGE_SIZE: Int = 10
+    /** Catalog section key for products without a master category; must match the server. */
+    const val UNCATEGORIZED_CATEGORY_ID: String = "uncategorized"
     const val LIST_PAGE_SIZE: Int = 20
     /** Server-side page size for order lists (server caps at 20). */
     const val ORDER_PAGE_SIZE: Int = 20

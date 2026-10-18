@@ -47,12 +47,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
+import org.bhargav.pansariwala.domain.model.CatalogCategory
 import org.bhargav.pansariwala.domain.model.CatalogSection
 import org.bhargav.pansariwala.domain.model.Product
-import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductDetail
 import org.bhargav.pansariwala.i18n.localizedLabel
-import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.media.NetworkImage
 import org.bhargav.pansariwala.media.ProductImageCarousel
 import org.bhargav.pansariwala.ui.AsyncUiState
@@ -67,6 +66,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.catalog_category_other
 import pansariwala.shared.generated.resources.catalog_end_of_list
 import pansariwala.shared.generated.resources.catalog_in_stock
 import pansariwala.shared.generated.resources.catalog_low_stock
@@ -161,8 +161,12 @@ private fun CatalogOptionRow(
 }
 
 @Composable
+internal fun CatalogCategory.displayName(): String =
+    if (isUncategorized) stringResource(Res.string.catalog_category_other) else name
+
+@Composable
 internal fun CatalogSectionHeader(
-    category: ProductCategory,
+    category: CatalogCategory,
     totalCount: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -172,7 +176,7 @@ internal fun CatalogSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            category.localizedName(),
+            category.displayName(),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f),
@@ -193,17 +197,17 @@ internal fun CatalogSectionHeader(
 @Composable
 internal fun CatalogCategoryChips(
     sections: List<CatalogSection>,
-    onClick: (ProductCategory) -> Unit,
+    onClick: (CatalogCategory) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(sections, key = { it.category.name }) { section ->
+        items(sections, key = { it.category.id }) { section ->
             AssistChip(
                 onClick = { onClick(section.category) },
-                label = { Text("${section.category.localizedName()} · ${formatProductCount(section.totalCount)}") },
+                label = { Text("${section.category.displayName()} · ${formatProductCount(section.totalCount)}") },
             )
         }
     }
@@ -214,13 +218,13 @@ internal fun LazyListScope.catalogSectionItems(
     sections: List<CatalogSection>,
     lines: List<CartStore.Line>,
     keyPrefix: String,
-    onOpenCategory: (ProductCategory) -> Unit,
+    onOpenCategory: (CatalogCategory) -> Unit,
     onOpenProduct: (String) -> Unit,
     cart: CartStore,
     picker: VariantPickerState,
 ) {
     sections.forEach { section ->
-        item(key = "$keyPrefix-h-${section.category.name}", contentType = "section_header") {
+        item(key = "$keyPrefix-h-${section.category.id}", contentType = "section_header") {
             CatalogSectionHeader(
                 category = section.category,
                 totalCount = section.totalCount,
@@ -230,7 +234,7 @@ internal fun LazyListScope.catalogSectionItems(
         }
         items(
             section.preview,
-            key = { "$keyPrefix-p-${section.category.name}-${it.id}" },
+            key = { "$keyPrefix-p-${section.category.id}-${it.id}" },
             contentType = { "product" },
         ) { product ->
             CatalogProductRow(
@@ -243,7 +247,7 @@ internal fun LazyListScope.catalogSectionItems(
             )
         }
         if (section.totalCount > section.preview.size) {
-            item(key = "$keyPrefix-m-${section.category.name}", contentType = "show_more") {
+            item(key = "$keyPrefix-m-${section.category.id}", contentType = "show_more") {
                 TextButton(
                     onClick = { onOpenCategory(section.category) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -252,7 +256,7 @@ internal fun LazyListScope.catalogSectionItems(
                 }
             }
         }
-        item(key = "$keyPrefix-d-${section.category.name}", contentType = "divider") {
+        item(key = "$keyPrefix-d-${section.category.id}", contentType = "divider") {
             HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
     }
@@ -271,7 +275,7 @@ internal fun CatalogCartBar(cartCount: Int, onOpenCart: () -> Unit) {
 @Composable
 fun ShopCategoryScreen(
     shopId: String,
-    category: ProductCategory?,
+    category: CatalogCategory?,
     initialQuery: String,
     onOpenProduct: (String) -> Unit,
     onOpenCart: () -> Unit,
@@ -279,14 +283,14 @@ fun ShopCategoryScreen(
     viewModel: CategoryProductsViewModel = koinViewModel(),
     cart: CartStore = koinInject(),
 ) {
-    LaunchedEffect(shopId, category) { viewModel.start(shopId, category, initialQuery) }
+    LaunchedEffect(shopId, category?.id) { viewModel.start(shopId, category?.id, initialQuery) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lines = rememberCartLines(cart)
     val cartCount = CartStore.countItems(lines)
     val picker = rememberVariantPicker()
     VariantPickerHost(picker, cart)
     val listState = rememberLazyListState()
-    val categoryName = category?.localizedName()
+    val categoryName = category?.displayName()
 
     LaunchedEffect(listState) {
         snapshotFlow {
@@ -508,7 +512,7 @@ private fun ProductDetailContent(
         }
         SectionCard(title = stringResource(Res.string.master_general_info)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                DetailRow(stringResource(Res.string.field_category), product.category.localizedName())
+                DetailRow(stringResource(Res.string.field_category), detail.categoryName)
                 DetailRow(stringResource(Res.string.field_unit), product.unit.localizedLabel())
                 DetailRow(stringResource(Res.string.master_brand), detail.brandName)
                 DetailRow(stringResource(Res.string.master_company), detail.companyName)

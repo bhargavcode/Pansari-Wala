@@ -157,6 +157,7 @@ data class CatalogSectionDto(
     val category: String,
     val totalCount: Int,
     val preview: List<ProductDto> = emptyList(),
+    val categoryName: String = "",
 )
 
 @Serializable
@@ -263,6 +264,7 @@ data class ProductDetailDto(
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
     val priceHistory: List<PricePointDto> = emptyList(),
+    val categoryName: String = "",
 )
 
 @Serializable
@@ -697,7 +699,7 @@ fun ShopDto.toModel() = MarketplaceShop(
 )
 
 fun CatalogSectionDto.toModel() = org.bhargav.pansariwala.domain.model.CatalogSection(
-    category = ProductCategory.fromName(category),
+    category = org.bhargav.pansariwala.domain.model.CatalogCategory(id = category, name = categoryName),
     totalCount = totalCount,
     preview = preview.map { it.toModel() },
 )
@@ -721,6 +723,7 @@ fun ProductDetailDto.toModel() = org.bhargav.pansariwala.domain.model.ProductDet
     weightKg = weightKg,
     dimensions = dimensions,
     priceHistory = priceHistory.map { org.bhargav.pansariwala.domain.model.PricePoint(it.at, it.price) },
+    categoryName = categoryName,
 )
 
 fun ShopReviewDto.toModel() = org.bhargav.pansariwala.domain.model.ShopReview(

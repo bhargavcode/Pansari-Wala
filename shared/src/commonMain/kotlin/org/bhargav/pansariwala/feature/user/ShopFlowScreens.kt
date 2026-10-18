@@ -58,7 +58,7 @@ import org.bhargav.pansariwala.domain.model.FulfillmentStep
 import org.bhargav.pansariwala.feature.order.DeliveringItemsList
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import androidx.compose.material3.Card
-import org.bhargav.pansariwala.domain.model.ProductCategory
+import org.bhargav.pansariwala.domain.model.CatalogCategory
 import org.bhargav.pansariwala.feature.delivery.PickupPhotoStrip
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.ui.AsyncUiState
@@ -134,7 +134,7 @@ import pansariwala.shared.generated.resources.user_cart_items
 fun ShopCatalogScreen(
     shopId: String,
     onOpenCart: () -> Unit,
-    onOpenCategory: (category: ProductCategory?, query: String) -> Unit,
+    onOpenCategory: (category: CatalogCategory?, query: String) -> Unit,
     onOpenProduct: (productId: String) -> Unit,
     onBack: () -> Unit,
     viewModel: ShopCatalogViewModel = koinViewModel(),

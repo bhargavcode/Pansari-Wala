@@ -115,7 +115,7 @@ class ShopCatalogViewModel(
                         }.getOrNull()
                     }
                     val shop = shopDef.await()
-                    val sections = sectionsDef.await().sortedBy { it.category.ordinal }
+                    val sections = sectionsDef.await()
                     shop?.let { cart.bindShop(shopId, it.name) }
                     val previous = (_state.value as? AsyncUiState.Success)?.data ?: CatalogData()
                     previous.copy(shop = shop ?: previous.shop, sections = sections, cartCount = cart.itemCount)
@@ -148,7 +148,7 @@ class ShopCatalogViewModel(
             runCatching { api.catalogSections(id, query, AppConstants.CATALOG_PREVIEW_PER_CATEGORY) }
                 .onSuccess { results ->
                     updateSuccess {
-                        it.copy(searchSections = results.sortedBy { s -> s.category.ordinal }, searching = false)
+                        it.copy(searchSections = results, searching = false)
                     }
                 }
                 .onFailure { err ->

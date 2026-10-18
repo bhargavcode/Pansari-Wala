@@ -149,6 +149,8 @@ private const val MAX_CATALOG_PAGE_SIZE = 50
 private const val DEFAULT_SHOP_CATEGORY = "GENERAL_GROCERY"
 private val SHOP_CATEGORIES = setOf("FORTUNE_BRANDED", "GENERAL_GROCERY", "PUJA_SAMAGRI", "STANDARD_SPICES", "HIGH_VALUE_SPICES")
 private const val DEFAULT_IMPORT_CATEGORY = "Uncategorized"
+/** Catalog section/page key for shop products without a master category; must match the app's AppConstants. */
+private const val UNCATEGORIZED_CATEGORY_ID = "uncategorized"
 private const val EXPORT_LINK_TTL_MS = 10 * 60 * 1000L
 private const val MAX_ORDER_PAGE_SIZE = 20
 private const val MAX_MASTER_PAGE_SIZE = 100
@@ -606,9 +608,14 @@ class AppStore(
         }
     }
 
-    private fun productFilter(shopId: String, category: String?, query: String): Bson {
+    /** [categoryId] is a master category id, or [UNCATEGORIZED_CATEGORY_ID] for products without one. */
+    private fun productFilter(shopId: String, categoryId: String?, query: String): Bson {
         val parts = mutableListOf(eq("shopId", shopId), ne("active", false))
-        if (!category.isNullOrBlank()) parts += eq("category", category)
+        when {
+            categoryId.isNullOrBlank() -> Unit
+            categoryId == UNCATEGORIZED_CATEGORY_ID -> parts += or(eq("categoryId", null), eq("categoryId", ""))
+            else -> parts += eq("categoryId", categoryId)
+        }
         val q = query.trim()
         if (q.isNotEmpty()) {
             val pattern = java.util.regex.Pattern.quote(q)
@@ -623,29 +630,44 @@ class AppStore(
         return and(parts)
     }
 
-    /** Per-category totals with a small preview, so the shop home never loads the full catalog. */
+    /**
+     * Per master-category totals with a small preview, so the shop home never loads the full catalog.
+     * Products without a master category are grouped under [UNCATEGORIZED_CATEGORY_ID] with a blank name.
+     */
     fun catalogSections(shopId: String, query: String, previewSize: Int): List<CatalogSectionDto> {
         val filter = productFilter(shopId, null, query)
         val limit = previewSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
-        return productCol.aggregate(
-            listOf(Aggregates.match(filter), Aggregates.group("\$category", Accumulators.sum("n", 1))),
+        val counts = productCol.aggregate(
+            listOf(Aggregates.match(filter), Aggregates.group("\$categoryId", Accumulators.sum("n", 1))),
             Document::class.java,
-        ).toList().mapNotNull { row ->
-            val category = row.getString("_id") ?: return@mapNotNull null
-            val preview = productCol.find(productFilter(shopId, category, query))
+        ).toList()
+            .groupBy { row -> row.getString("_id")?.takeIf { it.isNotBlank() } ?: UNCATEGORIZED_CATEGORY_ID }
+            .mapValues { (_, rows) -> rows.sumOf { it.getInteger("n") ?: 0 } }
+        if (counts.isEmpty()) return emptyList()
+        val names = categoryCol.find(`in`("_id", counts.keys.toList())).toList().associate { it.id to it.name }
+        return counts.map { (categoryId, total) ->
+            val preview = productCol.find(productFilter(shopId, categoryId, query))
                 .sort(Sorts.ascending("name", "_id"))
                 .limit(limit)
                 .toList()
                 .map { it.toDto() }
                 .withOffers(shopId)
-            CatalogSectionDto(category, row.getInteger("n") ?: preview.size, preview)
-        }.sortedByDescending { it.totalCount }
+            CatalogSectionDto(
+                category = categoryId,
+                totalCount = total,
+                preview = preview,
+                categoryName = names[categoryId].orEmpty(),
+            )
+        }.sortedWith(
+            compareBy<CatalogSectionDto> { it.category == UNCATEGORIZED_CATEGORY_ID }
+                .thenBy { it.categoryName.lowercase() },
+        )
     }
 
-    fun catalogPage(shopId: String, category: String?, query: String, page: Int, pageSize: Int): ProductPageDto {
+    fun catalogPage(shopId: String, categoryId: String?, query: String, page: Int, pageSize: Int): ProductPageDto {
         val size = pageSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
         val safePage = page.coerceAtLeast(0)
-        val filter = productFilter(shopId, category, query)
+        val filter = productFilter(shopId, categoryId, query)
         val total = productCol.countDocuments(filter).toInt()
         val items = productCol.find(filter)
             .sort(Sorts.ascending("name", "_id"))
@@ -836,6 +858,9 @@ class AppStore(
             dimensions = master?.dimensions.orEmpty(),
             variants = dto.variants,
             priceHistory = priceHistory(product),
+            categoryName = (product.categoryId?.takeIf { it.isNotBlank() } ?: master?.categoryId?.takeIf { it.isNotBlank() })
+                ?.let { id -> categoryCol.find(eq("_id", id)).firstOrNull()?.name }
+                .orEmpty(),
         )
     }
 

@@ -88,7 +88,7 @@ class RoomShopRepository(
         val q = filter.query.trim()
         return productDao.observePage(
             shopId = shopId,
-            category = filter.category?.name,
+            categoryId = filter.categoryId,
             active = filter.activeArg(),
             lowOnly = if (filter.lowStockOnly) 1 else 0,
             query = q,
@@ -101,7 +101,7 @@ class RoomShopRepository(
         val q = filter.query.trim()
         return productDao.observeCount(
             shopId = shopId,
-            category = filter.category?.name,
+            categoryId = filter.categoryId,
             active = filter.activeArg(),
             lowOnly = if (filter.lowStockOnly) 1 else 0,
             query = q,

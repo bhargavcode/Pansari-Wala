@@ -34,11 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
-import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.i18n.localizedLabel
-import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -46,7 +44,6 @@ import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_find
 import pansariwala.shared.generated.resources.add_product
 import pansariwala.shared.generated.resources.field_barcode
-import pansariwala.shared.generated.resources.field_category
 import pansariwala.shared.generated.resources.field_cost_price
 import pansariwala.shared.generated.resources.field_low_stock_at
 import pansariwala.shared.generated.resources.field_name
@@ -146,23 +143,13 @@ fun AddEditInventoryScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        if (state.masterCategories.isNotEmpty()) {
-            MasterCategoryPicker(
-                categories = state.masterCategories,
-                categoryId = state.categoryId,
-                subCategoryId = state.subCategoryId,
-                onChange = viewModel::onMasterCategoryChange,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            EnumDropdown(
-                label = stringResource(Res.string.field_category),
-                selectedLabel = state.category.localizedName(),
-                options = ProductCategory.entries,
-                optionLabel = { it.localizedName() },
-                onSelected = viewModel::onCategoryChange,
-            )
-        }
+        MasterCategoryPicker(
+            categories = state.masterCategories,
+            categoryId = state.categoryId,
+            subCategoryId = state.subCategoryId,
+            onChange = viewModel::onMasterCategoryChange,
+            modifier = Modifier.fillMaxWidth(),
+        )
         EnumDropdown(
             label = stringResource(Res.string.field_unit),
             selectedLabel = state.unit.localizedLabel(),

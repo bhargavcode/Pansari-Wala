@@ -239,7 +239,7 @@ fun UserNavGraph() {
                             shopId = route.shopId,
                             onOpenCart = { push(UserRoute.Cart(route.shopId)) },
                             onOpenCategory = { category, query ->
-                                push(UserRoute.ShopCategory(route.shopId, category?.name, query))
+                                push(UserRoute.ShopCategory(route.shopId, category?.id, category?.name.orEmpty(), query))
                             },
                             onOpenProduct = { push(UserRoute.ShopProduct(route.shopId, it)) },
                             onBack = { pop() },
@@ -248,9 +248,9 @@ fun UserNavGraph() {
                     is UserRoute.ShopCategory -> NavEntry(route) {
                         org.bhargav.pansariwala.feature.user.ShopCategoryScreen(
                             shopId = route.shopId,
-                            category = route.category?.let(
-                                org.bhargav.pansariwala.domain.model.ProductCategory::fromName,
-                            ),
+                            category = route.categoryId?.let {
+                                org.bhargav.pansariwala.domain.model.CatalogCategory(it, route.categoryName)
+                            },
                             initialQuery = route.query,
                             onOpenProduct = { push(UserRoute.ShopProduct(route.shopId, it)) },
                             onOpenCart = { push(UserRoute.Cart(route.shopId)) },

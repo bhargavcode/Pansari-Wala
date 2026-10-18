@@ -13,7 +13,6 @@ import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.domain.model.Product
-import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductDetail
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.ui.AsyncUiState
@@ -21,7 +20,8 @@ import org.bhargav.pansariwala.ui.beginLoad
 import org.bhargav.pansariwala.util.AppConstants
 
 data class CategoryProductsUiState(
-    val category: ProductCategory? = null,
+    /** Master category id; null searches across all categories. */
+    val categoryId: String? = null,
     val query: String = "",
     val items: List<Product> = emptyList(),
     val totalCount: Int = 0,
@@ -45,10 +45,10 @@ class CategoryProductsViewModel(
     /** Bumped on every reset so responses from a superseded query are dropped. */
     private var generation = 0
 
-    fun start(shopId: String, category: ProductCategory?, initialQuery: String) {
-        if (this.shopId == shopId && _state.value.category == category) return
+    fun start(shopId: String, categoryId: String?, initialQuery: String) {
+        if (this.shopId == shopId && _state.value.categoryId == categoryId) return
         this.shopId = shopId
-        _state.update { CategoryProductsUiState(category = category, query = initialQuery) }
+        _state.update { CategoryProductsUiState(categoryId = categoryId, query = initialQuery) }
         reset()
     }
 
@@ -91,7 +91,7 @@ class CategoryProductsViewModel(
         _state.update { it.copy(loadingInitial = page == 0, loadingMore = page > 0, error = null) }
         pageJob = viewModelScope.launch {
             runCatching {
-                api.catalogPage(id, snapshot.category, snapshot.query.trim(), page, pageSize)
+                api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), page, pageSize)
             }.onSuccess { result ->
                 if (gen != generation) return@onSuccess
                 _state.update { s ->

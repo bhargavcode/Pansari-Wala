@@ -524,9 +524,11 @@ data class ShopStockSummaryDto(
 
 @Serializable
 data class CatalogSectionDto(
+    /** Master category id, or "uncategorized" for products without one. */
     val category: String,
     val totalCount: Int,
     val preview: List<ProductDto>,
+    val categoryName: String = "",
 )
 
 @Serializable
@@ -550,6 +552,8 @@ data class ProductDetailDto(
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
     val priceHistory: List<PricePointDto> = emptyList(),
+    /** Master category name; blank when the product has none. */
+    val categoryName: String = "",
 )
 
 @Serializable

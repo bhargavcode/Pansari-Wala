@@ -45,7 +45,7 @@ interface PansariApi {
     ): List<org.bhargav.pansariwala.domain.model.CatalogSection>
     suspend fun catalogPage(
         shopId: String,
-        category: org.bhargav.pansariwala.domain.model.ProductCategory?,
+        categoryId: String?,
         query: String,
         page: Int,
         pageSize: Int,

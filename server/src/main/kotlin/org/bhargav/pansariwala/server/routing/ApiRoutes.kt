@@ -237,11 +237,11 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         }
         get("/shops/{id}/products") {
             val shopId = call.parameters["id"]!!
-            val category = call.parameters["category"]?.takeIf { it.isNotBlank() }
+            val categoryId = call.parameters["categoryId"]?.takeIf { it.isNotBlank() }
             val query = call.parameters["query"].orEmpty()
             val page = call.parameters["page"]?.toIntOrNull() ?: 0
             val size = call.parameters["size"]?.toIntOrNull() ?: 10
-            call.respond(withContext(Dispatchers.IO) { store.catalogPage(shopId, category, query, page, size) })
+            call.respond(withContext(Dispatchers.IO) { store.catalogPage(shopId, categoryId, query, page, size) })
         }
         get("/shops/{id}/products/{productId}") {
             val shopId = call.parameters["id"]!!

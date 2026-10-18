@@ -204,13 +204,13 @@ class KtorPansariApi(
 
     override suspend fun catalogPage(
         shopId: String,
-        category: org.bhargav.pansariwala.domain.model.ProductCategory?,
+        categoryId: String?,
         query: String,
         page: Int,
         pageSize: Int,
     ): org.bhargav.pansariwala.domain.model.ProductPage =
         client.get("shops/$shopId/products") {
-            category?.let { parameter("category", it.name) }
+            categoryId?.let { parameter("categoryId", it) }
             if (query.isNotBlank()) parameter("query", query)
             parameter("page", page)
             parameter("size", pageSize)

@@ -49,7 +49,7 @@ data class AddEditInventoryUiState(
     val category: ProductCategory = ProductCategory.GENERAL_GROCERY,
     val categoryId: String? = null,
     val subCategoryId: String? = null,
-    /** Master categories incl. sub-categories; empty offline, when the fixed [category] list is used. */
+    /** Master categories incl. sub-categories; [category] is derived from the picked one for legacy reports. */
     val masterCategories: List<MasterCategoryDto> = emptyList(),
     val unit: ProductUnit = ProductUnit.PIECE,
     val barcode: String = "",
@@ -139,7 +139,6 @@ class AddEditInventoryViewModel(
     fun onLookupQueryChange(value: String) = _uiState.update { it.copy(lookupQuery = value, error = null) }
     fun onNameChange(value: String) = _uiState.update { it.copy(name = value) }
     fun onNameHiChange(value: String) = _uiState.update { it.copy(nameHi = value) }
-    fun onCategoryChange(value: ProductCategory) = _uiState.update { it.copy(category = value) }
     fun onUnitChange(value: ProductUnit) = _uiState.update { it.copy(unit = value) }
     fun onBarcodeChange(value: String) = _uiState.update { it.copy(barcode = value) }
     fun onSellingPriceChange(value: String) = _uiState.update { it.copy(sellingPrice = value) }

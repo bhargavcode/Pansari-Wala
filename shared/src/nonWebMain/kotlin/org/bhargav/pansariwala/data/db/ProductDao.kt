@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 /** [active] < 0 = any; [query] exact-matches ids/barcode, [pattern] is its escaped `%…%` LIKE form. */
 private const val PRODUCT_FILTER =
     "shopId = :shopId" +
-        " AND (:category IS NULL OR category = :category)" +
+        " AND (:categoryId IS NULL OR categoryId = :categoryId OR subCategoryId = :categoryId)" +
         " AND (:active < 0 OR isActive = :active)" +
         " AND (:lowOnly = 0 OR stockQty <= lowStockThreshold)" +
         " AND (:query = '' OR id = :query OR barcode = :query OR masterProductId = :query" +
@@ -28,7 +28,7 @@ abstract class ProductDao {
     @Query("SELECT * FROM products WHERE $PRODUCT_FILTER ORDER BY name COLLATE NOCASE ASC, id ASC LIMIT :limit")
     abstract fun observePage(
         shopId: String,
-        category: String?,
+        categoryId: String?,
         active: Int,
         lowOnly: Int,
         query: String,
@@ -39,7 +39,7 @@ abstract class ProductDao {
     @Query("SELECT COUNT(*) FROM products WHERE $PRODUCT_FILTER")
     abstract fun observeCount(
         shopId: String,
-        category: String?,
+        categoryId: String?,
         active: Int,
         lowOnly: Int,
         query: String,
