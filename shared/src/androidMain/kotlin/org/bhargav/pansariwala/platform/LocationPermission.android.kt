@@ -232,6 +232,8 @@ actual fun RequestLocationPermission(
 
 actual fun canOpenLocationSettings(): Boolean = true
 
+actual fun isLocationPermissionGranted(): Boolean = GlobalContext.get().get<Context>().hasLocationPermission()
+
 actual fun openAppLocationSettings() {
     val context = GlobalContext.get().get<Context>()
     val intent = Intent(

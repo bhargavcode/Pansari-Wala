@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.dashboard
 
+import org.bhargav.pansariwala.feature.order.SubscriptionRenewBanner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,12 +100,14 @@ fun DashboardScreen(
     onOpenReports: () -> Unit,
     onOpenProfile: () -> Unit,
     onLogout: () -> Unit,
+    onOpenSubscription: () -> Unit = {},
     viewModel: DashboardViewModel = koinViewModel(),
     authRepository: AuthRepository = koinInject(),
     analytics: Analytics = koinInject(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val access by viewModel.access.collectAsStateWithLifecycle()
+    val billing by viewModel.billing.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val success = state as? AsyncUiState.Success
 
@@ -142,6 +145,7 @@ fun DashboardScreen(
                         }
                     }
                 }
+                item(key = "subscription_warning") { SubscriptionRenewBanner(billing, onOpenSubscription) }
 
                 if (widthClass == WindowWidthClass.Compact && access.can(ShopPermission.VIEW_REPORTS)) {
                     item { SalesCard(data) }

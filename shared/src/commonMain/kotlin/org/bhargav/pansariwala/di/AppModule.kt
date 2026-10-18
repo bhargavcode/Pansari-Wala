@@ -24,6 +24,8 @@ import org.bhargav.pansariwala.feature.inventory.MasterCatalogViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryProductDetailViewModel
 import org.bhargav.pansariwala.feature.login.LoginViewModel
 import org.bhargav.pansariwala.feature.order.OrderEditorViewModel
+import org.bhargav.pansariwala.feature.subscription.CommissionDayViewModel
+import org.bhargav.pansariwala.feature.subscription.SubscriptionViewModel
 import org.bhargav.pansariwala.feature.order.OrdersWorkspaceViewModel
 import org.bhargav.pansariwala.feature.settings.SettingsViewModel
 import org.bhargav.pansariwala.feature.splash.SplashViewModel
@@ -34,7 +36,6 @@ import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.feature.delivery.PartnerEarningsViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerHomeViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerJobViewModel
-import org.bhargav.pansariwala.feature.delivery.PartnerLocationAccessViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerLoginViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterViewModel
 import org.bhargav.pansariwala.feature.order.CustomerRatingsViewModel
@@ -47,7 +48,6 @@ import org.bhargav.pansariwala.feature.user.MarketViewModel
 import org.bhargav.pansariwala.feature.user.OrderDetailsViewModel
 import org.bhargav.pansariwala.feature.user.PhoneAuthViewModel
 import org.bhargav.pansariwala.feature.user.AddressViewModel
-import org.bhargav.pansariwala.feature.user.UserLocationAccessViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogViewModel
 import org.bhargav.pansariwala.feature.user.ShopOffersViewModel
 import org.bhargav.pansariwala.feature.user.CategoryProductsViewModel
@@ -110,11 +110,12 @@ val appModule = module {
     viewModelOf(::InventoryProductDetailViewModel)
     viewModelOf(::MasterCatalogViewModel)
     viewModelOf(::OrderEditorViewModel)
+    viewModelOf(::SubscriptionViewModel)
+    viewModelOf(::CommissionDayViewModel)
     viewModelOf(::OrdersWorkspaceViewModel)
     viewModelOf(::SettingsViewModel)
     viewModelOf(::PhoneAuthViewModel)
     viewModelOf(::AddressViewModel)
-    viewModelOf(::UserLocationAccessViewModel)
     viewModelOf(::MarketViewModel)
     viewModelOf(::AccountViewModel)
     viewModelOf(::UserSettingsViewModel)
@@ -128,7 +129,6 @@ val appModule = module {
     viewModelOf(::OrderDetailsViewModel)
     viewModelOf(::PartnerLoginViewModel)
     viewModelOf(::PartnerRegisterViewModel)
-    viewModelOf(::PartnerLocationAccessViewModel)
     viewModelOf(::PartnerHomeViewModel)
     viewModelOf(::PartnerJobViewModel)
     viewModelOf(::PartnerEarningsViewModel)

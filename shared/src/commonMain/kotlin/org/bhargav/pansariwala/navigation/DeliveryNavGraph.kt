@@ -30,16 +30,25 @@ import org.bhargav.pansariwala.feature.delivery.PartnerDeliverToCustomerScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerDeliveryCompleteScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerEarningsScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerHomeScreen
-import org.bhargav.pansariwala.feature.delivery.PartnerLocationAccessScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerLoginOtpScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerLoginScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerLoginViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerNavigateToStoreScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerPickupItemsScreen
-import org.bhargav.pansariwala.feature.delivery.PartnerRegisterScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerRegisterAddressScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerRegisterDetailsScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerRegisterOtpScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerRegisterVehicleScreen
+import org.bhargav.pansariwala.feature.delivery.PartnerRegisterViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.feature.user.UserLanguageScreen
 import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
 import org.bhargav.pansariwala.feature.user.UserThemeScreen
+import org.bhargav.pansariwala.notification.NotificationOpenRequests
 import org.bhargav.pansariwala.notification.NotificationRouter
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
@@ -51,8 +60,11 @@ private val deliveryNavConfig = SavedStateConfiguration {
         polymorphic(NavKey::class) {
             subclass(DeliveryRoute.Splash::class, DeliveryRoute.Splash.serializer())
             subclass(DeliveryRoute.Login::class, DeliveryRoute.Login.serializer())
+            subclass(DeliveryRoute.LoginOtp::class, DeliveryRoute.LoginOtp.serializer())
             subclass(DeliveryRoute.Register::class, DeliveryRoute.Register.serializer())
-            subclass(DeliveryRoute.LocationAccess::class, DeliveryRoute.LocationAccess.serializer())
+            subclass(DeliveryRoute.RegisterAddress::class, DeliveryRoute.RegisterAddress.serializer())
+            subclass(DeliveryRoute.RegisterVehicle::class, DeliveryRoute.RegisterVehicle.serializer())
+            subclass(DeliveryRoute.RegisterOtp::class, DeliveryRoute.RegisterOtp.serializer())
             subclass(DeliveryRoute.Home::class, DeliveryRoute.Home.serializer())
             subclass(DeliveryRoute.NavigateToStore::class, DeliveryRoute.NavigateToStore.serializer())
             subclass(DeliveryRoute.PickupItems::class, DeliveryRoute.PickupItems.serializer())
@@ -84,13 +96,16 @@ fun DeliveryNavGraph() {
     val backStack = rememberNavBackStack(deliveryNavConfig, DeliveryRoute.Splash)
     val snackbarHostState = remember { SnackbarHostState() }
     val sessionExpiredMessage = stringResource(Res.string.error_session_expired_login)
+    val loginViewModel: PartnerLoginViewModel = koinViewModel()
+    val registerViewModel: PartnerRegisterViewModel = koinViewModel()
     fun replaceAll(route: DeliveryRoute) { backStack.clear(); backStack.add(route) }
     fun push(route: DeliveryRoute) { backStack.add(route) }
     fun pop() { if (backStack.size > 1) backStack.removeLastOrNull() }
 
     LaunchedEffect(Unit) {
         SessionExpiredBus.events.collect {
-            if (backStack.lastOrNull() is DeliveryRoute.Login) return@collect
+            val current = backStack.lastOrNull()
+            if (current is DeliveryRoute.Login || current is DeliveryRoute.LoginOtp) return@collect
             replaceAll(DeliveryRoute.Login)
             snackbarHostState.showSnackbar(
                 message = sessionExpiredMessage,
@@ -106,6 +121,26 @@ fun DeliveryNavGraph() {
             if (current !is DeliveryRoute.Home) {
                 replaceAll(DeliveryRoute.Home)
             }
+        }
+    }
+
+    val pendingOpen by NotificationOpenRequests.pending.collectAsState()
+    val currentRoute = backStack.lastOrNull()
+    val signedIn = currentRoute != null && currentRoute !is DeliveryRoute.Splash &&
+        currentRoute !is DeliveryRoute.Login && currentRoute !is DeliveryRoute.LoginOtp &&
+        currentRoute !is DeliveryRoute.Register && currentRoute !is DeliveryRoute.RegisterAddress &&
+        currentRoute !is DeliveryRoute.RegisterVehicle && currentRoute !is DeliveryRoute.RegisterOtp
+    LaunchedEffect(pendingOpen, signedIn) {
+        val request = pendingOpen ?: return@LaunchedEffect
+        if (!signedIn) return@LaunchedEffect
+        NotificationOpenRequests.consume()
+        val onActiveJob = backStack.any {
+            it is DeliveryRoute.NavigateToStore || it is DeliveryRoute.PickupItems ||
+                it is DeliveryRoute.CapturePhotos || it is DeliveryRoute.DeliverToCustomer ||
+                it is DeliveryRoute.CustomerPayment
+        }
+        if (request.type == AppConstants.Notification.TYPE_DELIVERY_OFFER || !onActiveJob) {
+            if (backStack.lastOrNull() !is DeliveryRoute.Home) replaceAll(DeliveryRoute.Home)
         }
     }
 
@@ -132,19 +167,52 @@ fun DeliveryNavGraph() {
                     }
                     DeliveryRoute.Login -> NavEntry(route) {
                         PartnerLoginScreen(
-                            onVerified = { replaceAll(DeliveryRoute.LocationAccess) },
+                            onOtpSent = { push(DeliveryRoute.LoginOtp) },
                             onSignUp = { push(DeliveryRoute.Register) },
+                            viewModel = loginViewModel,
+                        )
+                    }
+                    DeliveryRoute.LoginOtp -> NavEntry(route) {
+                        PartnerLoginOtpScreen(
+                            onVerified = {
+                                loginViewModel.reset()
+                                replaceAll(DeliveryRoute.Home)
+                            },
+                            onBack = { pop() },
+                            viewModel = loginViewModel,
                         )
                     }
                     DeliveryRoute.Register -> NavEntry(route) {
-                        PartnerRegisterScreen(
-                            onVerified = { replaceAll(DeliveryRoute.LocationAccess) },
+                        PartnerRegisterDetailsScreen(
+                            onNext = { push(DeliveryRoute.RegisterAddress) },
                             onSignIn = { replaceAll(DeliveryRoute.Login) },
-                            onBack = { replaceAll(DeliveryRoute.Login) },
+                            onBack = { if (backStack.size > 1) pop() else replaceAll(DeliveryRoute.Login) },
+                            viewModel = registerViewModel,
                         )
                     }
-                    DeliveryRoute.LocationAccess -> NavEntry(route) {
-                        PartnerLocationAccessScreen(onDone = { replaceAll(DeliveryRoute.Home) })
+                    DeliveryRoute.RegisterAddress -> NavEntry(route) {
+                        PartnerRegisterAddressScreen(
+                            onNext = { push(DeliveryRoute.RegisterVehicle) },
+                            onBack = { pop() },
+                            viewModel = registerViewModel,
+                        )
+                    }
+                    DeliveryRoute.RegisterVehicle -> NavEntry(route) {
+                        PartnerRegisterVehicleScreen(
+                            onOtpSent = { push(DeliveryRoute.RegisterOtp) },
+                            onBack = { pop() },
+                            viewModel = registerViewModel,
+                        )
+                    }
+                    DeliveryRoute.RegisterOtp -> NavEntry(route) {
+                        PartnerRegisterOtpScreen(
+                            onVerified = {
+                                registerViewModel.reset()
+                                replaceAll(DeliveryRoute.Home)
+                            },
+                            onBack = { pop() },
+                            viewModel = registerViewModel,
+                        )
                     }
                     DeliveryRoute.Home -> NavEntry(route) {
                         PartnerHomeScreen(

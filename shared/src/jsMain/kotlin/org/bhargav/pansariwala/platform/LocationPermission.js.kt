@@ -55,4 +55,6 @@ actual fun RequestLocationPermission(
 
 actual fun canOpenLocationSettings(): Boolean = false
 
+actual fun isLocationPermissionGranted(): Boolean = true
+
 actual fun openAppLocationSettings() = Unit

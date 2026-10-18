@@ -1,5 +1,13 @@
 package org.bhargav.pansariwala.feature.profile
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.OutlinedCard
+import pansariwala.shared.generated.resources.sub_profile_row
+import pansariwala.shared.generated.resources.feature_barcode_scanner
+import pansariwala.shared.generated.resources.profile_features_master_managed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -48,11 +56,14 @@ import org.bhargav.pansariwala.api.OfferDiscountType
 import org.bhargav.pansariwala.api.OfferScope
 import org.bhargav.pansariwala.api.ShopDetailsDto
 import org.bhargav.pansariwala.api.ShopFeaturesDto
+import org.bhargav.pansariwala.api.ShopHoursDayDto
 import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.ShopStaffDto
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.StatTile
+import org.bhargav.pansariwala.designsystem.TimePickerField
+import org.bhargav.pansariwala.designsystem.formatClockTime
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.ShopReview
@@ -121,13 +132,19 @@ import pansariwala.shared.generated.resources.profile_field_owner_email
 import pansariwala.shared.generated.resources.profile_field_owner_name
 import pansariwala.shared.generated.resources.profile_field_owner_phone
 import pansariwala.shared.generated.resources.profile_field_radius
-import pansariwala.shared.generated.resources.action_apply
+import pansariwala.shared.generated.resources.master_hours_end
+import pansariwala.shared.generated.resources.master_hours_start
+import pansariwala.shared.generated.resources.shop_closed
 import pansariwala.shared.generated.resources.shop_delivery_until_clear
 import pansariwala.shared.generated.resources.shop_delivery_until_hint
 import pansariwala.shared.generated.resources.shop_delivery_until_label
 import pansariwala.shared.generated.resources.shop_delivery_until_none
-import pansariwala.shared.generated.resources.time_format_am
-import pansariwala.shared.generated.resources.time_format_pm
+import pansariwala.shared.generated.resources.shop_home_delivery_hint
+import pansariwala.shared.generated.resources.shop_home_delivery_label
+import pansariwala.shared.generated.resources.shop_hours_edit
+import pansariwala.shared.generated.resources.shop_hours_not_set
+import pansariwala.shared.generated.resources.shop_hours_range
+import pansariwala.shared.generated.resources.shop_hours_title
 import pansariwala.shared.generated.resources.profile_field_rating
 import pansariwala.shared.generated.resources.profile_field_registration
 import pansariwala.shared.generated.resources.profile_field_state
@@ -179,6 +196,7 @@ import pansariwala.shared.generated.resources.visitors_visits
 @Composable
 fun ShopProfileScreen(
     onBack: () -> Unit,
+    onOpenSubscription: () -> Unit = {},
     viewModel: ShopProfileViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -224,7 +242,8 @@ fun ShopProfileScreen(
             when (state.tab) {
                 ProfileTab.SHOP -> {
                     item { ShopDetailsCard(profile.shop, state.access, viewModel) }
-                    item { FeaturesCard(profile.shop.features, state.access, viewModel::setFeatures) }
+                    item { SubscriptionEntryCard(onOpenSubscription) }
+                    item { FeaturesCard(profile.shop.features) }
                 }
                 ProfileTab.STAFF -> staffItems(state.staff, state.access, viewModel)
                 ProfileTab.OFFERS -> offerItems(state.offers, viewModel)
@@ -238,6 +257,9 @@ fun ShopProfileScreen(
 
     state.detailsDraft?.let { draft ->
         ShopDetailsDialog(draft, viewModel::updateDetailsDraft, viewModel::saveDetails, viewModel::cancelEditDetails)
+    }
+    state.hoursDraft?.let { draft ->
+        OperatingHoursDialog(draft, viewModel::updateHoursDay, viewModel::saveHours, viewModel::cancelEditHours)
     }
     state.staffDraft?.let { draft ->
         StaffDialog(draft, state.access, viewModel::updateStaffDraft, viewModel::saveStaff, viewModel::cancelStaffDraft)
@@ -341,7 +363,7 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, access: ShopAccess, viewModel:
             DetailRow(Res.string.profile_field_radius, shop.deliveryRadiusKm.formatOne())
             DetailRow(
                 Res.string.shop_delivery_until_label,
-                formatDeliveryUntil(shop.deliveryUntil) ?: stringResource(Res.string.shop_delivery_until_none),
+                formatClockTime(shop.deliveryUntil) ?: stringResource(Res.string.shop_delivery_until_none),
             )
             DetailRow(Res.string.profile_field_discount, shop.discountPercent.formatOne())
             DetailRow(Res.string.profile_field_registration, shop.registrationNumber)
@@ -349,27 +371,120 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, access: ShopAccess, viewModel:
             HorizontalDivider()
             ToggleRow(stringResource(Res.string.profile_shop_active), shop.active, canEdit, viewModel::setShopActive)
             ToggleRow(stringResource(Res.string.profile_payments_enabled), shop.paymentsEnabled, canEdit, viewModel::setPaymentsEnabled)
+            ToggleRow(stringResource(Res.string.shop_home_delivery_label), shop.homeDeliveryEnabled, canEdit, viewModel::setHomeDeliveryEnabled)
+            Text(
+                stringResource(Res.string.shop_home_delivery_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(Res.string.shop_hours_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                if (canEdit) {
+                    TextButton(onClick = viewModel::startEditHours) { Text(stringResource(Res.string.shop_hours_edit)) }
+                }
+            }
+            if (shop.operatingHours.isEmpty()) {
+                Text(
+                    stringResource(Res.string.shop_hours_not_set),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            shop.operatingHours.forEach { day ->
+                Row(Modifier.fillMaxWidth()) {
+                    Text(day.day, Modifier.weight(0.4f), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        if (day.closed) {
+                            stringResource(Res.string.shop_closed)
+                        } else {
+                            stringResource(
+                                Res.string.shop_hours_range,
+                                formatClockTime(day.start) ?: day.start,
+                                formatClockTime(day.end) ?: day.end,
+                            )
+                        },
+                        Modifier.weight(0.6f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun FeaturesCard(
-    features: ShopFeaturesDto,
-    access: ShopAccess,
-    onChange: ((ShopFeaturesDto) -> ShopFeaturesDto) -> Unit,
+private fun OperatingHoursDialog(
+    days: List<ShopHoursDayDto>,
+    onChange: (day: String, (ShopHoursDayDto) -> ShopHoursDayDto) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    val canToggle = access.can(ShopPermission.TOGGLE_FEATURES)
+    FormDialog(stringResource(Res.string.shop_hours_title), onSave, onDismiss) {
+        days.forEach { day ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(day.day, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                    FilterChip(
+                        selected = day.closed,
+                        onClick = { onChange(day.day) { it.copy(closed = !it.closed) } },
+                        label = { Text(stringResource(Res.string.shop_closed)) },
+                    )
+                }
+                if (!day.closed) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TimePickerField(
+                            label = stringResource(Res.string.master_hours_start),
+                            value = day.start,
+                            onChange = { v -> onChange(day.day) { it.copy(start = v) } },
+                            modifier = Modifier.weight(1f),
+                        )
+                        TimePickerField(
+                            label = stringResource(Res.string.master_hours_end),
+                            value = day.end,
+                            onChange = { v -> onChange(day.day) { it.copy(end = v) } },
+                            modifier = Modifier.weight(1f),
+                            defaultHour = DEFAULT_CLOSING_HOUR,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val DEFAULT_CLOSING_HOUR = 21
+
+@Composable
+private fun SubscriptionEntryCard(onOpen: () -> Unit) {
+    OutlinedCard(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(
+                stringResource(Res.string.sub_profile_row),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+            )
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        }
+    }
+}
+
+/** Read-only: feature switches are owned by Pansari master. */
+@Composable
+private fun FeaturesCard(features: ShopFeaturesDto) {
     SectionCard(
         title = stringResource(Res.string.profile_features_title),
-        subtitle = stringResource(Res.string.profile_features_subtitle),
+        subtitle = stringResource(Res.string.profile_features_master_managed),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        ToggleRow(stringResource(Res.string.feature_voice_search), features.voiceSearch, canToggle) { v -> onChange { it.copy(voiceSearch = v) } }
-        ToggleRow(stringResource(Res.string.feature_barcode_search), features.barcodeSearch, canToggle) { v -> onChange { it.copy(barcodeSearch = v) } }
-        ToggleRow(stringResource(Res.string.feature_report_generation), features.reportGeneration, canToggle) { v -> onChange { it.copy(reportGeneration = v) } }
-        ToggleRow(stringResource(Res.string.feature_online_orders), features.onlineOrders, canToggle) { v -> onChange { it.copy(onlineOrders = v) } }
-        ToggleRow(stringResource(Res.string.feature_inventory_alerts), features.inventoryAlerts, canToggle) { v -> onChange { it.copy(inventoryAlerts = v) } }
+        ToggleRow(stringResource(Res.string.feature_barcode_scanner), features.barcodeScanner, false) {}
+        ToggleRow(stringResource(Res.string.feature_voice_search), features.voiceSearch, false) {}
+        ToggleRow(stringResource(Res.string.feature_barcode_search), features.barcodeSearch, false) {}
+        ToggleRow(stringResource(Res.string.feature_report_generation), features.reportGeneration, false) {}
+        ToggleRow(stringResource(Res.string.feature_online_orders), features.onlineOrders, false) {}
+        ToggleRow(stringResource(Res.string.feature_inventory_alerts), features.inventoryAlerts, false) {}
     }
 }
 
@@ -718,62 +833,24 @@ private fun Field(
     )
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun DeliveryUntilField(value: String, onChange: (String) -> Unit) {
-    var picking by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Box {
-            OutlinedTextField(
-                value = formatDeliveryUntil(value) ?: stringResource(Res.string.shop_delivery_until_none),
-                onValueChange = {},
-                readOnly = true,
-                label = { Text(stringResource(Res.string.shop_delivery_until_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Box(Modifier.matchParentSize().clickable { picking = true })
-        }
+        TimePickerField(
+            label = stringResource(Res.string.shop_delivery_until_label),
+            value = value,
+            onChange = onChange,
+            modifier = Modifier.fillMaxWidth(),
+            emptyText = stringResource(Res.string.shop_delivery_until_none),
+            clearLabel = stringResource(Res.string.shop_delivery_until_clear),
+            defaultHour = DEFAULT_DELIVERY_CUTOFF_HOUR,
+        )
         Text(
             stringResource(Res.string.shop_delivery_until_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    if (!picking) return
-    val parts = value.split(":").mapNotNull { it.toIntOrNull() }
-    val pickerState = androidx.compose.material3.rememberTimePickerState(
-        initialHour = parts.getOrNull(0) ?: DEFAULT_DELIVERY_CUTOFF_HOUR,
-        initialMinute = parts.getOrNull(1) ?: 0,
-        is24Hour = false,
-    )
-    AlertDialog(
-        onDismissRequest = { picking = false },
-        title = { Text(stringResource(Res.string.shop_delivery_until_label)) },
-        text = { androidx.compose.material3.TimePicker(state = pickerState) },
-        confirmButton = {
-            TextButton(onClick = {
-                onChange("${pickerState.hour.toString().padStart(2, '0')}:${pickerState.minute.toString().padStart(2, '0')}")
-                picking = false
-            }) { Text(stringResource(Res.string.action_apply)) }
-        },
-        dismissButton = {
-            TextButton(onClick = {
-                onChange("")
-                picking = false
-            }) { Text(stringResource(Res.string.shop_delivery_until_clear)) }
-        },
-    )
-}
-
-/** "17:00" → "5:00 PM"; null when no cutoff is set. */
-@Composable
-private fun formatDeliveryUntil(value: String): String? {
-    val parts = value.split(":").mapNotNull { it.toIntOrNull() }
-    if (parts.size != 2) return null
-    val (hour, minute) = parts
-    val clock = "${if (hour % 12 == 0) 12 else hour % 12}:${minute.toString().padStart(2, '0')}"
-    return stringResource(if (hour < 12) Res.string.time_format_am else Res.string.time_format_pm, clock)
 }
 
 private const val DEFAULT_DELIVERY_CUTOFF_HOUR = 17

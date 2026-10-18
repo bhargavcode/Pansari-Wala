@@ -99,6 +99,13 @@ interface PansariApi {
     suspend fun replyToRating(orderId: String, reply: String): org.bhargav.pansariwala.domain.model.ShopReview
     suspend fun shopVisitors(fromEpochMs: Long?, toEpochMs: Long?): VisitorStatsDto
 
+    suspend fun shopSubscription(): ShopSubscriptionDto
+    suspend fun subscriptionCheckout(request: SubscriptionCheckoutRequest): SubscriptionCheckoutDto
+    suspend fun confirmSubscription(request: SubscriptionConfirmRequest): ShopSubscriptionDto
+    suspend fun commissionSummary(fromEpochMs: Long?, toEpochMs: Long?): CommissionSummaryDto
+    /** [day] is `yyyy-MM-dd` in shop time. */
+    suspend fun commissionDay(day: String): CommissionDayOrdersDto
+
     suspend fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse
     suspend fun partnerProfile(): PartnerProfile
     suspend fun updatePartnerProfilePhoto(profilePhotoUrl: String)

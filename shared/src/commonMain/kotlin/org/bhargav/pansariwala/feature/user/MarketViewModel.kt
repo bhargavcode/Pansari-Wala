@@ -21,6 +21,7 @@ import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
 import org.bhargav.pansariwala.platform.LocationServicesDisabledException
+import org.bhargav.pansariwala.platform.isLocationPermissionGranted
 import org.bhargav.pansariwala.platform.LocationUnavailableException
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
@@ -42,6 +43,8 @@ data class MarketUiState(
     val requestLocationPermission: Boolean = false,
     val showLocationDeniedDialog: Boolean = false,
     val locationPermissionGranted: Boolean = false,
+    val refreshing: Boolean = false,
+    val showLocationPrompt: Boolean = false,
 )
 
 class MarketViewModel(
@@ -56,6 +59,7 @@ class MarketViewModel(
     private var lastLat: Double? = null
     private var lastLng: Double? = null
     private var homeLoaded = false
+    private var locationPromptDismissed = false
 
     fun dismissError() { _state.update { it.copy(error = null) } }
 
@@ -82,7 +86,59 @@ class MarketViewModel(
                 refreshLocationAndShops()
             }
         } else {
-            _state.update { it.copy(requestLocationPermission = true) }
+            askForLocation()
+        }
+    }
+
+    /** OS permission already given: go straight to the GPS check; otherwise explain first (once per session). */
+    private fun askForLocation() {
+        when {
+            isLocationPermissionGranted() -> _state.update { it.copy(requestLocationPermission = true) }
+            locationPromptDismissed -> loadFromSavedAddress()
+            else -> _state.update { it.copy(showLocationPrompt = true) }
+        }
+    }
+
+    fun acceptLocationPrompt() {
+        _state.update { it.copy(showLocationPrompt = false, requestLocationPermission = true) }
+    }
+
+    fun dismissLocationPrompt() {
+        locationPromptDismissed = true
+        _state.update { it.copy(showLocationPrompt = false) }
+        loadFromSavedAddress()
+    }
+
+    private fun loadFromSavedAddress() {
+        viewModelScope.launch {
+            val point = selectedAddressPoint()
+            if (point == null) {
+                _state.update { it.copy(loading = false) }
+                return@launch
+            }
+            lastLat = point.first
+            lastLng = point.second
+            loadShops(point.first, point.second)
+        }
+    }
+
+    fun pullRefresh() {
+        if (_state.value.refreshing) return
+        if (!_state.value.locationPermissionGranted) {
+            onHomeVisible()
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(refreshing = true, error = null) }
+            val point = selectedAddressPoint()
+                ?: lastLat?.let { lat -> lastLng?.let { lng -> lat to lng } }
+                ?: runCatching { location.currentOrDefault() }.getOrNull()?.let { it.lat to it.lng }
+            if (point != null) {
+                lastLat = point.first
+                lastLng = point.second
+                loadShops(point.first, point.second)
+            }
+            _state.update { it.copy(refreshing = false) }
         }
     }
 
@@ -130,7 +186,7 @@ class MarketViewModel(
         if (granted) {
             refreshLocationAndShops()
         } else {
-            _state.update { it.copy(loading = false) }
+            loadFromSavedAddress()
         }
     }
 

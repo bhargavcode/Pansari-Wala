@@ -47,7 +47,9 @@ import org.bhargav.pansariwala.feature.printer.PrinterSettingsScreen
 import org.bhargav.pansariwala.feature.settings.SettingsScreen
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.api.SessionExpiredBus
+import org.bhargav.pansariwala.notification.NotificationOpenRequests
 import org.bhargav.pansariwala.notification.NotificationRouter
+import androidx.compose.runtime.collectAsState
 import org.bhargav.pansariwala.printer.PrinterManager
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
@@ -74,6 +76,9 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.PrinterSettings::class, AppRoute.PrinterSettings.serializer())
             subclass(AppRoute.Reports::class, AppRoute.Reports.serializer())
             subclass(AppRoute.ShopProfile::class, AppRoute.ShopProfile.serializer())
+            subclass(AppRoute.Subscription::class, AppRoute.Subscription.serializer())
+            subclass(AppRoute.CommissionDay::class, AppRoute.CommissionDay.serializer())
+            subclass(AppRoute.CommissionOrder::class, AppRoute.CommissionOrder.serializer())
         }
     }
 }
@@ -144,6 +149,21 @@ fun AppNavGraph(
         }
     }
 
+    val pendingOpen by NotificationOpenRequests.pending.collectAsState()
+    val currentRoute = backStack.lastOrNull()
+    val canOpen = currentRoute != null && currentRoute !is AppRoute.Splash && currentRoute !is AppRoute.Login
+    LaunchedEffect(pendingOpen, canOpen) {
+        val request = pendingOpen ?: return@LaunchedEffect
+        if (!canOpen) return@LaunchedEffect
+        NotificationOpenRequests.consume()
+        when {
+            request.type == AppConstants.Notification.TYPE_ONLINE_ORDER -> {
+                if (backStack.lastOrNull() !is AppRoute.OnlineOrders) push(AppRoute.OnlineOrders)
+            }
+            request.orderId != null -> push(AppRoute.OrdersWorkspace(request.orderId))
+        }
+    }
+
     LaunchedEffect(printService) {
         printService.results.collect { result ->
             val message = result.fold(
@@ -199,6 +219,7 @@ fun AppNavGraph(
                             onOpenOnlineOrders = { push(AppRoute.OnlineOrders) },
                             onOpenReports = { push(AppRoute.Reports) },
                             onOpenProfile = { push(AppRoute.ShopProfile) },
+                            onOpenSubscription = { push(AppRoute.Subscription) },
                             onLogout = { replaceAll(AppRoute.Login) },
                         )
                     }
@@ -249,6 +270,7 @@ fun AppNavGraph(
                             orderId = route.orderId,
                             onBack = { pop() },
                             onSaved = { pop() },
+                            onOpenSubscription = { push(AppRoute.Subscription) },
                         )
                     }
 
@@ -279,7 +301,33 @@ fun AppNavGraph(
                     }
 
                     AppRoute.ShopProfile -> NavEntry(route) {
-                        org.bhargav.pansariwala.feature.profile.ShopProfileScreen(onBack = { pop() })
+                        org.bhargav.pansariwala.feature.profile.ShopProfileScreen(
+                            onBack = { pop() },
+                            onOpenSubscription = { push(AppRoute.Subscription) },
+                        )
+                    }
+
+                    AppRoute.Subscription -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.subscription.SubscriptionScreen(
+                            onBack = { pop() },
+                            onOpenDay = { day -> push(AppRoute.CommissionDay(day)) },
+                        )
+                    }
+
+                    is AppRoute.CommissionDay -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.subscription.CommissionDayScreen(
+                            day = route.day,
+                            onBack = { pop() },
+                            onOpenOrder = { orderId -> push(AppRoute.CommissionOrder(route.day, orderId)) },
+                        )
+                    }
+
+                    is AppRoute.CommissionOrder -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.subscription.CommissionOrderScreen(
+                            day = route.day,
+                            orderId = route.orderId,
+                            onBack = { pop() },
+                        )
                     }
                 }
             },

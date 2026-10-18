@@ -230,6 +230,8 @@ actual fun RequestLocationPermission(
 
 actual fun canOpenLocationSettings(): Boolean = true
 
+actual fun isLocationPermissionGranted(): Boolean = IosLocationEngine.isGranted()
+
 actual fun openAppLocationSettings() {
     val url = NSURL.URLWithString(UIApplicationOpenSettingsURLString) ?: return
     UIApplication.sharedApplication.openURL(url, emptyMap<Any?, Any?>(), null)

@@ -29,6 +29,8 @@ ksp = "2.3.10"
 mongodb = "5.5.1"
 logback = "1.5.18"
 razorpay-checkout = "1.6.39"
+camerax = "1.4.2"
+mlkit-barcode = "18.3.1"
 google-services = "4.5.0"
 firebase-bom = "34.17.0"
 maps-compose = "6.2.1"
@@ -89,6 +91,10 @@ mongodb-driver-kotlin-sync = { module = "org.mongodb:mongodb-driver-kotlin-sync"
 bson-kotlinx = { module = "org.mongodb:bson-kotlinx", version.ref = "mongodb" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 razorpay-checkout = { module = "com.razorpay:checkout", version.ref = "razorpay-checkout" }
+camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camerax-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+mlkit-barcode-scanning = { module = "com.google.android.gms:play-services-mlkit-barcode-scanning", version.ref = "mlkit-barcode" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }

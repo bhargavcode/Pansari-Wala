@@ -44,7 +44,6 @@ import pansariwala.shared.generated.resources.otp_sent_to
 data class PhoneAuthUiState(
     val phone: String = "",
     val otp: String = "",
-    val step: Int = 0,
     val loading: Boolean = false,
     val error: UiText? = null,
     val hint: UiText? = null,
@@ -62,23 +61,38 @@ class PhoneAuthViewModel(
 
     fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
+    private var sessionPhone: String? = null
 
     private var countdownJob: Job? = null
+
+    /** Shared across the phone and OTP screens, so clear it after sign-in / sign-out. */
+    fun reset() {
+        countdownJob?.cancel()
+        session = null
+        sessionPhone = null
+        _state.value = PhoneAuthUiState()
+    }
 
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
     fun setOtp(value: String) { _state.update { it.copy(otp = sanitizeOtpInput(value), error = null) } }
 
-    fun sendOtp() {
-        if (_state.value.loading || _state.value.resendInSec > 0) return
+    /** [onSent] runs once a code is on its way (or one sent to this number is still valid). */
+    fun sendOtp(onSent: () -> Unit = {}) {
+        if (_state.value.loading) return
+        if (_state.value.resendInSec > 0) {
+            if (session != null && sessionPhone == _state.value.phone) onSent()
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            phoneAuth.sendOtp(_state.value.phone)
+            val phone = _state.value.phone
+            phoneAuth.sendOtp(phone)
                 .onSuccess { next ->
                     session = next
+                    sessionPhone = phone
                     _state.update {
                         it.copy(
                             loading = false,
-                            step = 1,
                             otp = "",
                             hint = when {
                                 next.devOtp != null -> UiText.res(Res.string.dev_otp_hint)
@@ -88,6 +102,7 @@ class PhoneAuthViewModel(
                         )
                     }
                     startCountdown(next.resendAfterSec)
+                    onSent()
                 }
                 .onFailure { error ->
                     _state.update { it.copy(loading = false, error = mapPhoneAuthError(error, verifying = false)) }

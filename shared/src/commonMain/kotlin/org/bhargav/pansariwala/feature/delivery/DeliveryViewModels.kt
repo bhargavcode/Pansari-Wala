@@ -49,6 +49,8 @@ import org.bhargav.pansariwala.platform.sanitizeOtpInput
 import org.bhargav.pansariwala.platform.toPhoneOtpSession
 import org.bhargav.pansariwala.platform.normalizeVehicleReg
 import org.bhargav.pansariwala.platform.searchPlaces
+import org.bhargav.pansariwala.platform.geocodeAddress
+import org.bhargav.pansariwala.platform.isLocationPermissionGranted
 import org.bhargav.pansariwala.notification.NotificationRouter
 import org.bhargav.pansariwala.notification.OrderUpdate
 import org.bhargav.pansariwala.notification.OrderUpdates
@@ -61,6 +63,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_address_required
+import pansariwala.shared.generated.resources.error_address_coordinates
 import pansariwala.shared.generated.resources.error_email_invalid
 import pansariwala.shared.generated.resources.error_otp_invalid
 import pansariwala.shared.generated.resources.error_generic
@@ -92,7 +95,6 @@ private val EMAIL_PATTERN = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{
 data class PartnerLoginUiState(
     val phone: String = "",
     val otp: String = "",
-    val step: Int = 0,
     val loading: Boolean = false,
     val error: UiText? = null,
     val hint: UiText? = null,
@@ -109,23 +111,38 @@ class PartnerLoginViewModel(
 
     fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
+    private var sessionPhone: String? = null
 
     private var countdownJob: Job? = null
 
     fun setPhone(value: String) { _state.update { it.copy(phone = value, error = null) } }
     fun setOtp(value: String) { _state.update { it.copy(otp = sanitizeOtpInput(value), error = null) } }
 
-    fun sendOtp() {
-        if (_state.value.loading || _state.value.resendInSec > 0) return
+    /** Shared across the phone and OTP screens, so clear it after sign-in / sign-out. */
+    fun reset() {
+        countdownJob?.cancel()
+        session = null
+        sessionPhone = null
+        _state.value = PartnerLoginUiState()
+    }
+
+    /** [onSent] runs once a code is on its way (or one sent to this number is still valid). */
+    fun sendOtp(onSent: () -> Unit = {}) {
+        if (_state.value.loading) return
+        if (_state.value.resendInSec > 0) {
+            if (session != null && sessionPhone == _state.value.phone) onSent()
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            phoneAuth.sendOtp(_state.value.phone)
+            val phone = _state.value.phone
+            phoneAuth.sendOtp(phone)
                 .onSuccess { next ->
                     session = next
+                    sessionPhone = phone
                     _state.update {
                         it.copy(
                             loading = false,
-                            step = 1,
                             otp = "",
                             hint = when {
                                 next.devOtp != null -> UiText.res(Res.string.dev_otp_hint)
@@ -137,6 +154,7 @@ class PartnerLoginViewModel(
                     countdownJob = otpCountdown(countdownJob, next.resendAfterSec) { left ->
                         _state.update { it.copy(resendInSec = left) }
                     }
+                    onSent()
                 }
                 .onFailure { error ->
                     _state.update { it.copy(loading = false, error = mapPhoneAuthError(error, verifying = false)) }
@@ -191,7 +209,6 @@ data class RegisterUiState(
     val vehiclePhoto: String = "",
     val photoUploads: Map<RegisterPhoto, PhotoUploadUi> = emptyMap(),
     val otp: String = "",
-    val step: Int = 0,
     val loading: Boolean = false,
     val requestLocationPermission: Boolean = false,
     val showLocationDeniedDialog: Boolean = false,
@@ -266,6 +283,7 @@ class PartnerRegisterViewModel(
 
     fun dismissError() { _state.update { it.copy(error = null) } }
     private var session: PhoneOtpSession? = null
+    private var sessionPhone: String? = null
     private var registered = false
     private var searchJob: Job? = null
     private val ocr = FormatPlateOcr()
@@ -415,30 +433,50 @@ class PartnerRegisterViewModel(
 
     private var vehiclePhotoBytes: ByteArray = ByteArray(0)
 
-    fun save() {
+    private fun detailsError(s: RegisterUiState): UiText? = when {
+        s.photoUploads.values.any { it.uploading } -> UiText.res(Res.string.error_photo_upload_in_progress)
+        s.name.trim().length < 2 -> UiText.res(Res.string.error_name_required)
+        !EMAIL_PATTERN.matches(s.email.trim()) -> UiText.res(Res.string.error_email_invalid)
+        s.phone.filter { it.isDigit() }.length < AppConstants.PHONE_LOCAL_DIGITS -> UiText.res(Res.string.error_phone_required)
+        else -> null
+    }
+
+    private fun addressError(s: RegisterUiState): UiText? =
+        if (s.address.isBlank()) UiText.res(Res.string.error_address_required) else null
+
+    fun continueFromDetails(onValid: () -> Unit) {
+        val error = detailsError(_state.value)
+        if (error != null) _state.update { it.copy(error = error) } else onValid()
+    }
+
+    fun continueFromAddress(onValid: () -> Unit) {
+        val error = addressError(_state.value)
+        if (error != null) _state.update { it.copy(error = error) } else onValid()
+    }
+
+    /** Shared across the registration screens, so clear it once the partner is signed in. */
+    fun reset() {
+        countdownJob?.cancel()
+        session = null
+        sessionPhone = null
+        registered = false
+        vehiclePhotoBytes = ByteArray(0)
+        _state.value = RegisterUiState()
+    }
+
+    /** Registers (first time) and sends the OTP; [onSent] runs once a code is on its way or still valid. */
+    fun save(onSent: () -> Unit = {}) {
+        if (_state.value.loading) return
+        if (_state.value.resendInSec > 0) {
+            if (session != null && sessionPhone == _state.value.phone) onSent()
+            return
+        }
         viewModelScope.launch {
             val s = _state.value
-            when {
-                s.photoUploads.values.any { it.uploading } -> {
-                    _state.update { it.copy(error = UiText.res(Res.string.error_photo_upload_in_progress)) }
-                    return@launch
-                }
-                s.name.trim().length < 2 -> {
-                    _state.update { it.copy(error = UiText.res(Res.string.error_name_required)) }
-                    return@launch
-                }
-                !EMAIL_PATTERN.matches(s.email.trim()) -> {
-                    _state.update { it.copy(error = UiText.res(Res.string.error_email_invalid)) }
-                    return@launch
-                }
-                s.address.isBlank() -> {
-                    _state.update { it.copy(error = UiText.res(Res.string.error_address_required)) }
-                    return@launch
-                }
-                s.phone.filter { it.isDigit() }.length < AppConstants.PHONE_LOCAL_DIGITS -> {
-                    _state.update { it.copy(error = UiText.res(Res.string.error_phone_required)) }
-                    return@launch
-                }
+            val formError = detailsError(s) ?: addressError(s)
+            if (formError != null) {
+                _state.update { it.copy(error = formError) }
+                return@launch
             }
             _state.update { it.copy(loading = true, error = null) }
             val phoneDigits = _state.value.phone.filter { it.isDigit() }
@@ -465,13 +503,7 @@ class PartnerRegisterViewModel(
             }
             val geo = resolveRegistrationGeo()
             if (geo == null) {
-                _state.update {
-                    it.copy(
-                        loading = false,
-                        requestLocationPermission = true,
-                        error = UiText.res(Res.string.partner_register_location_required),
-                    )
-                }
+                _state.update { it.copy(loading = false, error = UiText.res(Res.string.error_address_coordinates)) }
                 return@launch
             }
             runCatching {
@@ -501,10 +533,10 @@ class PartnerRegisterViewModel(
                 }
             }.onSuccess { otpSession ->
                 session = otpSession
+                sessionPhone = _state.value.phone
                 _state.update {
                     it.copy(
                         loading = false,
-                        step = 1,
                         otp = "",
                         hint = when {
                             otpSession.devOtp != null -> UiText.res(Res.string.dev_otp_hint)
@@ -516,6 +548,7 @@ class PartnerRegisterViewModel(
                 countdownJob = otpCountdown(countdownJob, otpSession.resendAfterSec) { left ->
                     _state.update { it.copy(resendInSec = left) }
                 }
+                onSent()
             }.onFailure { error ->
                 error.otpRetryAfterSec()?.let { secs ->
                     countdownJob = otpCountdown(countdownJob, secs) { left -> _state.update { it.copy(resendInSec = left) } }
@@ -538,13 +571,11 @@ class PartnerRegisterViewModel(
         if (cachedLat != null && cachedLng != null) {
             return GeoPoint(cachedLat, cachedLng)
         }
-        return runCatching { location.currentOrDefault() }
-            .onFailure {
-                if (it is LocationPermissionDeniedException) {
-                    _state.update { s -> s.copy(requestLocationPermission = true) }
-                }
-            }
-            .getOrNull()
+        // Location permission is asked only after registration, so fall back to geocoding the typed address.
+        val query = listOf(_state.value.address, _state.value.locality, "India").filter { it.isNotBlank() }.joinToString(", ")
+        geocodeAddress(query)?.let { return GeoPoint(it.lat, it.lng) }
+        if (!isLocationPermissionGranted()) return null
+        return runCatching { location.currentOrDefault() }.getOrNull()
     }
 
     fun verify(onDone: () -> Unit) {
@@ -581,6 +612,7 @@ data class PartnerHomeUiState(
     val requestLocationPermission: Boolean = false,
     val showLocationDeniedDialog: Boolean = false,
     val locationPermissionGranted: Boolean = false,
+    val showLocationPrompt: Boolean = false,
     val earnings: PartnerEarnings? = null,
     val earningsPeriod: PartnerEarningsPeriod = PartnerEarningsPeriod.TODAY,
     val earningsRange: ReportRange? = null,
@@ -690,12 +722,25 @@ class PartnerHomeViewModel(
         if (!_state.value.loading) refreshJobsAndOffers(presentIncoming = false)
     }
 
+    /** OS permission already given: go straight to the GPS check; otherwise explain first. */
     fun requestLocationAccessOnLanding() {
         if (_state.value.locationPermissionGranted) {
             refreshCurrentLocation()
             return
         }
-        _state.update { it.copy(requestLocationPermission = true) }
+        if (isLocationPermissionGranted()) {
+            _state.update { it.copy(requestLocationPermission = true) }
+        } else {
+            _state.update { it.copy(showLocationPrompt = true) }
+        }
+    }
+
+    fun acceptLocationPrompt() {
+        _state.update { it.copy(showLocationPrompt = false, requestLocationPermission = true) }
+    }
+
+    fun dismissLocationPrompt() {
+        _state.update { it.copy(showLocationPrompt = false) }
     }
 
     fun consumeLocationPermissionRequest() {

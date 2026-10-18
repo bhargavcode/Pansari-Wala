@@ -16,6 +16,17 @@ import org.koin.core.component.inject
 private const val DEFAULT_CHANNEL_ID = "pansari_default"
 private const val DEFAULT_CHANNEL_NAME = "Pansari Wala"
 private const val EXTRA_ORDER_ID = "order_id"
+private const val EXTRA_NOTIFICATION_TYPE = "notification_type"
+
+/** Forwards a notification-tap launch intent to [NotificationOpenRequests]; extras are cleared so it fires once. */
+fun handleNotificationIntent(intent: Intent?) {
+    val type = intent?.getStringExtra(EXTRA_NOTIFICATION_TYPE) ?: return
+    NotificationOpenRequests.open(
+        NotificationOpenRequest(type = type, orderId = intent.getStringExtra(EXTRA_ORDER_ID)),
+    )
+    intent.removeExtra(EXTRA_NOTIFICATION_TYPE)
+    intent.removeExtra(EXTRA_ORDER_ID)
+}
 
 private class AndroidNotificationGateway(
     private val context: Context,
@@ -53,6 +64,7 @@ private class AndroidNotificationGateway(
 
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
             ?.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        launchIntent?.putExtra(EXTRA_NOTIFICATION_TYPE, notification.type)
         if (notification.orderId != null) {
             launchIntent?.putExtra(EXTRA_ORDER_ID, notification.orderId)
         }

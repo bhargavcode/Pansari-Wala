@@ -181,6 +181,7 @@ data class ShopFeaturesDto(
     val reportGeneration: Boolean = true,
     val onlineOrders: Boolean = true,
     val inventoryAlerts: Boolean = true,
+    val barcodeScanner: Boolean = false,
 )
 
 @Serializable
@@ -214,6 +215,7 @@ data class AdminShopDto(
     val operatingHours: List<ShopHoursDayDto> = emptyList(),
     val loginUsername: String = "",
     val deliveryUntil: String = "",
+    val homeDeliveryEnabled: Boolean = true,
 )
 
 @Serializable
@@ -1022,4 +1024,5 @@ data class AdminShopPatch(
     val discountPercent: Double? = null,
     /** "HH:mm"; empty string clears the cutoff. */
     val deliveryUntil: String? = null,
+    val homeDeliveryEnabled: Boolean? = null,
 )

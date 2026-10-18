@@ -37,6 +37,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import org.bhargav.pansariwala.domain.model.ShopSortOption
@@ -127,29 +128,27 @@ import pansariwala.shared.generated.resources.settings_radius
 import pansariwala.shared.generated.resources.settings_radius_value
 import pansariwala.shared.generated.resources.settings_theme_card
 import pansariwala.shared.generated.resources.user_location_access_action
-import pansariwala.shared.generated.resources.user_location_access_continue
 import pansariwala.shared.generated.resources.user_location_access_reason_delivery
 import pansariwala.shared.generated.resources.user_location_access_reason_offers
 import pansariwala.shared.generated.resources.user_location_access_reason_shops
 import pansariwala.shared.generated.resources.user_location_access_subtitle
 import pansariwala.shared.generated.resources.user_location_access_title
-import pansariwala.shared.generated.resources.user_location_coords
 import pansariwala.shared.generated.resources.user_location_permission_denied_message
 import pansariwala.shared.generated.resources.user_shop_tab_continue
 import pansariwala.shared.generated.resources.user_shop_tab_empty
 import kotlin.math.roundToInt
 
-private fun Double.formatCoord(): String = ((this * 1000).roundToInt() / 1000.0).toString()
-
 @Composable
 fun PhoneAuthScreen(
-    onVerified: (profileComplete: Boolean) -> Unit,
-    viewModel: PhoneAuthViewModel = koinViewModel(),
+    onOtpSent: () -> Unit,
+    viewModel: PhoneAuthViewModel,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     PansariScreen(
         error = state.error.toErrorBanner(),
-        onErrorAction = { handleErrorBannerAction(it, onRetry = viewModel::sendOtp, onDismiss = viewModel::dismissError) },
+        onErrorAction = {
+            handleErrorBannerAction(it, onRetry = { viewModel.sendOtp(onOtpSent) }, onDismiss = viewModel::dismissError)
+        },
         isLoading = state.loading,
     ) {
     Column(
@@ -171,17 +170,15 @@ fun PhoneAuthScreen(
         )
         OnboardingFormCard {
         Text(
-            stringResource(if (state.step == 0) Res.string.onboarding_phone_heading else Res.string.onboarding_otp_heading),
+            stringResource(Res.string.onboarding_phone_heading),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
         )
-        if (state.step == 0) {
-            Text(
-                stringResource(Res.string.onboarding_phone_subheading),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            stringResource(Res.string.onboarding_phone_subheading),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         OutlinedTextField(
             value = state.phone,
             onValueChange = viewModel::setPhone,
@@ -191,15 +188,36 @@ fun PhoneAuthScreen(
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
         )
-        if (state.step == 0) {
-            UserPrimaryButton(
-                text = stringResource(Res.string.action_send_otp),
-                onClick = viewModel::sendOtp,
-                enabled = !state.loading && state.phone.length >= 10,
-            )
-        } else {
+        UserPrimaryButton(
+            text = stringResource(Res.string.action_send_otp),
+            onClick = { viewModel.sendOtp(onOtpSent) },
+            enabled = !state.loading && state.phone.length >= 10,
+        )
+        }
+    }
+    }
+}
+
+@Composable
+fun PhoneOtpScreen(
+    onVerified: (profileComplete: Boolean) -> Unit,
+    onBack: () -> Unit,
+    viewModel: PhoneAuthViewModel,
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    PansariScreen(
+        title = stringResource(Res.string.onboarding_otp_heading),
+        onBack = onBack,
+        error = state.error.toErrorBanner(),
+        onErrorAction = { handleErrorBannerAction(it, onRetry = { viewModel.sendOtp() }, onDismiss = viewModel::dismissError) },
+        isLoading = state.loading,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             state.hint?.let {
-                Text(it.asString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it.asString(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OtpCodeField(
                 value = state.otp,
@@ -212,91 +230,8 @@ fun PhoneAuthScreen(
                 onClick = { viewModel.verify { onVerified(it.profileComplete) } },
                 enabled = !state.loading && state.otp.length == AppConstants.OTP_LENGTH,
             )
-            ResendOtpButton(resendInSec = state.resendInSec, loading = state.loading, onClick = viewModel::sendOtp)
+            ResendOtpButton(resendInSec = state.resendInSec, loading = state.loading, onClick = { viewModel.sendOtp() })
         }
-        }
-    }
-    }
-}
-
-@Composable
-fun UserLocationAccessScreen(
-    onDone: () -> Unit,
-    viewModel: UserLocationAccessViewModel = koinViewModel(),
-) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val deniedMessage = stringResource(Res.string.user_location_permission_denied_message)
-
-    RequestLocationPermission(
-        trigger = state.requestLocationPermission,
-        onConsumed = viewModel::consumeLocationPermissionRequest,
-        onResult = viewModel::onLocationPermissionResult,
-    )
-    LocationPermissionDeniedDialog(
-        visible = state.showLocationDeniedDialog,
-        onRetry = viewModel::retryLocationPermission,
-        onOpenSettings = {
-            openAppLocationSettings()
-            viewModel.dismissLocationDeniedDialog()
-        },
-        onDismiss = viewModel::dismissLocationDeniedDialog,
-        message = deniedMessage,
-    )
-
-    PansariScreen(
-        error = state.error.toErrorBanner(),
-        onErrorAction = {
-            handleErrorBannerAction(it, onRetry = viewModel::requestLocationAccess, onDismiss = viewModel::dismissError)
-        },
-        isLoading = state.fetchingLocation || state.saving,
-    ) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(16.dp))
-        UserLocationOnboardingHero(fetching = state.fetchingLocation)
-        Text(
-            stringResource(Res.string.user_location_access_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        Text(
-            stringResource(Res.string.user_location_access_subtitle),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        UserLocationReasonRow(stringResource(Res.string.user_location_access_reason_shops), "🏪")
-        UserLocationReasonRow(stringResource(Res.string.user_location_access_reason_delivery), "🛵")
-        UserLocationReasonRow(stringResource(Res.string.user_location_access_reason_offers), "⭐")
-        if (state.lat != null && state.lng != null) {
-            Text(
-                stringResource(
-                    Res.string.user_location_coords,
-                    state.lat!!.formatCoord(),
-                    state.lng!!.formatCoord(),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-        if (!state.locationPermissionGranted || state.lat == null) {
-            UserPrimaryButton(
-                text = stringResource(Res.string.user_location_access_action),
-                onClick = viewModel::requestLocationAccess,
-                enabled = !state.fetchingLocation,
-            )
-        }
-        UserPrimaryButton(
-            text = stringResource(Res.string.user_location_access_continue),
-            onClick = { viewModel.continueToHome(onDone) },
-            enabled = !state.saving && state.lat != null && state.lng != null && state.locationPermissionGranted,
-        )
-    }
     }
 }
 
@@ -350,9 +285,24 @@ fun MarketScreen(
     LaunchedEffect(Unit) {
         viewModel.onHomeVisible()
     }
-    val locationSettled = !state.loading && !state.requestLocationPermission && !state.showLocationDeniedDialog
+    val locationSettled = !state.loading && !state.requestLocationPermission &&
+        !state.showLocationDeniedDialog && !state.showLocationPrompt
     LaunchedEffect(locationSettled) {
         if (locationSettled) org.bhargav.pansariwala.notification.NotificationPromptGate.onHomeShown()
+    }
+    if (state.showLocationPrompt) {
+        LocationAccessPromptDialog(
+            title = stringResource(Res.string.user_location_access_title),
+            subtitle = stringResource(Res.string.user_location_access_subtitle),
+            reasons = listOf(
+                "🏪" to stringResource(Res.string.user_location_access_reason_shops),
+                "🛵" to stringResource(Res.string.user_location_access_reason_delivery),
+                "⭐" to stringResource(Res.string.user_location_access_reason_offers),
+            ),
+            allowLabel = stringResource(Res.string.user_location_access_action),
+            onAllow = viewModel::acceptLocationPrompt,
+            onNotNow = viewModel::dismissLocationPrompt,
+        )
     }
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -524,8 +474,13 @@ fun MarketScreen(
                 }
             }
           }
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = viewModel::pullRefresh,
             modifier = Modifier.fillMaxWidth().weight(1f),
+        ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 16.dp),
         ) {
             if (state.shops.isEmpty() && !state.loading) {
@@ -544,6 +499,7 @@ fun MarketScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                 )
             }
+        }
         }
       }
     }

@@ -47,8 +47,11 @@ import org.bhargav.pansariwala.feature.user.MarketScreen
 import org.bhargav.pansariwala.feature.user.OrderDetailsScreen
 import org.bhargav.pansariwala.feature.user.OrdersListScreen
 import org.bhargav.pansariwala.feature.user.PhoneAuthScreen
-import org.bhargav.pansariwala.feature.user.UserLocationAccessScreen
+import org.bhargav.pansariwala.feature.user.PhoneAuthViewModel
+import org.bhargav.pansariwala.feature.user.PhoneOtpScreen
+import org.bhargav.pansariwala.feature.user.ProfileNameScreen
 import org.bhargav.pansariwala.feature.user.ProfileSetupScreen
+import org.koin.compose.viewmodel.koinViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogScreen
 import org.bhargav.pansariwala.feature.user.ShopOffersScreen
 import org.bhargav.pansariwala.feature.user.ThankYouScreen
@@ -58,7 +61,9 @@ import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
 import org.bhargav.pansariwala.feature.user.UserSettingsHub
 import org.bhargav.pansariwala.feature.user.UserThemeScreen
 import org.bhargav.pansariwala.api.SessionExpiredBus
+import org.bhargav.pansariwala.notification.NotificationOpenRequests
 import org.bhargav.pansariwala.notification.NotificationRouter
+import androidx.compose.runtime.collectAsState
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_show
@@ -72,9 +77,10 @@ private val userNavConfig = SavedStateConfiguration {
         polymorphic(NavKey::class) {
             subclass(UserRoute.Splash::class, UserRoute.Splash.serializer())
             subclass(UserRoute.PhoneAuth::class, UserRoute.PhoneAuth.serializer())
+            subclass(UserRoute.PhoneOtp::class, UserRoute.PhoneOtp.serializer())
             subclass(UserRoute.ProfileSetup::class, UserRoute.ProfileSetup.serializer())
+            subclass(UserRoute.ProfileAddress::class, UserRoute.ProfileAddress.serializer())
             subclass(UserRoute.Address::class, UserRoute.Address.serializer())
-            subclass(UserRoute.LocationAccess::class, UserRoute.LocationAccess.serializer())
             subclass(UserRoute.Shell::class, UserRoute.Shell.serializer())
             subclass(UserRoute.ShopCatalog::class, UserRoute.ShopCatalog.serializer())
             subclass(UserRoute.ShopCategory::class, UserRoute.ShopCategory.serializer())
@@ -106,10 +112,21 @@ fun UserNavGraph() {
     fun popOr(fallback: UserRoute) {
         if (backStack.size > 1) backStack.removeLastOrNull() else replaceAll(fallback)
     }
+    /** Back to whatever opened profile setup (e.g. checkout); straight to home after sign-up. */
+    fun finishProfileSetup() {
+        val start = backStack.indexOfFirst { it is UserRoute.ProfileSetup }
+        if (start > 0) {
+            while (backStack.size > start) backStack.removeLastOrNull()
+        } else {
+            replaceAll(UserRoute.Shell)
+        }
+    }
+    val phoneAuthViewModel: PhoneAuthViewModel = koinViewModel()
 
     LaunchedEffect(Unit) {
         SessionExpiredBus.events.collect {
-            if (backStack.lastOrNull() is UserRoute.PhoneAuth) return@collect
+            val current = backStack.lastOrNull()
+            if (current is UserRoute.PhoneAuth || current is UserRoute.PhoneOtp) return@collect
             replaceAll(UserRoute.PhoneAuth)
             snackbarHostState.showSnackbar(
                 message = sessionExpiredMessage,
@@ -128,6 +145,21 @@ fun UserNavGraph() {
             if (result == SnackbarResult.ActionPerformed) {
                 notification.orderId?.let { push(UserRoute.OrderDetails(it)) }
             }
+        }
+    }
+
+    val pendingOpen by NotificationOpenRequests.pending.collectAsState()
+    val currentRoute = backStack.lastOrNull()
+    val signedIn = currentRoute != null && currentRoute !is UserRoute.Splash &&
+        currentRoute !is UserRoute.PhoneAuth && currentRoute !is UserRoute.PhoneOtp &&
+        currentRoute !is UserRoute.ProfileSetup && currentRoute !is UserRoute.ProfileAddress
+    LaunchedEffect(pendingOpen, signedIn) {
+        val request = pendingOpen ?: return@LaunchedEffect
+        if (!signedIn) return@LaunchedEffect
+        NotificationOpenRequests.consume()
+        val orderId = request.orderId ?: return@LaunchedEffect
+        if ((backStack.lastOrNull() as? UserRoute.OrderDetails)?.orderId != orderId) {
+            push(UserRoute.OrderDetails(orderId))
         }
     }
 
@@ -158,22 +190,33 @@ fun UserNavGraph() {
                         )
                     }
                     UserRoute.PhoneAuth -> NavEntry(route) {
-                        PhoneAuthScreen(onVerified = { complete ->
-                            if (complete) replaceAll(UserRoute.Shell) else replaceAll(UserRoute.ProfileSetup)
-                        })
+                        PhoneAuthScreen(onOtpSent = { push(UserRoute.PhoneOtp) }, viewModel = phoneAuthViewModel)
+                    }
+                    UserRoute.PhoneOtp -> NavEntry(route) {
+                        PhoneOtpScreen(
+                            onVerified = { complete ->
+                                phoneAuthViewModel.reset()
+                                if (complete) replaceAll(UserRoute.Shell) else replaceAll(UserRoute.ProfileSetup)
+                            },
+                            onBack = { pop() },
+                            viewModel = phoneAuthViewModel,
+                        )
                     }
                     UserRoute.ProfileSetup -> NavEntry(route) {
+                        ProfileNameScreen(
+                            onNext = { push(UserRoute.ProfileAddress(it)) },
+                            onBack = if (backStack.size > 1) ::pop else null,
+                        )
+                    }
+                    is UserRoute.ProfileAddress -> NavEntry(route) {
                         ProfileSetupScreen(
-                            onDone = {
-                                if (backStack.size > 1) pop() else replaceAll(UserRoute.LocationAccess)
-                            },
+                            name = route.name,
+                            onDone = ::finishProfileSetup,
+                            onBack = { pop() },
                         )
                     }
                     UserRoute.Address -> NavEntry(route) {
                         AddressScreen(onDone = { pop() }, onBack = { pop() })
-                    }
-                    UserRoute.LocationAccess -> NavEntry(route) {
-                        UserLocationAccessScreen(onDone = { replaceAll(UserRoute.Shell) })
                     }
                     UserRoute.Shell -> NavEntry(route) {
                         UserShell(

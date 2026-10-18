@@ -191,11 +191,13 @@ fun PansariSearchTopBar(
     onBack: (() -> Unit)?,
     modifier: Modifier = Modifier,
     trailingSearchContent: @Composable (() -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         PansariTopBar(
             title = title,
             onBack = onBack,
+            actions = actions,
         )
         OutlinedTextField(
             value = searchQuery,

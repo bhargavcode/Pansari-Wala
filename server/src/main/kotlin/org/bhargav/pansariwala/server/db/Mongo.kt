@@ -33,6 +33,66 @@ data class ShopFeaturesDoc(
     val reportGeneration: Boolean = true,
     val onlineOrders: Boolean = true,
     val inventoryAlerts: Boolean = true,
+    /** Camera barcode scanner on POS create order; premium, off until master/subscription enables it. */
+    val barcodeScanner: Boolean = false,
+)
+
+@Serializable
+data class SubscriptionPlanDoc(
+    @SerialName("_id") val id: String,
+    val name: String,
+    val description: String = "",
+    val features: List<String> = emptyList(),
+    val monthlyPriceInr: Double = 0.0,
+    val yearlyPriceInr: Double = 0.0,
+    val active: Boolean = true,
+    val sortOrder: Int = 0,
+    val updatedAt: Long = 0L,
+)
+
+/** One row per shop (`_id = shopId`): which billing model master assigned and its current period. */
+@Serializable
+data class ShopBillingDoc(
+    @SerialName("_id") val shopId: String,
+    /** NONE, MONTHLY, YEARLY, COMMISSION or FREE. */
+    val model: String = "NONE",
+    val planId: String? = null,
+    val commissionPercent: Double = 0.0,
+    val startedAt: Long? = null,
+    val expiresAt: Long? = null,
+    /** FREE model only; null = free forever. */
+    val freeUntil: Long? = null,
+    val note: String = "",
+    val updatedAt: Long = 0L,
+)
+
+@Serializable
+data class SubscriptionTxnDoc(
+    @SerialName("_id") val id: String,
+    val shopId: String,
+    /** PURCHASE, RENEWAL, FREE_GRANT, MODEL_CHANGE. */
+    val type: String,
+    val planId: String? = null,
+    val planName: String = "",
+    val period: String = "",
+    val amountInr: Double = 0.0,
+    val paymentId: String? = null,
+    val razorpayOrderId: String? = null,
+    val status: String = "SUCCESS",
+    val periodStart: Long? = null,
+    val periodEnd: Long? = null,
+    val note: String = "",
+    val by: String = "",
+    val createdAt: Long,
+)
+
+/** Single-row (`_id = "global"`) subscription defaults edited from Master. */
+@Serializable
+data class BillingSettingsDoc(
+    @SerialName("_id") val id: String = "global",
+    val defaultCommissionPercent: Double = 1.5,
+    val expiryWarningDays: Int = 7,
+    val updatedAt: Long = 0L,
 )
 
 @Serializable
@@ -74,6 +134,8 @@ data class ShopDoc(
     val operatingHours: List<ShopHoursDayDoc> = emptyList(),
     /** Daily delivery cutoff "HH:mm" in shop time; blank = delivers all day. After it, orders are pickup-only. */
     val deliveryUntil: String = "",
+    /** False = the shop never delivers; customers can only order for pickup. */
+    val homeDeliveryEnabled: Boolean = true,
 )
 
 @Serializable
@@ -456,6 +518,7 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     ensureMasterAdmin(db, security, config)
     bestEffortSeed("shop types") { ensureShopTypes(db) }
     bestEffortSeed("prototype shops") { ensurePrototypeShops(db) }
+    bestEffortSeed("subscription plans") { ensureSubscriptionPlans(db) }
     return MongoApp(client, db)
 }
 
@@ -606,6 +669,47 @@ private fun ensurePrototypeShops(db: MongoDatabase) {
     }
 }
 
+/** Default price list (INR, priced against Vyapar / Khatabook / Marg tiers for kirana POS); editable from Master. */
+private fun ensureSubscriptionPlans(db: MongoDatabase) {
+    val col = db.getCollection<SubscriptionPlanDoc>("subscription_plans")
+    if (col.countDocuments() > 0L) return
+    val now = System.currentTimeMillis()
+    col.insertMany(
+        listOf(
+            SubscriptionPlanDoc(
+                id = "plan_scanner",
+                name = "Scanner",
+                description = "Camera barcode scanner for fast billing",
+                features = listOf("barcodeScanner"),
+                monthlyPriceInr = 149.0,
+                yearlyPriceInr = 1499.0,
+                sortOrder = 1,
+                updatedAt = now,
+            ),
+            SubscriptionPlanDoc(
+                id = "plan_smart",
+                name = "Smart POS",
+                description = "Scanner + voice billing + sales reports",
+                features = listOf("barcodeScanner", "voiceSearch", "reportGeneration"),
+                monthlyPriceInr = 299.0,
+                yearlyPriceInr = 2999.0,
+                sortOrder = 2,
+                updatedAt = now,
+            ),
+            SubscriptionPlanDoc(
+                id = "plan_business",
+                name = "Business Pro",
+                description = "Every POS feature including online orders and stock alerts",
+                features = listOf("barcodeScanner", "voiceSearch", "reportGeneration", "inventoryAlerts", "onlineOrders"),
+                monthlyPriceInr = 499.0,
+                yearlyPriceInr = 4999.0,
+                sortOrder = 3,
+                updatedAt = now,
+            ),
+        ),
+    )
+}
+
 private fun ensureShopUpis(db: MongoDatabase) {
     db.getCollection<ShopDoc>("shops").updateMany(
         or(exists("upiId", false), eq("upiId", "")),
@@ -655,6 +759,10 @@ private fun ensureIndexes(db: MongoDatabase) {
     }
     db.getCollection<TxnDoc>("transactions")
         .createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))
+    db.getCollection<SubscriptionTxnDoc>("subscription_txns").apply {
+        createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.descending("createdAt")))
+        createIndex(Indexes.ascending("paymentId"))
+    }
     db.getCollection<ProductDoc>("products").apply {
         createIndex(Indexes.ascending("shopId"))
         createIndex(

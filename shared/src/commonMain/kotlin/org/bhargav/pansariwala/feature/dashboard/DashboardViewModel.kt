@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.dashboard
 
+import org.bhargav.pansariwala.api.ShopBillingDto
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,6 +53,8 @@ class DashboardViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, ShopAccess.FULL)
 
     private val onlineToday = MutableStateFlow(SalesSnapshot(0, 0.0))
+    private val _billing = MutableStateFlow<ShopBillingDto?>(null)
+    val billing: StateFlow<ShopBillingDto?> = _billing.asStateFlow()
 
     /** Today's online orders that are not cancelled/rejected; zero when offline or not permitted. */
     private fun refreshOnlineToday() {
@@ -75,6 +78,9 @@ class DashboardViewModel(
                     preferences.setShopAccess(it.me.role, it.me.permissions)
                     preferences.setShopFeatures(it.shop.features)
                 }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+            runCatching { api.shopSubscription() }
+                .onSuccess { _billing.value = it.billing }
                 .onFailure { it.rethrowIfStructuredCancellation() }
         }
         viewModelScope.launch {

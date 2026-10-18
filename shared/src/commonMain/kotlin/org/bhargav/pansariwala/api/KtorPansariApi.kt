@@ -404,6 +404,23 @@ class KtorPansariApi(
             toEpochMs?.let { parameter("to", it) }
         }.body()
 
+    override suspend fun shopSubscription(): ShopSubscriptionDto = client.get("shop/subscription").body()
+
+    override suspend fun subscriptionCheckout(request: SubscriptionCheckoutRequest): SubscriptionCheckoutDto =
+        client.post("shop/subscription/checkout") { setBody(request) }.body()
+
+    override suspend fun confirmSubscription(request: SubscriptionConfirmRequest): ShopSubscriptionDto =
+        client.post("shop/subscription/confirm") { setBody(request) }.body()
+
+    override suspend fun commissionSummary(fromEpochMs: Long?, toEpochMs: Long?): CommissionSummaryDto =
+        client.get("shop/subscription/commission") {
+            fromEpochMs?.let { parameter("from", it) }
+            toEpochMs?.let { parameter("to", it) }
+        }.body()
+
+    override suspend fun commissionDay(day: String): CommissionDayOrdersDto =
+        client.get("shop/subscription/commission/$day").body()
+
     override suspend fun registerPartner(request: PartnerRegisterRequest): OtpSessionResponse =
         client.post("partners/register") {
             otpTimeout()

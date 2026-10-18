@@ -159,6 +159,12 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.lerp
 import pansariwala.shared.generated.resources.partner_signup_prompt
+import pansariwala.shared.generated.resources.partner_location_access_action
+import pansariwala.shared.generated.resources.partner_location_access_reason_eta
+import pansariwala.shared.generated.resources.partner_location_access_reason_jobs
+import pansariwala.shared.generated.resources.partner_location_access_reason_tracking
+import pansariwala.shared.generated.resources.partner_location_access_subtitle
+import pansariwala.shared.generated.resources.partner_location_access_title
 import pansariwala.shared.generated.resources.partner_submit_images
 import pansariwala.shared.generated.resources.partner_summary_distance
 import pansariwala.shared.generated.resources.partner_summary_payout
@@ -179,251 +185,6 @@ import pansariwala.shared.generated.resources.settings_notification_card
 import pansariwala.shared.generated.resources.settings_theme_card
 
 @Composable
-fun PartnerLoginScreen(
-    onVerified: () -> Unit,
-    onSignUp: () -> Unit,
-    viewModel: PartnerLoginViewModel = koinViewModel(),
-) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    PansariScreen(
-        error = state.error.toErrorBanner(),
-        onErrorAction = {
-            handleErrorBannerAction(it, onRetry = viewModel::sendOtp, onDismiss = viewModel::dismissError)
-        },
-        isLoading = state.loading,
-    ) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-        OnboardingHero(
-            title = stringResource(Res.string.partner_onboarding_title),
-            tagline = stringResource(Res.string.partner_onboarding_tagline),
-            heroEmoji = "🛵",
-            floatingEmojis = listOf("📦", "📍", "💰", "🛍️", "⏱️", "🏪"),
-            highlights = listOf(
-                OnboardingHighlight("💰", stringResource(Res.string.partner_onboarding_highlight_earn)),
-                OnboardingHighlight("⏰", stringResource(Res.string.partner_onboarding_highlight_flexible)),
-                OnboardingHighlight("📍", stringResource(Res.string.partner_onboarding_highlight_nearby)),
-            ),
-            startColor = MaterialTheme.colorScheme.primary,
-            endColor = lerp(MaterialTheme.colorScheme.primary, Color.Black, 0.35f),
-        )
-        OnboardingFormCard {
-        Text(
-            stringResource(if (state.step == 0) Res.string.onboarding_phone_heading else Res.string.onboarding_otp_heading),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        if (state.step == 0) {
-            Text(
-                stringResource(Res.string.onboarding_phone_subheading),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        OutlinedTextField(
-            value = state.phone,
-            onValueChange = viewModel::setPhone,
-            label = { Text(stringResource(Res.string.field_phone)) },
-            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-        )
-        if (state.step == 0) {
-            PartnerPrimaryButton(
-                text = stringResource(Res.string.partner_action_login),
-                onClick = viewModel::sendOtp,
-                enabled = !state.loading && state.phone.length >= 10,
-            )
-        } else {
-            state.hint?.let { Text(it.asString(), style = MaterialTheme.typography.bodySmall) }
-            OtpCodeField(
-                value = state.otp,
-                onValueChange = viewModel::setOtp,
-                enabled = !state.loading,
-                onDone = { viewModel.verify(onVerified) },
-            )
-            PartnerPrimaryButton(
-                text = stringResource(Res.string.action_verify_otp),
-                onClick = { viewModel.verify(onVerified) },
-                enabled = !state.loading && state.otp.length == AppConstants.OTP_LENGTH,
-            )
-            ResendOtpButton(resendInSec = state.resendInSec, loading = state.loading, onClick = viewModel::sendOtp)
-        }
-        PansariLinkButton(onClick = onSignUp, enabled = !state.loading, text = stringResource(Res.string.partner_signup_join))
-        }
-        }
-    }
-}
-
-@Composable
-fun PartnerRegisterScreen(
-    onVerified: () -> Unit,
-    onSignIn: () -> Unit,
-    onBack: () -> Unit = onSignIn,
-    viewModel: PartnerRegisterViewModel = koinViewModel(),
-) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    RequestLocationPermission(
-        trigger = state.requestLocationPermission,
-        onConsumed = viewModel::consumeLocationPermissionRequest,
-        onResult = viewModel::onLocationPermissionResult,
-    )
-    LocationPermissionDeniedDialog(
-        visible = state.showLocationDeniedDialog,
-        onRetry = viewModel::retryLocationPermission,
-        onOpenSettings = {
-            openAppLocationSettings()
-            viewModel.dismissLocationDeniedDialog()
-        },
-        onDismiss = viewModel::dismissLocationDeniedDialog,
-    )
-    PansariScreen(
-        topBar = {
-            PartnerTopBar(
-                title = stringResource(Res.string.partner_register_title),
-                onBack = onBack,
-                trailing = {
-                    Text("?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                },
-            )
-        },
-        error = state.error.toErrorBanner(),
-        onErrorAction = {
-            handleErrorBannerAction(it, onRetry = viewModel::save, onDismiss = viewModel::dismissError)
-        },
-        isLoading = state.loading,
-    ) {
-        Column(Modifier.fillMaxSize()) {
-        Column(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (state.step == 0) {
-                val attachProfile = rememberImageSourceLauncher(RegisterPhoto.PROFILE.feature) {
-                    viewModel.attachPhoto(RegisterPhoto.PROFILE, it)
-                }
-                val attachDl = rememberImageSourceLauncher(RegisterPhoto.DL.feature) {
-                    viewModel.attachPhoto(RegisterPhoto.DL, it)
-                }
-                val attachVehicle = rememberImageSourceLauncher(RegisterPhoto.VEHICLE.feature) {
-                    viewModel.attachPhoto(RegisterPhoto.VEHICLE, it)
-                }
-                val attachId = rememberImageSourceLauncher(RegisterPhoto.ID.feature) {
-                    viewModel.attachPhoto(RegisterPhoto.ID, it)
-                }
-                val profileUpload = state.photoUploads[RegisterPhoto.PROFILE] ?: PhotoUploadUi()
-                PartnerProfileCircle(
-                    imageUrl = state.profilePhoto,
-                    onClick = attachProfile,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    showEditBadge = true,
-                    uploading = profileUpload.uploading,
-                    localPreviewBytes = profileUpload.previewBytes,
-                )
-                Text(
-                    stringResource(Res.string.partner_profile_pic),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                OutlinedTextField(state.name, viewModel::setName, label = { Text(stringResource(Res.string.field_name)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(state.email, viewModel::setEmail, label = { Text(stringResource(Res.string.field_email)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(
-                    value = state.placeQuery,
-                    onValueChange = viewModel::setPlaceQuery,
-                    label = { Text(stringResource(Res.string.field_place_search)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                state.predictions.forEach { prediction ->
-                    Text(
-                        prediction.description,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.selectPlace(prediction.placeId) }
-                            .padding(vertical = 8.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                OutlinedTextField(
-                    value = state.address,
-                    onValueChange = viewModel::setAddress,
-                    label = { Text(stringResource(Res.string.field_address)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                )
-                OutlinedTextField(
-                    value = state.locality,
-                    onValueChange = viewModel::setLocality,
-                    label = { Text(stringResource(Res.string.field_locality)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Text(
-                    stringResource(Res.string.hint_address_pick_place),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = viewModel::requestLocationForAddress, enabled = !state.loading) {
-                    Text(stringResource(Res.string.action_use_current_location))
-                }
-                OutlinedTextField(state.phone, viewModel::setPhone, label = { Text(stringResource(Res.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(state.vehicleReg, viewModel::setVehicleReg, label = { Text(stringResource(Res.string.field_vehicle_reg)) }, modifier = Modifier.fillMaxWidth())
-                PartnerDocumentRow(
-                    stringResource(Res.string.partner_doc_dl),
-                    state.dlPhoto,
-                    attachDl,
-                    upload = state.photoUploads[RegisterPhoto.DL] ?: PhotoUploadUi(),
-                )
-                Text(
-                    stringResource(Res.string.hint_vehicle_photo),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                PartnerDocumentRow(
-                    stringResource(Res.string.field_vehicle_photo),
-                    state.vehiclePhoto,
-                    attachVehicle,
-                    upload = state.photoUploads[RegisterPhoto.VEHICLE] ?: PhotoUploadUi(),
-                )
-                PartnerDocumentRow(
-                    stringResource(Res.string.partner_doc_id),
-                    state.idPhoto,
-                    attachId,
-                    upload = state.photoUploads[RegisterPhoto.ID] ?: PhotoUploadUi(),
-                )
-                Text(stringResource(Res.string.partner_verification_status), fontWeight = FontWeight.SemiBold)
-                PartnerVerificationBadge(verified = false)
-                PartnerPrimaryButton(text = stringResource(Res.string.partner_action_sign_up), onClick = viewModel::save, enabled = !state.loading)
-            } else {
-                state.hint?.let { Text(it.asString()) }
-                OtpCodeField(
-                    value = state.otp,
-                    onValueChange = viewModel::setOtp,
-                    enabled = !state.loading,
-                    onDone = { viewModel.verify(onVerified) },
-                )
-                PartnerPrimaryButton(
-                    text = stringResource(Res.string.action_verify_otp),
-                    onClick = { viewModel.verify(onVerified) },
-                    enabled = !state.loading && state.otp.length == AppConstants.OTP_LENGTH,
-                )
-                ResendOtpButton(resendInSec = state.resendInSec, loading = state.loading, onClick = viewModel::save)
-            }
-            PansariLinkButton(onClick = onSignIn, enabled = !state.loading, text = stringResource(Res.string.partner_login_prompt))
-        }
-        }
-    }
-}
-
-@Composable
 fun PartnerHomeScreen(
     onNavigateToStore: (String) -> Unit,
     onResumeJob: (org.bhargav.pansariwala.domain.model.Order) -> Unit,
@@ -441,9 +202,24 @@ fun PartnerHomeScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val locationSettled = !state.loading && !state.requestLocationPermission && !state.showLocationDeniedDialog
+    val locationSettled = !state.loading && !state.requestLocationPermission &&
+        !state.showLocationDeniedDialog && !state.showLocationPrompt
     LaunchedEffect(locationSettled) {
         if (locationSettled) org.bhargav.pansariwala.notification.NotificationPromptGate.onHomeShown()
+    }
+    if (state.showLocationPrompt) {
+        org.bhargav.pansariwala.feature.user.LocationAccessPromptDialog(
+            title = stringResource(Res.string.partner_location_access_title),
+            subtitle = stringResource(Res.string.partner_location_access_subtitle),
+            reasons = listOf(
+                "🛵" to stringResource(Res.string.partner_location_access_reason_jobs),
+                "📍" to stringResource(Res.string.partner_location_access_reason_tracking),
+                "⏱️" to stringResource(Res.string.partner_location_access_reason_eta),
+            ),
+            allowLabel = stringResource(Res.string.partner_location_access_action),
+            onAllow = viewModel::acceptLocationPrompt,
+            onNotNow = viewModel::dismissLocationPrompt,
+        )
     }
     RequestLocationPermission(
         trigger = state.requestLocationPermission,

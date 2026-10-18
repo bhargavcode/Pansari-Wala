@@ -27,7 +27,11 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -66,19 +70,78 @@ import pansariwala.shared.generated.resources.place_search_no_results
 import pansariwala.shared.generated.resources.place_search_searching
 import pansariwala.shared.generated.resources.user_location_permission_denied_message
 import pansariwala.shared.generated.resources.profile_setup_title
+import pansariwala.shared.generated.resources.profile_name_subtitle
+import pansariwala.shared.generated.resources.error_profile_required
 
+/** First profile step: just the customer's name; the address is collected on the next screen. */
+@Composable
+fun ProfileNameScreen(
+    onNext: (name: String) -> Unit,
+    onBack: (() -> Unit)?,
+) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var showError by rememberSaveable { mutableStateOf(false) }
+    val valid = name.trim().length >= MIN_NAME_LENGTH
+    PansariScreen(
+        title = if (onBack != null) stringResource(Res.string.profile_setup_title) else null,
+        onBack = onBack,
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (onBack == null) {
+                Text(
+                    stringResource(Res.string.profile_setup_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(
+                stringResource(Res.string.profile_name_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it; showError = false },
+                label = { Text(stringResource(Res.string.field_name)) },
+                isError = showError,
+                supportingText = if (showError) {
+                    { Text(stringResource(Res.string.error_profile_required)) }
+                } else {
+                    null
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            UserPrimaryButton(
+                text = stringResource(Res.string.action_continue),
+                onClick = { if (valid) onNext(name.trim()) else showError = true },
+            )
+        }
+    }
+}
+
+private const val MIN_NAME_LENGTH = 2
+
+/** Second profile step: delivery address for the [name] entered on [ProfileNameScreen]. */
 @Composable
 fun ProfileSetupScreen(
+    name: String,
     onDone: () -> Unit,
+    onBack: () -> Unit,
     viewModel: AddressViewModel = koinViewModel(),
 ) {
+    LaunchedEffect(name) { viewModel.setName(name) }
     AddressForm(
-        title = stringResource(Res.string.profile_setup_title),
+        title = stringResource(Res.string.address_screen_title),
         requireName = true,
         confirmLabel = stringResource(Res.string.location_confirm_address),
         onDone = onDone,
-        onBack = null,
+        onBack = onBack,
         viewModel = viewModel,
+        showNameField = false,
     )
 }
 
@@ -106,6 +169,7 @@ private fun AddressForm(
     onDone: () -> Unit,
     onBack: (() -> Unit)?,
     viewModel: AddressViewModel,
+    showNameField: Boolean = requireName,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (state.showLocationRationale) {
@@ -155,7 +219,7 @@ private fun AddressForm(
             if (onBack == null) {
                 Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             }
-        if (requireName) {
+        if (showNameField) {
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::setName,

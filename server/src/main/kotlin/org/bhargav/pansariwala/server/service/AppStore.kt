@@ -207,6 +207,7 @@ class AppStore(
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
     private val shopVisitCol = mongo.db.getCollection<ShopVisitDoc>("shop_visits")
     private val platformSettingsCol = mongo.db.getCollection<PlatformSettingsDoc>("platform_settings")
+    val billing = SubscriptionService(config, security, mongo)
     @Volatile private var platformCache: Pair<Long, PlatformSettingsDoc>? = null
     private val partnerLiteProjection = exclude(
         "platePhoto",
@@ -346,6 +347,13 @@ class AppStore(
         val base = deliveryBasePerKmInr * distanceKm
         val charge = (base + base * deliverySurchargePercent / 100.0).coerceAtLeast(minDeliveryChargeInr)
         return if (maxDeliveryChargeInr > 0) charge.coerceAtMost(maxDeliveryChargeInr) else charge
+    }
+
+    /** Partner earns the plain per-km delivery fee (no surcharge, platform fee or free-delivery waiver), whole rupees. */
+    private fun PlatformSettingsDoc.partnerDeliveryFee(dropKm: Double): Double {
+        val base = (deliveryBasePerKmInr * dropKm).coerceAtLeast(minDeliveryChargeInr)
+        val capped = if (maxDeliveryChargeInr > 0) base.coerceAtMost(maxDeliveryChargeInr) else base
+        return kotlin.math.round(capped)
     }
 
     private val PlatformSettingsDoc.offerTtlMs: Long get() = offerTtlMinutes * 60_000L
@@ -567,6 +575,7 @@ class AppStore(
     }
 
     private fun ShopDoc.deliveryAvailableNow(): Boolean {
+        if (!homeDeliveryEnabled) return false
         val cutoff = parseHhMm(deliveryUntil) ?: return true
         return java.time.LocalTime.now(SHOP_ZONE) < cutoff
     }
@@ -1375,8 +1384,7 @@ class AppStore(
         val customerLng = order.customerLng ?: shop.lng
         // Stored drop = shop→customer. Partner→shop is computed per partner in toOfferDto.
         val dropKm = haversine(shop.lat, shop.lng, customerLat, customerLng)
-        val totalKm = (dropKm * 2).coerceAtLeast(0.5)
-        val payout = (platform().partnerPayoutPerKmInr * totalKm).let { kotlin.math.round(it * 100) / 100.0 }
+        val payout = platform().partnerDeliveryFee(dropKm)
         val offer = DeliveryOfferDoc(
             id = offerId,
             orderId = orderId,
@@ -2296,6 +2304,7 @@ class AppStore(
                         reportGeneration = it.reportGeneration,
                         onlineOrders = it.onlineOrders,
                         inventoryAlerts = it.inventoryAlerts,
+                        barcodeScanner = it.barcodeScanner,
                     )
                 } ?: ShopFeaturesDoc(),
                 ownerName = ownerName.trim(),
@@ -2403,6 +2412,7 @@ class AppStore(
         deliveryRadiusKm: Double? = null,
         discountPercent: Double? = null,
         deliveryUntil: String? = null,
+        homeDeliveryEnabled: Boolean? = null,
     ) {
         val shop = shopById(shopId)
         require(deliveryUntil.isNullOrBlank() || parseHhMm(deliveryUntil) != null) { "Delivery time must be HH:mm" }
@@ -2424,6 +2434,7 @@ class AppStore(
                     reportGeneration = features.reportGeneration,
                     onlineOrders = features.onlineOrders,
                     inventoryAlerts = features.inventoryAlerts,
+                    barcodeScanner = features.barcodeScanner,
                 )))
             }
             if (imageUrl != null) add(set("imageUrl", assets.toKeyOrNull(imageUrl)))
@@ -2448,6 +2459,7 @@ class AppStore(
             if (deliveryRadiusKm != null) add(set("deliveryRadiusKm", deliveryRadiusKm))
             if (discountPercent != null) add(set("discountPercent", discountPercent))
             if (deliveryUntil != null) add(set("deliveryUntil", parseHhMm(deliveryUntil)?.toString().orEmpty()))
+            if (homeDeliveryEnabled != null) add(set("homeDeliveryEnabled", homeDeliveryEnabled))
         }
         if (updates.isNotEmpty()) {
             shopCol.updateOne(eq("_id", shopId), combine(updates))
@@ -2478,21 +2490,22 @@ class AppStore(
         if (!user.active) error("Forbidden")
         val login = shopUserCol.find(and(eq("shopId", user.shopId), eq("role", ShopRole.ADMIN)))
             .firstOrNull()?.username.orEmpty()
-        return ShopProfileDto(shopById(user.shopId).toAdminDto(login), user.toStaffDto())
+        val shop = shopById(user.shopId)
+        return ShopProfileDto(
+            shop.copy(features = billing.effectiveFeatures(shop.id, shop.features)).toAdminDto(login),
+            user.toStaffDto(),
+        )
     }
 
     fun updateShopProfile(userId: String, patch: AdminShopPatch): ShopProfileDto {
-        val shopId = if (patch.features != null) {
-            requireShopPermission(userId, ShopPerm.TOGGLE_FEATURES)
-        } else {
-            shopUser(userId).shopId
-        }
-        if (patch.copy(features = null) != AdminShopPatch()) requireShopPermission(userId, ShopPerm.SHOP_PROFILE)
+        require(patch.features == null) { "Shop features are managed by Pansari master" }
+        val shopId = shopUser(userId).shopId
+        if (patch != AdminShopPatch()) requireShopPermission(userId, ShopPerm.SHOP_PROFILE)
         patchShop(
             shopId = shopId,
             active = patch.active,
             payments = patch.paymentsEnabled,
-            features = patch.features,
+            features = null,
             imageUrl = patch.imageUrl,
             name = patch.name,
             address = patch.address,
@@ -2515,6 +2528,7 @@ class AppStore(
             deliveryRadiusKm = patch.deliveryRadiusKm,
             discountPercent = patch.discountPercent,
             deliveryUntil = patch.deliveryUntil,
+            homeDeliveryEnabled = patch.homeDeliveryEnabled,
         )
         return shopProfile(userId)
     }
@@ -2940,6 +2954,7 @@ class AppStore(
             reportGeneration = features.reportGeneration,
             onlineOrders = features.onlineOrders,
             inventoryAlerts = features.inventoryAlerts,
+            barcodeScanner = features.barcodeScanner,
         ),
         ownerName = ownerName,
         ownerPhone = ownerPhone,
@@ -2952,6 +2967,7 @@ class AppStore(
         taxId = taxId,
         operatingHours = operatingHours.map { ShopHoursDayDto(it.day, it.start, it.end, it.closed) },
         deliveryUntil = deliveryUntil,
+        homeDeliveryEnabled = homeDeliveryEnabled,
     )
 
     private fun AdminShopDto.toLegacyShopDto() = ShopDto(
@@ -3093,7 +3109,7 @@ class AppStore(
             else -> shopDist
         }
         val totalKm = shopDist + dropDist
-        val payout = if (offer.payout > 0) offer.payout else platform().partnerPayoutPerKmInr * totalKm
+        val payout = kotlin.math.round(if (offer.payout > 0) offer.payout else platform().partnerDeliveryFee(dropDist))
         val etaMin = ((shopDist / 20.0) * 60).toInt().coerceAtLeast(3)
         return DeliveryOfferDto(
             id = offer.id,

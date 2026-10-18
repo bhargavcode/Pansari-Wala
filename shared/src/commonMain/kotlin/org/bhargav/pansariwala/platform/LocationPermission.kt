@@ -31,6 +31,9 @@ expect fun RequestLocationPermission(
 
 expect fun canOpenLocationSettings(): Boolean
 
+/** True when the OS already allows location; browsers report true and prompt on first use instead. */
+expect fun isLocationPermissionGranted(): Boolean
+
 expect fun openAppLocationSettings()
 
 /** Shown by platform [RequestLocationPermission] when the device location switch (GPS) is off. */

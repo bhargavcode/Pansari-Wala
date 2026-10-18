@@ -91,6 +91,7 @@ import pansariwala.shared.generated.resources.profile_field_upi
 import pansariwala.shared.generated.resources.profile_payments_enabled
 import pansariwala.shared.generated.resources.shop_closed
 import pansariwala.shared.generated.resources.shop_delivery_until_label
+import pansariwala.shared.generated.resources.shop_home_delivery_label
 import pansariwala.shared.generated.resources.shop_delivery_until_none
 import pansariwala.shared.generated.resources.shop_open_now
 import pansariwala.shared.generated.resources.master_cost
@@ -106,6 +107,7 @@ import pansariwala.shared.generated.resources.master_feature_inventory
 import pansariwala.shared.generated.resources.master_feature_online
 import pansariwala.shared.generated.resources.master_feature_reports
 import pansariwala.shared.generated.resources.master_feature_voice
+import pansariwala.shared.generated.resources.master_feature_scanner
 import pansariwala.shared.generated.resources.master_features
 import pansariwala.shared.generated.resources.master_image_url
 import pansariwala.shared.generated.resources.master_item_details
@@ -406,6 +408,9 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                         }
                         Spacer(Modifier.height(12.dp))
                         MasterSectionCard(title = stringResource(Res.string.master_features)) {
+                            FeatureToggleRow(stringResource(Res.string.master_feature_scanner), features.barcodeScanner) {
+                                patch { api.patchShop(token, shop.id, features = features.copy(barcodeScanner = !features.barcodeScanner)) }
+                            }
                             FeatureToggleRow(stringResource(Res.string.master_feature_voice), features.voiceSearch) {
                                 patch { api.patchShop(token, shop.id, features = features.copy(voiceSearch = !features.voiceSearch)) }
                             }
@@ -422,6 +427,8 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                                 patch { api.patchShop(token, shop.id, features = features.copy(inventoryAlerts = !features.inventoryAlerts)) }
                             }
                         }
+                        Spacer(Modifier.height(12.dp))
+                        ShopBillingSection(token, shop.id, onStatus = onStatus, onChanged = { refresh() })
                         Spacer(Modifier.height(12.dp))
                         MasterSectionCard(title = stringResource(Res.string.master_operating_hours)) {
                             withFullWeek(shop.operatingHours).forEach { day ->
@@ -445,6 +452,9 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                         }
                         Spacer(Modifier.height(12.dp))
                         MasterSectionCard(title = stringResource(Res.string.master_delivery_payments)) {
+                            FeatureToggleRow(stringResource(Res.string.shop_home_delivery_label), shop.homeDeliveryEnabled) {
+                                patch { api.patchShop(token, shop.id, homeDeliveryEnabled = !shop.homeDeliveryEnabled) }
+                            }
                             LabelValue(stringResource(Res.string.profile_field_upi), shop.upiId.ifBlank { "—" })
                             LabelValue(stringResource(Res.string.profile_field_radius), shop.deliveryRadiusKm.plainNumber())
                             LabelValue(stringResource(Res.string.profile_field_discount), "${shop.discountPercent.plainNumber()}%")

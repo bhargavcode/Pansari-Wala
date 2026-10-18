@@ -20,7 +20,7 @@
 		<string>remote-notification</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Pansari Wala uses the camera for vehicle and pickup photos.</string>
+	<string>Pansari Wala uses the camera for vehicle and pickup photos, and to scan product barcodes while billing.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Pansari Wala uses your photo library for vehicle and pickup photos.</string>
 	<key>NSMicrophoneUsageDescription</key>

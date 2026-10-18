@@ -33,6 +33,9 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.api.ApiRuntime
+import org.bhargav.pansariwala.api.CommissionSummaryDto
+import org.bhargav.pansariwala.api.ShopSubscriptionDto
+import org.bhargav.pansariwala.api.SubscriptionPlanDto
 import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.api.installPansariHttpLogging
 import org.bhargav.pansariwala.api.shouldInstallHttpLogging
@@ -239,6 +242,7 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         deliveryRadiusKm: Double? = null,
         discountPercent: Double? = null,
         deliveryUntil: String? = null,
+        homeDeliveryEnabled: Boolean? = null,
     ) {
         client.post(url("/admin/shops/$id")) {
             bearer(token)
@@ -252,7 +256,7 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
                     registrationNumber = registrationNumber, taxId = taxId, lat = lat, lng = lng,
                     operatingHours = operatingHours, loginUsername = loginUsername, loginPassword = loginPassword,
                     upiId = upiId, deliveryRadiusKm = deliveryRadiusKm, discountPercent = discountPercent,
-                    deliveryUntil = deliveryUntil,
+                    deliveryUntil = deliveryUntil, homeDeliveryEnabled = homeDeliveryEnabled,
                 ),
             )
         }
@@ -332,6 +336,43 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()
+
+    suspend fun subscriptionPlans(token: String): List<SubscriptionPlanDto> =
+        client.get(url("/admin/subscription-plans")) { bearer(token) }.body()
+
+    suspend fun saveSubscriptionPlan(token: String, body: SubscriptionPlanDto): SubscriptionPlanDto =
+        client.post(url("/admin/subscription-plans")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun deleteSubscriptionPlan(token: String, id: String) {
+        client.delete(url("/admin/subscription-plans/$id")) { bearer(token) }
+    }
+
+    suspend fun billingSettings(token: String): BillingSettingsDto =
+        client.get(url("/admin/billing-settings")) { bearer(token) }.body()
+
+    suspend fun saveBillingSettings(token: String, body: BillingSettingsDto): BillingSettingsDto =
+        client.post(url("/admin/billing-settings")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun shopSubscription(token: String, shopId: String): ShopSubscriptionDto =
+        client.get(url("/admin/shops/$shopId/subscription")) { bearer(token) }.body()
+
+    suspend fun updateShopBilling(token: String, shopId: String, body: AdminBillingUpdate): ShopSubscriptionDto =
+        client.post(url("/admin/shops/$shopId/billing")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun shopCommission(token: String, shopId: String): CommissionSummaryDto =
+        client.get(url("/admin/shops/$shopId/commission")) { bearer(token) }.body()
 
     suspend fun changePassword(token: String, currentPassword: String, newPassword: String) {
         client.post(url("/admin/account/password")) {
@@ -573,6 +614,23 @@ data class ShopFeaturesDto(
     val reportGeneration: Boolean = true,
     val onlineOrders: Boolean = true,
     val inventoryAlerts: Boolean = true,
+    val barcodeScanner: Boolean = false,
+)
+
+@Serializable
+data class BillingSettingsDto(
+    val defaultCommissionPercent: Double = 1.5,
+    val expiryWarningDays: Int = 7,
+)
+
+@Serializable
+data class AdminBillingUpdate(
+    val model: String,
+    val planId: String? = null,
+    val commissionPercent: Double? = null,
+    val expiresAtEpochMs: Long? = null,
+    val freeUntilEpochMs: Long? = null,
+    val note: String = "",
 )
 
 @Serializable
@@ -614,6 +672,7 @@ data class ShopDto(
     val deliveryRadiusKm: Double = 20.0,
     val discountPercent: Double = 0.0,
     val deliveryUntil: String = "",
+    val homeDeliveryEnabled: Boolean = true,
 )
 
 @Serializable
@@ -652,6 +711,7 @@ data class ShopPatch(
     val discountPercent: Double? = null,
     /** "HH:mm"; empty string clears the cutoff. */
     val deliveryUntil: String? = null,
+    val homeDeliveryEnabled: Boolean? = null,
 )
 
 @Serializable

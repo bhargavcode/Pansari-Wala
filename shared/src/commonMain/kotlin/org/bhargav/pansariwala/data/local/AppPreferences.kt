@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.api.ShopFeaturesDto
+import org.bhargav.pansariwala.scanner.ScannerSettings
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.CustomerProfile
@@ -127,6 +128,14 @@ class AppPreferences(
 
     suspend fun setShopFeatures(features: ShopFeaturesDto) {
         store.putStrings(mapOf(AppConstants.Prefs.SHOP_FEATURES to json.encodeToString(features)))
+    }
+
+    val scannerSettings: Flow<ScannerSettings> = store.observeString(AppConstants.Prefs.SCANNER_SETTINGS).map { raw ->
+        raw?.let { runCatching { json.decodeFromString<ScannerSettings>(it) }.getOrNull() } ?: ScannerSettings()
+    }
+
+    suspend fun setScannerSettings(settings: ScannerSettings) {
+        store.putStrings(mapOf(AppConstants.Prefs.SCANNER_SETTINGS to json.encodeToString(settings)))
     }
 
     private fun toShopAccess(role: String?, perms: String?): ShopAccess =

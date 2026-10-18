@@ -10,3 +10,6 @@ fun formatPrintDateTime(epochMs: Long): String {
     fun Int.two() = toString().padStart(2, '0')
     return "${t.day.two()}/${t.month.ordinal.plus(1).two()}/${t.year} ${t.hour.two()}:${t.minute.two()}"
 }
+
+/** `dd/MM/yyyy` in the device time zone. */
+fun formatPrintDate(epochMs: Long): String = formatPrintDateTime(epochMs).substringBefore(' ')

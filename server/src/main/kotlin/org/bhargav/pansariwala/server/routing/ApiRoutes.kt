@@ -39,6 +39,11 @@ import org.bhargav.pansariwala.server.dto.ShopProductActivePatch
 import org.bhargav.pansariwala.server.dto.ShopProductEdit
 import org.bhargav.pansariwala.server.dto.StockUpdateRequest
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
+import org.bhargav.pansariwala.server.dto.AdminBillingUpdate
+import org.bhargav.pansariwala.server.dto.BillingSettingsDto
+import org.bhargav.pansariwala.server.dto.SubscriptionCheckoutRequest
+import org.bhargav.pansariwala.server.dto.SubscriptionConfirmRequest
+import org.bhargav.pansariwala.server.dto.SubscriptionPlanDto
 import org.bhargav.pansariwala.server.dto.CustomerLocationRequest
 import org.bhargav.pansariwala.server.dto.DeliverRequest
 import org.bhargav.pansariwala.server.dto.DeliveryRequest
@@ -390,6 +395,29 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             val to = call.parameters["to"]?.toLongOrNull()
             call.respond(withContext(Dispatchers.IO) { store.visitorStats(call.userId(), from, to) })
         }
+        get("/shop/subscription") {
+            val shopId = call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.billing.shopSubscription(shopId) })
+        }
+        post("/shop/subscription/checkout") {
+            val shopId = call.requireShopPerm(store, ShopPerm.SHOP_PROFILE)
+            call.respond(store.billing.checkout(shopId, call.receive<SubscriptionCheckoutRequest>()))
+        }
+        post("/shop/subscription/confirm") {
+            val shopId = call.requireShopPerm(store, ShopPerm.SHOP_PROFILE)
+            val body = call.receive<SubscriptionConfirmRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.billing.confirm(shopId, call.userId(), body) })
+        }
+        get("/shop/subscription/commission") {
+            val shopId = call.requireShopId()
+            val from = call.parameters["from"]?.toLongOrNull()
+            val to = call.parameters["to"]?.toLongOrNull()
+            call.respond(withContext(Dispatchers.IO) { store.billing.commissionSummary(shopId, from, to) })
+        }
+        get("/shop/subscription/commission/{day}") {
+            val shopId = call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.billing.commissionDay(shopId, call.parameters["day"]!!) })
+        }
         get("/sync/pull") { call.respond(store.pullSync(call.requireShopId())) }
         post("/sync/push") {
             val shopId = call.requireShopId()
@@ -620,8 +648,55 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 deliveryRadiusKm = body.deliveryRadiusKm,
                 discountPercent = body.discountPercent,
                 deliveryUntil = body.deliveryUntil,
+                homeDeliveryEnabled = body.homeDeliveryEnabled,
             )
             call.respond(OkResponse())
+        }
+        get("/admin/subscription-plans") {
+            call.requireRole("ADMIN")
+            call.respond(withContext(Dispatchers.IO) { store.billing.plans(includeInactive = true) })
+        }
+        post("/admin/subscription-plans") {
+            call.requireRole("ADMIN")
+            val body = call.receive<SubscriptionPlanDto>()
+            call.respond(withContext(Dispatchers.IO) { store.billing.savePlan(body.id, body) })
+        }
+        delete("/admin/subscription-plans/{id}") {
+            call.requireRole("ADMIN")
+            withContext(Dispatchers.IO) { store.billing.deletePlan(call.parameters["id"]!!) }
+            call.respond(OkResponse())
+        }
+        get("/admin/billing-settings") {
+            call.requireRole("ADMIN")
+            call.respond(withContext(Dispatchers.IO) { store.billing.settings() })
+        }
+        post("/admin/billing-settings") {
+            call.requireRole("ADMIN")
+            val body = call.receive<BillingSettingsDto>()
+            call.respond(withContext(Dispatchers.IO) { store.billing.updateSettings(body) })
+        }
+        get("/admin/shops/{id}/subscription") {
+            call.requireRole("ADMIN")
+            call.respond(withContext(Dispatchers.IO) { store.billing.shopSubscription(call.parameters["id"]!!) })
+        }
+        post("/admin/shops/{id}/billing") {
+            call.requireRole("ADMIN")
+            val body = call.receive<AdminBillingUpdate>()
+            call.respond(
+                withContext(Dispatchers.IO) { store.billing.adminUpdateBilling(call.parameters["id"]!!, call.userId(), body) },
+            )
+        }
+        get("/admin/shops/{id}/commission") {
+            call.requireRole("ADMIN")
+            val from = call.parameters["from"]?.toLongOrNull()
+            val to = call.parameters["to"]?.toLongOrNull()
+            call.respond(withContext(Dispatchers.IO) { store.billing.commissionSummary(call.parameters["id"]!!, from, to) })
+        }
+        get("/admin/shops/{id}/commission/{day}") {
+            call.requireRole("ADMIN")
+            call.respond(
+                withContext(Dispatchers.IO) { store.billing.commissionDay(call.parameters["id"]!!, call.parameters["day"]!!) },
+            )
         }
         get("/admin/dashboard") {
             call.requireRole("ADMIN")

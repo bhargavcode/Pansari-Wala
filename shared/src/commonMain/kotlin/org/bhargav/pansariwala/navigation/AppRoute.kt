@@ -52,6 +52,16 @@ sealed interface AppRoute : NavKey {
 
     @Serializable
     data object ShopProfile : AppRoute
+
+    @Serializable
+    data object Subscription : AppRoute
+
+    /** [day] is `yyyy-MM-dd` in shop time. */
+    @Serializable
+    data class CommissionDay(val day: String) : AppRoute
+
+    @Serializable
+    data class CommissionOrder(val day: String, val orderId: String) : AppRoute
 }
 
 fun AppRoute.screenName(): String = when (this) {
@@ -70,4 +80,7 @@ fun AppRoute.screenName(): String = when (this) {
     AppRoute.PrinterSettings -> "printer_settings"
     AppRoute.Reports -> "reports"
     AppRoute.ShopProfile -> "shop_profile"
+    AppRoute.Subscription -> "subscription"
+    is AppRoute.CommissionDay -> "commission_day"
+    is AppRoute.CommissionOrder -> "commission_order"
 }

@@ -21,6 +21,7 @@ sealed class MasterDest {
     data object Partners : MasterDest()
     data class PartnerDetail(val id: String) : MasterDest()
     data object Platform : MasterDest()
+    data object Subscriptions : MasterDest()
     data object Settings : MasterDest()
 }
 

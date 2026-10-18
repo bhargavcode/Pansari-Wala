@@ -53,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import pansariwala.shared.generated.resources.action_not_now
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -613,6 +614,36 @@ fun UserLocationOnboardingHero(
             )
         }
     }
+}
+
+/** Explains why location is needed before the OS permission (and GPS check) is shown. */
+@Composable
+fun LocationAccessPromptDialog(
+    title: String,
+    subtitle: String,
+    reasons: List<Pair<String, String>>,
+    allowLabel: String,
+    onAllow: () -> Unit,
+    onNotNow: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onNotNow,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+                reasons.forEach { (emoji, text) -> UserLocationReasonRow(text, emoji) }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.Button(onClick = onAllow) { Text(allowLabel) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onNotNow) {
+                Text(stringResource(Res.string.action_not_now))
+            }
+        },
+    )
 }
 
 @Composable

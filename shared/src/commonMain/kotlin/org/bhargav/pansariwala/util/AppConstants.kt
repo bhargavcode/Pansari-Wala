@@ -238,6 +238,7 @@ object AppConstants {
         const val SHOP_STAFF_ROLE: String = "pref_shop_staff_role"
         const val SHOP_PERMISSIONS: String = "pref_shop_permissions"
         const val SHOP_FEATURES: String = "pref_shop_features"
+        const val SCANNER_SETTINGS: String = "pref_scanner_settings"
     }
 
     object Roles {
@@ -327,12 +328,16 @@ object AppConstants {
         const val COMPACT_BREAKPOINT_DP: Int = 840
     }
 
+    /** Trailing characters of an order id shown as `#ABCD1234`. */
+    const val ORDER_SHORT_ID_LENGTH: Int = 8
+
     object ShopFeature {
         const val VOICE_SEARCH: String = "voiceSearch"
         const val BARCODE_SEARCH: String = "barcodeSearch"
         const val REPORT_GENERATION: String = "reportGeneration"
         const val ONLINE_ORDERS: String = "onlineOrders"
         const val INVENTORY_ALERTS: String = "inventoryAlerts"
+        const val BARCODE_SCANNER: String = "barcodeScanner"
     }
 
     object DateFilter {

@@ -7,9 +7,11 @@ import kotlinx.serialization.Serializable
 sealed interface UserRoute : NavKey {
     @Serializable data object Splash : UserRoute
     @Serializable data object PhoneAuth : UserRoute
+    @Serializable data object PhoneOtp : UserRoute
+    /** Profile step 1 (name); [ProfileAddress] is step 2. */
     @Serializable data object ProfileSetup : UserRoute
+    @Serializable data class ProfileAddress(val name: String) : UserRoute
     @Serializable data object Address : UserRoute
-    @Serializable data object LocationAccess : UserRoute
     @Serializable data object Shell : UserRoute
     @Serializable data class ShopCatalog(val shopId: String) : UserRoute
     /** [category] is a ProductCategory name; null means search across all categories. */
@@ -36,8 +38,12 @@ sealed interface UserRoute : NavKey {
 sealed interface DeliveryRoute : NavKey {
     @Serializable data object Splash : DeliveryRoute
     @Serializable data object Login : DeliveryRoute
+    @Serializable data object LoginOtp : DeliveryRoute
+    /** Registration steps: details → address → vehicle & documents → OTP. */
     @Serializable data object Register : DeliveryRoute
-    @Serializable data object LocationAccess : DeliveryRoute
+    @Serializable data object RegisterAddress : DeliveryRoute
+    @Serializable data object RegisterVehicle : DeliveryRoute
+    @Serializable data object RegisterOtp : DeliveryRoute
     @Serializable data object Home : DeliveryRoute
     @Serializable data class NavigateToStore(val orderId: String) : DeliveryRoute
     @Serializable data class PickupItems(val orderId: String) : DeliveryRoute

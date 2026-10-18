@@ -47,6 +47,14 @@ import pansariwala.shared.generated.resources.error_speech_unavailable
 import pansariwala.shared.generated.resources.voice_not_understood
 import pansariwala.shared.generated.resources.voice_out_of_stock
 import pansariwala.shared.generated.resources.voice_partial_stock
+import pansariwala.shared.generated.resources.scanner_added
+import pansariwala.shared.generated.resources.scanner_camera_permission
+import pansariwala.shared.generated.resources.scanner_not_found
+import org.bhargav.pansariwala.api.ShopBillingDto
+import org.bhargav.pansariwala.api.SubscriptionPlanDto
+import org.bhargav.pansariwala.scanner.ScannerSettings
+import org.bhargav.pansariwala.scanner.barcodeScannerSupported
+import org.bhargav.pansariwala.scanner.scanFeedback
 
 data class CartLine(
     val product: Product,
@@ -88,7 +96,21 @@ data class OrderEditorUiState(
     val manualDiscountPercent: Boolean = false,
     val voiceSearchEnabled: Boolean = true,
     val barcodeSearchEnabled: Boolean = true,
+    /** Camera scanner entitlement from master / subscription. */
+    val barcodeScannerEnabled: Boolean = false,
+    val scannerSettings: ScannerSettings = ScannerSettings(),
+    /** User paused the camera from the toolbar; preview stays hidden until resumed. */
+    val scannerPaused: Boolean = false,
+    val showScannerSettings: Boolean = false,
+    val showScannerUpsell: Boolean = false,
+    val scanMessage: UiText? = null,
+    /** Portrait-only: cart sheet expanded over the product list. */
+    val showCartSheet: Boolean = false,
+    val billing: ShopBillingDto? = null,
+    val scannerPlans: List<SubscriptionPlanDto> = emptyList(),
 ) {
+    val cartQuantityByProduct: Map<String, Double>
+        get() = cart.groupBy { it.product.id }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
     val bill: BillTotals get() = computeBill(cart, offers, manualDiscountInput, manualDiscountPercent)
     val total: Double get() = bill.total
     val itemCount: Int get() = cart.size
@@ -127,6 +149,10 @@ class OrderEditorViewModel(
     private var partialCommitJob: Job? = null
     private var lastAppliedUtterance: String? = null
 
+    private var barcodeIndex: Map<String, PurchaseOption> = emptyMap()
+    private var indexedCatalog: List<Product>? = null
+    private var scanMessageJob: Job? = null
+
     init {
         viewModelScope.launch {
             preferences.shopFeatures.collect { features ->
@@ -135,9 +161,13 @@ class OrderEditorViewModel(
                     it.copy(
                         voiceSearchEnabled = features.voiceSearch,
                         barcodeSearchEnabled = features.barcodeSearch,
+                        barcodeScannerEnabled = features.barcodeScanner && barcodeScannerSupported,
                     )
                 }
             }
+        }
+        viewModelScope.launch {
+            preferences.scannerSettings.collect { settings -> _uiState.update { it.copy(scannerSettings = settings) } }
         }
         speechJob = viewModelScope.launch {
             speechToText.events.collect { event ->
@@ -623,6 +653,108 @@ class OrderEditorViewModel(
         }
     }
 
+    /** Re-reads features + billing so a purchase made from the upsell takes effect without re-login. */
+    fun refreshEntitlements() {
+        viewModelScope.launch {
+            runCatching { api.shopProfile() }
+                .onSuccess { preferences.setShopFeatures(it.shop.features) }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+            runCatching { api.shopSubscription() }
+                .onSuccess { sub ->
+                    _uiState.update { s ->
+                        s.copy(
+                            billing = sub.billing,
+                            scannerPlans = sub.plans.filter { AppConstants.ShopFeature.BARCODE_SCANNER in it.features },
+                        )
+                    }
+                }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
+
+    fun onScannerAvatarClick() {
+        val state = _uiState.value
+        if (state.barcodeScannerEnabled) {
+            _uiState.update { it.copy(showScannerSettings = true) }
+        } else {
+            analytics.log(AnalyticsEvent.ButtonClicked("barcode_scanner_locked", "order_editor"))
+            _uiState.update { it.copy(showScannerUpsell = true) }
+        }
+    }
+
+    fun dismissScannerSettings() = _uiState.update { it.copy(showScannerSettings = false) }
+    fun dismissScannerUpsell() = _uiState.update { it.copy(showScannerUpsell = false) }
+
+    fun saveScannerSettings(settings: ScannerSettings, cameraOn: Boolean = !_uiState.value.scannerPaused) {
+        _uiState.update { it.copy(showScannerSettings = false, scannerSettings = settings, scannerPaused = !cameraOn) }
+        viewModelScope.launch { preferences.setScannerSettings(settings) }
+    }
+
+    fun switchCamera() = saveScannerSettings(_uiState.value.scannerSettings.switchLens())
+
+    fun onScannerPermissionDenied() {
+        _uiState.update { it.copy(scannerPaused = true, error = UiText.res(Res.string.scanner_camera_permission)) }
+    }
+
+    fun onBarcodeScanned(code: String) {
+        val state = _uiState.value
+        if (!state.barcodeScannerEnabled || state.variantPicker != null || state.showPaymentPicker) return
+        val option = barcodeOption(state.catalog, code)
+        if (option == null) {
+            showScanMessage(UiText.res(Res.string.scanner_not_found, code))
+            return
+        }
+        scanFeedback(state.scannerSettings.beepOnScan, state.scannerSettings.vibrateOnScan)
+        if (option.variant == null && option.product.needsPicker) {
+            openPicker(option.product)
+        } else {
+            addOption(option)
+            showScanMessage(UiText.res(Res.string.scanner_added, option.product.name))
+        }
+    }
+
+    fun setCartSheetVisible(visible: Boolean) = _uiState.update { it.copy(showCartSheet = visible) }
+
+    private fun barcodeOption(catalog: List<Product>, code: String): PurchaseOption? {
+        if (indexedCatalog !== catalog) {
+            barcodeIndex = buildMap {
+                catalog.forEach { product ->
+                    product.barcode?.trim()?.takeIf(String::isNotEmpty)?.let { code ->
+                        if (code !in this) put(code, PurchaseOption(product, null))
+                    }
+                    product.variants.forEach { variant ->
+                        variant.barcode?.trim()?.takeIf(String::isNotEmpty)?.let { put(it, PurchaseOption(product, variant)) }
+                    }
+                }
+            }
+            indexedCatalog = catalog
+        }
+        return barcodeIndex[code.trim()]
+    }
+
+    private fun addOption(option: PurchaseOption) {
+        _uiState.update { state ->
+            val existing = state.cart.firstOrNull { it.key == option.key }
+            val cart = if (existing != null) {
+                state.cart.map {
+                    if (it.key == option.key) it.copy(quantity = option.normalize(it.quantity + option.step)) else it
+                }
+            } else {
+                state.cart + CartLine(option.product, option.normalize(maxOf(option.minQty, option.step)), option.variant)
+            }
+            state.copy(cart = cart, error = null)
+        }
+    }
+
+    private fun showScanMessage(message: UiText) {
+        scanMessageJob?.cancel()
+        _uiState.update { it.copy(scanMessage = message) }
+        scanMessageJob = viewModelScope.launch {
+            delay(SCAN_MESSAGE_MS)
+            _uiState.update { it.copy(scanMessage = null) }
+        }
+    }
+
     override fun onCleared() {
         speechToText.cancel()
         partialCommitJob?.cancel()
@@ -632,6 +764,7 @@ class OrderEditorViewModel(
 
     companion object {
         private const val PARTIAL_COMMIT_DELAY_MS = 700L
+        private const val SCAN_MESSAGE_MS = 2_000L
     }
 }
 

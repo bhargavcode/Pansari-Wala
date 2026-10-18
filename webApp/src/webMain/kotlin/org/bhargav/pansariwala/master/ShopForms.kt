@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.designsystem.AdaptivePane
+import org.bhargav.pansariwala.designsystem.TimePickerField
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
@@ -69,7 +70,10 @@ import pansariwala.shared.generated.resources.master_err_delivery_radius
 import pansariwala.shared.generated.resources.master_err_delivery_until
 import pansariwala.shared.generated.resources.master_err_discount
 import pansariwala.shared.generated.resources.master_placeholder_upi
-import pansariwala.shared.generated.resources.master_placeholder_delivery_until
+import pansariwala.shared.generated.resources.shop_delivery_until_clear
+import pansariwala.shared.generated.resources.shop_delivery_until_none
+import pansariwala.shared.generated.resources.shop_home_delivery_hint
+import pansariwala.shared.generated.resources.shop_home_delivery_label
 import pansariwala.shared.generated.resources.profile_field_discount
 import pansariwala.shared.generated.resources.profile_field_radius
 import pansariwala.shared.generated.resources.profile_field_upi
@@ -180,6 +184,7 @@ internal fun ShopEditorScreen(
     var radiusKm by rememberSaveable { mutableStateOf("") }
     var discountPct by rememberSaveable { mutableStateOf("") }
     var deliveryUntil by rememberSaveable { mutableStateOf("") }
+    var homeDelivery by rememberSaveable { mutableStateOf(true) }
     var hours by remember { mutableStateOf(WEEK_DAYS.map { ShopHoursDayDto(it) }) }
     var shopTypes by remember { mutableStateOf(DefaultShopTypeChoices) }
     var loaded by remember { mutableStateOf(false) }
@@ -220,6 +225,7 @@ internal fun ShopEditorScreen(
                 radiusKm = s.deliveryRadiusKm.plainNumber()
                 discountPct = s.discountPercent.plainNumber()
                 deliveryUntil = s.deliveryUntil
+                homeDelivery = s.homeDeliveryEnabled
                 hours = withFullWeek(s.operatingHours)
             }.onFailure { onStatus(it.message.orEmpty()) }
         }
@@ -350,11 +356,22 @@ internal fun ShopEditorScreen(
                         LabeledField(stringResource(Res.string.profile_field_upi), upiId, stringResource(Res.string.master_placeholder_upi)) { upiId = it.trim() }
                         LabeledField(stringResource(Res.string.profile_field_radius), radiusKm, "") { radiusKm = it }
                         LabeledField(stringResource(Res.string.profile_field_discount), discountPct, "") { discountPct = it }
-                        LabeledField(
-                            stringResource(Res.string.shop_delivery_until_label),
-                            deliveryUntil,
-                            stringResource(Res.string.master_placeholder_delivery_until),
-                        ) { deliveryUntil = it.trim() }
+                        FeatureToggleRow(stringResource(Res.string.shop_home_delivery_label), homeDelivery) { homeDelivery = !homeDelivery }
+                        Text(
+                            stringResource(Res.string.shop_home_delivery_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        TimePickerField(
+                            label = stringResource(Res.string.shop_delivery_until_label),
+                            value = deliveryUntil,
+                            onChange = { deliveryUntil = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = homeDelivery,
+                            emptyText = stringResource(Res.string.shop_delivery_until_none),
+                            clearLabel = stringResource(Res.string.shop_delivery_until_clear),
+                            defaultHour = DEFAULT_DELIVERY_CUTOFF_HOUR,
+                        )
                         Text(
                             stringResource(Res.string.master_delivery_until_help),
                             style = MaterialTheme.typography.bodySmall,
@@ -418,6 +435,7 @@ internal fun ShopEditorScreen(
                                     deliveryRadiusKm = radiusKm.toDoubleOrNull(),
                                     discountPercent = discountPct.toDoubleOrNull(),
                                     deliveryUntil = deliveryUntil,
+                                    homeDeliveryEnabled = homeDelivery,
                                 )
                                 if (isEdit && shopId != null) {
                                     api.patchShop(
@@ -428,6 +446,7 @@ internal fun ShopEditorScreen(
                                         deliveryRadiusKm = radiusKm.toDoubleOrNull(),
                                         discountPercent = discountPct.toDoubleOrNull(),
                                         deliveryUntil = deliveryUntil,
+                                        homeDeliveryEnabled = homeDelivery,
                                         active = active,
                                         features = features(),
                                         imageUrl = imageUrl.ifBlank { null },
@@ -597,8 +616,8 @@ private fun HoursRowCompact(
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(day, modifier = Modifier.width(32.dp), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(start, onStart, enabled = !closed, label = { Text(stringResource(Res.string.master_hours_start)) }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(end, onEnd, enabled = !closed, label = { Text(stringResource(Res.string.master_hours_end)) }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
+        TimePickerField(stringResource(Res.string.master_hours_start), start, onStart, Modifier.weight(1f), enabled = !closed)
+        TimePickerField(stringResource(Res.string.master_hours_end), end, onEnd, Modifier.weight(1f), enabled = !closed, defaultHour = DEFAULT_CLOSING_HOUR)
         FilterChip(
             selected = closed,
             onClick = { onClosedChange(!closed) },
@@ -609,6 +628,8 @@ private fun HoursRowCompact(
 
 internal val WEEK_DAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 private val HH_MM_REGEX = Regex("^([01]\\d|2[0-3]):[0-5]\\d$")
+private const val DEFAULT_DELIVERY_CUTOFF_HOUR = 17
+private const val DEFAULT_CLOSING_HOUR = 21
 
 /** Always returns all seven days so a saved week never silently closes the missing ones. */
 internal fun withFullWeek(saved: List<ShopHoursDayDto>): List<ShopHoursDayDto> {

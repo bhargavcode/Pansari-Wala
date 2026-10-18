@@ -12,6 +12,7 @@ import org.bhargav.pansariwala.api.OfferScope
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.ShopDetailsDto
 import org.bhargav.pansariwala.api.ShopFeaturesDto
+import org.bhargav.pansariwala.api.ShopHoursDayDto
 import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.ShopProfileDto
 import org.bhargav.pansariwala.api.ShopProfilePatch
@@ -107,6 +108,7 @@ data class ShopProfileUiState(
     val visitorRange: VisitorRange = VisitorRange.WEEK,
     val visitors: VisitorStatsDto? = null,
     val detailsDraft: ShopDetailsDraft? = null,
+    val hoursDraft: List<ShopHoursDayDto>? = null,
     val staffDraft: StaffDraft? = null,
     val offerDraft: OfferDraft? = null,
     val replyDraft: ReplyDraft? = null,
@@ -218,13 +220,27 @@ class ShopProfileViewModel(
         saveProfile(patch) { it.copy(detailsDraft = null) }
     }
 
+    fun startEditHours() {
+        val shop = _uiState.value.profile?.shop ?: return
+        _uiState.update { it.copy(hoursDraft = shop.operatingHours.withFullWeek()) }
+    }
+
+    fun updateHoursDay(day: String, transform: (ShopHoursDayDto) -> ShopHoursDayDto) =
+        _uiState.update { state ->
+            state.copy(hoursDraft = state.hoursDraft?.map { if (it.day == day) transform(it) else it })
+        }
+
+    fun cancelEditHours() = _uiState.update { it.copy(hoursDraft = null) }
+
+    fun saveHours() {
+        val draft = _uiState.value.hoursDraft ?: return
+        saveProfile(ShopProfilePatch(operatingHours = draft)) { it.copy(hoursDraft = null) }
+    }
+
+    fun setHomeDeliveryEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(homeDeliveryEnabled = enabled))
+
     fun setShopActive(active: Boolean) = saveProfile(ShopProfilePatch(active = active))
     fun setPaymentsEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(paymentsEnabled = enabled))
-
-    fun setFeatures(transform: (ShopFeaturesDto) -> ShopFeaturesDto) {
-        val current = _uiState.value.profile?.shop?.features ?: return
-        saveProfile(ShopProfilePatch(features = transform(current)))
-    }
 
     private fun saveProfile(
         patch: ShopProfilePatch,
@@ -406,6 +422,14 @@ class ShopProfileViewModel(
 }
 
 fun ShopStaffDto.isShopAdmin(): Boolean = role != ShopRoles.EXECUTIVE
+
+private val WEEK_DAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+/** Always all seven days so saving never silently drops (and closes) a missing day. */
+private fun List<ShopHoursDayDto>.withFullWeek(): List<ShopHoursDayDto> {
+    val byDay = associateBy { it.day.take(3).lowercase() }
+    return WEEK_DAYS.map { day -> byDay[day.lowercase()]?.copy(day = day) ?: ShopHoursDayDto(day) }
+}
 
 private fun Double.toPlainString(): String =
     if (this == this.toLong().toDouble()) this.toLong().toString() else toString()
