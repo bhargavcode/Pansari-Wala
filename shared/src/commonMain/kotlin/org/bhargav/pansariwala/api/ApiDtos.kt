@@ -298,6 +298,8 @@ data class ProductDto(
     val brandName: String = "",
     val masterProductId: String? = null,
     val active: Boolean = true,
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
     /** Best live PRODUCT offer, attached by the server on catalog reads. */
     val offer: ProductOfferDto? = null,
 )
@@ -601,6 +603,7 @@ data class MasterProductDto(
     val barcode: String? = null,
     val imageUrls: List<String> = emptyList(),
     val brandName: String = "",
+    val subcategoryId: String? = null,
     val salePrice: Double = 0.0,
     val variants: List<ProductVariantDto> = emptyList(),
     val cost: Double = 0.0,
@@ -785,6 +788,8 @@ fun ProductDto.toModel() = Product(
     masterProductId = masterProductId,
     isActive = active,
     offer = offer?.toModel(),
+    categoryId = categoryId,
+    subCategoryId = subCategoryId,
 )
 
 fun ProductOfferDto.toModel() = ProductOffer(
@@ -858,6 +863,8 @@ fun Product.toDto() = ProductDto(
     brandName = brandName,
     masterProductId = masterProductId,
     active = isActive,
+    categoryId = categoryId,
+    subCategoryId = subCategoryId,
 )
 
 fun Order.toSyncDto() = OrderDto(

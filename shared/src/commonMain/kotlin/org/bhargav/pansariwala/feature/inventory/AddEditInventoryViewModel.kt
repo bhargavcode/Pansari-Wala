@@ -9,8 +9,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.api.MasterCategoryDto
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.ProductVariantDto
+import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
+import org.bhargav.pansariwala.feature.catalog.legacyCategory
 import org.bhargav.pansariwala.api.toDto
 import org.bhargav.pansariwala.api.toModel
 import org.bhargav.pansariwala.data.db.ShopRepository
@@ -44,6 +47,10 @@ data class AddEditInventoryUiState(
     val name: String = "",
     val nameHi: String = "",
     val category: ProductCategory = ProductCategory.GENERAL_GROCERY,
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
+    /** Master categories incl. sub-categories; empty offline, when the fixed [category] list is used. */
+    val masterCategories: List<MasterCategoryDto> = emptyList(),
     val unit: ProductUnit = ProductUnit.PIECE,
     val barcode: String = "",
     val sellingPrice: String = "",
@@ -114,6 +121,19 @@ class AddEditInventoryViewModel(
                 shopRepository.findProduct(productId)?.let { fillFrom(it) }
             }
         }
+        viewModelScope.launch {
+            runCatching { api.masterCategories() }
+                .onSuccess { all -> _uiState.update { it.copy(masterCategories = all) } }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
+
+    fun onMasterCategoryChange(categoryId: String?, subCategoryId: String?) = _uiState.update {
+        it.copy(
+            categoryId = categoryId,
+            subCategoryId = subCategoryId,
+            category = it.masterCategories.legacyCategory(categoryId, it.category),
+        )
     }
 
     fun onLookupQueryChange(value: String) = _uiState.update { it.copy(lookupQuery = value, error = null) }
@@ -212,6 +232,8 @@ class AddEditInventoryViewModel(
             brandName = state.brandName.trim(),
             masterProductId = loadedProduct?.masterProductId,
             isActive = loadedProduct?.isActive ?: true,
+            categoryId = state.categoryId,
+            subCategoryId = state.subCategoryId,
         )
         viewModelScope.launch {
             shopRepository.upsertProduct(product)
@@ -235,6 +257,8 @@ class AddEditInventoryViewModel(
                 name = product.name,
                 nameHi = product.nameHi,
                 category = product.category,
+                categoryId = product.categoryId,
+                subCategoryId = product.subCategoryId,
                 unit = product.unit,
                 barcode = product.barcode.orEmpty(),
                 sellingPrice = product.sellingPrice.toString(),

@@ -18,6 +18,12 @@ import org.bhargav.pansariwala.api.BillingModel
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.feature.user.QuantityStepper
 import pansariwala.shared.generated.resources.action_edit
+import org.bhargav.pansariwala.feature.catalog.ProductDetailsSheet
+import pansariwala.shared.generated.resources.category_price
+import pansariwala.shared.generated.resources.field_stock_qty
+import pansariwala.shared.generated.resources.pos_price_required_hint
+import pansariwala.shared.generated.resources.pos_price_required_title
+import pansariwala.shared.generated.resources.pos_price_save_add
 import pansariwala.shared.generated.resources.pos_cart_bar_items
 import pansariwala.shared.generated.resources.pos_choose_option
 import pansariwala.shared.generated.resources.pos_view_cart
@@ -177,6 +183,24 @@ fun OrderEditorScreen(
             product = product,
             onSave = { draft, currentLabel -> viewModel.saveVariant(product, draft, currentLabel) },
             onDismiss = viewModel::dismissAddVariant,
+        )
+    }
+
+    state.priceRequest?.let { request ->
+        val product = request.option.product
+        val name = request.option.variant?.let { stringResource(Res.string.category_price, product.name, it.label) }
+            ?: product.name
+        ProductDetailsSheet(
+            title = stringResource(Res.string.pos_price_required_title, name),
+            subtitle = stringResource(Res.string.pos_price_required_hint),
+            draft = state.priceDraft,
+            categories = state.masterCategories,
+            confirmLabel = stringResource(Res.string.pos_price_save_add),
+            onDraftChange = viewModel::updatePriceDraft,
+            onConfirm = viewModel::confirmPrice,
+            onDismiss = viewModel::dismissPriceRequest,
+            priceRequired = true,
+            stockLabel = stringResource(Res.string.field_stock_qty),
         )
     }
 

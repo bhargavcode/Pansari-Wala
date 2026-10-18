@@ -112,6 +112,9 @@ data class Product(
     val isActive: Boolean = true,
     /** Best live product offer; lowers the unit price shown and charged. */
     val offer: ProductOffer? = null,
+    /** Master catalog category (root) and optional sub-category; [category] stays the fixed shop bucket. */
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
 ) {
     /** Price after [offer] for one unit priced [base] (a variant price or [sellingPrice]). */
     fun salePrice(base: Double = sellingPrice): Double = offer?.unitPriceOn(base) ?: base

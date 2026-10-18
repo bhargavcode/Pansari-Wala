@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.bhargav.pansariwala.feature.catalog.MasterCategoryPicker
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -145,13 +146,23 @@ fun AddEditInventoryScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        EnumDropdown(
-            label = stringResource(Res.string.field_category),
-            selectedLabel = state.category.localizedName(),
-            options = ProductCategory.entries,
-            optionLabel = { it.localizedName() },
-            onSelected = viewModel::onCategoryChange,
-        )
+        if (state.masterCategories.isNotEmpty()) {
+            MasterCategoryPicker(
+                categories = state.masterCategories,
+                categoryId = state.categoryId,
+                subCategoryId = state.subCategoryId,
+                onChange = viewModel::onMasterCategoryChange,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            EnumDropdown(
+                label = stringResource(Res.string.field_category),
+                selectedLabel = state.category.localizedName(),
+                options = ProductCategory.entries,
+                optionLabel = { it.localizedName() },
+                onSelected = viewModel::onCategoryChange,
+            )
+        }
         EnumDropdown(
             label = stringResource(Res.string.field_unit),
             selectedLabel = state.unit.localizedLabel(),

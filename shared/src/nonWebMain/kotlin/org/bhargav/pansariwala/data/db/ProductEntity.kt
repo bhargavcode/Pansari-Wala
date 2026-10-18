@@ -42,6 +42,8 @@ data class ProductEntity(
     val masterProductId: String? = null,
     @ColumnInfo(defaultValue = "1")
     val isActive: Boolean = true,
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
 )
 
 /** Pull cursors and other small sync bookmarks. */

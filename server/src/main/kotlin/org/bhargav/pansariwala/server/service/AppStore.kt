@@ -751,6 +751,8 @@ class AppStore(
             variants = master.variants.filter { it.active },
             brandName = master.brandName,
             masterProductId = master.id,
+            categoryId = body.categoryId?.takeIf { it.isNotBlank() } ?: master.categoryId.takeIf { it.isNotBlank() },
+            subCategoryId = body.subCategoryId?.takeIf { it.isNotBlank() } ?: master.subcategoryId,
         )
         productCol.insertOne(doc)
         recordPriceChange(null, doc)
@@ -2292,6 +2294,8 @@ class AppStore(
                     brandName = g.text(SheetCol.BRAND).ifBlank { current?.brandName.orEmpty() },
                     masterProductId = current?.masterProductId,
                     active = row?.flag(SheetCol.ACTIVE) ?: current?.active ?: true,
+                    categoryId = current?.categoryId,
+                    subCategoryId = current?.subCategoryId,
                 )
                 val doc = dto.toDoc()
                 if (!dryRun) {
@@ -3375,6 +3379,8 @@ class AppStore(
         brandName = brandName,
         masterProductId = masterProductId,
         active = active,
+        categoryId = categoryId,
+        subCategoryId = subCategoryId,
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
@@ -3384,6 +3390,8 @@ class AppStore(
         brandName = brandName.trim(),
         masterProductId = masterProductId?.takeIf { it.isNotBlank() },
         active = active,
+        categoryId = categoryId?.takeIf { it.isNotBlank() },
+        subCategoryId = subCategoryId?.takeIf { it.isNotBlank() },
     )
 
     private fun ProductVariantDoc.toDto() = ProductVariantDto(

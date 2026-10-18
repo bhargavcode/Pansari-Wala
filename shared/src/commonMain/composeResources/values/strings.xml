@@ -1483,6 +1483,13 @@
     <string name="inv_master_add_title">Add %1$s to shop</string>
     <string name="inv_opening_stock">Opening stock</string>
     <string name="inv_msg_added">%1$s added to your shop</string>
+    <string name="field_sub_category">Sub-category</string>
+    <string name="inv_master_add_all">Add all (%1$d)</string>
+    <string name="inv_master_selected">%1$d selected</string>
+    <string name="inv_master_added_many">%1$d products added to your shop</string>
+    <string name="pos_price_required_title">Set price for %1$s</string>
+    <string name="pos_price_required_hint">This item has no price yet. Add a selling price to bill it.</string>
+    <string name="pos_price_save_add">Save &amp; add</string>
     <string name="inv_detail_title">Product details</string>
     <string name="inv_product_missing">This product no longer exists.</string>
     <string name="inv_section_stock">Current stock</string>

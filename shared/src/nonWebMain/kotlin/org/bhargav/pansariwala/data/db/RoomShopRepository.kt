@@ -231,6 +231,8 @@ private fun Product.toEntity() = ProductEntity(
     brandName = brandName,
     masterProductId = masterProductId,
     isActive = isActive,
+    categoryId = categoryId,
+    subCategoryId = subCategoryId,
 )
 
 private fun ShopProductFilter.activeArg(): Int = when (status) {
@@ -269,6 +271,8 @@ private fun ProductEntity.toDomain() = Product(
     brandName = brandName,
     masterProductId = masterProductId,
     isActive = isActive,
+    categoryId = categoryId,
+    subCategoryId = subCategoryId,
 )
 
 private fun UserEntity.toUser() = ShopUser(

@@ -466,6 +466,9 @@ data class ProductDto(
     val brandName: String = "",
     val masterProductId: String? = null,
     val active: Boolean = true,
+    /** Master category (root) and optional sub-category ids; [category] stays the legacy fixed bucket. */
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
     /** Best live PRODUCT offer for this item (read-only; ignored on writes). */
     val offer: ProductOfferDto? = null,
 )
@@ -487,6 +490,8 @@ data class AddFromMasterRequest(
     val costPrice: Double? = null,
     val stockQty: Double = 0.0,
     val lowStockThreshold: Double? = null,
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
 )
 
 /** Exactly one of [delta] (may be negative) or [set] is applied; [set] wins when both are sent. */

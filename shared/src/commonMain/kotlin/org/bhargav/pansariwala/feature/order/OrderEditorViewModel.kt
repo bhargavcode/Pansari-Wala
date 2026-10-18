@@ -26,8 +26,13 @@ import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.ProductVariant
 import org.bhargav.pansariwala.domain.model.SellMode
+import org.bhargav.pansariwala.api.MasterCategoryDto
 import org.bhargav.pansariwala.api.ProductVariantDto
+import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.api.toModel
+import org.bhargav.pansariwala.feature.catalog.ProductDetailsDraft
+import org.bhargav.pansariwala.feature.catalog.legacyCategory
+import org.bhargav.pansariwala.feature.catalog.toDraftInput
 import org.bhargav.pansariwala.feature.user.CartStore
 import org.bhargav.pansariwala.feature.user.PurchaseOption
 import org.bhargav.pansariwala.feature.user.VariantPickerState
@@ -76,6 +81,9 @@ data class CartLine(
     val baseLineTotal: Double get() = quantity * (lockedUnitPrice ?: option.basePrice)
 }
 
+/** A cart add paused until [option] gets a price; [quantity] / [targetKey] replay the original add. */
+data class PriceRequest(val option: PurchaseOption, val quantity: Double? = null, val targetKey: String? = null)
+
 data class OrderEditorUiState(
     val loading: Boolean = true,
     val isEditing: Boolean = false,
@@ -88,6 +96,9 @@ data class OrderEditorUiState(
     val variantPicker: VariantPickerState.Request? = null,
     /** Product whose "Add variant" dialog is open (long-press on a POS card). */
     val addVariantFor: Product? = null,
+    val priceRequest: PriceRequest? = null,
+    val priceDraft: ProductDetailsDraft = ProductDetailsDraft(),
+    val masterCategories: List<MasterCategoryDto> = emptyList(),
     val saved: Boolean = false,
     val showPaymentPicker: Boolean = false,
     val showUpiQr: Boolean = false,
@@ -457,6 +468,86 @@ class OrderEditorViewModel(
 
     fun dismissAddVariant() = _uiState.update { it.copy(addVariantFor = null) }
 
+    fun dismissPriceRequest() = _uiState.update { it.copy(priceRequest = null) }
+
+    fun updatePriceDraft(transform: (ProductDetailsDraft) -> ProductDetailsDraft) =
+        _uiState.update { it.copy(priceDraft = transform(it.priceDraft)) }
+
+    /** Opens the price sheet when [option] has no price; returns true when the add must wait. */
+    private fun needsPrice(option: PurchaseOption, quantity: Double? = null, targetKey: String? = null): Boolean {
+        if (option.basePrice > 0.0) return false
+        val product = option.product
+        _uiState.update {
+            it.copy(
+                priceRequest = PriceRequest(option, quantity, targetKey),
+                priceDraft = ProductDetailsDraft(
+                    costPrice = product.costPrice.toDraftInput(),
+                    stockQty = (option.variant?.stockQty ?: product.stockQty).toDraftInput(),
+                    lowStockThreshold = product.lowStockThreshold.toDraftInput(),
+                    categoryId = product.categoryId,
+                    subCategoryId = product.subCategoryId,
+                ),
+                variantPicker = null,
+            )
+        }
+        loadMasterCategories()
+        return true
+    }
+
+    private fun loadMasterCategories() {
+        if (_uiState.value.masterCategories.isNotEmpty()) return
+        viewModelScope.launch {
+            runCatching { api.masterCategories() }
+                .onSuccess { all -> _uiState.update { it.copy(masterCategories = all) } }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
+
+    /** Saves the price (and edited stock/category) on the product, syncs it, then finishes the add. */
+    fun confirmPrice() {
+        val state = _uiState.value
+        val request = state.priceRequest ?: return
+        val draft = state.priceDraft
+        val price = draft.sellingPriceValue
+        if (price <= 0.0) return
+        val product = request.option.product
+        val variant = request.option.variant
+        val linkedBundle = variant?.sellMode == SellMode.BUNDLE && variant.baseVariantId.isNotBlank()
+        val updated = product.copy(
+            sellingPrice = if (variant == null || product.sellingPrice <= 0.0) price else product.sellingPrice,
+            costPrice = draft.costPriceValue,
+            stockQty = if (variant == null) draft.stockQtyValue else product.stockQty,
+            lowStockThreshold = draft.lowStockValue,
+            category = state.masterCategories.legacyCategory(draft.categoryId, product.category),
+            categoryId = draft.categoryId,
+            subCategoryId = draft.subCategoryId,
+            variants = product.variants.map { v ->
+                if (v.id != variant?.id) v
+                else v.copy(price = price, stockQty = if (linkedBundle) v.stockQty else draft.stockQtyValue)
+            },
+        )
+        val option = PurchaseOption(updated, updated.variant(variant?.id))
+        viewModelScope.launch {
+            runCatching { shopRepository.upsertProduct(updated.copy(offer = null)) }
+                .onSuccess {
+                    _uiState.update { s ->
+                        s.copy(
+                            priceRequest = null,
+                            catalog = s.catalog.map { if (it.id == product.id) updated else it },
+                            cart = s.cart.map { if (it.product.id == product.id) it.copy(product = updated) else it },
+                        )
+                    }
+                    when {
+                        request.targetKey != null ->
+                            upsertOption(request.targetKey, option, request.quantity ?: maxOf(option.minQty, option.step))
+                        request.quantity != null -> addToCart(option, request.quantity)
+                        else -> addOption(option)
+                    }
+                }
+                .onFailure { error -> _uiState.update { it.copy(error = error.toApiUiText()) } }
+        }
+    }
+
     /**
      * Adds [draft] to the product. A product without variants first turns its current pack into a
      * variant labelled [currentLabel], so its price, stock and barcode stay sellable.
@@ -529,6 +620,7 @@ class OrderEditorViewModel(
 
     /** Adds or replaces a line from the variant picker; [targetKey] is the line being edited. */
     fun upsertOption(targetKey: String, option: PurchaseOption, quantity: Double) {
+        if (needsPrice(option, quantity, targetKey)) return
         _uiState.update { state ->
             val qty = option.normalize(quantity)
             val replaced = CartLine(option.product, qty, option.variant)
@@ -712,6 +804,7 @@ class OrderEditorViewModel(
 
     private fun addToCart(option: PurchaseOption, quantity: Double) {
         if (quantity <= 0.0) return
+        if (needsPrice(option, quantity)) return
         _uiState.update { state ->
             val key = option.key
             val existing = state.cart.firstOrNull { it.key == key }
@@ -782,7 +875,7 @@ class OrderEditorViewModel(
             openPicker(option.product)
         } else if (option.needsPicker) {
             openPicker(option.product, optionKey = option.key)
-        } else {
+        } else if (!needsPrice(option)) {
             addOption(option)
             showScanMessage(UiText.res(Res.string.scanner_added, option.product.name))
         }
@@ -808,6 +901,7 @@ class OrderEditorViewModel(
     }
 
     private fun addOption(option: PurchaseOption) {
+        if (needsPrice(option)) return
         _uiState.update { state ->
             val existing = state.cart.firstOrNull { it.key == option.key }
             val cart = if (existing != null) {

@@ -57,3 +57,10 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
     }
 }
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE products ADD COLUMN categoryId TEXT")
+        connection.execSQL("ALTER TABLE products ADD COLUMN subCategoryId TEXT")
+    }
+}

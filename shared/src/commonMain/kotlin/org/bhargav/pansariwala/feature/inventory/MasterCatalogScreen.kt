@@ -3,26 +3,24 @@ package org.bhargav.pansariwala.feature.inventory
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -33,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,16 +42,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.api.MasterProductDto
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
-import org.bhargav.pansariwala.domain.model.ProductCategory
+import org.bhargav.pansariwala.feature.catalog.ProductDetailsSheet
 import org.bhargav.pansariwala.i18n.asString
-import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.media.ProductImageCarousel
 import org.bhargav.pansariwala.theme.stockHealthyColor
 import org.bhargav.pansariwala.ui.toErrorBanner
@@ -62,20 +59,16 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_add
-import pansariwala.shared.generated.resources.action_cancel
 import pansariwala.shared.generated.resources.action_clear
-import pansariwala.shared.generated.resources.field_category
-import pansariwala.shared.generated.resources.field_cost_price
-import pansariwala.shared.generated.resources.field_low_stock_at
-import pansariwala.shared.generated.resources.field_selling_price
+import pansariwala.shared.generated.resources.inv_master_add_all
 import pansariwala.shared.generated.resources.inv_master_add_title
 import pansariwala.shared.generated.resources.inv_master_added
 import pansariwala.shared.generated.resources.inv_master_all
 import pansariwala.shared.generated.resources.inv_master_count
 import pansariwala.shared.generated.resources.inv_master_empty
 import pansariwala.shared.generated.resources.inv_master_search_hint
+import pansariwala.shared.generated.resources.inv_master_selected
 import pansariwala.shared.generated.resources.inv_master_title
-import pansariwala.shared.generated.resources.inv_opening_stock
 
 @Composable
 fun MasterCatalogScreen(
@@ -170,6 +163,8 @@ fun MasterCatalogScreen(
                         MasterRow(
                             item = item,
                             added = shopProductId != null,
+                            selected = item.id in state.selected,
+                            onToggle = { viewModel.toggleSelected(item) },
                             onAdd = { viewModel.startAdd(item) },
                             onOpen = { shopProductId?.let(onOpenProduct) },
                         )
@@ -184,14 +179,25 @@ fun MasterCatalogScreen(
                     }
                 }
             }
+            if (state.selected.isNotEmpty()) {
+                AddAllBar(
+                    count = state.selected.size,
+                    busy = state.addingAll,
+                    onClear = viewModel::clearSelection,
+                    onAddAll = viewModel::addAllSelected,
+                )
+            }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 
     state.pending?.let { item ->
-        AddFromMasterDialog(
-            item = item,
+        ProductDetailsSheet(
+            title = stringResource(Res.string.inv_master_add_title, item.name),
+            subtitle = item.brandName.takeIf { it.isNotBlank() },
             draft = state.draft,
+            categories = state.allCategories,
+            confirmLabel = stringResource(Res.string.action_add),
             onDraftChange = viewModel::updateDraft,
             onConfirm = viewModel::confirmAdd,
             onDismiss = viewModel::cancelAdd,
@@ -200,12 +206,53 @@ fun MasterCatalogScreen(
 }
 
 @Composable
-private fun MasterRow(item: MasterProductDto, added: Boolean, onAdd: () -> Unit, onOpen: () -> Unit) {
+private fun AddAllBar(count: Int, busy: Boolean, onClear: () -> Unit, onAddAll: () -> Unit) {
+    Surface(tonalElevation = 3.dp, shadowElevation = 6.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(Res.string.inv_master_selected, count),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onClear, enabled = !busy) { Text(stringResource(Res.string.action_clear)) }
+            Button(onClick = onAddAll, enabled = !busy) {
+                if (busy) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(stringResource(Res.string.inv_master_add_all, count))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MasterRow(
+    item: MasterProductDto,
+    added: Boolean,
+    selected: Boolean,
+    onToggle: () -> Unit,
+    onAdd: () -> Unit,
+    onOpen: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Checkbox(
+            checked = added || selected,
+            onCheckedChange = if (added) null else { _ -> onToggle() },
+            enabled = !added,
+            colors = CheckboxDefaults.colors(
+                checkedColor = if (added) stockHealthyColor else MaterialTheme.colorScheme.primary,
+                disabledCheckedColor = stockHealthyColor,
+            ),
+        )
         ProductImageCarousel(
             imageUrls = item.imageUrls.take(1),
             height = 56.dp,
@@ -243,71 +290,4 @@ private fun MasterRow(item: MasterProductDto, added: Boolean, onAdd: () -> Unit,
             FilledTonalButton(onClick = onAdd) { Text(stringResource(Res.string.action_add)) }
         }
     }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AddFromMasterDialog(
-    item: MasterProductDto,
-    draft: MasterAddDraft,
-    onDraftChange: ((MasterAddDraft) -> MasterAddDraft) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val decimal = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.inv_master_add_title, item.name)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = draft.sellingPrice,
-                    onValueChange = { v -> onDraftChange { it.copy(sellingPrice = v) } },
-                    label = { Text(stringResource(Res.string.field_selling_price)) },
-                    singleLine = true,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = draft.costPrice,
-                    onValueChange = { v -> onDraftChange { it.copy(costPrice = v) } },
-                    label = { Text(stringResource(Res.string.field_cost_price)) },
-                    singleLine = true,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = draft.stockQty,
-                    onValueChange = { v -> onDraftChange { it.copy(stockQty = v) } },
-                    label = { Text(stringResource(Res.string.inv_opening_stock)) },
-                    singleLine = true,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = draft.lowStockThreshold,
-                    onValueChange = { v -> onDraftChange { it.copy(lowStockThreshold = v) } },
-                    label = { Text(stringResource(Res.string.field_low_stock_at)) },
-                    singleLine = true,
-                    keyboardOptions = decimal,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(stringResource(Res.string.field_category), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProductCategory.entries.forEach { category ->
-                        FilterChip(
-                            selected = draft.category == category,
-                            onClick = { onDraftChange { it.copy(category = category) } },
-                            label = { Text(category.localizedName()) },
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(Res.string.action_add)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
-    )
 }

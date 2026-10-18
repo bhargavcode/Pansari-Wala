@@ -24,23 +24,23 @@ import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.feature.catalog.ProductDetailsDraft
+import org.bhargav.pansariwala.feature.catalog.legacyCategory
+import org.bhargav.pansariwala.feature.catalog.resolveCategory
+import org.bhargav.pansariwala.feature.catalog.rootCategories
+import org.bhargav.pansariwala.feature.catalog.toDraftInput
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.inv_master_added_many
 import pansariwala.shared.generated.resources.inv_msg_added
-
-data class MasterAddDraft(
-    val sellingPrice: String = "",
-    val costPrice: String = "",
-    val stockQty: String = "",
-    val lowStockThreshold: String = "",
-    val category: ProductCategory = ProductCategory.GENERAL_GROCERY,
-)
 
 data class MasterCatalogUiState(
     val searchText: String = "",
+    /** Root categories for the filter row; [allCategories] also holds sub-categories. */
     val categories: List<MasterCategoryDto> = emptyList(),
+    val allCategories: List<MasterCategoryDto> = emptyList(),
     val selectedCategoryId: String? = null,
     val items: List<MasterProductDto> = emptyList(),
     val totalCount: Int = 0,
@@ -50,7 +50,10 @@ data class MasterCatalogUiState(
     /** masterProductId → shop productId for items already in this shop. */
     val addedIds: Map<String, String> = emptyMap(),
     val pending: MasterProductDto? = null,
-    val draft: MasterAddDraft = MasterAddDraft(),
+    val draft: ProductDetailsDraft = ProductDetailsDraft(),
+    /** Master items ticked for "Add all"; already-added items are never selectable. */
+    val selected: Map<String, MasterProductDto> = emptyMap(),
+    val addingAll: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null,
 )
@@ -77,7 +80,7 @@ class MasterCatalogViewModel(
             launch {
                 runCatching { api.masterCategories() }
                     .onSuccess { all ->
-                        _uiState.update { s -> s.copy(categories = all.filter { it.parentId.isNullOrBlank() }) }
+                        _uiState.update { s -> s.copy(categories = all.rootCategories, allCategories = all) }
                     }
             }
             searchText
@@ -148,52 +151,31 @@ class MasterCatalogViewModel(
     }
 
     fun startAdd(item: MasterProductDto) {
-        val price = item.salePrice.takeIf { it > 0.0 } ?: item.variants.minOfOrNull { it.price } ?: 0.0
-        _uiState.update {
-            it.copy(
-                pending = item,
-                draft = MasterAddDraft(
-                    sellingPrice = price.toInputString(),
-                    costPrice = item.cost.toInputString(),
-                    stockQty = "",
-                    lowStockThreshold = item.lowStockThreshold.toInputString(),
-                    category = guessCategory(item.categoryId, it.categories),
-                ),
-            )
-        }
+        _uiState.update { it.copy(pending = item, draft = defaultDraft(item, it.allCategories)) }
     }
 
     fun cancelAdd() = _uiState.update { it.copy(pending = null) }
-    fun updateDraft(transform: (MasterAddDraft) -> MasterAddDraft) = _uiState.update { it.copy(draft = transform(it.draft)) }
+    fun updateDraft(transform: (ProductDetailsDraft) -> ProductDetailsDraft) =
+        _uiState.update { it.copy(draft = transform(it.draft)) }
+
+    fun toggleSelected(item: MasterProductDto) = _uiState.update { s ->
+        if (item.id in s.addedIds) return@update s
+        s.copy(selected = if (item.id in s.selected) s.selected - item.id else s.selected + (item.id to item))
+    }
+
+    fun clearSelection() = _uiState.update { it.copy(selected = emptyMap()) }
 
     fun confirmAdd() {
         val state = _uiState.value
         val item = state.pending ?: return
-        val draft = state.draft
-        val product = Product(
-            id = generateId("prod"),
-            shopId = shopId,
-            name = item.name,
-            nameHi = item.nameHi,
-            category = draft.category,
-            unit = ProductUnit.fromName(item.unit),
-            barcode = item.barcode?.takeIf { it.isNotBlank() },
-            sellingPrice = draft.sellingPrice.toDoubleOrNull() ?: 0.0,
-            costPrice = draft.costPrice.toDoubleOrNull() ?: 0.0,
-            stockQty = draft.stockQty.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0,
-            lowStockThreshold = draft.lowStockThreshold.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0,
-            voiceAlias = null,
-            imageUrls = item.imageUrls.filter { it.isNotBlank() }.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
-            variants = item.variants.filter { it.active }.map { it.toModel() },
-            brandName = item.brandName,
-            masterProductId = item.id,
-        )
+        val product = item.toShopProduct(state.draft, state.allCategories)
         viewModelScope.launch {
             runCatching { shopRepository.upsertProduct(product) }
                 .onSuccess {
                     _uiState.update {
                         it.copy(
                             pending = null,
+                            selected = it.selected - item.id,
                             addedIds = it.addedIds + (item.id to product.id),
                             message = UiText.res(Res.string.inv_msg_added, item.name),
                         )
@@ -202,13 +184,65 @@ class MasterCatalogViewModel(
                 .onFailure { error -> _uiState.update { it.copy(error = error.toApiUiText()) } }
         }
     }
+
+    /** Adds every ticked item with master defaults; items without a price are priced at first billing. */
+    fun addAllSelected() {
+        val state = _uiState.value
+        if (state.addingAll) return
+        val items = state.selected.values.filter { it.id !in state.addedIds }
+        if (items.isEmpty()) return
+        _uiState.update { it.copy(addingAll = true) }
+        viewModelScope.launch {
+            val added = mutableMapOf<String, String>()
+            var failure: Throwable? = null
+            for (item in items) {
+                val product = item.toShopProduct(defaultDraft(item, state.allCategories), state.allCategories)
+                runCatching { shopRepository.upsertProduct(product) }
+                    .onSuccess { added[item.id] = product.id }
+                    .onFailure { failure = it }
+            }
+            _uiState.update {
+                it.copy(
+                    addingAll = false,
+                    selected = it.selected - added.keys,
+                    addedIds = it.addedIds + added,
+                    message = if (added.isEmpty()) it.message else UiText.res(Res.string.inv_master_added_many, added.size),
+                    error = failure?.toApiUiText() ?: it.error,
+                )
+            }
+        }
+    }
+
+    private fun MasterProductDto.toShopProduct(draft: ProductDetailsDraft, categories: List<MasterCategoryDto>) = Product(
+        id = generateId("prod"),
+        shopId = shopId,
+        name = name,
+        nameHi = nameHi,
+        category = categories.legacyCategory(draft.categoryId, ProductCategory.fromMasterCategoryName(categoryId)),
+        unit = ProductUnit.fromName(unit),
+        barcode = barcode?.takeIf { it.isNotBlank() },
+        sellingPrice = draft.sellingPriceValue,
+        costPrice = draft.costPriceValue,
+        stockQty = draft.stockQtyValue,
+        lowStockThreshold = draft.lowStockValue,
+        voiceAlias = null,
+        imageUrls = imageUrls.filter { it.isNotBlank() }.take(AppConstants.PHOTO_MAX_PRODUCT_IMAGES),
+        variants = variants.filter { it.active }.map { it.toModel() },
+        brandName = brandName,
+        masterProductId = id,
+        categoryId = draft.categoryId,
+        subCategoryId = draft.subCategoryId,
+    )
 }
 
-private fun Double.toInputString(): String = when {
-    this <= 0.0 -> ""
-    this == this.toLong().toDouble() -> this.toLong().toString()
-    else -> this.toString()
+private fun defaultDraft(item: MasterProductDto, categories: List<MasterCategoryDto>): ProductDetailsDraft {
+    val price = item.salePrice.takeIf { it > 0.0 } ?: item.variants.minOfOrNull { it.price } ?: 0.0
+    val (categoryId, subCategoryId) = categories.resolveCategory(item.categoryId, item.subcategoryId)
+    return ProductDetailsDraft(
+        sellingPrice = price.toDraftInput(),
+        costPrice = item.cost.toDraftInput(),
+        lowStockThreshold = item.lowStockThreshold.toDraftInput(),
+        categoryId = categoryId,
+        subCategoryId = subCategoryId,
+    )
 }
-
-private fun guessCategory(categoryId: String, categories: List<MasterCategoryDto>): ProductCategory =
-    ProductCategory.fromMasterCategoryName(categories.firstOrNull { it.id == categoryId }?.name ?: categoryId)
