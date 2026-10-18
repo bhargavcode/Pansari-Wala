@@ -1019,6 +1019,11 @@
     <string name="printer_error_nothing_to_print">Nothing to print yet.</string>
     <string name="printer_action_grant_permission">Grant permission</string>
     <string name="printer_action_enable_bluetooth">Turn on Bluetooth</string>
+    <string name="external_print_printer_name">Pansari receipt printer</string>
+    <string name="external_print_resolution">203 dpi</string>
+    <string name="external_print_sending">Sending to printer…</string>
+    <string name="external_print_done">Sent to printer</string>
+    <string name="external_print_unsupported">This can\'t be printed. Share text, a PDF or an image.</string>
     <string name="printer_web_unsupported">Printing to Bluetooth or Wi‑Fi printers needs the Android or iOS app.</string>
     <string name="printer_paper_section">Paper &amp; formatting</string>
     <string name="printer_paper_width">Paper width</string>

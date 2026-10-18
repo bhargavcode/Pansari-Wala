@@ -14,6 +14,7 @@ import org.bhargav.pansariwala.printer.AndroidPrinterTransports
 import org.bhargav.pansariwala.printer.PrinterManager
 import org.bhargav.pansariwala.printer.encoder.EscPosEncoder
 import org.bhargav.pansariwala.printer.text.AndroidTextRasterizer
+import org.bhargav.pansariwala.printing.external.ExternalPrintGateway
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -32,4 +33,5 @@ actual val platformModule: Module = module {
             encoder = EscPosEncoder(textRasterizer = AndroidTextRasterizer()),
         )
     }
+    single { ExternalPrintGateway(androidContext(), get()) }
 }
