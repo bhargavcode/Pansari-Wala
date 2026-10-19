@@ -32,6 +32,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.dto.AdminLoginRequest
+import org.bhargav.pansariwala.server.dto.ShopCategoryOrderDto
 import org.bhargav.pansariwala.server.dto.AdminOrderActionRequest
 import org.bhargav.pansariwala.server.dto.AdminPasswordChange
 import org.bhargav.pansariwala.server.dto.PlatformSettingsDto
@@ -157,6 +158,15 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         post("/shop/products/export-link") {
             val shopId = call.requireShopPerm(store, ShopPerm.INVENTORY)
             call.respond(store.createExportLink(shopId))
+        }
+        get("/shop/category-order") {
+            val shopId = call.requireShopPerm(store, ShopPerm.INVENTORY)
+            call.respond(withContext(Dispatchers.IO) { store.shopCategoryOrder(shopId) })
+        }
+        put("/shop/category-order") {
+            val shopId = call.requireShopPerm(store, ShopPerm.INVENTORY)
+            val body = call.receive<ShopCategoryOrderDto>()
+            call.respond(withContext(Dispatchers.IO) { store.updateShopCategoryOrder(shopId, body) })
         }
         post("/admin/master/products/import") {
             call.requireRole("ADMIN")

@@ -79,6 +79,32 @@ data class ShopProfileDto(
     val me: ShopStaffDto,
 )
 
+/** Customer-catalog category order. [sort]: [CategorySort] name. */
+@Serializable
+data class ShopCategoryOrderDto(
+    val sort: String = CategorySort.PRIORITY.name,
+    val items: List<ShopCategoryOrderItemDto> = emptyList(),
+)
+
+/** [priority] null = unranked; those follow ranked categories, sorted by name. */
+@Serializable
+data class ShopCategoryOrderItemDto(
+    val id: String,
+    val name: String = "",
+    val priority: Int? = null,
+    val productCount: Int = 0,
+)
+
+enum class CategorySort {
+    PRIORITY,
+    NAME,
+    ;
+
+    companion object {
+        fun fromName(value: String?): CategorySort = entries.firstOrNull { it.name == value } ?: PRIORITY
+    }
+}
+
 /** Partial update of shop details; null fields are left unchanged by the server. */
 @Serializable
 data class ShopProfilePatch(

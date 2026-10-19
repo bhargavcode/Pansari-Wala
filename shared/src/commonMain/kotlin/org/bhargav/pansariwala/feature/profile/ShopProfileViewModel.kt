@@ -3,9 +3,11 @@ package org.bhargav.pansariwala.feature.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.OfferScope
@@ -126,6 +128,14 @@ class ShopProfileViewModel(
 
     private val _uiState = MutableStateFlow(ShopProfileUiState())
     val uiState: StateFlow<ShopProfileUiState> = _uiState.asStateFlow()
+
+    /** Device-level voice setting shown under the voice search feature. */
+    val voiceAutoAdd: StateFlow<Boolean> = preferences.voiceAutoAdd
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), true)
+
+    fun setVoiceAutoAdd(enabled: Boolean) {
+        viewModelScope.launch { preferences.setVoiceAutoAdd(enabled) }
+    }
 
     init {
         refresh()
@@ -418,6 +428,7 @@ class ShopProfileViewModel(
 
     private companion object {
         const val MILLIS_PER_DAY = 86_400_000L
+        const val STATE_STOP_TIMEOUT_MS = 5_000L
     }
 }
 

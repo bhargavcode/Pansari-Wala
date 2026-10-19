@@ -256,6 +256,14 @@ object AppConstants {
         const val SHOP_PERMISSIONS: String = "pref_shop_permissions"
         const val SHOP_FEATURES: String = "pref_shop_features"
         const val SCANNER_SETTINGS: String = "pref_scanner_settings"
+        const val VOICE_AUTO_ADD: String = "pref_voice_auto_add"
+    }
+
+    object Voice {
+        /** Primary STT language (Hindi / Hinglish shop talk). */
+        const val PRIMARY_LOCALE: String = "hi-IN"
+        /** Also recognised where the platform supports it, so English product names come through. */
+        const val SECONDARY_LOCALE: String = "en-IN"
     }
 
     object Roles {

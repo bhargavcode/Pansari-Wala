@@ -16,7 +16,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +58,7 @@ import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_add
 import pansariwala.shared.generated.resources.action_cancel
+import pansariwala.shared.generated.resources.action_close
 import pansariwala.shared.generated.resources.action_edit
 import pansariwala.shared.generated.resources.action_save
 import pansariwala.shared.generated.resources.variant_pack_count_label
@@ -110,8 +115,17 @@ class VariantPickerState {
     var request by mutableStateOf<Request?>(null)
         private set
 
-    /** [optionKey] limits the sheet to one option (a variant card in a flat list). */
-    data class Request(val product: Product, val editKey: String?, val optionKey: String? = null)
+    /**
+     * [optionKey] limits the sheet to one option (a variant card in a flat list). [initialOptionKey] and
+     * [initialQty] only preselect (e.g. what a voice command asked for); the cashier can still change them.
+     */
+    data class Request(
+        val product: Product,
+        val editKey: String?,
+        val optionKey: String? = null,
+        val initialOptionKey: String? = null,
+        val initialQty: Double? = null,
+    )
 
     fun open(product: Product, editKey: String? = null, optionKey: String? = null) {
         request = Request(product, editKey, optionKey)
@@ -160,6 +174,8 @@ fun VariantPickerHost(
         cartLines = lines.filter { it.product.id == request.product.id },
         onConfirm = onConfirm,
         onDismiss = onDismiss,
+        initialOptionKey = request.initialOptionKey,
+        initialQty = request.initialQty,
     )
 }
 
@@ -172,6 +188,8 @@ private fun VariantPickerSheet(
     cartLines: List<CartStore.Line>,
     onConfirm: (targetKey: String, option: PurchaseOption, quantity: Double) -> Unit,
     onDismiss: () -> Unit,
+    initialOptionKey: String? = null,
+    initialQty: Double? = null,
 ) {
     val options = remember(product, optionKey, editKey) {
         val all = product.options()
@@ -179,11 +197,21 @@ private fun VariantPickerSheet(
         all.filter { it.key == focus }.ifEmpty { all }
     }
     val editing = cartLines.firstOrNull { it.key == editKey }
-    var selected by remember(product, editKey) {
-        mutableStateOf(editing?.option ?: options.firstOrNull { it.inStock } ?: options.first())
+    var selected by remember(product, editKey, initialOptionKey) {
+        mutableStateOf(
+            editing?.option
+                ?: options.firstOrNull { it.key == initialOptionKey }
+                ?: options.firstOrNull { it.inStock }
+                ?: options.first(),
+        )
     }
-    var quantity by remember(product, editKey) {
-        mutableStateOf(editing?.quantity ?: cartLines.firstOrNull { it.key == selected.key }?.quantity ?: selected.defaultQty)
+    var quantity by remember(product, editKey, initialQty) {
+        mutableStateOf(
+            editing?.quantity
+                ?: initialQty?.takeIf { it > 0.0 }?.let { selected.normalize(it) }
+                ?: cartLines.firstOrNull { it.key == selected.key }?.quantity
+                ?: selected.defaultQty,
+        )
     }
     val targetKey = editKey ?: selected.key
     val isUpdate = editKey != null || cartLines.any { it.key == selected.key }
@@ -218,6 +246,9 @@ private fun VariantPickerSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(Res.string.action_close))
                 }
             }
             if (options.size > 1) {

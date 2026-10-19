@@ -364,6 +364,11 @@ class KtorPansariApi(
     override suspend fun updateShopProfile(patch: ShopProfilePatch): ShopProfileDto =
         client.put("shop/profile") { setBody(patch) }.body()
 
+    override suspend fun shopCategoryOrder(): ShopCategoryOrderDto = client.get("shop/category-order").body()
+
+    override suspend fun updateShopCategoryOrder(body: ShopCategoryOrderDto): ShopCategoryOrderDto =
+        client.put("shop/category-order") { setBody(body) }.body()
+
     override suspend fun shopStaff(): List<ShopStaffDto> = client.get("shop/staff").body()
 
     override suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto =

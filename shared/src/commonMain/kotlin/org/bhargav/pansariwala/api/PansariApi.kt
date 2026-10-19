@@ -88,6 +88,9 @@ interface PansariApi {
 
     suspend fun shopProfile(): ShopProfileDto
     suspend fun updateShopProfile(patch: ShopProfilePatch): ShopProfileDto
+    /** Root categories the shop sells with its customer-catalog order (priority numbers or by name). */
+    suspend fun shopCategoryOrder(): ShopCategoryOrderDto
+    suspend fun updateShopCategoryOrder(body: ShopCategoryOrderDto): ShopCategoryOrderDto
     suspend fun shopStaff(): List<ShopStaffDto>
     suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto
     suspend fun deleteShopStaff(staffId: String)

@@ -27,6 +27,9 @@ import org.bson.conversions.Bson
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.db.AdminUserDoc
 import org.bhargav.pansariwala.server.db.CategoryDoc
+import org.bhargav.pansariwala.server.db.CategoryPriorityDoc
+import org.bhargav.pansariwala.server.dto.ShopCategoryOrderDto
+import org.bhargav.pansariwala.server.dto.ShopCategoryOrderItemDto
 import org.bhargav.pansariwala.server.dto.OtpConfigResponse
 import org.bhargav.pansariwala.server.security.OtpAppProof
 import org.bhargav.pansariwala.server.db.CustomerAddressDoc
@@ -151,6 +154,8 @@ private val SHOP_CATEGORIES = setOf("FORTUNE_BRANDED", "GENERAL_GROCERY", "PUJA_
 private const val DEFAULT_IMPORT_CATEGORY = "Uncategorized"
 /** Catalog section/page key for shop products without a master category; must match the app's AppConstants. */
 private const val UNCATEGORIZED_CATEGORY_ID = "uncategorized"
+private const val CATEGORY_SORT_PRIORITY = "PRIORITY"
+private const val CATEGORY_SORT_NAME = "NAME"
 private const val EXPORT_LINK_TTL_MS = 10 * 60 * 1000L
 private const val MAX_ORDER_PAGE_SIZE = 20
 private const val MAX_MASTER_PAGE_SIZE = 100
@@ -635,17 +640,13 @@ class AppStore(
      * Products without a master category are grouped under [UNCATEGORIZED_CATEGORY_ID] with a blank name.
      */
     fun catalogSections(shopId: String, query: String, previewSize: Int): List<CatalogSectionDto> {
-        val filter = productFilter(shopId, null, query)
         val limit = previewSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
-        val counts = productCol.aggregate(
-            listOf(Aggregates.match(filter), Aggregates.group("\$categoryId", Accumulators.sum("n", 1))),
-            Document::class.java,
-        ).toList()
-            .groupBy { row -> row.getString("_id")?.takeIf { it.isNotBlank() } ?: UNCATEGORIZED_CATEGORY_ID }
-            .mapValues { (_, rows) -> rows.sumOf { it.getInteger("n") ?: 0 } }
+        val counts = categoryCounts(productFilter(shopId, null, query))
         if (counts.isEmpty()) return emptyList()
-        val names = categoryCol.find(`in`("_id", counts.keys.toList())).toList().associate { it.id to it.name }
-        return counts.map { (categoryId, total) ->
+        val names = categoryNames(counts.keys)
+        val order = shopCategoryComparator(shopById(shopId), names)
+        return counts.keys.sortedWith(order).map { categoryId ->
+            val total = counts.getValue(categoryId)
             val preview = productCol.find(productFilter(shopId, categoryId, query))
                 .sort(Sorts.ascending("name", "_id"))
                 .limit(limit)
@@ -658,10 +659,54 @@ class AppStore(
                 preview = preview,
                 categoryName = names[categoryId].orEmpty(),
             )
-        }.sortedWith(
-            compareBy<CatalogSectionDto> { it.category == UNCATEGORIZED_CATEGORY_ID }
-                .thenBy { it.categoryName.lowercase() },
+        }
+    }
+
+    /** Product count per master category id ([UNCATEGORIZED_CATEGORY_ID] for none) matching [filter]. */
+    private fun categoryCounts(filter: Bson): Map<String, Int> =
+        productCol.aggregate(
+            listOf(Aggregates.match(filter), Aggregates.group("\$categoryId", Accumulators.sum("n", 1))),
+            Document::class.java,
+        ).toList()
+            .groupBy { row -> row.getString("_id")?.takeIf { it.isNotBlank() } ?: UNCATEGORIZED_CATEGORY_ID }
+            .mapValues { (_, rows) -> rows.sumOf { it.getInteger("n") ?: 0 } }
+
+    private fun categoryNames(ids: Collection<String>): Map<String, String> =
+        categoryCol.find(`in`("_id", ids.toList())).toList().associate { it.id to it.name }
+
+    /**
+     * Uncategorized always last. PRIORITY: ranked categories by number, then the rest by name; NAME: by name.
+     */
+    private fun shopCategoryComparator(shop: ShopDoc, names: Map<String, String>): Comparator<String> {
+        val priorities = if (shop.categorySort == CATEGORY_SORT_NAME) emptyMap()
+        else shop.categoryPriorities.associate { it.categoryId to it.priority }
+        return compareBy<String> { it == UNCATEGORIZED_CATEGORY_ID }
+            .thenBy { priorities[it] ?: Int.MAX_VALUE }
+            .thenBy { names[it].orEmpty().lowercase() }
+    }
+
+    /** Root categories the shop sells (incl. inactive products) with its saved order settings. */
+    fun shopCategoryOrder(shopId: String): ShopCategoryOrderDto {
+        val shop = shopById(shopId)
+        val counts = categoryCounts(eq("shopId", shopId)) - UNCATEGORIZED_CATEGORY_ID
+        val names = categoryNames(counts.keys)
+        val priorities = shop.categoryPriorities.associate { it.categoryId to it.priority }
+        val items = counts.keys.sortedWith(shopCategoryComparator(shop, names)).map { id ->
+            ShopCategoryOrderItemDto(id, names[id].orEmpty(), priorities[id], counts.getValue(id))
+        }
+        return ShopCategoryOrderDto(sort = shop.categorySort, items = items)
+    }
+
+    fun updateShopCategoryOrder(shopId: String, body: ShopCategoryOrderDto): ShopCategoryOrderDto {
+        val sort = body.sort.uppercase().takeIf { it == CATEGORY_SORT_NAME } ?: CATEGORY_SORT_PRIORITY
+        val priorities = body.items.mapNotNull { item ->
+            item.priority?.takeIf { item.id.isNotBlank() && it >= 0 }?.let { CategoryPriorityDoc(item.id, it) }
+        }.distinctBy { it.categoryId }
+        shopCol.updateOne(
+            eq("_id", shopId),
+            combine(set("categorySort", sort), set("categoryPriorities", priorities)),
         )
+        return shopCategoryOrder(shopId)
     }
 
     fun catalogPage(shopId: String, categoryId: String?, query: String, page: Int, pageSize: Int): ProductPageDto {

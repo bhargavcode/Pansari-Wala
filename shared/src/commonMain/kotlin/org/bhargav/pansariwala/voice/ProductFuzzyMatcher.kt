@@ -12,24 +12,41 @@ data class ProductMatch(
 )
 
 /**
- * Phonetic-ish + Levenshtein matcher over name / nameHi / voiceAlias.
+ * Phonetic-ish + Levenshtein matcher over name / nameHi / voiceAlias. Every name is compared as spoken
+ * and transliterated to Latin, so English names match Devanagari STT output and vice versa.
  */
 object ProductFuzzyMatcher {
 
     private const val MIN_SCORE = 0.42
+    private const val TOKEN_OVERLAP_SCORE = 0.75
 
-    fun findBest(query: String, catalog: List<Product>): ProductMatch? {
+    /** Auto-add to cart only at or above this score; weaker matches need the cashier to confirm. */
+    const val CONFIDENT_SCORE = 0.8
+
+    /** A different product scoring within this of the best makes the match ambiguous. */
+    const val AMBIGUITY_MARGIN = 0.05
+
+    fun findBest(query: String, catalog: List<Product>): ProductMatch? = findCandidates(query, catalog, 1).firstOrNull()
+
+    /** Best [limit] matches above the minimum score, highest first. */
+    fun findCandidates(query: String, catalog: List<Product>, limit: Int): List<ProductMatch> {
         val normalizedQuery = normalize(query)
-        if (normalizedQuery.isBlank() || catalog.isEmpty()) return null
+        if (normalizedQuery.isBlank() || catalog.isEmpty()) return emptyList()
+        val latinQuery = latin(clean(query))
+        return catalog.asSequence()
+            .map { ProductMatch(it, scoreProduct(normalizedQuery, latinQuery, it)) }
+            .filter { it.score >= MIN_SCORE }
+            .sortedByDescending { it.score }
+            .take(limit)
+            .toList()
+    }
 
-        var best: ProductMatch? = null
-        for (product in catalog) {
-            val score = scoreProduct(normalizedQuery, product)
-            if (score >= MIN_SCORE && (best == null || score > best.score)) {
-                best = ProductMatch(product, score)
-            }
-        }
-        return best
+    /** True when [best] is confident and no other candidate is nearly as good. */
+    fun isConfident(candidates: List<ProductMatch>): Boolean {
+        val best = candidates.firstOrNull() ?: return false
+        if (best.score < CONFIDENT_SCORE) return false
+        val runnerUp = candidates.getOrNull(1) ?: return true
+        return best.score - runnerUp.score > AMBIGUITY_MARGIN
     }
 
     fun convertQuantity(
@@ -77,6 +94,14 @@ object ProductFuzzyMatcher {
             ?.first
     }
 
+    /** True when the spoken amount is this pack's net content ("100 gram" → the 100 g pack). */
+    fun matchesPackSize(variant: ProductVariant, spokenQty: Double, spokenUnit: ProductUnit?): Boolean =
+        spokenUnit != null && variant.hasPackSize && sameAmount(variant.packSize, variant.packUnit, spokenQty, spokenUnit)
+
+    /** Spoken unit can be converted exactly into [target] (same unit, or g ↔ kg). */
+    fun unitsCompatible(spoken: ProductUnit, target: ProductUnit): Boolean =
+        spoken == target || setOf(spoken, target) == setOf(ProductUnit.GRAM, ProductUnit.KG)
+
     private fun sameAmount(packSize: Double, packUnit: ProductUnit, spokenQty: Double, spokenUnit: ProductUnit): Boolean {
         val a = baseAmount(packSize, packUnit) ?: return false
         val b = baseAmount(spokenQty, spokenUnit) ?: return false
@@ -100,24 +125,34 @@ object ProductFuzzyMatcher {
         "beech" to "medium", "मीडियम" to "medium", "mid" to "medium",
     )
 
-    private fun scoreProduct(query: String, product: Product): Double {
-        val candidates = buildList {
+    private fun scoreProduct(query: String, latinQuery: String, product: Product): Double {
+        val raw = buildList {
             add(product.name)
             add(product.nameHi)
             product.voiceAlias?.let { add(it) }
             // Also try individual alias tokens separated by /
             product.voiceAlias?.split(',', '/', '|')?.forEach { add(it) }
-        }.map { normalize(it) }.filter { it.isNotBlank() }
-
-        return candidates.maxOf { candidate ->
-            when {
-                candidate == query -> 1.0
-                candidate.contains(query) || query.contains(candidate) -> 0.92
-                tokensOverlap(query, candidate) -> 0.85
-                else -> 1.0 - (levenshtein(query, candidate).toDouble() / maxOf(query.length, candidate.length, 1))
-            }
         }
+        val candidates = raw.map { normalize(it) }.filter { it.isNotBlank() }
+        if (candidates.isEmpty()) return 0.0
+
+        val native = candidates.maxOf { similarity(query, it) }
+        // Transliterated forms skip the Hinglish alias table so "शुगर" → "shugar" still meets "sugar".
+        val latinCandidates = raw.map { latin(clean(it)) }.filter { it.isNotBlank() }
+        val transliterated = if (latinQuery.isBlank()) 0.0
+        else latinCandidates.maxOfOrNull { similarity(latinQuery, it) } ?: 0.0
+        return maxOf(native, transliterated)
     }
+
+    private fun similarity(query: String, candidate: String): Double {
+        if (candidate == query) return 1.0
+        if (candidate.contains(query) || query.contains(candidate)) return 0.92
+        val edit = 1.0 - (levenshtein(query, candidate).toDouble() / maxOf(query.length, candidate.length, 1))
+        // One shared word ("toor dal" vs "moong dal") is a lead, not proof: below CONFIDENT_SCORE.
+        return if (tokensOverlap(query, candidate)) maxOf(edit, TOKEN_OVERLAP_SCORE) else edit
+    }
+
+    private fun latin(value: String): String = Transliterator.fold(Transliterator.toLatin(value))
 
     private fun tokensOverlap(a: String, b: String): Boolean {
         val ta = a.split(' ').filter { it.length >= 2 }.toSet()
@@ -126,15 +161,21 @@ object ProductFuzzyMatcher {
         return ta.any { it in tb } || tb.any { t -> ta.any { it.startsWith(t) || t.startsWith(it) } }
     }
 
-    private fun normalize(value: String): String {
-        return value
-            .lowercase()
-            .replace('ँ', 'ं')
-            .replace(Regex("""[^\p{L}\p{N}\s]"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-            .let { applyAliases(it) }
-    }
+    private fun normalize(value: String): String = applyAliases(clean(value, keepMarks = false))
+
+    /**
+     * Lowercase, punctuation stripped, whitespace collapsed; no alias rewriting. [keepMarks] keeps Devanagari
+     * vowel signs, which transliteration needs ("शुगर" must not become "श गर").
+     */
+    private fun clean(value: String, keepMarks: Boolean = true): String = value
+        .lowercase()
+        .replace('ँ', 'ं')
+        .replace(if (keepMarks) KEEP_WITH_MARKS else KEEP_LETTERS, " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+
+    private val KEEP_LETTERS = Regex("""[^\p{L}\p{N}\s]""")
+    private val KEEP_WITH_MARKS = Regex("""[^\p{L}\p{M}\p{N}\s]""")
 
     /** Common Hinglish spelling variants → canonical forms used in seed aliases. */
     private fun applyAliases(value: String): String {

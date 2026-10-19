@@ -136,7 +136,14 @@ data class ShopDoc(
     val deliveryUntil: String = "",
     /** False = the shop never delivers; customers can only order for pickup. */
     val homeDeliveryEnabled: Boolean = true,
+    /** Customer catalog category order: PRIORITY (shop-set numbers, then name) or NAME. */
+    val categorySort: String = "PRIORITY",
+    val categoryPriorities: List<CategoryPriorityDoc> = emptyList(),
 )
+
+/** Lower [priority] shows first; categories without one follow, sorted by name. */
+@Serializable
+data class CategoryPriorityDoc(val categoryId: String, val priority: Int)
 
 @Serializable
 data class ShopUserDoc(

@@ -86,6 +86,8 @@ import pansariwala.shared.generated.resources.feature_inventory_alerts
 import pansariwala.shared.generated.resources.feature_online_orders
 import pansariwala.shared.generated.resources.feature_report_generation
 import pansariwala.shared.generated.resources.feature_voice_search
+import pansariwala.shared.generated.resources.voice_auto_add
+import pansariwala.shared.generated.resources.voice_auto_add_hint
 import pansariwala.shared.generated.resources.offer_active
 import pansariwala.shared.generated.resources.offer_delete_confirm
 import pansariwala.shared.generated.resources.offer_field_description
@@ -243,7 +245,10 @@ fun ShopProfileScreen(
                 ProfileTab.SHOP -> {
                     item { ShopDetailsCard(profile.shop, state.access, viewModel) }
                     item { SubscriptionEntryCard(onOpenSubscription) }
-                    item { FeaturesCard(profile.shop.features) }
+                    item {
+                        val voiceAutoAdd by viewModel.voiceAutoAdd.collectAsStateWithLifecycle()
+                        FeaturesCard(profile.shop.features, voiceAutoAdd, viewModel::setVoiceAutoAdd)
+                    }
                 }
                 ProfileTab.STAFF -> staffItems(state.staff, state.access, viewModel)
                 ProfileTab.OFFERS -> offerItems(state.offers, viewModel)
@@ -473,7 +478,7 @@ private fun SubscriptionEntryCard(onOpen: () -> Unit) {
 
 /** Read-only: feature switches are owned by Pansari master. */
 @Composable
-private fun FeaturesCard(features: ShopFeaturesDto) {
+private fun FeaturesCard(features: ShopFeaturesDto, voiceAutoAdd: Boolean, onVoiceAutoAddChange: (Boolean) -> Unit) {
     SectionCard(
         title = stringResource(Res.string.profile_features_title),
         subtitle = stringResource(Res.string.profile_features_master_managed),
@@ -481,6 +486,16 @@ private fun FeaturesCard(features: ShopFeaturesDto) {
     ) {
         ToggleRow(stringResource(Res.string.feature_barcode_scanner), features.barcodeScanner, false) {}
         ToggleRow(stringResource(Res.string.feature_voice_search), features.voiceSearch, false) {}
+        if (features.voiceSearch) {
+            Column(Modifier.padding(start = 16.dp)) {
+                ToggleRow(stringResource(Res.string.voice_auto_add), voiceAutoAdd, true, onVoiceAutoAddChange)
+                Text(
+                    stringResource(Res.string.voice_auto_add_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         ToggleRow(stringResource(Res.string.feature_barcode_search), features.barcodeSearch, false) {}
         ToggleRow(stringResource(Res.string.feature_report_generation), features.reportGeneration, false) {}
         ToggleRow(stringResource(Res.string.feature_online_orders), features.onlineOrders, false) {}

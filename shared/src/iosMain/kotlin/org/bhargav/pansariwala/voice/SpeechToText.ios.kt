@@ -40,7 +40,7 @@ private class IosSpeechToText : SpeechToText {
 
     private var audioEngine = AVAudioEngine()
     private val recognizer: SFSpeechRecognizer =
-        SFSpeechRecognizer(locale = NSLocale(localeIdentifier = "hi-IN"))
+        SFSpeechRecognizer(locale = NSLocale(localeIdentifier = org.bhargav.pansariwala.util.AppConstants.Voice.PRIMARY_LOCALE))
     private var request: SFSpeechAudioBufferRecognitionRequest? = null
     private var task: SFSpeechRecognitionTask? = null
     private var continuous = false

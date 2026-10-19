@@ -49,12 +49,15 @@ import org.bhargav.pansariwala.voice.ProductFuzzyMatcher
 import org.bhargav.pansariwala.voice.SpeechEvent
 import org.bhargav.pansariwala.voice.SpeechToText
 import org.bhargav.pansariwala.voice.VoiceIntentParser
+import org.bhargav.pansariwala.voice.VoiceLineItem
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.variant_saved
 import pansariwala.shared.generated.resources.error_mic_permission
 import pansariwala.shared.generated.resources.error_order_empty
 import pansariwala.shared.generated.resources.error_shop_upi_missing
 import pansariwala.shared.generated.resources.error_speech_unavailable
+import pansariwala.shared.generated.resources.voice_confirm_product
+import pansariwala.shared.generated.resources.voice_confirm_quantity
 import pansariwala.shared.generated.resources.voice_not_understood
 import pansariwala.shared.generated.resources.voice_out_of_stock
 import pansariwala.shared.generated.resources.voice_partial_stock
@@ -114,6 +117,8 @@ data class OrderEditorUiState(
     val manualDiscountInput: String = "",
     val manualDiscountPercent: Boolean = false,
     val voiceSearchEnabled: Boolean = true,
+    /** Device setting: confident voice matches go to the cart; off = always confirm in the product sheet. */
+    val voiceAutoAdd: Boolean = true,
     val barcodeSearchEnabled: Boolean = true,
     /** Camera scanner entitlement from master / subscription. */
     val barcodeScannerEnabled: Boolean = false,
@@ -167,6 +172,8 @@ class OrderEditorViewModel(
     private var speechJob: Job? = null
     private var partialCommitJob: Job? = null
     private var lastAppliedUtterance: String? = null
+    /** Voice lines waiting for the cashier to confirm in the product sheet, shown one at a time. */
+    private val pendingVoicePicks = ArrayDeque<VariantPickerState.Request>()
 
     private var barcodeIndex: Map<String, PurchaseOption> = emptyMap()
     private var indexedCatalog: List<Product>? = null
@@ -187,6 +194,9 @@ class OrderEditorViewModel(
         }
         viewModelScope.launch {
             preferences.scannerSettings.collect { settings -> _uiState.update { it.copy(scannerSettings = settings) } }
+        }
+        viewModelScope.launch {
+            preferences.voiceAutoAdd.collect { enabled -> _uiState.update { it.copy(voiceAutoAdd = enabled) } }
         }
         speechJob = viewModelScope.launch {
             speechToText.events.collect { event ->
@@ -597,6 +607,21 @@ class OrderEditorViewModel(
 
     fun dismissPicker() {
         _uiState.update { it.copy(variantPicker = null) }
+        showNextVoicePick()
+    }
+
+    private fun queueVoicePick(request: VariantPickerState.Request) {
+        if (_uiState.value.variantPicker == null) {
+            _uiState.update { it.copy(variantPicker = request) }
+        } else if (pendingVoicePicks.none { it.product.id == request.product.id }) {
+            pendingVoicePicks.addLast(request)
+        }
+    }
+
+    private fun showNextVoicePick() {
+        if (_uiState.value.variantPicker != null) return
+        val next = pendingVoicePicks.removeFirstOrNull() ?: return
+        _uiState.update { it.copy(variantPicker = next) }
     }
 
     fun changeQuantity(key: String, direction: Int) {
@@ -632,6 +657,7 @@ class OrderEditorViewModel(
                 error = null,
             )
         }
+        showNextVoicePick()
     }
 
     fun save(print: Boolean = false) {
@@ -717,6 +743,7 @@ class OrderEditorViewModel(
             if (existing == null || print) {
                 printService.onOrderSaved(toSave, printRequested = print)
             }
+            pendingVoicePicks.clear()
             _uiState.update {
                 it.copy(saved = true, error = null, isListening = false, showPaymentPicker = false)
             }
@@ -751,10 +778,12 @@ class OrderEditorViewModel(
         partialCommitJob?.cancel()
 
         val catalog = _uiState.value.catalog
+        val autoAdd = _uiState.value.voiceAutoAdd
         val messages = mutableListOf<UiText>()
         var addedAny = false
         for (line in lines) {
-            val match = ProductFuzzyMatcher.findBest(line.productQuery, catalog)
+            val candidates = ProductFuzzyMatcher.findCandidates(line.productQuery, catalog, VOICE_MATCH_CANDIDATES)
+            val match = candidates.firstOrNull()
             if (match == null) {
                 // No unit + no catalog match → background speech, not an order line.
                 if (line.unit != null) {
@@ -763,33 +792,40 @@ class OrderEditorViewModel(
                 continue
             }
             val product = match.product
+            val label = product.nameHi.ifBlank { product.name }
+            val confident = ProductFuzzyMatcher.isConfident(candidates)
             val variant = ProductFuzzyMatcher.findVariant(line.productQuery, line.quantity, line.unit, product)
             val option = variant?.let { PurchaseOption(product, it) } ?: product.options().singleOrNull()
-            if (option == null) {
-                openPicker(product)
-                addedAny = true
-                continue
-            }
-            val qty = when {
-                option.isLoose -> ProductFuzzyMatcher.convertQuantity(line.quantity, line.unit, option.quantityUnit)
-                option.variant == null -> ProductFuzzyMatcher.convertQuantity(line.quantity, line.unit, product.unit)
-                line.unit == null || line.unit == ProductUnit.PIECE || line.unit == ProductUnit.PACKET -> line.quantity
-                else -> 1.0
-            }
-            val alreadyInCart = _uiState.value.cart.firstOrNull { it.key == option.key }?.quantity ?: 0.0
-            val available = option.stock - alreadyInCart
-            if (available <= 0.0) {
-                val label = product.nameHi.ifBlank { product.name }
+            val qty = option?.let { voiceQuantity(it, line) }
+            val alreadyInCart = option?.let { o -> _uiState.value.cart.firstOrNull { it.key == o.key }?.quantity } ?: 0.0
+            val available = option?.let { it.stock - alreadyInCart } ?: 0.0
+
+            if (option != null && confident && available <= 0.0) {
                 messages += UiText.res(Res.string.voice_out_of_stock, label)
                 continue
             }
-            val addQty = qty.coerceAtMost(available)
-            addToCart(option, addQty)
-            addedAny = true
-            if (addQty < qty) {
-                val label = product.nameHi.ifBlank { product.name }
-                messages += UiText.res(Res.string.voice_partial_stock, label, available.toInt())
+            val fits = option != null && qty != null && qty <= available + AppConstants.LooseQty.EPSILON
+            if (autoAdd && confident && fits && option != null && qty != null) {
+                addToCart(option, qty)
+                addedAny = true
+                continue
             }
+            // Never guess: unsure product, unit, quantity or stock → cashier confirms in the product sheet.
+            when {
+                !confident -> messages += UiText.res(Res.string.voice_confirm_product, label)
+                option != null && qty != null && qty > available -> messages +=
+                    UiText.res(Res.string.voice_partial_stock, label, available.toInt())
+                autoAdd -> messages += UiText.res(Res.string.voice_confirm_quantity, label)
+            }
+            queueVoicePick(
+                VariantPickerState.Request(
+                    product = product,
+                    editKey = null,
+                    initialOptionKey = option?.key,
+                    initialQty = qty?.let { it + alreadyInCart },
+                ),
+            )
+            addedAny = true
         }
 
         // Reset listened text so the next spoken item starts with an empty transcript.
@@ -800,6 +836,27 @@ class OrderEditorViewModel(
                 error = messages.lastOrNull() ?: if (addedAny) null else it.error,
             )
         }
+    }
+
+    /**
+     * Cart quantity a voice line asks for in [option]'s unit, or null when it can't be read without guessing
+     * (no unit for a loose item, weight spoken for a counted item, below the minimum, …).
+     */
+    private fun voiceQuantity(option: PurchaseOption, line: VoiceLineItem): Double? {
+        val spokenUnit = line.unit
+        val qty = when {
+            option.isLoose -> {
+                if (spokenUnit == null || !ProductFuzzyMatcher.unitsCompatible(spokenUnit, option.quantityUnit)) return null
+                ProductFuzzyMatcher.convertQuantity(line.quantity, spokenUnit, option.quantityUnit)
+            }
+            spokenUnit == null || spokenUnit == ProductUnit.PIECE || spokenUnit == ProductUnit.PACKET -> line.quantity
+            option.variant != null && ProductFuzzyMatcher.matchesPackSize(option.variant, line.quantity, spokenUnit) -> 1.0
+            option.variant == null && ProductFuzzyMatcher.unitsCompatible(spokenUnit, option.product.unit) ->
+                ProductFuzzyMatcher.convertQuantity(line.quantity, spokenUnit, option.product.unit)
+            else -> return null
+        }
+        if (qty.isNaN() || qty <= 0.0 || qty < option.minQty - AppConstants.LooseQty.EPSILON) return null
+        return qty
     }
 
     private fun addToCart(option: PurchaseOption, quantity: Double) {
@@ -933,6 +990,8 @@ class OrderEditorViewModel(
 
     companion object {
         private const val PARTIAL_COMMIT_DELAY_MS = 700L
+        /** Best + runner-up, enough to detect an ambiguous match. */
+        private const val VOICE_MATCH_CANDIDATES = 2
         private const val SCAN_MESSAGE_MS = 2_000L
     }
 }

@@ -138,6 +138,14 @@ class AppPreferences(
         store.putStrings(mapOf(AppConstants.Prefs.SCANNER_SETTINGS to json.encodeToString(settings)))
     }
 
+    /** On: confident voice matches go straight to the cart. Off: every match opens the product sheet. */
+    val voiceAutoAdd: Flow<Boolean> = store.observeString(AppConstants.Prefs.VOICE_AUTO_ADD)
+        .map { it.toBooleanPref(default = true) }
+
+    suspend fun setVoiceAutoAdd(enabled: Boolean) {
+        store.putStrings(mapOf(AppConstants.Prefs.VOICE_AUTO_ADD to enabled.toString()))
+    }
+
     private fun toShopAccess(role: String?, perms: String?): ShopAccess =
         if (role.isNullOrBlank()) {
             ShopAccess.FULL

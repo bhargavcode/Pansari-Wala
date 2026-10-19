@@ -20,6 +20,7 @@ import org.bhargav.pansariwala.feature.dashboard.DashboardViewModel
 import org.bhargav.pansariwala.feature.profile.ShopProfileViewModel
 import org.bhargav.pansariwala.feature.inventory.AddEditInventoryViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryListViewModel
+import org.bhargav.pansariwala.feature.inventory.CategoryOrderViewModel
 import org.bhargav.pansariwala.feature.inventory.MasterCatalogViewModel
 import org.bhargav.pansariwala.feature.inventory.ShopSheetImportViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryProductDetailViewModel
@@ -108,6 +109,7 @@ val appModule = module {
     viewModelOf(::DashboardViewModel)
     viewModelOf(::AddEditInventoryViewModel)
     viewModelOf(::InventoryListViewModel)
+    viewModelOf(::CategoryOrderViewModel)
     viewModelOf(::ShopSheetImportViewModel)
     viewModelOf(::InventoryProductDetailViewModel)
     viewModelOf(::MasterCatalogViewModel)

@@ -16,8 +16,11 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.koin.core.component.KoinComponent
+import org.bhargav.pansariwala.util.AppConstants
 import org.koin.core.component.inject
 
+/** RecognizerIntent.EXTRA_ADDITIONAL_LANGUAGES (API 34); older recognisers ignore it. */
+private const val EXTRA_ADDITIONAL_LANGUAGES = "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES"
 private const val SILENCE_RESTART_MS = 150L
 private const val MAX_RESTART_BACKOFF_MS = 3_000L
 private const val BUSY_RECREATE_THRESHOLD = 2
@@ -275,8 +278,9 @@ private class AndroidSpeechToText(
         committedThisUtterance = false
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, AppConstants.Voice.PRIMARY_LOCALE)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, AppConstants.Voice.PRIMARY_LOCALE)
+            putExtra(EXTRA_ADDITIONAL_LANGUAGES, arrayOf(AppConstants.Voice.SECONDARY_LOCALE))
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)

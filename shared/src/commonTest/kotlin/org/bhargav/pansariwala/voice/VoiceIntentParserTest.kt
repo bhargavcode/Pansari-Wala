@@ -64,6 +64,22 @@ class VoiceIntentParserTest {
     }
 
     @Test
+    fun matchesEnglishNameFromDevanagariTranscript() {
+        val sugarOnly = SeedData.products().map { it.copy(nameHi = "", voiceAlias = null) }
+            .filter { it.name == "Sugar" }
+        val match = ProductFuzzyMatcher.findBest("शुगर", sugarOnly)
+        assertEquals("Sugar", match?.product?.name)
+    }
+
+    @Test
+    fun sharedWordAloneIsNotConfident() {
+        val catalog = SeedData.products().filter { it.name == "Toor Dal" }
+            .map { it.copy(name = "Moong Dal", nameHi = "मूंग दाल", voiceAlias = null) }
+        val candidates = ProductFuzzyMatcher.findCandidates("chana dal", catalog, 2)
+        assertTrue(!ProductFuzzyMatcher.isConfident(candidates))
+    }
+
+    @Test
     fun matchesDhaniyaHindiUtterance() {
         val catalog = SeedData.products()
         val items = VoiceIntentParser.parse("धनिया पाउडर दो पैकेट")

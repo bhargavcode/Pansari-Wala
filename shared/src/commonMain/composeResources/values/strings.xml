@@ -399,6 +399,10 @@
     <string name="voice_not_understood">Couldn\'t understand: "%1$s"</string>
     <string name="voice_out_of_stock">%1$s is out of stock</string>
     <string name="voice_partial_stock">Only %2$d left for %1$s</string>
+    <string name="voice_confirm_product">Not sure it was %1$s. Please confirm.</string>
+    <string name="voice_confirm_quantity">Please check the quantity for %1$s</string>
+    <string name="voice_auto_add">Auto-add to cart</string>
+    <string name="voice_auto_add_hint">On: clear voice matches are added straight to the cart. Off: each match opens the product to add manually.</string>
 
     <!-- Voice controls -->
     <string name="voice_listening">Listening…</string>
@@ -1356,6 +1360,14 @@
     <string name="catalog_show_more">Show more</string>
     <string name="catalog_shop_categories">Shop by category</string>
     <string name="catalog_category_other">Other</string>
+    <string name="cat_order_title">Category display order</string>
+    <string name="cat_order_by_priority">By priority</string>
+    <string name="cat_order_by_name">By name</string>
+    <string name="cat_order_priority_hint">Customers see lower numbers first. Categories without a number follow, sorted by name.</string>
+    <string name="cat_order_name_hint">Customers see categories sorted alphabetically.</string>
+    <string name="cat_order_priority_label">Priority</string>
+    <string name="cat_order_empty">No products with a category yet.</string>
+    <string name="cat_order_product_count">%1$d products</string>
     <string name="catalog_search_in_category">Search in %1$s</string>
     <string name="catalog_search_all_hint">Search all products in this shop</string>
     <string name="catalog_out_of_stock">Out of stock</string>

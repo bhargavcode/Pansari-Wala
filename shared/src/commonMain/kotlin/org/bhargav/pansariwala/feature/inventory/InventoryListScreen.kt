@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.LibraryAdd
@@ -76,6 +77,7 @@ import pansariwala.shared.generated.resources.print_action_inventory
 import pansariwala.shared.generated.resources.print_action_labels_all
 import pansariwala.shared.generated.resources.print_action_low_stock
 import pansariwala.shared.generated.resources.sheet_import_action
+import pansariwala.shared.generated.resources.cat_order_title
 
 @Composable
 fun InventoryListScreen(
@@ -86,7 +88,18 @@ fun InventoryListScreen(
     onAddFromMaster: () -> Unit,
     viewModel: InventoryListViewModel = koinViewModel(),
     sheetViewModel: ShopSheetImportViewModel = koinViewModel(),
+    categoryOrderViewModel: CategoryOrderViewModel = koinViewModel(),
 ) {
+    val categoryOrder by categoryOrderViewModel.state.collectAsStateWithLifecycle()
+    categoryOrder?.let {
+        CategoryOrderDialog(
+            state = it,
+            onSortChange = categoryOrderViewModel::onSortChange,
+            onPriorityChange = categoryOrderViewModel::onPriorityChange,
+            onSave = categoryOrderViewModel::save,
+            onDismiss = categoryOrderViewModel::dismiss,
+        )
+    }
     LaunchedEffect(lowStockOnly) { viewModel.start(lowStockOnly) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState by sheetViewModel.state.collectAsStateWithLifecycle()
@@ -124,6 +137,9 @@ fun InventoryListScreen(
             }
             IconButton(onClick = sheetViewModel::open) {
                 Icon(Icons.Filled.UploadFile, contentDescription = stringResource(Res.string.sheet_import_action))
+            }
+            IconButton(onClick = categoryOrderViewModel::open) {
+                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(Res.string.cat_order_title))
             }
             PrintMenuButton(
                 actions = remember(products, filter.lowStockOnly) {

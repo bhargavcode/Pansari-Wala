@@ -425,6 +425,22 @@ data class ShopProfileDto(
     val me: ShopStaffDto,
 )
 
+/** Shop's customer-catalog category order. [sort]: PRIORITY | NAME. */
+@Serializable
+data class ShopCategoryOrderDto(
+    val sort: String = "PRIORITY",
+    val items: List<ShopCategoryOrderItemDto> = emptyList(),
+)
+
+/** One root category used by the shop; [priority] null = unranked (after ranked ones, by name). */
+@Serializable
+data class ShopCategoryOrderItemDto(
+    val id: String,
+    val name: String = "",
+    val priority: Int? = null,
+    val productCount: Int = 0,
+)
+
 @Serializable
 data class ShopOfferDto(
     val id: String = "",
