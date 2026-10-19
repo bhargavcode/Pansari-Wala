@@ -133,6 +133,7 @@ import pansariwala.shared.generated.resources.master_shop_login_hint
 import pansariwala.shared.generated.resources.master_choose_from_device
 import pansariwala.shared.generated.resources.master_remove_image
 import pansariwala.shared.generated.resources.master_upload_failed
+import pansariwala.shared.generated.resources.master_upload_unsupported_image
 
 /** Offline fallback; the live list comes from `/master/shop-types`. */
 private val DefaultShopTypeChoices = ShopType.entries.map {
@@ -259,13 +260,19 @@ internal fun ShopEditorScreen(
                     // Column 1 — image + general + type
                     MasterSectionCard(modifier = Modifier.widthIn(min = 260.dp)) {
                         val uploadFailed = stringResource(Res.string.master_upload_failed)
+                        val unsupportedImage = stringResource(Res.string.master_upload_unsupported_image)
                         val pickImage: () -> Unit = {
                             if (!uploadingImage) {
                                 scope.launch {
-                                    uploadingImage = true
-                                    runCatching { uploadMasterImageOrNull(api, token, AppConstants.S3Prefix.MASTER_SHOP_IMAGES) }
+                                    runCatching {
+                                        uploadMasterImageOrNull(api, token, AppConstants.S3Prefix.MASTER_SHOP_IMAGES) {
+                                            uploadingImage = true
+                                        }
+                                    }
                                         .onSuccess { url -> if (url != null) imageUrl = url }
-                                        .onFailure { onStatus(it.message ?: uploadFailed) }
+                                        .onFailure {
+                                            onStatus(if (it is WebImageDecodeException) unsupportedImage else it.message ?: uploadFailed)
+                                        }
                                     uploadingImage = false
                                 }
                             }

@@ -32,8 +32,20 @@ import org.bhargav.pansariwala.domain.auth.ShopRoles
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ShopReview
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.media.ImageSource
+import org.bhargav.pansariwala.media.ImageUploadFeature
+import org.bhargav.pansariwala.media.prepareImageForUpload
+import org.bhargav.pansariwala.platform.CameraPermissionDeniedException
+import org.bhargav.pansariwala.platform.DeviceLocation
+import org.bhargav.pansariwala.platform.ImagePicker
+import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
+import org.bhargav.pansariwala.platform.pickImageCatching
 import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_camera_permission_denied
+import pansariwala.shared.generated.resources.error_image_upload_failed
+import pansariwala.shared.generated.resources.error_photo_pick_failed
+import pansariwala.shared.generated.resources.profile_location_unavailable
 import pansariwala.shared.generated.resources.error_invalid_number
 import pansariwala.shared.generated.resources.error_required_fields
 import pansariwala.shared.generated.resources.profile_saved
@@ -116,6 +128,12 @@ data class ShopProfileUiState(
     val replyDraft: ReplyDraft? = null,
     val confirmDeleteStaff: ShopStaffDto? = null,
     val confirmDeleteOffer: ShopOfferDto? = null,
+    val uploadingPhoto: Boolean = false,
+    val photoPreviewBytes: ByteArray? = null,
+    val confirmUseCurrentLocation: Boolean = false,
+    val requestLocationPermission: Boolean = false,
+    val showLocationDeniedDialog: Boolean = false,
+    val locating: Boolean = false,
 ) {
     val tabs: List<ProfileTab> get() = ProfileTab.entries.filter { it.permission == null || access.can(it.permission) }
 }
@@ -124,6 +142,8 @@ class ShopProfileViewModel(
     private val api: PansariApi,
     private val preferences: AppPreferences,
     private val shopRepository: ShopRepository,
+    private val imagePicker: ImagePicker,
+    private val deviceLocation: DeviceLocation,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ShopProfileUiState())
@@ -248,6 +268,68 @@ class ShopProfileViewModel(
     }
 
     fun setHomeDeliveryEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(homeDeliveryEnabled = enabled))
+
+    fun changeShopPhoto(source: ImageSource) {
+        if (_uiState.value.uploadingPhoto) return
+        viewModelScope.launch {
+            val picked = imagePicker.pickImageCatching(source).getOrElse { err ->
+                showError(UiText.res(if (err is CameraPermissionDeniedException) Res.string.error_camera_permission_denied else Res.string.error_photo_pick_failed))
+                return@launch
+            } ?: return@launch
+            _uiState.update { it.copy(uploadingPhoto = true, error = null) }
+            runCatching {
+                val compressed = prepareImageForUpload(picked)
+                _uiState.update { it.copy(photoPreviewBytes = compressed.previewBytes) }
+                val url = api.uploadImage(
+                    prefix = ImageUploadFeature.SHOP_PHOTO.prefix,
+                    fileName = compressed.displayName,
+                    bytes = compressed.bytes,
+                    contentType = compressed.mimeType,
+                    thumbnailBytes = compressed.thumbnailBytes,
+                ).url
+                api.updateShopProfile(ShopProfilePatch(imageUrl = url))
+            }.onSuccess { profile ->
+                _uiState.update {
+                    it.copy(profile = profile, uploadingPhoto = false, message = UiText.res(Res.string.profile_saved))
+                }
+            }.onFailure { e ->
+                e.rethrowIfStructuredCancellation()
+                _uiState.update {
+                    it.copy(uploadingPhoto = false, photoPreviewBytes = null, error = UiText.res(Res.string.error_image_upload_failed))
+                }
+            }
+        }
+    }
+
+    fun requestUseCurrentLocation() = _uiState.update { it.copy(confirmUseCurrentLocation = true) }
+    fun cancelUseCurrentLocation() = _uiState.update { it.copy(confirmUseCurrentLocation = false) }
+    fun confirmUseCurrentLocation() =
+        _uiState.update { it.copy(confirmUseCurrentLocation = false, requestLocationPermission = true) }
+    fun onLocationPermissionRequestConsumed() = _uiState.update { it.copy(requestLocationPermission = false) }
+    fun dismissLocationDeniedDialog() = _uiState.update { it.copy(showLocationDeniedDialog = false) }
+    fun retryLocationPermission() =
+        _uiState.update { it.copy(showLocationDeniedDialog = false, requestLocationPermission = true) }
+
+    fun onLocationPermissionResult(granted: Boolean) {
+        if (!granted) return _uiState.update { it.copy(showLocationDeniedDialog = true) }
+        if (_uiState.value.locating) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(locating = true, error = null) }
+            val point = runCatching { deviceLocation.currentOrDefault() }.getOrElse { e ->
+                e.rethrowIfStructuredCancellation()
+                _uiState.update {
+                    it.copy(
+                        locating = false,
+                        showLocationDeniedDialog = e is LocationPermissionDeniedException,
+                        error = if (e is LocationPermissionDeniedException) null else UiText.res(Res.string.profile_location_unavailable),
+                    )
+                }
+                return@launch
+            }
+            _uiState.update { it.copy(locating = false) }
+            saveProfile(ShopProfilePatch(lat = point.lat, lng = point.lng))
+        }
+    }
 
     fun setShopActive(active: Boolean) = saveProfile(ShopProfilePatch(active = active))
     fun setPaymentsEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(paymentsEnabled = enabled))

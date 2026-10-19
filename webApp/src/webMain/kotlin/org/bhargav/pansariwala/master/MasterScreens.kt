@@ -527,8 +527,14 @@ private suspend fun uploadMasterProductImage(api: MasterApi, token: String): Str
     uploadMasterImage(api, token, AppConstants.S3Prefix.MASTER_PRODUCT_IMAGES)
 
 /** Returns null when the user dismisses the picker. */
-internal suspend fun uploadMasterImageOrNull(api: MasterApi, token: String, prefix: String): String? {
+internal suspend fun uploadMasterImageOrNull(
+    api: MasterApi,
+    token: String,
+    prefix: String,
+    onUploadStart: () -> Unit = {},
+): String? {
     val picked = pickWebImageFile() ?: return null
+    onUploadStart()
     return uploadPicked(api, token, prefix, picked)
 }
 

@@ -128,6 +128,9 @@ data class ShopProfilePatch(
     val deliveryUntil: String? = null,
     val homeDeliveryEnabled: Boolean? = null,
     val operatingHours: List<ShopHoursDayDto>? = null,
+    val imageUrl: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
 )
 
 @Serializable

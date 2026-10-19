@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.designsystem.PansariElevation
+import org.bhargav.pansariwala.designsystem.formatClockTime
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.ShopReview
 import org.bhargav.pansariwala.media.NetworkImage
@@ -62,6 +63,7 @@ import pansariwala.shared.generated.resources.shop_closed
 import pansariwala.shared.generated.resources.shop_distance
 import pansariwala.shared.generated.resources.shop_open_now
 import pansariwala.shared.generated.resources.shop_outside_delivery
+import pansariwala.shared.generated.resources.shop_pickup_after_cutoff_message
 import pansariwala.shared.generated.resources.shop_pickup_only_message
 import pansariwala.shared.generated.resources.shop_rating_cd
 import pansariwala.shared.generated.resources.shop_ratings_sheet_title
@@ -69,7 +71,8 @@ import kotlin.math.roundToInt
 
 /** Shown on shop cards and the shop page once the shop is past its delivery cutoff. */
 @Composable
-fun PickupOnlyStrip(modifier: Modifier = Modifier) {
+fun PickupOnlyStrip(modifier: Modifier = Modifier, deliveryUntil: String = "") {
+    val cutoff = formatClockTime(deliveryUntil)
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -84,7 +87,8 @@ fun PickupOnlyStrip(modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                stringResource(Res.string.shop_pickup_only_message),
+                if (cutoff != null) stringResource(Res.string.shop_pickup_after_cutoff_message, cutoff)
+                else stringResource(Res.string.shop_pickup_only_message),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,

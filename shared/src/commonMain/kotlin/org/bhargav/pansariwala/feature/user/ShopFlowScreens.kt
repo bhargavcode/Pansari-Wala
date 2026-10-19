@@ -177,7 +177,7 @@ fun ShopCatalogScreen(
                 data?.shop?.let { shop ->
                     if (!shop.deliveryAvailable) {
                         item(key = "pickup_only", contentType = "strip") {
-                            PickupOnlyStrip(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
+                            PickupOnlyStrip(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp), shop.deliveryUntil)
                         }
                     }
                     item(key = "shop", contentType = "shop") {

@@ -68,6 +68,24 @@ import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.ShopReview
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.media.ImageUploadFeature
+import org.bhargav.pansariwala.media.NetworkImage
+import org.bhargav.pansariwala.media.rememberImageSourceLauncher
+import org.bhargav.pansariwala.platform.LocationPermissionDeniedDialog
+import org.bhargav.pansariwala.platform.RequestLocationPermission
+import org.bhargav.pansariwala.platform.openAppLocationSettings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.clip
+import pansariwala.shared.generated.resources.profile_change_photo
+import pansariwala.shared.generated.resources.profile_field_location
+import pansariwala.shared.generated.resources.profile_locating
+import pansariwala.shared.generated.resources.profile_location_confirm
+import pansariwala.shared.generated.resources.profile_location_not_set
+import pansariwala.shared.generated.resources.profile_shop_photo
+import pansariwala.shared.generated.resources.profile_use_current_location
 import org.bhargav.pansariwala.printing.formatPrintDateTime
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.asMoney
@@ -243,7 +261,7 @@ fun ShopProfileScreen(
             }
             when (state.tab) {
                 ProfileTab.SHOP -> {
-                    item { ShopDetailsCard(profile.shop, state.access, viewModel) }
+                    item { ShopDetailsCard(profile.shop, state, viewModel) }
                     item { SubscriptionEntryCard(onOpenSubscription) }
                     item {
                         val voiceAutoAdd by viewModel.voiceAutoAdd.collectAsStateWithLifecycle()
@@ -297,6 +315,27 @@ fun ShopProfileScreen(
             onDismiss = { viewModel.requestDeleteStaff(null) },
         )
     }
+    if (state.confirmUseCurrentLocation) {
+        ConfirmDialog(
+            text = stringResource(Res.string.profile_location_confirm),
+            onConfirm = viewModel::confirmUseCurrentLocation,
+            onDismiss = viewModel::cancelUseCurrentLocation,
+        )
+    }
+    RequestLocationPermission(
+        trigger = state.requestLocationPermission,
+        onConsumed = viewModel::onLocationPermissionRequestConsumed,
+        onResult = viewModel::onLocationPermissionResult,
+    )
+    LocationPermissionDeniedDialog(
+        visible = state.showLocationDeniedDialog,
+        onRetry = viewModel::retryLocationPermission,
+        onOpenSettings = {
+            openAppLocationSettings()
+            viewModel.dismissLocationDeniedDialog()
+        },
+        onDismiss = viewModel::dismissLocationDeniedDialog,
+    )
     state.confirmDeleteOffer?.let { offer ->
         ConfirmDialog(
             text = stringResource(Res.string.offer_delete_confirm, offer.title),
@@ -346,8 +385,9 @@ private fun MeCard(me: ShopStaffDto, access: ShopAccess, modifier: Modifier = Mo
 }
 
 @Composable
-private fun ShopDetailsCard(shop: ShopDetailsDto, access: ShopAccess, viewModel: ShopProfileViewModel) {
-    val canEdit = access.can(ShopPermission.SHOP_PROFILE)
+private fun ShopDetailsCard(shop: ShopDetailsDto, state: ShopProfileUiState, viewModel: ShopProfileViewModel) {
+    val canEdit = state.access.can(ShopPermission.SHOP_PROFILE)
+    val changePhoto = rememberImageSourceLauncher(ImageUploadFeature.SHOP_PHOTO, viewModel::changeShopPhoto)
     SectionCard(
         title = stringResource(Res.string.profile_shop_details),
         subtitle = shop.name,
@@ -359,6 +399,42 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, access: ShopAccess, viewModel:
         },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    Modifier.size(72.dp).clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    NetworkImage(
+                        url = shop.imageUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        contentDescription = stringResource(Res.string.profile_shop_photo),
+                        localPreviewBytes = state.photoPreviewBytes,
+                    )
+                    if (state.uploadingPhoto) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+                if (canEdit) {
+                    OutlinedButton(onClick = changePhoto, enabled = !state.uploadingPhoto) {
+                        Text(stringResource(Res.string.profile_change_photo))
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(Res.string.profile_field_location), style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        if (shop.lat == 0.0 && shop.lng == 0.0) stringResource(Res.string.profile_location_not_set)
+                        else "${shop.lat.formatCoord()}, ${shop.lng.formatCoord()}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (canEdit) {
+                    TextButton(onClick = viewModel::requestUseCurrentLocation, enabled = !state.locating) {
+                        Text(stringResource(if (state.locating) Res.string.profile_locating else Res.string.profile_use_current_location))
+                    }
+                }
+            }
+            HorizontalDivider()
             DetailRow(Res.string.profile_field_rating, stringResource(Res.string.profile_rating_value, shop.rating.formatOne(), shop.ratingCount))
             DetailRow(Res.string.profile_field_address, listOf(shop.address, shop.city, shop.state, shop.zip).filter { it.isNotBlank() }.joinToString(", "))
             DetailRow(Res.string.profile_field_owner_name, shop.ownerName)
@@ -902,6 +978,8 @@ private fun CheckRow(label: String, checked: Boolean, enabled: Boolean = true, o
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
+
+private fun Double.formatCoord(): String = (kotlin.math.round(this * 100_000) / 100_000).toString()
 
 private fun Double.formatOne(): String {
     val tenths = kotlin.math.round(this * 10).toLong()

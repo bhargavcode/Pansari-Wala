@@ -20,6 +20,7 @@ enum class ImageUploadFeature(
     PARTNER_PROFILE_PHOTO(AppConstants.S3Prefix.PARTNERS_USER_IMAGE, listOf(CAMERA, GALLERY)),
     DELIVERY_PACKET(AppConstants.S3Prefix.SHOPS_DELIVERY_PACKETS, listOf(CAMERA)),
     INVENTORY_PRODUCT(AppConstants.S3Prefix.SHOPS_PRODUCT_IMAGES, listOf(CAMERA, GALLERY)),
+    SHOP_PHOTO(AppConstants.S3Prefix.SHOPS_SHOP, listOf(CAMERA, GALLERY)),
     ;
 
     init {

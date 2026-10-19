@@ -590,7 +590,14 @@ class AppStore(
     private fun ShopDoc.deliveryAvailableNow(): Boolean {
         if (!homeDeliveryEnabled) return false
         val cutoff = parseHhMm(deliveryUntil) ?: return true
-        return java.time.LocalTime.now(SHOP_ZONE) < cutoff
+        val now = java.time.LocalDateTime.now(SHOP_ZONE)
+        val time = now.toLocalTime()
+        val today = now.dayOfWeek.name.take(3)
+        val opensAt = operatingHours
+            .firstOrNull { it.day.trim().take(3).equals(today, ignoreCase = true) && !it.closed }
+            ?.let { parseHhMm(it.start) }
+        // A cutoff at or before opening time (e.g. 00:30 for a shop opening 08:00) runs past midnight.
+        return if (opensAt != null && cutoff <= opensAt) time >= opensAt || time < cutoff else time < cutoff
     }
 
     private fun parseHhMm(value: String): java.time.LocalTime? =

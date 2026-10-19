@@ -281,7 +281,7 @@ fun ShopDiscoveryCard(
         modifier = modifier,
         footer = if (hasFooter) {
             {
-                if (!shop.deliveryAvailable) PickupOnlyStrip()
+                if (!shop.deliveryAvailable) PickupOnlyStrip(deliveryUntil = shop.deliveryUntil)
                 ShopOffersSummary(shop, onShowAllOffers)
             }
         } else {
