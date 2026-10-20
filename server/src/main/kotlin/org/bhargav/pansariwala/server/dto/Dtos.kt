@@ -10,6 +10,7 @@ data class PublicConfigDto(
     val razorpayKeyId: String,
     val paymentsEnabled: Boolean,
     val devAuth: Boolean,
+    val minUserSearchRadiusKm: Double = 1.0,
 )
 
 @Serializable
@@ -343,6 +344,7 @@ data class PlatformSettingsDto(
     val partnerRingKm: Double = 8.0,
     val offerTtlMinutes: Int = 5,
     val defaultShopDeliveryRadiusKm: Double = 20.0,
+    val minUserSearchRadiusKm: Double = 1.0,
     val onlineOrderingEnabled: Boolean = true,
     val orderingPausedMessage: String = "",
     val partnerRegistrationEnabled: Boolean = true,

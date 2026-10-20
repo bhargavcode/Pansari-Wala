@@ -84,6 +84,7 @@ class ShopCatalogViewModel(
 
     private var shopId: String? = null
     private var cartJob: Job? = null
+    private var loadJob: Job? = null
     private var searchJob: Job? = null
     private var ratingsJob: Job? = null
 
@@ -101,7 +102,8 @@ class ShopCatalogViewModel(
                 updateSuccess { it.copy(cartCount = CartStore.countItems(lines)) }
             }
         }
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _state.value = _state.value.beginLoad()
             runCatching {
                 coroutineScope {
@@ -123,6 +125,7 @@ class ShopCatalogViewModel(
             }.onSuccess { data ->
                 _state.value = AsyncUiState.Success(data)
                 if (data.showRatingsSheet) loadRatings(force = true)
+                if (data.isSearchActive) setProductQuery(data.productQuery)
             }.onFailure { err ->
                 err.rethrowIfStructuredCancellation()
                 val message = err.toApiUiText()

@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.bhargav.pansariwala.designsystem.PansariScreen
@@ -283,7 +284,10 @@ fun ShopCategoryScreen(
     viewModel: CategoryProductsViewModel = koinViewModel(),
     cart: CartStore = koinInject(),
 ) {
-    LaunchedEffect(shopId, category?.id) { viewModel.start(shopId, category?.id, initialQuery) }
+    LifecycleResumeEffect(shopId, category?.id) {
+        viewModel.start(shopId, category?.id, initialQuery)
+        onPauseOrDispose { }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lines = rememberCartLines(cart)
     val cartCount = CartStore.countItems(lines)
@@ -384,7 +388,10 @@ fun ShopProductDetailScreen(
     viewModel: ProductDetailViewModel = koinViewModel(),
     cart: CartStore = koinInject(),
 ) {
-    LaunchedEffect(shopId, productId) { viewModel.load(shopId, productId) }
+    LifecycleResumeEffect(shopId, productId) {
+        viewModel.load(shopId, productId, force = true)
+        onPauseOrDispose { }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val detail = (state as? AsyncUiState.Success)?.data
     val lines = rememberCartLines(cart)

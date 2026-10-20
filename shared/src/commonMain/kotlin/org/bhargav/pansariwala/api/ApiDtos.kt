@@ -37,6 +37,7 @@ data class PublicConfigDto(
     val razorpayKeyId: String,
     val paymentsEnabled: Boolean,
     val devAuth: Boolean,
+    val minUserSearchRadiusKm: Double = AppConstants.MIN_SEARCH_RADIUS_KM,
 )
 
 @Serializable

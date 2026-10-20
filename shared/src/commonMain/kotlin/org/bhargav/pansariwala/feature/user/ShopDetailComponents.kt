@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.user
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -75,14 +76,15 @@ fun PickupOnlyStrip(modifier: Modifier = Modifier, deliveryUntil: String = "") {
     val cutoff = formatClockTime(deliveryUntil)
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.tertiaryContainer,
+        color = WARNING_CONTAINER,
         shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, WARNING_BORDER),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.Top) {
             Icon(
                 Icons.Default.Info,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                tint = WARNING_CONTENT,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
@@ -91,7 +93,7 @@ fun PickupOnlyStrip(modifier: Modifier = Modifier, deliveryUntil: String = "") {
                 else stringResource(Res.string.shop_pickup_only_message),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                color = WARNING_CONTENT,
             )
         }
     }
@@ -187,7 +189,7 @@ fun ShopHeroHeader(
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
                     )
-                    if (!shop.deliversToYou) {
+                    if (shop.isOpen && !shop.deliversToYou) {
                         Text(
                             stringResource(Res.string.shop_outside_delivery),
                             style = MaterialTheme.typography.labelSmall,
@@ -308,3 +310,6 @@ fun ShopRatingsSheet(
 private val HERO_HEIGHT = 210.dp
 private val SHEET_MAX_HEIGHT = 640.dp
 private val STAR_COLOR = Color(0xFFFFB300)
+private val WARNING_CONTAINER = Color(0xFFFFF3E0)
+private val WARNING_BORDER = Color(0xFFFFB74D)
+private val WARNING_CONTENT = Color(0xFFB34700)

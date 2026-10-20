@@ -184,6 +184,7 @@
     <string name="master_offer_ttl_min">Delivery request expiry (minutes)</string>
     <string name="master_shop_defaults">Shop defaults</string>
     <string name="master_default_delivery_radius">Default delivery radius for new shops (km)</string>
+    <string name="master_min_user_search_radius">Minimum shop search radius in user app (km)</string>
     <string name="master_quote_preview">Example: ₹%1$s order delivered %2$s km away</string>
     <string name="master_quote_platform_fee">Platform fee</string>
     <string name="master_quote_delivery">Delivery charge</string>
@@ -592,6 +593,17 @@
     <string name="cart_title">Your cart</string>
     <string name="action_proceed_payment">Proceed to payment (%1$s)</string>
     <string name="checkout_razorpay_hint">Pay with Razorpay (secured)</string>
+    <string name="checkout_policy_title">Before you pay</string>
+    <string name="checkout_policy_headline">No returns or refunds on app orders</string>
+    <string name="checkout_policy_point_fresh">Your order is packed by your trusted neighbourhood shop, and every item is checked at the counter before it is handed over or sent out.</string>
+    <string name="checkout_policy_point_no_refund">Once you pay, the order is final. Orders cannot be returned, exchanged or refunded through the app.</string>
+    <string name="checkout_policy_point_contact_shop">Missing item, wrong quantity or a quality concern? Call or visit %1$s directly. Local shops value their regular customers and usually sort things out quickly, face to face.</string>
+    <string name="checkout_policy_point_review">Please check your items, quantities and delivery address carefully before paying.</string>
+    <string name="checkout_policy_closing">Shopping local means real people you can talk to: quick help, fair dealing and a personal touch every time.</string>
+    <string name="checkout_policy_checkbox">Yes, I understand there is no return or refund, and I will contact the shop directly for any issue.</string>
+    <string name="checkout_policy_agree_pay">Agree &amp; pay %1$s</string>
+    <string name="checkout_policy_review_cart">Go back and review</string>
+    <string name="checkout_policy_shop_fallback">your local shop</string>
     <string name="checkout_offers_expand">Offers (click to expand)</string>
     <string name="checkout_discount_applied">%1$s discount applied!</string>
     <string name="account_recent_three">Recent 3 orders</string>

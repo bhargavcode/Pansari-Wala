@@ -94,6 +94,7 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 razorpayKeyId = config.razorpayKeyId,
                 paymentsEnabled = config.paymentsEnabled,
                 devAuth = config.devAuth,
+                minUserSearchRadiusKm = store.platformSettings().minUserSearchRadiusKm,
             ),
         )
     }

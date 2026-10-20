@@ -46,10 +46,38 @@ class CategoryProductsViewModel(
     private var generation = 0
 
     fun start(shopId: String, categoryId: String?, initialQuery: String) {
-        if (this.shopId == shopId && _state.value.categoryId == categoryId) return
+        if (this.shopId == shopId && _state.value.categoryId == categoryId) {
+            refreshLoaded()
+            return
+        }
         this.shopId = shopId
         _state.update { CategoryProductsUiState(categoryId = categoryId, query = initialQuery) }
         reset()
+    }
+
+    /** Re-fetches every page already shown so stock/prices stay live without losing scroll position. */
+    private fun refreshLoaded() {
+        val id = shopId ?: return
+        val snapshot = _state.value
+        if (snapshot.items.isEmpty() || snapshot.loadingInitial || pageJob?.isActive == true) return
+        val gen = ++generation
+        pageJob = viewModelScope.launch {
+            runCatching {
+                (0 until snapshot.nextPage).map { page ->
+                    api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), page, pageSize)
+                }
+            }.onSuccess { pages ->
+                if (gen != generation || pages.isEmpty()) return@onSuccess
+                val last = pages.last()
+                _state.update {
+                    it.copy(
+                        items = pages.flatMap { p -> p.items }.distinctBy { p -> p.id },
+                        totalCount = last.totalCount,
+                        hasMore = last.hasMore,
+                    )
+                }
+            }.onFailure { err -> err.rethrowIfStructuredCancellation() }
+        }
     }
 
     fun setQuery(value: String) {

@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -140,7 +141,12 @@ fun ShopCatalogScreen(
     viewModel: ShopCatalogViewModel = koinViewModel(),
     cart: CartStore = koinInject(),
 ) {
-    LaunchedEffect(shopId) { viewModel.load(shopId) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(shopId, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.load(shopId, force = true)
+        }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val data = (state as? AsyncUiState.Success)?.data
     val cartLines = rememberCartLines(cart)
@@ -175,7 +181,7 @@ fun ShopCatalogScreen(
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
                 data?.shop?.let { shop ->
-                    if (!shop.deliveryAvailable) {
+                    if (shop.isOpen && !shop.deliveryAvailable) {
                         item(key = "pickup_only", contentType = "strip") {
                             PickupOnlyStrip(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp), shop.deliveryUntil)
                         }
@@ -428,11 +434,23 @@ fun CheckoutScreen(
             HorizontalDivider()
             CheckoutLine(stringResource(Res.string.checkout_payable), quote.payable.asMoney(), bold = true)
         }
+        var showPolicy by rememberSaveable { mutableStateOf(false) }
         UserPrimaryButton(
             text = stringResource(Res.string.action_place_order),
-            onClick = { viewModel.place(shopId, onPlaced) },
+            onClick = { showPolicy = true },
             enabled = !state.placing && quote != null,
         )
+        if (showPolicy && quote != null) {
+            CheckoutPolicySheet(
+                shopName = state.shop?.name,
+                payableLabel = quote.payable.asMoney(),
+                onConfirm = {
+                    showPolicy = false
+                    viewModel.place(shopId, onPlaced)
+                },
+                onDismiss = { showPolicy = false },
+            )
+        }
         if (state.needsProfile) {
             UserPrimaryButton(
                 text = stringResource(Res.string.action_complete_profile),

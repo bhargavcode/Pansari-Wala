@@ -272,7 +272,8 @@ fun ShopDiscoveryCard(
     modifier: Modifier = Modifier,
     onShowAllOffers: () -> Unit = onClick,
 ) {
-    val hasFooter = !shop.deliveryAvailable || shop.offerCount > 0
+    val showPickupStrip = shop.isOpen && !shop.deliveryAvailable
+    val hasFooter = showPickupStrip || shop.offerCount > 0
     ShopHeroHeader(
         shop = shop,
         onRatingsClick = onClick,
@@ -281,7 +282,7 @@ fun ShopDiscoveryCard(
         modifier = modifier,
         footer = if (hasFooter) {
             {
-                if (!shop.deliveryAvailable) PickupOnlyStrip(deliveryUntil = shop.deliveryUntil)
+                if (showPickupStrip) PickupOnlyStrip(deliveryUntil = shop.deliveryUntil)
                 ShopOffersSummary(shop, onShowAllOffers)
             }
         } else {

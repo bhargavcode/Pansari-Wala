@@ -6,7 +6,8 @@ object AppConstants {
     const val IOS_APPLE_LANGUAGES_KEY: String = "AppleLanguages"
 
     const val DEFAULT_SEARCH_RADIUS_KM: Double = 20.0
-    const val MIN_SEARCH_RADIUS_KM: Double = 10.0
+    /** Fallback when the server's public config is unreachable; admin overrides it in master settings. */
+    const val MIN_SEARCH_RADIUS_KM: Double = 1.0
     const val MAX_SEARCH_RADIUS_KM: Double = 50.0
     const val SEARCH_RADIUS_STEP_KM: Double = 1.0
 

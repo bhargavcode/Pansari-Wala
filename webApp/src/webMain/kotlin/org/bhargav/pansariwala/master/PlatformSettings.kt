@@ -38,6 +38,7 @@ import pansariwala.shared.generated.resources.master_last_updated
 import pansariwala.shared.generated.resources.master_max_delivery_charge
 import pansariwala.shared.generated.resources.master_min_delivery_charge
 import pansariwala.shared.generated.resources.master_min_order_value
+import pansariwala.shared.generated.resources.master_min_user_search_radius
 import pansariwala.shared.generated.resources.master_new_password
 import pansariwala.shared.generated.resources.master_offer_ttl_min
 import pansariwala.shared.generated.resources.master_online_ordering
@@ -78,6 +79,7 @@ private class PlatformForm(s: PlatformSettingsDto) {
     var ringKm by mutableStateOf(s.partnerRingKm.plain())
     var offerTtl by mutableStateOf(s.offerTtlMinutes.toString())
     var defaultRadius by mutableStateOf(s.defaultShopDeliveryRadiusKm.plain())
+    var minSearchRadius by mutableStateOf(s.minUserSearchRadiusKm.plain())
 }
 
 /** Mirrors the server's delivery-charge rule so admins see the effect before saving. */
@@ -118,6 +120,7 @@ internal fun PlatformConfigSections(token: String, onStatus: (String) -> Unit) {
             partnerRingKm = num(f.ringKm, labels.ringKm),
             offerTtlMinutes = f.offerTtl.trim().toIntOrNull() ?: throw IllegalArgumentException(labels.offerTtl),
             defaultShopDeliveryRadiusKm = num(f.defaultRadius, labels.defaultRadius),
+            minUserSearchRadiusKm = num(f.minSearchRadius, labels.minSearchRadius),
         )
     }
     val preview = parsed().getOrNull() ?: base
@@ -142,6 +145,7 @@ internal fun PlatformConfigSections(token: String, onStatus: (String) -> Unit) {
             }
             MasterSectionCard(title = stringResource(Res.string.master_shop_defaults)) {
                 NumberField(f.defaultRadius, labels.defaultRadius) { f.defaultRadius = it }
+                NumberField(f.minSearchRadius, labels.minSearchRadius) { f.minSearchRadius = it }
             }
             QuotePreviewCard(preview)
         },
@@ -185,6 +189,7 @@ private class PlatformLabels(
     val ringKm: String,
     val offerTtl: String,
     val defaultRadius: String,
+    val minSearchRadius: String,
 ) {
     companion object {
         @Composable
@@ -200,6 +205,7 @@ private class PlatformLabels(
             ringKm = stringResource(Res.string.master_partner_ring_km),
             offerTtl = stringResource(Res.string.master_offer_ttl_min),
             defaultRadius = stringResource(Res.string.master_default_delivery_radius),
+            minSearchRadius = stringResource(Res.string.master_min_user_search_radius),
         )
     }
 }

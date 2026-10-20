@@ -488,6 +488,8 @@ data class PlatformSettingsDoc(
     val partnerRingKm: Double = 8.0,
     val offerTtlMinutes: Int = 5,
     val defaultShopDeliveryRadiusKm: Double = 20.0,
+    /** Smallest shop-search radius the user app's filter slider allows. */
+    val minUserSearchRadiusKm: Double = 1.0,
     val onlineOrderingEnabled: Boolean = true,
     val orderingPausedMessage: String = "",
     val partnerRegistrationEnabled: Boolean = true,

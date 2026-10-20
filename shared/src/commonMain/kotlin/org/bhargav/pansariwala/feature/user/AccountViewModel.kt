@@ -141,9 +141,23 @@ class AccountViewModel(
 
 class UserSettingsViewModel(
     private val preferences: AppPreferences,
+    private val api: PansariApi,
 ) : ViewModel() {
     val settings = preferences.userSettings
     val radius = preferences.observeSearchRadiusKm()
+    private val _minRadius = MutableStateFlow(AppConstants.MIN_SEARCH_RADIUS_KM)
+    /** Lower bound of the radius slider; configured by the platform admin. */
+    val minRadius: StateFlow<Double> = _minRadius.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            runCatching { api.publicConfig().minUserSearchRadiusKm }
+                .onSuccess { km ->
+                    _minRadius.value = km.coerceIn(AppConstants.SEARCH_RADIUS_STEP_KM, AppConstants.MAX_SEARCH_RADIUS_KM - 1)
+                }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
 
     fun setRadius(km: Double) { viewModelScope.launch { preferences.setSearchRadiusKm(km) } }
     fun setNotifyOffers(value: Boolean) { viewModelScope.launch { preferences.setNotifyOffers(value) } }

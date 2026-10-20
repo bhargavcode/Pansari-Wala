@@ -581,9 +581,12 @@ fun UserSettingsHub(
     viewModel: UserSettingsViewModel = koinViewModel(),
 ) {
     val radius by viewModel.radius.collectAsStateWithLifecycle(AppConstants.DEFAULT_SEARCH_RADIUS_KM)
-    var draftRadius by remember(radius) { mutableStateOf(radius.toFloat()) }
-    val radiusSteps = remember {
-        ((AppConstants.MAX_SEARCH_RADIUS_KM - AppConstants.MIN_SEARCH_RADIUS_KM) / AppConstants.SEARCH_RADIUS_STEP_KM)
+    val minRadius by viewModel.minRadius.collectAsStateWithLifecycle()
+    var draftRadius by remember(radius, minRadius) {
+        mutableStateOf(radius.coerceIn(minRadius, AppConstants.MAX_SEARCH_RADIUS_KM).toFloat())
+    }
+    val radiusSteps = remember(minRadius) {
+        ((AppConstants.MAX_SEARCH_RADIUS_KM - minRadius) / AppConstants.SEARCH_RADIUS_STEP_KM)
             .roundToInt() - 1
     }
     val settings by viewModel.settings.collectAsStateWithLifecycle(org.bhargav.pansariwala.settings.AppUserSettings())
@@ -606,12 +609,12 @@ fun UserSettingsHub(
                 )
             },
         ) {
-            Text(stringResource(Res.string.market_radius_range, AppConstants.MIN_SEARCH_RADIUS_KM.roundToInt().toString(), AppConstants.MAX_SEARCH_RADIUS_KM.roundToInt().toString()))
+            Text(stringResource(Res.string.market_radius_range, minRadius.roundToInt().toString(), AppConstants.MAX_SEARCH_RADIUS_KM.roundToInt().toString()))
             Slider(
                 value = draftRadius,
                 onValueChange = { draftRadius = it.roundToInt().toFloat() },
                 onValueChangeFinished = { viewModel.setRadius(draftRadius.toDouble()) },
-                valueRange = AppConstants.MIN_SEARCH_RADIUS_KM.toFloat()..AppConstants.MAX_SEARCH_RADIUS_KM.toFloat(),
+                valueRange = minRadius.toFloat()..AppConstants.MAX_SEARCH_RADIUS_KM.toFloat(),
                 steps = radiusSteps,
             )
         }

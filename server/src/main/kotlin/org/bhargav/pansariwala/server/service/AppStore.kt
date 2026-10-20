@@ -171,6 +171,8 @@ private const val QTY_EPSILON = 1e-6
 private val LOOSE_UNITS = setOf("KG", "LITRE", "GRAM")
 private const val PLATFORM_SETTINGS_ID = "global"
 private const val PLATFORM_SETTINGS_CACHE_MS = 30_000L
+/** Must stay below the user app's max search radius (50 km). */
+private const val MAX_MIN_USER_SEARCH_RADIUS_KM = 49.0
 private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
 private const val MIN_SHOP_PASSWORD = 4
@@ -314,6 +316,9 @@ class AppStore(
         require(body.partnerRingKm in 1.0..100.0) { "Partner range must be 1-100 km" }
         require(body.offerTtlMinutes in 1..120) { "Offer expiry must be 1-120 minutes" }
         require(body.defaultShopDeliveryRadiusKm in 1.0..100.0) { "Delivery radius must be 1-100 km" }
+        require(body.minUserSearchRadiusKm in 1.0..MAX_MIN_USER_SEARCH_RADIUS_KM) {
+            "Minimum search radius must be 1-${MAX_MIN_USER_SEARCH_RADIUS_KM.toInt()} km"
+        }
         val doc = PlatformSettingsDoc(
             id = PLATFORM_SETTINGS_ID,
             platformFeeInr = body.platformFeeInr,
@@ -327,6 +332,7 @@ class AppStore(
             partnerRingKm = body.partnerRingKm,
             offerTtlMinutes = body.offerTtlMinutes,
             defaultShopDeliveryRadiusKm = body.defaultShopDeliveryRadiusKm,
+            minUserSearchRadiusKm = body.minUserSearchRadiusKm,
             onlineOrderingEnabled = body.onlineOrderingEnabled,
             orderingPausedMessage = body.orderingPausedMessage.trim().take(200),
             partnerRegistrationEnabled = body.partnerRegistrationEnabled,
@@ -349,6 +355,7 @@ class AppStore(
         partnerRingKm = partnerRingKm,
         offerTtlMinutes = offerTtlMinutes,
         defaultShopDeliveryRadiusKm = defaultShopDeliveryRadiusKm,
+        minUserSearchRadiusKm = minUserSearchRadiusKm,
         onlineOrderingEnabled = onlineOrderingEnabled,
         orderingPausedMessage = orderingPausedMessage,
         partnerRegistrationEnabled = partnerRegistrationEnabled,
