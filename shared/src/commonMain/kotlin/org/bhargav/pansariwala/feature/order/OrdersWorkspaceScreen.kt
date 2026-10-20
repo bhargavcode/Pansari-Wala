@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.order
 
+import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
@@ -76,6 +76,7 @@ import pansariwala.shared.generated.resources.select_order_hint
 import pansariwala.shared.generated.resources.status_cancelled
 import pansariwala.shared.generated.resources.status_completed
 import pansariwala.shared.generated.resources.status_draft
+import pansariwala.shared.generated.resources.status_payment_pending
 import pansariwala.shared.generated.resources.status_received
 import pansariwala.shared.generated.resources.status_accepted
 import pansariwala.shared.generated.resources.status_packing
@@ -404,7 +405,7 @@ private fun CancelOrderBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
@@ -493,6 +494,7 @@ private fun orderStatusLabel(status: OrderStatus): String = stringResource(
         OrderStatus.COMPLETED -> Res.string.status_completed
         OrderStatus.CANCELLED -> Res.string.status_cancelled
         OrderStatus.DRAFT -> Res.string.status_draft
+        OrderStatus.PAYMENT_PENDING -> Res.string.status_payment_pending
         OrderStatus.ACCEPTED -> Res.string.status_accepted
         OrderStatus.PACKING -> Res.string.status_packing
         OrderStatus.LOOKING_FOR_PARTNER -> Res.string.status_looking_partner

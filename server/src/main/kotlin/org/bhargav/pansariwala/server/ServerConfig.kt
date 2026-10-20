@@ -40,8 +40,15 @@ data class ServerConfig(
     val otpMaxSendsPerHour: Int = 5,
     val otpMaxVerifyAttempts: Int = 5,
     val otpMaxRequestsPerIpPerHour: Int = 30,
+    val cashfreeAppId: String = "",
+    val cashfreeSecretKey: String = "",
+    /** `sandbox` or `production`. */
+    val cashfreeEnv: String = "sandbox",
+    /** Public API origin (no trailing slash) Cashfree calls for webhooks / return page. */
+    val publicApiBaseUrl: String = "",
 ) {
     val paymentsEnabled: Boolean get() = razorpayKeyId.isNotBlank() && razorpayKeySecret.isNotBlank()
+    val cashfreeEnabled: Boolean get() = cashfreeAppId.isNotBlank() && cashfreeSecretKey.isNotBlank()
 
     companion object {
         const val DEFAULT_PASSWORD_SALT = "pansari-local-salt"
@@ -85,6 +92,10 @@ data class ServerConfig(
             otpMaxSendsPerHour = env("OTP_MAX_SENDS_PER_HOUR", "5").toInt(),
             otpMaxVerifyAttempts = env("OTP_MAX_VERIFY_ATTEMPTS", "5").toInt(),
             otpMaxRequestsPerIpPerHour = env("OTP_MAX_REQUESTS_PER_IP_PER_HOUR", "30").toInt(),
+            cashfreeAppId = env("CASHFREE_APP_ID", ""),
+            cashfreeSecretKey = env("CASHFREE_SECRET_KEY", ""),
+            cashfreeEnv = env("CASHFREE_ENV", "sandbox"),
+            publicApiBaseUrl = env("PUBLIC_API_BASE_URL", "").trimEnd('/'),
         )
 
         private fun mongoUriFromEnv(): String {

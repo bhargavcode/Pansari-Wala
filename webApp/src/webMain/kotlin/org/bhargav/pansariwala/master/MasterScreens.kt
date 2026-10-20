@@ -57,6 +57,11 @@ import pansariwala.shared.generated.resources.master_variants_count
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.shop_min_order_label
+import pansariwala.shared.generated.resources.currency_symbol
+import pansariwala.shared.generated.resources.shop_min_order_none
+import pansariwala.shared.generated.resources.shop_free_delivery_label
+import pansariwala.shared.generated.resources.shop_free_delivery_amount
 import pansariwala.shared.generated.resources.action_back
 import pansariwala.shared.generated.resources.field_name
 import pansariwala.shared.generated.resources.field_name_hi
@@ -460,6 +465,20 @@ internal fun ShopDetailScreen(token: String, shopId: String, onNavigate: (Master
                         MasterSectionCard(title = stringResource(Res.string.master_delivery_payments)) {
                             FeatureToggleRow(stringResource(Res.string.shop_home_delivery_label), shop.homeDeliveryEnabled) {
                                 patch { api.patchShop(token, shop.id, homeDeliveryEnabled = !shop.homeDeliveryEnabled) }
+                            }
+                            LabelValue(
+                                stringResource(Res.string.shop_min_order_label),
+                                if (shop.minOrderValueInr > 0.0) stringResource(Res.string.currency_symbol) + shop.minOrderValueInr.plainNumber()
+                                else stringResource(Res.string.shop_min_order_none),
+                            )
+                            FeatureToggleRow(stringResource(Res.string.shop_free_delivery_label), shop.freeDeliveryEnabled) {
+                                patch { api.patchShop(token, shop.id, freeDeliveryEnabled = !shop.freeDeliveryEnabled) }
+                            }
+                            if (shop.freeDeliveryEnabled) {
+                                LabelValue(
+                                    stringResource(Res.string.shop_free_delivery_amount),
+                                    stringResource(Res.string.currency_symbol) + shop.freeDeliveryAboveInr.plainNumber(),
+                                )
                             }
                             LabelValue(stringResource(Res.string.profile_field_upi), shop.upiId.ifBlank { "—" })
                             LabelValue(stringResource(Res.string.profile_field_radius), shop.deliveryRadiusKm.plainNumber())
@@ -1354,7 +1373,10 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
         MasterTopBar(stringResource(Res.string.master_settings_title))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ResponsiveColumns(
-                left = { PlatformControlsSection(token, onStatus, stringResource(Res.string.master_platform_controls)) },
+                left = {
+                    PlatformControlsSection(token, onStatus, stringResource(Res.string.master_platform_controls))
+                    PaymentsSection(token, onStatus)
+                },
                 right = { AdminAccountSection(token, onStatus, stringResource(Res.string.master_admin_account)) },
             )
             Text(

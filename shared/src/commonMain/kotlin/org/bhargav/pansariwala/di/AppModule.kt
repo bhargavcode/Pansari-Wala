@@ -24,6 +24,7 @@ import org.bhargav.pansariwala.feature.inventory.CategoryOrderViewModel
 import org.bhargav.pansariwala.feature.inventory.MasterCatalogViewModel
 import org.bhargav.pansariwala.feature.inventory.ShopSheetImportViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryProductDetailViewModel
+import org.bhargav.pansariwala.feature.inventory.StockRequestViewModel
 import org.bhargav.pansariwala.feature.login.LoginViewModel
 import org.bhargav.pansariwala.feature.order.OrderEditorViewModel
 import org.bhargav.pansariwala.feature.subscription.CommissionDayViewModel
@@ -67,6 +68,8 @@ import org.bhargav.pansariwala.notification.NotificationGateway
 import org.bhargav.pansariwala.notification.PartnerOfferSocket
 import org.bhargav.pansariwala.notification.PushMessageHandler
 import org.bhargav.pansariwala.notification.PushRegistrar
+import org.bhargav.pansariwala.notification.AppInstallReporter
+import org.bhargav.pansariwala.feature.support.IssueReportViewModel
 import org.bhargav.pansariwala.notification.ShopNotifier
 import org.bhargav.pansariwala.notification.createNotificationGateway
 import org.bhargav.pansariwala.voice.SpeechToText
@@ -84,6 +87,7 @@ val appModule = module {
     single<NotificationGateway> { DedupingNotificationGateway(createNotificationGateway()) }
     singleOf(::ShopNotifier)
     singleOf(::PushRegistrar)
+    singleOf(::AppInstallReporter)
     singleOf(::PushMessageHandler)
     singleOf(::PartnerOfferSocket)
     singleOf(::PartnerLocationTracker)
@@ -112,6 +116,7 @@ val appModule = module {
     viewModelOf(::CategoryOrderViewModel)
     viewModelOf(::ShopSheetImportViewModel)
     viewModelOf(::InventoryProductDetailViewModel)
+    viewModelOf(::StockRequestViewModel)
     viewModelOf(::MasterCatalogViewModel)
     viewModelOf(::OrderEditorViewModel)
     viewModelOf(::SubscriptionViewModel)
@@ -141,4 +146,5 @@ val appModule = module {
     viewModelOf(::PrinterSettingsViewModel)
     viewModelOf(::ReportsViewModel)
     viewModelOf(::ShopProfileViewModel)
+    viewModelOf(::IssueReportViewModel)
 }

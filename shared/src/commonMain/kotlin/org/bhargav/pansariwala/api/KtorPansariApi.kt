@@ -275,6 +275,15 @@ class KtorPansariApi(
     override suspend fun order(orderId: String): Order =
         client.get("orders/$orderId").body<OrderDto>().toModel()
 
+    override suspend fun submitPaymentUtr(orderId: String, utr: String): Order =
+        client.post("orders/$orderId/payment/utr") { setBody(SubmitUtrRequest(utr)) }.body<OrderDto>().toModel()
+
+    override suspend fun refreshPayment(orderId: String): Order =
+        client.post("orders/$orderId/payment/refresh").body<OrderDto>().toModel()
+
+    override suspend fun confirmOrderPayment(orderId: String): Order =
+        client.post("shop/orders/$orderId/payment/confirm").body<OrderDto>().toModel()
+
     override suspend fun myTransactions(): List<MoneyTxn> =
         client.get("me/transactions").body<List<TxnDto>>().map { it.toModel() }
 
@@ -311,6 +320,16 @@ class KtorPansariApi(
     override suspend fun unregisterPushToken(token: String) {
         client.post("push/unregister") { setBody(PushUnregisterRequest(token)) }.body<OkResponse>()
     }
+
+    override suspend fun reportAppInstall(request: AppInstallRequest) {
+        client.post("app/install") { setBody(request) }.body<OkResponse>()
+    }
+
+    override suspend fun reportIssue(request: IssueReportCreate): IssueReportDto =
+        client.post("issues") { setBody(request) }.body()
+
+    override suspend fun myIssues(status: String?): List<IssueReportDto> =
+        client.get("issues/mine") { status?.let { parameter("status", it) } }.body()
 
     override suspend fun acceptOrder(orderId: String): Order =
         client.post("shop/orders/$orderId/accept").body<OrderDto>().toModel()

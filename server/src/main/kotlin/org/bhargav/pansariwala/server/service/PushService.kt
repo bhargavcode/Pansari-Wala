@@ -61,6 +61,8 @@ private object PushContract {
     const val ALERT_DELIVERED = "DELIVERED"
     const val ALERT_CANCELLED = "CANCELLED"
     const val KEY_PREFIX_STATUS = "ORDER_STATUS"
+    const val EVENT_ISSUE_UPDATE = "ISSUE_UPDATE"
+    const val ALERT_ISSUE_RESOLVED = "ISSUE_RESOLVED"
 }
 
 /** Snapshot of an order right after a status write, published to its shop and customer. */
@@ -203,6 +205,29 @@ class PushService(
         )
     }
 
+    /** Tells the reporter (any app) that Master marked their issue fixed, and in which build. */
+    fun issueResolved(reporterId: String, issueId: String, featureLabel: String, fixedInVersion: String) {
+        if (!enabled) return
+        val data = mapOf(
+            "event" to PushContract.EVENT_ISSUE_UPDATE,
+            "issueId" to issueId,
+            "feature" to featureLabel,
+            "fixedIn" to fixedInVersion,
+        )
+        val body = if (fixedInVersion.isBlank()) {
+            "Your reported issue ($featureLabel) is fixed."
+        } else {
+            "Your reported issue ($featureLabel) is fixed in version $fixedInVersion. Please update the app."
+        }
+        val alert = Alert(
+            kind = PushContract.ALERT_ISSUE_RESOLVED,
+            key = "${PushContract.ALERT_ISSUE_RESOLVED}:$issueId",
+            title = "Issue resolved",
+            body = body,
+        )
+        send(eq("principalId", reporterId), PushMessage(issueId, data, alert))
+    }
+
     private fun shopAlert(u: OrderUpdate): Alert? {
         val short = u.orderId.takeLast(6)
         return when {
@@ -212,11 +237,17 @@ class PushService(
                 title = "No delivery partner found",
                 body = "No partner accepted order $short in 5 minutes. Request a delivery partner again.",
             )
-            u.previousStatus == null && u.status == "RECEIVED" -> Alert(
+            u.status == "RECEIVED" && (u.previousStatus == null || u.previousStatus == "PAYMENT_PENDING") -> Alert(
                 kind = PushContract.ALERT_ORDER_NEW,
                 key = "${PushContract.ALERT_ORDER_NEW}:${u.orderId}",
                 title = "New online order",
                 body = "Order $short from ${u.customerName.ifBlank { u.orderId }}",
+            )
+            u.previousStatus == null && u.status == "PAYMENT_PENDING" -> Alert(
+                kind = PushContract.ALERT_ORDER_NEW,
+                key = "${PushContract.ALERT_ORDER_NEW}:${u.orderId}:pay",
+                title = "New UPI order: check payment",
+                body = "Order $short from ${u.customerName.ifBlank { u.orderId }}. Confirm once the UPI payment reaches your bank.",
             )
             else -> null
         }
@@ -226,6 +257,11 @@ class PushService(
         if (u.previousStatus == u.status) return null
         val shop = u.shopName
         val (kind, text) = when (u.status) {
+            "RECEIVED" -> if (u.previousStatus == "PAYMENT_PENDING") {
+                PushContract.ALERT_ACCEPTED to ("Payment received" to "$shop received your payment.")
+            } else {
+                return null
+            }
             "ACCEPTED" -> if (u.previousStatus == "RECEIVED") {
                 PushContract.ALERT_ACCEPTED to ("Order accepted" to "$shop is preparing your order.")
             } else {

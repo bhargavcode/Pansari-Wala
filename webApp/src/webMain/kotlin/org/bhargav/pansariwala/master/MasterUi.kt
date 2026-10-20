@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.master
 
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,7 +32,6 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Store
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -72,6 +72,7 @@ import kotlin.math.round
 import org.bhargav.pansariwala.api.createPlatformHttpClient
 import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
+import org.bhargav.pansariwala.media.imageFetchUrl
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
@@ -373,7 +374,7 @@ fun ImageThumb(url: String?, modifier: Modifier = Modifier) {
         bitmap = null
         val target = url?.trim()?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
         bitmap = runCatching {
-            createPlatformHttpClient().get(target).readRawBytes().decodeToImageBitmap()
+            createPlatformHttpClient().get(imageFetchUrl(target)).readRawBytes().decodeToImageBitmap()
         }.getOrNull()
     }
     Box(
@@ -625,7 +626,7 @@ fun OrderDetailDialog(
     onCancel: (String) -> Unit,
 ) {
     if (txn == null) return
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("${stringResource(Res.string.master_order_id)}: #${txn.orderId}") },
         text = {

@@ -1,7 +1,11 @@
 package org.bhargav.pansariwala.master
 
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.ReportProblem
 import pansariwala.shared.generated.resources.master_nav_subscriptions
+import pansariwala.shared.generated.resources.master_nav_app_usage
+import pansariwala.shared.generated.resources.master_nav_issues
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -377,6 +381,8 @@ private fun MasterSidebar(
         Triple(MasterDest.Transactions, Icons.AutoMirrored.Filled.ReceiptLong, Res.string.master_nav_transactions),
         Triple(MasterDest.Platform, Icons.Default.BarChart, Res.string.master_nav_platform),
         Triple(MasterDest.Subscriptions, Icons.Default.WorkspacePremium, Res.string.master_nav_subscriptions),
+        Triple(MasterDest.AppUsage, Icons.Default.PhoneAndroid, Res.string.master_nav_app_usage),
+        Triple(MasterDest.Issues, Icons.Default.ReportProblem, Res.string.master_nav_issues),
         Triple(MasterDest.Settings, Icons.Default.Settings, Res.string.master_nav_settings),
     )
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLowest) {
@@ -449,6 +455,8 @@ private fun MasterRouter(
         is MasterDest.PartnerDetail -> PartnerDetailScreen(token, dest.id, onNavigate, onStatus)
         MasterDest.Platform -> PlatformScreen(token, onStatus)
         MasterDest.Subscriptions -> SubscriptionsScreen(token, onStatus)
+        MasterDest.AppUsage -> AppUsageScreen(token, onStatus)
+        MasterDest.Issues -> IssuesScreen(token, onStatus)
         MasterDest.Settings -> SettingsScreen(token, onStatus)
     }
 }

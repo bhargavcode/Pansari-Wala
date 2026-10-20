@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.reports
 
+import org.bhargav.pansariwala.designsystem.appDialogProperties
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -417,6 +418,7 @@ internal fun CustomRangeDialog(onDismiss: () -> Unit, onConfirm: (Long, Long?) -
     val pickerState = rememberDateRangePickerState()
     DatePickerDialog(
         onDismissRequest = onDismiss,
+        properties = appDialogProperties(),
         confirmButton = {
             TextButton(
                 onClick = {

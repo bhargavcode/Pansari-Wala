@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.profile
 
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
@@ -25,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -93,6 +93,16 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.currency_symbol
+import pansariwala.shared.generated.resources.shop_order_rules_title
+import pansariwala.shared.generated.resources.shop_min_order_label
+import pansariwala.shared.generated.resources.shop_min_order_none
+import pansariwala.shared.generated.resources.shop_min_order_hint
+import pansariwala.shared.generated.resources.shop_free_delivery_label
+import pansariwala.shared.generated.resources.shop_free_delivery_above
+import pansariwala.shared.generated.resources.shop_free_delivery_off
+import pansariwala.shared.generated.resources.shop_free_delivery_amount
+import pansariwala.shared.generated.resources.shop_free_delivery_hint
 import pansariwala.shared.generated.resources.action_cancel
 import pansariwala.shared.generated.resources.action_edit
 import pansariwala.shared.generated.resources.action_no
@@ -284,6 +294,9 @@ fun ShopProfileScreen(
     state.hoursDraft?.let { draft ->
         OperatingHoursDialog(draft, viewModel::updateHoursDay, viewModel::saveHours, viewModel::cancelEditHours)
     }
+    state.orderRulesDraft?.let { draft ->
+        OrderRulesDialog(draft, viewModel::updateOrderRulesDraft, viewModel::saveOrderRules, viewModel::cancelEditOrderRules)
+    }
     state.staffDraft?.let { draft ->
         StaffDialog(draft, state.access, viewModel::updateStaffDraft, viewModel::saveStaff, viewModel::cancelStaffDraft)
     }
@@ -291,7 +304,7 @@ fun ShopProfileScreen(
         OfferDialog(draft, state.products, viewModel::updateOfferDraft, viewModel::saveOffer, viewModel::cancelOfferDraft)
     }
     state.replyDraft?.let { draft ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = viewModel::cancelReply,
             title = { Text(stringResource(Res.string.ratings_reply)) },
             text = {
@@ -460,6 +473,25 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, state: ShopProfileUiState, vie
             )
             HorizontalDivider()
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(Res.string.shop_order_rules_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                if (canEdit) {
+                    TextButton(onClick = viewModel::startEditOrderRules) { Text(stringResource(Res.string.action_edit)) }
+                }
+            }
+            DetailRow(
+                Res.string.shop_min_order_label,
+                if (shop.minOrderValueInr > 0.0) shop.minOrderValueInr.asMoney() else stringResource(Res.string.shop_min_order_none),
+            )
+            DetailRow(
+                Res.string.shop_free_delivery_label,
+                if (shop.freeDeliveryEnabled) {
+                    stringResource(Res.string.shop_free_delivery_above, shop.freeDeliveryAboveInr.asMoney())
+                } else {
+                    stringResource(Res.string.shop_free_delivery_off)
+                },
+            )
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(Res.string.shop_hours_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                 if (canEdit) {
                     TextButton(onClick = viewModel::startEditHours) { Text(stringResource(Res.string.shop_hours_edit)) }
@@ -491,6 +523,42 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, state: ShopProfileUiState, vie
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun OrderRulesDialog(
+    draft: OrderRulesDraft,
+    onChange: ((OrderRulesDraft) -> OrderRulesDraft) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    FormDialog(stringResource(Res.string.shop_order_rules_title), onSave, onDismiss) {
+        OutlinedTextField(
+            value = draft.minOrder,
+            onValueChange = { v -> onChange { it.copy(minOrder = v) } },
+            label = { Text(stringResource(Res.string.shop_min_order_label)) },
+            supportingText = { Text(stringResource(Res.string.shop_min_order_hint)) },
+            prefix = { Text(stringResource(Res.string.currency_symbol)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        ToggleRow(stringResource(Res.string.shop_free_delivery_label), draft.freeDeliveryEnabled, true) { on ->
+            onChange { it.copy(freeDeliveryEnabled = on) }
+        }
+        if (draft.freeDeliveryEnabled) {
+            OutlinedTextField(
+                value = draft.freeDeliveryAbove,
+                onValueChange = { v -> onChange { it.copy(freeDeliveryAbove = v) } },
+                label = { Text(stringResource(Res.string.shop_free_delivery_amount)) },
+                supportingText = { Text(stringResource(Res.string.shop_free_delivery_hint)) },
+                prefix = { Text(stringResource(Res.string.currency_symbol)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -883,7 +951,7 @@ private fun FormDialog(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
@@ -899,7 +967,7 @@ private fun FormDialog(
 
 @Composable
 private fun ConfirmDialog(text: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         text = { Text(text) },
         confirmButton = { Button(onClick = onConfirm) { Text(stringResource(Res.string.action_yes)) } },

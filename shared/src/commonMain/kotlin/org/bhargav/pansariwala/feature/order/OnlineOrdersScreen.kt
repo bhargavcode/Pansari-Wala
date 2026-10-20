@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.feature.order
 
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
+import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,7 +71,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.ui.text.input.KeyboardType
 import pansariwala.shared.generated.resources.action_cancel
@@ -82,7 +83,6 @@ import pansariwala.shared.generated.resources.self_delivery_otp_label
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -103,6 +103,11 @@ import androidx.compose.material3.Surface
 import pansariwala.shared.generated.resources.customer_rating_badge_cd
 import pansariwala.shared.generated.resources.order_action_mark_collected
 import pansariwala.shared.generated.resources.order_pickup_badge
+import pansariwala.shared.generated.resources.action_confirm_payment
+import pansariwala.shared.generated.resources.online_order_payment_pending_online
+import pansariwala.shared.generated.resources.online_order_payment_pending_upi
+import pansariwala.shared.generated.resources.online_order_payment_utr
+import pansariwala.shared.generated.resources.status_payment_pending
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -304,6 +309,7 @@ fun OnlineOrdersScreen(
                         busy = busy,
                         packedCount = packedChecks.size,
                         onAccept = { viewModel.accept(order.id) },
+                        onConfirmPayment = { viewModel.confirmPayment(order.id) },
                         onPacking = { viewModel.markPacking(order.id) },
                         onRequestPartner = { viewModel.requestDeliveryPartner(order.id) },
                         onSelfDeliver = { viewModel.startSelfDelivery(order.id) },
@@ -349,7 +355,7 @@ fun OnlineOrdersScreen(
             )
         }
         state.selfDeliverOrderId?.let { orderId ->
-            AlertDialog(
+            AppAlertDialog(
                 onDismissRequest = viewModel::dismissSelfDeliverComplete,
                 title = { Text(stringResource(Res.string.self_delivery_complete_title)) },
                 text = {
@@ -414,6 +420,17 @@ internal fun formatRating(value: Double): String = ((value * 10).roundToInt() / 
 
 @Composable
 private fun OnlineOrderStatusNote(order: Order) {
+    if (order.isAwaitingPayment) {
+        if (order.isDirectUpi) {
+            Text(stringResource(Res.string.online_order_payment_pending_upi, order.totalValue.asMoney()))
+            order.paymentUtr?.let {
+                Text(stringResource(Res.string.online_order_payment_utr, it), fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            Text(stringResource(Res.string.online_order_payment_pending_online))
+        }
+        return
+    }
     val note = when (order.status) {
         OrderStatus.LOOKING_FOR_PARTNER -> stringResource(Res.string.online_order_looking_partner)
         OrderStatus.PARTNER_ACCEPTED -> stringResource(Res.string.online_order_waiting_pickup)
@@ -444,6 +461,7 @@ private fun OnlineOrderActions(
     busy: Boolean,
     packedCount: Int,
     onAccept: () -> Unit,
+    onConfirmPayment: () -> Unit,
     onPacking: () -> Unit,
     onRequestPartner: () -> Unit,
     onSelfDeliver: () -> Unit,
@@ -478,6 +496,7 @@ private fun OnlineOrderActions(
         }
     }
     val nextLabel = when (order.status) {
+        OrderStatus.PAYMENT_PENDING -> if (order.isDirectUpi) stringResource(Res.string.action_confirm_payment) else null
         OrderStatus.RECEIVED -> stringResource(Res.string.action_accept_order)
         OrderStatus.ACCEPTED -> stringResource(Res.string.action_packing)
         OrderStatus.PACKING -> if (order.selfPickup) {
@@ -491,6 +510,7 @@ private fun OnlineOrderActions(
     }
     val nextEnabled = order.status != OrderStatus.PACKING || packedCount > 0
     val nextAction = when (order.status) {
+        OrderStatus.PAYMENT_PENDING -> if (order.isDirectUpi) onConfirmPayment else null
         OrderStatus.RECEIVED -> onAccept
         OrderStatus.ACCEPTED -> onPacking
         OrderStatus.PACKING -> if (order.selfPickup) onMarkCollected else onRequestPartner
@@ -535,7 +555,7 @@ private fun CancelOnlineOrderSheet(
     busy: Boolean,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    AppBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -647,7 +667,7 @@ private fun AssignOwnPartnerSheet(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
@@ -789,6 +809,7 @@ private fun onlineOrderTabLabel(tab: OnlineOrderTab): String = stringResource(
 private fun onlineOrderStatusColor(status: OrderStatus?): Color = when (status) {
     null -> MaterialTheme.colorScheme.outline
     OrderStatus.RECEIVED, OrderStatus.DRAFT -> Color(0xFFF57C00)
+    OrderStatus.PAYMENT_PENDING -> Color(0xFFFBC02D)
     OrderStatus.ACCEPTED -> Color(0xFF1E88E5)
     OrderStatus.PACKING -> Color(0xFF8E24AA)
     OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED, OrderStatus.ON_THE_WAY -> Color(0xFF00897B)
@@ -800,6 +821,7 @@ private fun onlineOrderStatusColor(status: OrderStatus?): Color = when (status) 
 private fun onlineOrderStatusLabel(status: OrderStatus): String = stringResource(
     when (status) {
         OrderStatus.RECEIVED, OrderStatus.DRAFT -> Res.string.status_received
+        OrderStatus.PAYMENT_PENDING -> Res.string.status_payment_pending
         OrderStatus.ACCEPTED -> Res.string.status_accepted
         OrderStatus.PACKING -> Res.string.status_packing
         OrderStatus.LOOKING_FOR_PARTNER -> Res.string.status_looking_partner

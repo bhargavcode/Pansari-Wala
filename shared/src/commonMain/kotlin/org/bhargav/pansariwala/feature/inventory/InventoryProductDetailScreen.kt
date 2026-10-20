@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -31,7 +33,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +85,7 @@ import pansariwala.shared.generated.resources.inv_section_variants
 import pansariwala.shared.generated.resources.inv_stock_threshold
 import pansariwala.shared.generated.resources.inv_stock_value
 import pansariwala.shared.generated.resources.inv_value_none
+import pansariwala.shared.generated.resources.stock_req_action
 
 private val DETAIL_MAX_WIDTH = 720.dp
 
@@ -93,6 +99,7 @@ fun InventoryProductDetailScreen(
     LaunchedEffect(productId) { viewModel.load(productId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    var showStockRequest by rememberSaveable { mutableStateOf(false) }
     val message = state.message?.asString()
     LaunchedEffect(message) {
         if (message != null) {
@@ -129,7 +136,7 @@ fun InventoryProductDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     ProductHeader(product)
-                    StockCard(product)
+                    StockCard(product, onRequestStock = { showStockRequest = true })
                     UpdateInventoryCard(
                         product = product,
                         qtyInput = state.qtyInput,
@@ -150,6 +157,10 @@ fun InventoryProductDetailScreen(
             )
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
+    val product = state.product
+    if (showStockRequest && product != null) {
+        StockRequestSheet(product = product, onDismiss = { showStockRequest = false })
     }
 }
 
@@ -182,7 +193,7 @@ private fun ProductHeader(product: Product) {
 }
 
 @Composable
-private fun StockCard(product: Product) {
+private fun StockCard(product: Product, onRequestStock: () -> Unit) {
     val level = product.stockLevel
     val unit = product.unit.localizedLabel()
     SectionCard(
@@ -220,6 +231,19 @@ private fun StockCard(product: Product) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            val requestLabel: @Composable () -> Unit = {
+                Icon(Icons.Filled.LocalShipping, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(Res.string.stock_req_action), Modifier.padding(start = 8.dp))
+            }
+            if (product.isLowStock) {
+                Button(
+                    onClick = onRequestStock,
+                    colors = ButtonDefaults.buttonColors(containerColor = level.color()),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { requestLabel() }
+            } else {
+                OutlinedButton(onClick = onRequestStock, modifier = Modifier.fillMaxWidth()) { requestLabel() }
+            }
         }
     }
 }

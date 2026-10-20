@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.delivery
 
+import org.bhargav.pansariwala.designsystem.appDialogProperties
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -339,7 +340,7 @@ private fun PartnerOfferDialog(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
 ) {
-    Dialog(onDismissRequest = {}, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = {}, properties = appDialogProperties(usePlatformDefaultWidth = false)) {
         PartnerJobOfferCard(
             offer = offer,
             secondsLeft = secondsLeft,

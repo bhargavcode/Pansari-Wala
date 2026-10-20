@@ -5,6 +5,8 @@ import org.bhargav.pansariwala.util.AppConstants
 
 enum class OrderStatus {
     DRAFT,
+    /** Online order created, customer has not paid yet (DIRECT_UPI / CASHFREE). */
+    PAYMENT_PENDING,
     RECEIVED,
     ACCEPTED,
     PACKING,
@@ -91,7 +93,16 @@ data class Order(
     val isSelfDelivery: Boolean = false,
     /** POS bill discount (offers + manual), in INR; online orders carry theirs in [quote]. */
     val discount: Double = 0.0,
+    /** PAYMENT_PENDING DIRECT_UPI: `upi://pay` link to the shop's UPI ID. */
+    val upiPayUri: String? = null,
+    val payeeUpi: String? = null,
+    /** PAYMENT_PENDING CASHFREE: hosted payment page. */
+    val paymentLinkUrl: String? = null,
+    val paymentUtr: String? = null,
+    val paymentDueAtEpochMs: Long? = null,
 ) {
+    val isAwaitingPayment: Boolean get() = status == OrderStatus.PAYMENT_PENDING
+    val isDirectUpi: Boolean get() = paymentMethod == AppConstants.Payment.METHOD_UPI_DIRECT
     val subtotal: Double get() = items.sumOf { it.lineTotal }
     val deliveringItems: List<OrderItem>
         get() = if (packedProductIds.isEmpty()) items else items.filter { it.productId in packedProductIds }

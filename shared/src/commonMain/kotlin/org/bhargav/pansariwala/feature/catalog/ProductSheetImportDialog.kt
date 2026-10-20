@@ -1,12 +1,12 @@
 package org.bhargav.pansariwala.feature.catalog
 
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -63,7 +63,7 @@ fun ProductSheetImportDialog(
         report.dryRun -> stringResource(Res.string.sheet_preview_title, state.fileName.orEmpty())
         else -> stringResource(Res.string.sheet_done_title)
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!state.busy) onDismiss() },
         title = { Text(title) },
         text = {

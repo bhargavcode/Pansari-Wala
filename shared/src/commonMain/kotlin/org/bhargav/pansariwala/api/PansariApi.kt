@@ -65,6 +65,12 @@ interface PansariApi {
     suspend fun myOrders(): List<Order>
     suspend fun myOrdersPage(page: Int, pageSize: Int): OrderPage
     suspend fun order(orderId: String): Order
+    /** DIRECT_UPI: customer reports the UPI reference for the shop to match. */
+    suspend fun submitPaymentUtr(orderId: String, utr: String): Order
+    /** CASHFREE: re-checks the gateway after the customer returns from the payment page. */
+    suspend fun refreshPayment(orderId: String): Order
+    /** Shop confirms a DIRECT_UPI payment reached its bank. */
+    suspend fun confirmOrderPayment(orderId: String): Order
     suspend fun myTransactions(): List<MoneyTxn>
     suspend fun rateOrder(orderId: String, stars: Int, comment: String?): Order
 
@@ -74,6 +80,11 @@ interface PansariApi {
     suspend fun shopPaymentInfo(): ShopPaymentInfoDto
     suspend fun registerPushToken(token: String, platform: String, deviceId: String)
     suspend fun unregisterPushToken(token: String)
+    /** Tells the server which app build this signed-in principal runs (Master "users by version"). */
+    suspend fun reportAppInstall(request: AppInstallRequest)
+    suspend fun reportIssue(request: IssueReportCreate): IssueReportDto
+    /** [status] null → every status; otherwise `OPEN` / `RESOLVED`. */
+    suspend fun myIssues(status: String?): List<IssueReportDto>
     suspend fun acceptOrder(orderId: String): Order
     suspend fun rejectOrder(orderId: String, rejectedProductIds: List<String>, reason: String?): Order
     suspend fun setOrderStatus(orderId: String, status: String): Order

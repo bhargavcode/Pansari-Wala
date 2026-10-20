@@ -139,7 +139,15 @@ data class ShopDoc(
     /** Customer catalog category order: PRIORITY (shop-set numbers, then name) or NAME. */
     val categorySort: String = "PRIORITY",
     val categoryPriorities: List<CategoryPriorityDoc> = emptyList(),
+    /** Online orders below this subtotal (₹) cannot be placed; 0 = no minimum. */
+    val minOrderValueInr: Double = DEFAULT_SHOP_MIN_ORDER_INR,
+    /** When on, delivery is free for orders whose subtotal after discount reaches [freeDeliveryAboveInr]. */
+    val freeDeliveryEnabled: Boolean = false,
+    val freeDeliveryAboveInr: Double = DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR,
 )
+
+const val DEFAULT_SHOP_MIN_ORDER_INR = 200.0
+const val DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR = 500.0
 
 /** Lower [priority] shows first; categories without one follow, sorted by name. */
 @Serializable
@@ -391,6 +399,12 @@ data class OrderDoc(
     val paymentMethod: String = "ONLINE",
     val razorpayOrderId: String? = null,
     val shopUpi: String? = null,
+    /** UPI transaction ref (UTR) the customer reported for a DIRECT_UPI payment. */
+    val paymentUtr: String? = null,
+    /** Hosted payment page for CASHFREE orders. */
+    val paymentLinkUrl: String? = null,
+    /** PAYMENT_PENDING orders are auto-cancelled after this time. */
+    val paymentDueAt: Long? = null,
     val createdAt: Long,
     val items: List<OrderItemDto> = emptyList(),
     val quote: QuoteDto? = null,
@@ -493,6 +507,10 @@ data class PlatformSettingsDoc(
     val onlineOrderingEnabled: Boolean = true,
     val orderingPausedMessage: String = "",
     val partnerRegistrationEnabled: Boolean = true,
+    /** How customers pay online orders: DIRECT_UPI, CASHFREE or RAZORPAY (see `PaymentMode`). */
+    val paymentMode: String = "DIRECT_UPI",
+    /** Unpaid DIRECT_UPI / CASHFREE orders are cancelled (stock released) after this many minutes. */
+    val paymentWindowMinutes: Int = 15,
     val updatedAt: Long = 0L,
 )
 
@@ -501,6 +519,49 @@ data class AdminUserDoc(
     @SerialName("_id") val id: String,
     val username: String,
     val passwordHash: String,
+)
+
+/** Latest build seen per signed-in principal and app (`_id = "<app>:<principalId>"`). */
+@Serializable
+data class AppInstallDoc(
+    @SerialName("_id") val id: String,
+    val principalId: String,
+    val role: String,
+    val shopId: String? = null,
+    /** POS, USER or DELIVERY. */
+    val app: String,
+    val platform: String,
+    val versionName: String,
+    val versionCode: Long = 0L,
+    val deviceId: String? = null,
+    val firstSeenAt: Long = 0L,
+    val lastSeenAt: Long = 0L,
+)
+
+/** Problem reported from an app's home "Report issue" sheet; resolved from Master. */
+@Serializable
+data class IssueReportDoc(
+    @SerialName("_id") val id: String,
+    val app: String,
+    val reporterId: String,
+    val reporterRole: String,
+    val reporterName: String = "",
+    val reporterPhone: String = "",
+    val shopId: String? = null,
+    val feature: String,
+    val featureLabel: String = "",
+    val issueType: String,
+    val issueLabel: String = "",
+    val description: String = "",
+    val attachments: List<String> = emptyList(),
+    val platform: String = "",
+    val appVersion: String = "",
+    /** OPEN or RESOLVED. */
+    val status: String = "OPEN",
+    val createdAt: Long,
+    val resolvedAt: Long? = null,
+    val fixedInVersion: String = "",
+    val resolutionNote: String = "",
 )
 
 fun connectMongo(config: ServerConfig, security: Security): MongoApp {
@@ -852,6 +913,14 @@ private fun ensureIndexes(db: MongoDatabase) {
     db.getCollection<DeviceTokenDoc>("device_tokens").apply {
         createIndex(Indexes.compoundIndex(Indexes.ascending("role"), Indexes.ascending("shopId")))
         createIndex(Indexes.compoundIndex(Indexes.ascending("role"), Indexes.ascending("principalId")))
+    }
+    db.getCollection<AppInstallDoc>("app_installs").apply {
+        createIndex(Indexes.compoundIndex(Indexes.ascending("app"), Indexes.ascending("versionName")))
+        createIndex(Indexes.ascending("principalId"))
+    }
+    db.getCollection<IssueReportDoc>("issue_reports").apply {
+        createIndex(Indexes.compoundIndex(Indexes.ascending("reporterId"), Indexes.descending("createdAt")))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("status"), Indexes.descending("createdAt")))
     }
 }
 

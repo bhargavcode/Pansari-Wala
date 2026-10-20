@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.user
 
+import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,7 +67,7 @@ fun CheckoutPolicySheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var agreed by rememberSaveable { mutableStateOf(false) }
     val shop = shopName?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.checkout_policy_shop_fallback)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    AppBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             Modifier
                 .fillMaxWidth()

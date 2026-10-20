@@ -60,6 +60,7 @@ class AssetRefs(
             "shops/delivery-packets/",
             "shops/shop/",
             "shops/product-images/",
+            "issues/attachments/",
         )
     }
 }

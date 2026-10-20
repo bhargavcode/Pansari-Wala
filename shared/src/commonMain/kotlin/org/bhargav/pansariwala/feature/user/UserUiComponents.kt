@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.feature.user
 
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
+import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -42,7 +44,6 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.semantics.contentDescription
@@ -124,6 +125,7 @@ import pansariwala.shared.generated.resources.status_accepted
 import pansariwala.shared.generated.resources.status_cancelled
 import pansariwala.shared.generated.resources.status_delivered
 import pansariwala.shared.generated.resources.status_draft
+import pansariwala.shared.generated.resources.status_payment_pending
 import pansariwala.shared.generated.resources.status_on_the_way
 import pansariwala.shared.generated.resources.status_packing
 import pansariwala.shared.generated.resources.status_partner_accepted
@@ -356,7 +358,7 @@ fun ResumeCartSheet(
     onClearCart: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
@@ -629,7 +631,7 @@ fun LocationAccessPromptDialog(
     onAllow: () -> Unit,
     onNotNow: () -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onNotNow,
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = {
@@ -741,6 +743,7 @@ fun OrderAccountTile(
 fun userOrderStatusLabel(status: OrderStatus): String = stringResource(
     when (status) {
         OrderStatus.DRAFT -> Res.string.status_draft
+        OrderStatus.PAYMENT_PENDING -> Res.string.status_payment_pending
         OrderStatus.RECEIVED -> Res.string.status_pending_acceptance
         OrderStatus.ACCEPTED -> Res.string.status_accepted
         OrderStatus.PACKING, OrderStatus.LOOKING_FOR_PARTNER -> Res.string.status_packing

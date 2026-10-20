@@ -140,6 +140,10 @@ data class ShopDto(
     val deliveryUntil: String = "",
     /** False after [deliveryUntil]: orders are pickup-only with no delivery charge. */
     val deliveryAvailable: Boolean = true,
+    /** Checkout is blocked until the cart subtotal reaches this (₹); 0 = no minimum. */
+    val minOrderValueInr: Double = 0.0,
+    /** Delivery is free at or above this subtotal after discount (₹); 0 = no free delivery. */
+    val freeDeliveryAboveInr: Double = 0.0,
 )
 
 @Serializable
@@ -217,6 +221,9 @@ data class AdminShopDto(
     val loginUsername: String = "",
     val deliveryUntil: String = "",
     val homeDeliveryEnabled: Boolean = true,
+    val minOrderValueInr: Double = 0.0,
+    val freeDeliveryEnabled: Boolean = false,
+    val freeDeliveryAboveInr: Double = 0.0,
 )
 
 @Serializable
@@ -348,6 +355,11 @@ data class PlatformSettingsDto(
     val onlineOrderingEnabled: Boolean = true,
     val orderingPausedMessage: String = "",
     val partnerRegistrationEnabled: Boolean = true,
+    val paymentMode: String = "DIRECT_UPI",
+    val paymentWindowMinutes: Int = 15,
+    /** Read-only: server has Cashfree / Razorpay keys configured. */
+    val cashfreeConfigured: Boolean = false,
+    val razorpayConfigured: Boolean = false,
     val updatedAt: Long = 0L,
 )
 
@@ -631,7 +643,12 @@ data class QuoteDto(
     val deliveryCharge: Double,
     val payable: Double,
     val deliveryDistanceKm: Double,
+    /** Active platform payment mode at quote time; tells the app which checkout to run. */
+    val paymentMode: String = "RAZORPAY",
 )
+
+@Serializable
+data class SubmitUtrRequest(val utr: String)
 
 @Serializable
 data class CreateRazorpayRequest(val shopId: String, val amountPaise: Long)
@@ -768,6 +785,12 @@ data class OrderDto(
     val packedProductIds: List<String> = emptyList(),
     val deliveryMode: String = "PARTNER",
     val discount: Double = 0.0,
+    /** PAYMENT_PENDING only: UPI deep link (DIRECT_UPI) or hosted page (CASHFREE) to complete payment. */
+    val upiPayUri: String? = null,
+    val payeeUpi: String? = null,
+    val paymentLinkUrl: String? = null,
+    val paymentUtr: String? = null,
+    val paymentDueAtEpochMs: Long? = null,
 )
 
 @Serializable
@@ -1073,4 +1096,100 @@ data class AdminShopPatch(
     /** "HH:mm"; empty string clears the cutoff. */
     val deliveryUntil: String? = null,
     val homeDeliveryEnabled: Boolean? = null,
+    val minOrderValueInr: Double? = null,
+    val freeDeliveryEnabled: Boolean? = null,
+    val freeDeliveryAboveInr: Double? = null,
+)
+
+@Serializable
+data class AppInstallRequest(
+    val app: String,
+    val platform: String,
+    val versionName: String,
+    val versionCode: Long = 0L,
+    val deviceId: String? = null,
+)
+
+@Serializable
+data class IssueReportCreate(
+    val app: String,
+    val feature: String,
+    val featureLabel: String = "",
+    val issueType: String,
+    val issueLabel: String = "",
+    val description: String = "",
+    val attachments: List<String> = emptyList(),
+    val platform: String = "",
+    val appVersion: String = "",
+)
+
+@Serializable
+data class IssueReportDto(
+    val id: String,
+    val app: String,
+    val reporterId: String,
+    val reporterRole: String,
+    val reporterName: String = "",
+    val reporterPhone: String = "",
+    val shopId: String? = null,
+    val feature: String,
+    val featureLabel: String = "",
+    val issueType: String,
+    val issueLabel: String = "",
+    val description: String = "",
+    val attachments: List<String> = emptyList(),
+    val platform: String = "",
+    val appVersion: String = "",
+    val status: String,
+    val createdAt: Long,
+    val resolvedAt: Long? = null,
+    val fixedInVersion: String = "",
+    val resolutionNote: String = "",
+)
+
+@Serializable
+data class IssueResolveRequest(
+    val fixedInVersion: String = "",
+    val note: String = "",
+)
+
+@Serializable
+data class IssueCountsDto(val open: Int, val resolved: Int)
+
+@Serializable
+data class AppVersionCountDto(
+    val app: String,
+    val platform: String,
+    val versionName: String,
+    val versionCode: Long,
+    val users: Int,
+)
+
+@Serializable
+data class PaymentMethodUsageDto(
+    val method: String,
+    val users: Int,
+    val orders: Int,
+)
+
+@Serializable
+data class AppUserRowDto(
+    val principalId: String,
+    val role: String,
+    val app: String,
+    val platform: String,
+    val versionName: String,
+    val versionCode: Long,
+    val name: String = "",
+    val phone: String = "",
+    val lastSeenAt: Long,
+    val paymentMethods: List<String> = emptyList(),
+)
+
+@Serializable
+data class AppUsageReportDto(
+    val totalUsers: Int,
+    val versions: List<AppVersionCountDto>,
+    val paymentMethods: List<PaymentMethodUsageDto>,
+    val users: List<AppUserRowDto>,
 )

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,6 +37,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -59,6 +62,7 @@ import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.stock_req_action
 import pansariwala.shared.generated.resources.action_clear
 import pansariwala.shared.generated.resources.category_price
 import pansariwala.shared.generated.resources.inv_add_custom
@@ -121,6 +125,8 @@ fun InventoryListScreen(
             onDismiss = sheetViewModel::dismiss,
         )
     }
+    var stockRequestFor by remember { mutableStateOf<Product?>(null) }
+    stockRequestFor?.let { StockRequestSheet(product = it, onDismiss = { stockRequestFor = null }) }
     val filter = state.filter
     val products = state.products
     val categoryNames = remember(state.categories) { state.categoryNames }
@@ -244,6 +250,7 @@ fun InventoryListScreen(
                             product,
                             categoryName = categoryNames[product.subCategoryId ?: product.categoryId].orEmpty(),
                             onClick = { onOpenProduct(product.id) },
+                            onRequestStock = { stockRequestFor = product },
                         )
                         HorizontalDivider()
                     }
@@ -273,7 +280,7 @@ private fun ProductStatusFilter.label() = when (this) {
 }
 
 @Composable
-private fun ShopProductRow(product: Product, categoryName: String, onClick: () -> Unit) {
+private fun ShopProductRow(product: Product, categoryName: String, onClick: () -> Unit, onRequestStock: () -> Unit) {
     val level = product.stockLevel
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
@@ -328,6 +335,15 @@ private fun ShopProductRow(product: Product, categoryName: String, onClick: () -
                 color = level.color(),
             )
             StockBadge(level)
+            if (product.isLowStock) {
+                IconButton(onClick = onRequestStock) {
+                    Icon(
+                        Icons.Filled.LocalShipping,
+                        contentDescription = stringResource(Res.string.stock_req_action),
+                        tint = level.color(),
+                    )
+                }
+            }
         }
     }
 }

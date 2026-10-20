@@ -1,5 +1,8 @@
 package org.bhargav.pansariwala.feature.delivery
 
+import org.bhargav.pansariwala.designsystem.appDialogProperties
+import org.bhargav.pansariwala.feature.support.ReportIssueButton
+import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -53,7 +56,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -207,6 +209,7 @@ fun PartnerHomeTopBar(
         onBack = null,
         modifier = modifier,
         actions = {
+            ReportIssueButton()
             Text(
                 text = stringResource(
                     if (online) Res.string.partner_action_go_offline else Res.string.partner_action_go_online,
@@ -794,7 +797,7 @@ fun FullscreenNetworkImage(
     }
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = appDialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
             modifier = Modifier
@@ -1292,7 +1295,7 @@ fun PartnerOfferTakenSheet(
         ),
         label = "offer-taken-scale",
     )
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onOkay,
         sheetState = sheetState,
     ) {

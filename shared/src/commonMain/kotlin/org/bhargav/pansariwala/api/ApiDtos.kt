@@ -151,6 +151,8 @@ data class ShopDto(
     val address: String = "",
     val deliveryUntil: String = "",
     val deliveryAvailable: Boolean = true,
+    val minOrderValueInr: Double = 0.0,
+    val freeDeliveryAboveInr: Double = 0.0,
 )
 
 @Serializable
@@ -382,7 +384,12 @@ data class QuoteDto(
     val deliveryCharge: Double,
     val payable: Double,
     val deliveryDistanceKm: Double,
+    /** Server's active checkout: [AppConstants.Payment.MODE_DIRECT_UPI], CASHFREE or RAZORPAY. */
+    val paymentMode: String = AppConstants.Payment.MODE_RAZORPAY,
 )
+
+@Serializable
+data class SubmitUtrRequest(val utr: String)
 
 @Serializable
 data class CreateRazorpayRequest(val shopId: String, val amountPaise: Long)
@@ -467,6 +474,11 @@ data class OrderDto(
     val deliveryMode: String = AppConstants.DELIVERY_MODE_PARTNER,
     /** POS bill discount in INR. Online orders keep theirs on [quote]. */
     val discount: Double = 0.0,
+    val upiPayUri: String? = null,
+    val payeeUpi: String? = null,
+    val paymentLinkUrl: String? = null,
+    val paymentUtr: String? = null,
+    val paymentDueAtEpochMs: Long? = null,
 )
 
 @Serializable
@@ -697,6 +709,8 @@ fun ShopDto.toModel() = MarketplaceShop(
     address = address,
     deliveryUntil = deliveryUntil,
     deliveryAvailable = deliveryAvailable,
+    minOrderValueInr = minOrderValueInr,
+    freeDeliveryAboveInr = freeDeliveryAboveInr,
 )
 
 fun CatalogSectionDto.toModel() = org.bhargav.pansariwala.domain.model.CatalogSection(
@@ -946,6 +960,11 @@ fun OrderDto.toModel() = Order(
     packedProductIds = packedProductIds.toSet(),
     isSelfDelivery = deliveryMode == AppConstants.DELIVERY_MODE_SELF,
     discount = discount,
+    upiPayUri = upiPayUri,
+    payeeUpi = payeeUpi,
+    paymentLinkUrl = paymentLinkUrl,
+    paymentUtr = paymentUtr,
+    paymentDueAtEpochMs = paymentDueAtEpochMs,
 )
 
 fun OfferDto.toModel() = ShopOffer(

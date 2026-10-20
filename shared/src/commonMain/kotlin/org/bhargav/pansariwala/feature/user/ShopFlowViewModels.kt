@@ -47,6 +47,8 @@ import pansariwala.shared.generated.resources.error_generic
 import pansariwala.shared.generated.resources.error_razorpay_cancelled
 import pansariwala.shared.generated.resources.error_razorpay_failed
 import pansariwala.shared.generated.resources.error_razorpay_unavailable
+import pansariwala.shared.generated.resources.order_pay_still_pending
+import pansariwala.shared.generated.resources.order_pay_upi_open_failed
 
 data class CatalogData(
     val shop: MarketplaceShop? = null,
@@ -223,8 +225,14 @@ data class CartUiState(
     val checkingShop: Boolean = false,
     /** Name of the shop when the pre-checkout check found it closed; drives the closed dialog. */
     val closedShopName: String? = null,
+    val minOrderValue: Double = 0.0,
+    val freeDeliveryAbove: Double = 0.0,
     val error: UiText? = null,
-)
+) {
+    /** Amount still needed to reach the shop's minimum order; 0 once it is met. */
+    val shortOfMinimum: Double get() = (minOrderValue - subtotal).coerceAtLeast(0.0)
+    val canCheckout: Boolean get() = lines.isNotEmpty() && shortOfMinimum <= 0.0 && !checkingShop
+}
 
 class CartViewModel(
     private val cart: CartStore,
@@ -242,6 +250,20 @@ class CartViewModel(
         }
     }
 
+    /** Loads the shop's minimum-order and free-delivery amounts for the cart hints. */
+    fun load(shopId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val geo = location.currentOrDefault()
+                api.shopInfo(shopId, geo.lat, geo.lng)
+            }.onSuccess(::applyShopRules).onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
+
+    private fun applyShopRules(shop: MarketplaceShop) {
+        _state.update { it.copy(minOrderValue = shop.minOrderValueInr, freeDeliveryAbove = shop.freeDeliveryAboveInr) }
+    }
+
     /** Re-reads the shop's live open status; only continues to checkout while it is open. */
     fun proceedToCheckout(shopId: String, onProceed: () -> Unit) {
         if (_state.value.checkingShop) return
@@ -252,6 +274,8 @@ class CartViewModel(
                 api.shopInfo(shopId, geo.lat, geo.lng)
             }.onSuccess { shop ->
                 _state.update { it.copy(checkingShop = false) }
+                applyShopRules(shop)
+                if (_state.value.shortOfMinimum > 0.0) return@onSuccess
                 if (shop.isOpen) {
                     onProceed()
                 } else {
@@ -398,6 +422,12 @@ class CheckoutViewModel(
                     selfPickup = selfPickup,
                 )
                 api.validateOrder(request)
+                if (quote.paymentMode != AppConstants.Payment.MODE_RAZORPAY) {
+                    // Order is created as PAYMENT_PENDING; payment happens on the order screen.
+                    val order = api.placeOrder(request)
+                    cart.clear()
+                    return@runCatching order.id
+                }
                 val profile = preferences.getCachedCustomerProfile()
                     ?: api.me().also { preferences.setCachedCustomerProfile(it) }
 
@@ -485,6 +515,10 @@ data class OrderDetailsUiState(
     val stars: Int = 0,
     val comment: String = "",
     val editingRating: Boolean = false,
+    val utr: String = "",
+    val paymentBusy: Boolean = false,
+    /** Shown under the pay card (e.g. "not received yet"). */
+    val paymentNote: UiText? = null,
     val error: UiText? = null,
 )
 
@@ -536,8 +570,10 @@ class OrderDetailsViewModel(
 
     private fun fetch(orderId: String) {
         loadJob?.cancel()
+        val current = _state.value.order
+        val pollGateway = current?.isAwaitingPayment == true && !current.isDirectUpi
         loadJob = viewModelScope.launch {
-            runCatching { api.order(orderId) }
+            runCatching { if (pollGateway) api.refreshPayment(orderId) else api.order(orderId) }
                     .onSuccess { order ->
                         _state.update {
                             it.copy(
@@ -556,6 +592,49 @@ class OrderDetailsViewModel(
                             _state.update { it.copy(error = err.toApiUiText()) }
                         }
                     }
+        }
+    }
+
+    fun setUtr(value: String) {
+        val clean = value.filter { it.isLetterOrDigit() }.take(AppConstants.Payment.UTR_MAX_LENGTH)
+        _state.update { it.copy(utr = clean, paymentNote = null) }
+    }
+
+    fun canSubmitUtr(): Boolean = _state.value.utr.length >= AppConstants.Payment.UTR_MIN_LENGTH
+
+    fun submitUtr() {
+        val order = _state.value.order ?: return
+        if (!canSubmitUtr()) return
+        runPaymentAction { api.submitPaymentUtr(order.id, _state.value.utr) }
+    }
+
+    /** After returning from a UPI app / Cashfree page. */
+    fun checkPayment() {
+        val order = _state.value.order ?: return
+        runPaymentAction {
+            val updated = if (order.isDirectUpi) api.order(order.id) else api.refreshPayment(order.id)
+            if (updated.isAwaitingPayment && !updated.isDirectUpi) {
+                _state.update { it.copy(paymentNote = UiText.res(Res.string.order_pay_still_pending)) }
+            }
+            updated
+        }
+    }
+
+    fun onUpiAppMissing() {
+        _state.update { it.copy(paymentNote = UiText.res(Res.string.order_pay_upi_open_failed)) }
+    }
+
+    private fun runPaymentAction(block: suspend () -> Order) {
+        viewModelScope.launch {
+            _state.update { it.copy(paymentBusy = true, paymentNote = null) }
+            runCatching { block() }
+                .onSuccess { order ->
+                    _state.update { it.copy(order = order, step = order.status.toFulfillmentStep(), paymentBusy = false) }
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { it.copy(paymentBusy = false, error = err.toApiUiText()) }
+                }
         }
     }
 

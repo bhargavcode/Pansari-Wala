@@ -229,6 +229,13 @@ object AppConstants {
     const val IMAGE_MEMORY_CACHE_BYTES: Long = 96L * 1024 * 1024
     const val IMAGE_DISK_CACHE_BYTES: Long = 150L * 1024 * 1024
     const val IMAGE_DISK_CACHE_DIR: String = "image_cache"
+    /** API route that re-serves remote images with CORS headers (web clients). */
+    const val IMAGE_PROXY_PATH: String = "/media/image"
+    /** WhatsApp click-to-chat; append the phone in international format without "+". */
+    const val WHATSAPP_CHAT_URL: String = "https://wa.me/"
+    /** Shop online-order rules; mirror the server defaults for shops that never saved them. */
+    const val DEFAULT_SHOP_MIN_ORDER_INR: Double = 200.0
+    const val DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR: Double = 500.0
     const val CART_SAVE_DEBOUNCE_MS: Long = 400L
     const val IMAGE_CAROUSEL_INTERVAL_MS: Long = 2_000L
     const val UPLOAD_AUTO_RETRY_COUNT: Int = 1
@@ -258,6 +265,8 @@ object AppConstants {
         const val SHOP_FEATURES: String = "pref_shop_features"
         const val SCANNER_SETTINGS: String = "pref_scanner_settings"
         const val VOICE_AUTO_ADD: String = "pref_voice_auto_add"
+        /** Suffixed with the shop id so each shop keeps its own supplier list on a shared device. */
+        const val SUPPLIER_BOOK_PREFIX: String = "pref_supplier_book_"
     }
 
     object Voice {
@@ -311,6 +320,24 @@ object AppConstants {
         const val KEY_CUSTOMER_NAME: String = "customerName"
         const val PLATFORM_ANDROID: String = "android"
         const val PLATFORM_IOS: String = "ios"
+        const val EVENT_ISSUE_UPDATE: String = "ISSUE_UPDATE"
+        const val ALERT_ISSUE_RESOLVED: String = "ISSUE_RESOLVED"
+        const val KEY_ISSUE_ID: String = "issueId"
+        const val KEY_FEATURE: String = "feature"
+        const val KEY_FIXED_IN: String = "fixedIn"
+    }
+
+    /** In-app issue reports and build tracking (server `SupportService`). */
+    object Support {
+        const val PLATFORM_WEB: String = "web"
+        const val WEB_VERSION: String = "web"
+        const val STATUS_OPEN: String = "OPEN"
+        const val STATUS_RESOLVED: String = "RESOLVED"
+        const val ATTACHMENT_PREFIX: String = "issues/attachments"
+        const val MAX_ATTACHMENTS: Int = 4
+        const val MAX_DESCRIPTION: Int = 2_000
+        const val INSTALL_RETRY_MS: Long = 30_000L
+        const val NOTIFICATION_TYPE: String = "issue"
     }
 
     object PosPayment {
@@ -318,6 +345,17 @@ object AppConstants {
         const val UPI: String = "UPI"
         const val CARD: String = "CARD"
         const val UPI_CURRENCY: String = "INR"
+    }
+
+    /** Mirrors the server's `PaymentMode` / `PaymentMethod`. */
+    object Payment {
+        const val MODE_DIRECT_UPI: String = "DIRECT_UPI"
+        const val MODE_CASHFREE: String = "CASHFREE"
+        const val MODE_RAZORPAY: String = "RAZORPAY"
+        const val METHOD_UPI_DIRECT: String = "UPI_DIRECT"
+        const val METHOD_CASHFREE: String = "CASHFREE"
+        const val UTR_MIN_LENGTH: Int = 6
+        const val UTR_MAX_LENGTH: Int = 35
     }
 
     object Razorpay {

@@ -29,6 +29,7 @@ enum class OnlineOrderTab(val statuses: List<OrderStatus>) {
     /** Every open order: not yet delivered, completed, rejected or cancelled. */
     ACTIVE(
         listOf(
+            OrderStatus.PAYMENT_PENDING,
             OrderStatus.RECEIVED,
             OrderStatus.ACCEPTED,
             OrderStatus.PACKING,
@@ -37,7 +38,7 @@ enum class OnlineOrderTab(val statuses: List<OrderStatus>) {
             OrderStatus.ON_THE_WAY,
         ),
     ),
-    NEW(listOf(OrderStatus.RECEIVED)),
+    NEW(listOf(OrderStatus.PAYMENT_PENDING, OrderStatus.RECEIVED)),
     ACCEPTED(listOf(OrderStatus.ACCEPTED)),
     PACKING(listOf(OrderStatus.PACKING)),
     DELIVERY(listOf(OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED, OrderStatus.ON_THE_WAY)),
@@ -249,6 +250,8 @@ class OnlineOrdersViewModel(
     }
 
     fun accept(id: String) = runOrderAction(id) { api.acceptOrder(id) }
+
+    fun confirmPayment(id: String) = runOrderAction(id) { api.confirmOrderPayment(id) }
 
     fun markPacking(id: String) = runOrderAction(id) {
         api.setOrderStatus(id, OrderStatus.PACKING.name)

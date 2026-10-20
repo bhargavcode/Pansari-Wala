@@ -12,6 +12,7 @@ import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.CustomerProfile
 import org.bhargav.pansariwala.domain.model.PartnerProfile
+import org.bhargav.pansariwala.domain.model.SupplierBook
 import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.platform.stopPartnerLocationTracking
 import org.bhargav.pansariwala.settings.AppUserSettings
@@ -144,6 +145,17 @@ class AppPreferences(
 
     suspend fun setVoiceAutoAdd(enabled: Boolean) {
         store.putStrings(mapOf(AppConstants.Prefs.VOICE_AUTO_ADD to enabled.toString()))
+    }
+
+    suspend fun getSupplierBook(shopId: String): SupplierBook =
+        store.getString(AppConstants.Prefs.SUPPLIER_BOOK_PREFIX + shopId)?.let { raw ->
+            runCatching { json.decodeFromString(SupplierBook.serializer(), raw) }.getOrNull()
+        } ?: SupplierBook()
+
+    suspend fun setSupplierBook(shopId: String, book: SupplierBook) {
+        store.putStrings(
+            mapOf(AppConstants.Prefs.SUPPLIER_BOOK_PREFIX + shopId to json.encodeToString(SupplierBook.serializer(), book)),
+        )
     }
 
     private fun toShopAccess(role: String?, perms: String?): ShopAccess =

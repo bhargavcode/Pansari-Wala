@@ -279,6 +279,9 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         discountPercent: Double? = null,
         deliveryUntil: String? = null,
         homeDeliveryEnabled: Boolean? = null,
+        minOrderValueInr: Double? = null,
+        freeDeliveryEnabled: Boolean? = null,
+        freeDeliveryAboveInr: Double? = null,
     ) {
         client.post(url("/admin/shops/$id")) {
             bearer(token)
@@ -293,6 +296,8 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
                     operatingHours = operatingHours, loginUsername = loginUsername, loginPassword = loginPassword,
                     upiId = upiId, deliveryRadiusKm = deliveryRadiusKm, discountPercent = discountPercent,
                     deliveryUntil = deliveryUntil, homeDeliveryEnabled = homeDeliveryEnabled,
+                    minOrderValueInr = minOrderValueInr, freeDeliveryEnabled = freeDeliveryEnabled,
+                    freeDeliveryAboveInr = freeDeliveryAboveInr,
                 ),
             )
         }
@@ -368,6 +373,13 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
 
     suspend fun savePlatformSettings(token: String, body: PlatformSettingsDto): PlatformSettingsDto =
         client.post(url("/admin/platform-settings")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun savePaymentSettings(token: String, body: PlatformSettingsDto): PlatformSettingsDto =
+        client.post(url("/admin/payment-settings")) {
             bearer(token)
             contentType(ContentType.Application.Json)
             setBody(body)
@@ -475,10 +487,101 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             setBody(body)
         }.body()
 
+    suspend fun appUsage(
+        token: String,
+        app: String?,
+        platform: String?,
+        version: String?,
+        paymentMethod: String?,
+    ): AppUsageReportDto =
+        client.get(url("/admin/app-usage")) {
+            bearer(token)
+            app?.let { parameter("app", it) }
+            platform?.let { parameter("platform", it) }
+            version?.let { parameter("version", it) }
+            paymentMethod?.let { parameter("paymentMethod", it) }
+        }.body()
+
+    suspend fun issues(token: String, status: String?, app: String?): List<AdminIssueDto> =
+        client.get(url("/admin/issues")) {
+            bearer(token)
+            status?.let { parameter("status", it) }
+            app?.let { parameter("app", it) }
+        }.body()
+
+    suspend fun resolveIssue(token: String, id: String, body: IssueResolveBody): AdminIssueDto =
+        client.post(url("/admin/issues/${id.encodeURLPathPart()}/resolve")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun reopenIssue(token: String, id: String): AdminIssueDto =
+        client.post(url("/admin/issues/${id.encodeURLPathPart()}/reopen")) { bearer(token) }.body()
+
     private fun io.ktor.client.request.HttpRequestBuilder.bearer(token: String) {
         headers.append("Authorization", "Bearer $token")
     }
 }
+
+@Serializable
+data class AppVersionCountDto(
+    val app: String,
+    val platform: String,
+    val versionName: String,
+    val versionCode: Long = 0L,
+    val users: Int,
+)
+
+@Serializable
+data class PaymentMethodUsageDto(val method: String, val users: Int, val orders: Int)
+
+@Serializable
+data class AppUserRowDto(
+    val principalId: String,
+    val role: String,
+    val app: String,
+    val platform: String,
+    val versionName: String,
+    val versionCode: Long = 0L,
+    val name: String = "",
+    val phone: String = "",
+    val lastSeenAt: Long = 0L,
+    val paymentMethods: List<String> = emptyList(),
+)
+
+@Serializable
+data class AppUsageReportDto(
+    val totalUsers: Int = 0,
+    val versions: List<AppVersionCountDto> = emptyList(),
+    val paymentMethods: List<PaymentMethodUsageDto> = emptyList(),
+    val users: List<AppUserRowDto> = emptyList(),
+)
+
+@Serializable
+data class AdminIssueDto(
+    val id: String,
+    val app: String,
+    val reporterId: String = "",
+    val reporterRole: String = "",
+    val reporterName: String = "",
+    val reporterPhone: String = "",
+    val feature: String = "",
+    val featureLabel: String = "",
+    val issueType: String = "",
+    val issueLabel: String = "",
+    val description: String = "",
+    val attachments: List<String> = emptyList(),
+    val platform: String = "",
+    val appVersion: String = "",
+    val status: String = "",
+    val createdAt: Long = 0L,
+    val resolvedAt: Long? = null,
+    val fixedInVersion: String = "",
+    val resolutionNote: String = "",
+)
+
+@Serializable data class IssueResolveBody(val fixedInVersion: String = "", val note: String = "")
 
 @Serializable data class LoginBody(val username: String, val password: String)
 @Serializable data class TokenDto(val accessToken: String, val role: String = "ADMIN")
@@ -641,6 +744,11 @@ data class PlatformSettingsDto(
     val onlineOrderingEnabled: Boolean = true,
     val orderingPausedMessage: String = "",
     val partnerRegistrationEnabled: Boolean = true,
+    /** DIRECT_UPI, CASHFREE or RAZORPAY. */
+    val paymentMode: String = "DIRECT_UPI",
+    val paymentWindowMinutes: Int = 15,
+    val cashfreeConfigured: Boolean = false,
+    val razorpayConfigured: Boolean = false,
     val updatedAt: Long = 0L,
 )
 
@@ -710,6 +818,9 @@ data class ShopDto(
     val discountPercent: Double = 0.0,
     val deliveryUntil: String = "",
     val homeDeliveryEnabled: Boolean = true,
+    val minOrderValueInr: Double = AppConstants.DEFAULT_SHOP_MIN_ORDER_INR,
+    val freeDeliveryEnabled: Boolean = false,
+    val freeDeliveryAboveInr: Double = AppConstants.DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR,
 )
 
 @Serializable
@@ -749,6 +860,9 @@ data class ShopPatch(
     /** "HH:mm"; empty string clears the cutoff. */
     val deliveryUntil: String? = null,
     val homeDeliveryEnabled: Boolean? = null,
+    val minOrderValueInr: Double? = null,
+    val freeDeliveryEnabled: Boolean? = null,
+    val freeDeliveryAboveInr: Double? = null,
 )
 
 @Serializable

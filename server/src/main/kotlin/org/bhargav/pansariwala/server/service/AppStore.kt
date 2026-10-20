@@ -74,6 +74,10 @@ import org.bhargav.pansariwala.server.dto.AdminTxnSummaryDto
 import org.bhargav.pansariwala.server.dto.AdminUserDetailDto
 import org.bhargav.pansariwala.server.dto.AdminUserDto
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
+import org.bhargav.pansariwala.server.payment.CashfreeGateway
+import org.bhargav.pansariwala.server.payment.PaymentMethod
+import org.bhargav.pansariwala.server.payment.PaymentMode
+import org.bhargav.pansariwala.server.payment.STATUS_PAYMENT_PENDING
 import org.bhargav.pansariwala.server.dto.CustomerDto
 import org.bhargav.pansariwala.server.dto.DeliveryOfferDto
 import org.bhargav.pansariwala.server.dto.MasterCategoryDto
@@ -168,6 +172,7 @@ private const val VARIANT_BUNDLE = "BUNDLE"
 private val VARIANT_SELL_MODES = setOf(VARIANT_PACK, VARIANT_LOOSE, VARIANT_BUNDLE)
 private const val DEFAULT_LOOSE_STEP = 0.05
 private const val QTY_EPSILON = 1e-6
+private const val MAX_SHOP_ORDER_LIMIT_INR = 100_000.0
 private val LOOSE_UNITS = setOf("KG", "LITRE", "GRAM")
 private const val PLATFORM_SETTINGS_ID = "global"
 private const val PLATFORM_SETTINGS_CACHE_MS = 30_000L
@@ -196,6 +201,7 @@ class AppStore(
     private val push: PushService,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val cashfree = CashfreeGateway(config)
     private val sockets = ConcurrentHashMap<String, WebSocketSession>()
     private val acceptLocks = ConcurrentHashMap<String, Any>()
     private val shopCol = mongo.db.getCollection<ShopDoc>("shops")
@@ -319,6 +325,7 @@ class AppStore(
         require(body.minUserSearchRadiusKm in 1.0..MAX_MIN_USER_SEARCH_RADIUS_KM) {
             "Minimum search radius must be 1-${MAX_MIN_USER_SEARCH_RADIUS_KM.toInt()} km"
         }
+        val current = platformSettingsCol.find(eq("_id", PLATFORM_SETTINGS_ID)).firstOrNull() ?: PlatformSettingsDoc()
         val doc = PlatformSettingsDoc(
             id = PLATFORM_SETTINGS_ID,
             platformFeeInr = body.platformFeeInr,
@@ -336,6 +343,27 @@ class AppStore(
             onlineOrderingEnabled = body.onlineOrderingEnabled,
             orderingPausedMessage = body.orderingPausedMessage.trim().take(200),
             partnerRegistrationEnabled = body.partnerRegistrationEnabled,
+            paymentMode = current.paymentMode,
+            paymentWindowMinutes = current.paymentWindowMinutes,
+            updatedAt = System.currentTimeMillis(),
+        )
+        platformSettingsCol.replaceOne(eq("_id", PLATFORM_SETTINGS_ID), doc, ReplaceOptions().upsert(true))
+        platformCache = System.currentTimeMillis() to doc
+        return doc.toDto()
+    }
+
+    /** Payment fields only, so pricing / control screens saving stale copies can't flip the mode. */
+    fun savePaymentSettings(paymentMode: String, paymentWindowMinutes: Int): PlatformSettingsDto {
+        require(paymentMode in PaymentMode.ALL) { "Unknown payment mode" }
+        require(paymentMode != PaymentMode.CASHFREE || cashfree.enabled) {
+            "Cashfree keys are not set on the server (CASHFREE_APP_ID / CASHFREE_SECRET_KEY)"
+        }
+        require(paymentWindowMinutes in 5..120) { "Payment window must be 5-120 minutes" }
+        val current = platformSettingsCol.find(eq("_id", PLATFORM_SETTINGS_ID)).firstOrNull() ?: PlatformSettingsDoc()
+        val doc = current.copy(
+            id = PLATFORM_SETTINGS_ID,
+            paymentMode = paymentMode,
+            paymentWindowMinutes = paymentWindowMinutes,
             updatedAt = System.currentTimeMillis(),
         )
         platformSettingsCol.replaceOne(eq("_id", PLATFORM_SETTINGS_ID), doc, ReplaceOptions().upsert(true))
@@ -359,6 +387,10 @@ class AppStore(
         onlineOrderingEnabled = onlineOrderingEnabled,
         orderingPausedMessage = orderingPausedMessage,
         partnerRegistrationEnabled = partnerRegistrationEnabled,
+        paymentMode = paymentMode,
+        paymentWindowMinutes = paymentWindowMinutes,
+        cashfreeConfigured = cashfree.enabled,
+        razorpayConfigured = config.paymentsEnabled,
         updatedAt = updatedAt,
     )
 
@@ -573,6 +605,8 @@ class AppStore(
             deliversToYou = dist <= deliveryRadiusKm,
             deliveryUntil = deliveryUntil,
             deliveryAvailable = deliveryAvailableNow(),
+            minOrderValueInr = effectiveMinOrder(platform()),
+            freeDeliveryAboveInr = if (freeDeliveryEnabled) freeDeliveryAboveInr else 0.0,
         )
     }
 
@@ -983,6 +1017,10 @@ class AppStore(
     private fun liveOffers(shopId: String, now: Long = System.currentTimeMillis()): List<OfferDoc> =
         offerCol.find(eq("shopId", shopId)).toList().filter { it.isLive(now) }
 
+    /** The stricter of the platform-wide and the shop's own minimum. */
+    private fun ShopDoc.effectiveMinOrder(settings: PlatformSettingsDoc): Double =
+        maxOf(settings.minOrderValueInr, minOrderValueInr)
+
     fun quote(userId: String, request: QuoteRequest): QuoteDto {
         me(userId)
         val shop = shopById(request.shopId)
@@ -991,9 +1029,18 @@ class AppStore(
         val dist = haversine(request.userLat, request.userLng, shop.lat, shop.lng)
         val discount = offerDiscount(liveOffers(request.shopId), lines, shop.discountPercent)
         val settings = platform()
-        val delivery = if (request.selfPickup) 0.0 else settings.deliveryCharge(dist, subtotal - discount)
+        val freeByShop = shop.freeDeliveryEnabled && subtotal - discount + QTY_EPSILON >= shop.freeDeliveryAboveInr
+        val delivery = if (request.selfPickup || freeByShop) 0.0 else settings.deliveryCharge(dist, subtotal - discount)
         val fee = settings.platformFeeInr
-        return QuoteDto(subtotal, discount, fee, delivery, (subtotal - discount + fee + delivery).coerceAtLeast(0.0), dist)
+        return QuoteDto(
+            itemsSubtotal = subtotal,
+            discount = discount,
+            platformFee = fee,
+            deliveryCharge = delivery,
+            payable = (subtotal - discount + fee + delivery).coerceAtLeast(0.0),
+            deliveryDistanceKm = dist,
+            paymentMode = settings.paymentMode,
+        )
     }
 
     /** Non-payment checks (profile, cart, stock, delivery radius). Call before creating a Razorpay order. */
@@ -1007,6 +1054,10 @@ class AppStore(
         require(customer.name.isNotBlank() && customer.address.isNotBlank()) { "Complete your profile" }
         val shop = shopById(request.shopId)
         require(shop.openNow()) { "${shop.name} is closed and not taking orders right now." }
+        when (settings.paymentMode) {
+            PaymentMode.DIRECT_UPI -> require(shop.upiId.isNotBlank()) { "${shop.name} has not set up UPI payments yet." }
+            PaymentMode.CASHFREE -> require(cashfree.enabled) { "Online payments are not available right now." }
+        }
         if (!request.selfPickup) {
             require(shop.deliveryAvailableNow()) {
                 "This shop is not delivering right now. Order for pickup and collect at the shop."
@@ -1016,9 +1067,10 @@ class AppStore(
             require(dist <= shop.deliveryRadiusKm) { "Out of shop delivery range" }
         }
         val lines = resolveLines(request.shopId, request.items)
-        if (settings.minOrderValueInr > 0) {
-            require(lines.sumOf { it.lineTotal } + QTY_EPSILON >= settings.minOrderValueInr) {
-                "Minimum order value is ₹${settings.minOrderValueInr.toLong()}"
+        val minOrder = shop.effectiveMinOrder(settings)
+        if (minOrder > 0) {
+            require(lines.sumOf { it.lineTotal } + QTY_EPSILON >= minOrder) {
+                "Minimum order value is ₹${minOrder.toLong()}"
             }
         }
         lines
@@ -1107,18 +1159,23 @@ class AppStore(
         security.verifyRazorpaySignature(orderId, paymentId, signature)
 
     suspend fun placeOrder(userId: String, request: PlaceOrderRequest): OrderDto {
-        if (config.paymentsEnabled) {
-            val orderId = request.razorpayOrderId ?: error("Missing Razorpay order id")
-            val paymentId = request.razorpayPaymentId ?: error("Missing Razorpay payment id")
-            val signature = request.razorpaySignature ?: error("Missing Razorpay signature")
-            require(security.verifyRazorpaySignature(orderId, paymentId, signature)) { "Payment signature mismatch" }
-        } else if (!config.devAuth) {
-            error("Payments are not configured")
+        val settings = platform()
+        // Older apps always pay through Razorpay first; honour that payment whatever the current mode.
+        val mode = if (request.razorpayPaymentId.isNullOrBlank()) settings.paymentMode else PaymentMode.RAZORPAY
+        if (mode == PaymentMode.RAZORPAY) {
+            if (config.paymentsEnabled) {
+                val orderId = request.razorpayOrderId ?: error("Missing Razorpay order id")
+                val paymentId = request.razorpayPaymentId ?: error("Missing Razorpay payment id")
+                val signature = request.razorpaySignature ?: error("Missing Razorpay signature")
+                require(security.verifyRazorpaySignature(orderId, paymentId, signature)) { "Payment signature mismatch" }
+            } else if (!config.devAuth) {
+                error("Payments are not configured")
+            }
         }
         val customer = validateCheckout(userId, request)
         val drop = resolveDrop(customer, request)
         val shop = shopById(request.shopId)
-        val shopUpi = shop.upiId.ifBlank { config.defaultShopUpi }
+        val shopUpi = if (mode == PaymentMode.DIRECT_UPI) shop.upiId else shop.upiId.ifBlank { config.defaultShopUpi }
         val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng, request.selfPickup))
         val resolved = resolveLines(request.shopId, request.items)
         val items = resolved.map { line ->
@@ -1138,14 +1195,32 @@ class AppStore(
         val id = security.newOrderId()
         val otp = security.deliveryOtp()
         val now = System.currentTimeMillis()
-        val paymentMethod = if (request.razorpayPaymentId.isNullOrBlank()) "COD" else "ONLINE"
+        val prepaid = mode == PaymentMode.RAZORPAY
+        val paymentMethod = when (mode) {
+            PaymentMode.DIRECT_UPI -> PaymentMethod.UPI_DIRECT
+            PaymentMode.CASHFREE -> PaymentMethod.CASHFREE
+            else -> if (request.razorpayPaymentId.isNullOrBlank()) PaymentMethod.COD else PaymentMethod.RAZORPAY
+        }
+        val paymentDueAt = if (prepaid) null else now + settings.paymentWindowMinutes * 60_000L
+        val paymentLink = if (mode == PaymentMode.CASHFREE) {
+            cashfree.createLink(
+                linkId = id,
+                amountInr = q.payable,
+                purpose = "Order $id at ${shop.name}",
+                customerName = customer.name,
+                customerPhone = customer.phone,
+                expiresAtMs = paymentDueAt!!,
+            ).linkUrl ?: error("Cashfree did not return a payment link")
+        } else {
+            null
+        }
         deductStock(resolved)
         orderCol.insertOne(
             OrderDoc(
                 id = id,
                 shopId = request.shopId,
                 customerId = userId,
-                status = "RECEIVED",
+                status = if (prepaid) "RECEIVED" else STATUS_PAYMENT_PENDING,
                 channel = "ONLINE",
                 customerName = customer.name,
                 customerPhone = customer.phone,
@@ -1159,15 +1234,22 @@ class AppStore(
                 },
                 selfPickup = request.selfPickup,
                 deliveryOtp = otp,
-                paymentId = request.razorpayPaymentId ?: "pay_dev",
+                paymentId = if (prepaid) request.razorpayPaymentId ?: "pay_dev" else null,
                 paymentMethod = paymentMethod,
                 razorpayOrderId = request.razorpayOrderId,
                 shopUpi = shopUpi,
+                paymentLinkUrl = paymentLink,
+                paymentDueAt = paymentDueAt,
                 createdAt = now,
                 items = items,
                 quote = q,
             ),
         )
+        if (!prepaid) {
+            // CASHFREE: the shop only hears about the order once it is paid.
+            if (mode == PaymentMode.DIRECT_UPI) publishOrderUpdate(id, previousStatus = null)
+            return getOrder(id)
+        }
         txnCol.insertOne(TxnDoc(security.randomId("txn"), id, userId, q.payable, "Order $id", now))
         publishOrderUpdate(id, previousStatus = null)
         if (config.paymentsEnabled) {
@@ -1186,6 +1268,147 @@ class AppStore(
     fun getOrder(orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         return row.toDto()
+    }
+
+    /** Customer reports the UPI reference (UTR) of a DIRECT_UPI payment; the shop matches it in its bank app. */
+    fun submitPaymentUtr(userId: String, orderId: String, utr: String): OrderDto {
+        val ref = utr.trim().uppercase()
+        require(ref.length in 6..35 && ref.all { it.isLetterOrDigit() }) { "Enter the 12-digit UPI reference number (UTR)" }
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.customerId == userId) { "Forbidden" }
+        require(row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.UPI_DIRECT) {
+            "This order is not waiting for a UPI payment"
+        }
+        orderCol.updateOne(eq("_id", orderId), set("paymentUtr", ref))
+        publishOrderUpdate(orderId, row.status, always = true)
+        return getOrder(orderId)
+    }
+
+    /** Shop saw the DIRECT_UPI money arrive in its own bank / UPI app. */
+    fun confirmUpiPayment(shopId: String, orderId: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        require(row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.UPI_DIRECT) {
+            "This order is not waiting for a UPI payment"
+        }
+        markPaid(row, row.paymentUtr?.let { "utr_$it" } ?: "upi_${row.id}")
+        return getOrder(orderId)
+    }
+
+    /** Customer app calls this after returning from the payment page (webhooks can lag or be unreachable). */
+    suspend fun refreshPayment(userId: String, orderId: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.customerId == userId) { "Forbidden" }
+        if (row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.CASHFREE) {
+            runCatching { syncCashfree(row, expireIfUnpaid = false) }
+        }
+        return getOrder(orderId)
+    }
+
+    /** Signature-checked; the link status is re-read from Cashfree instead of trusting the body. */
+    suspend fun handleCashfreeWebhook(timestamp: String, rawBody: String, signature: String): Boolean {
+        if (!cashfree.verifyWebhook(timestamp, rawBody, signature)) return false
+        val linkId = cashfree.webhookLinkId(rawBody) ?: return true
+        val row = orderCol.find(eq("_id", linkId)).firstOrNull() ?: return true
+        if (row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.CASHFREE) {
+            syncCashfree(row, expireIfUnpaid = false)
+        }
+        return true
+    }
+
+    private suspend fun syncCashfree(row: OrderDoc, expireIfUnpaid: Boolean) {
+        val link = cashfree.getLink(row.id)
+        when {
+            link.linkStatus == CashfreeGateway.LINK_PAID -> markPaid(row, "cf_${link.linkId}")
+            link.linkStatus in CashfreeGateway.LINK_DEAD || expireIfUnpaid -> {
+                cashfree.cancelLink(row.id)
+                cancelUnpaid(row, "PAYMENT_NOT_COMPLETED")
+            }
+        }
+    }
+
+    private fun markPaid(row: OrderDoc, paymentId: String) {
+        val moved = orderCol.updateOne(
+            and(eq("_id", row.id), eq("status", STATUS_PAYMENT_PENDING)),
+            combine(set("status", "RECEIVED"), set("paymentId", paymentId)),
+        ).modifiedCount > 0
+        if (!moved) return
+        row.customerId?.let { customerId ->
+            txnCol.insertOne(
+                TxnDoc(
+                    security.randomId("txn"),
+                    row.id,
+                    customerId,
+                    row.quote?.payable ?: 0.0,
+                    "Order ${row.id}",
+                    System.currentTimeMillis(),
+                ),
+            )
+        }
+        publishOrderUpdate(row.id, STATUS_PAYMENT_PENDING)
+    }
+
+    private fun cancelUnpaid(row: OrderDoc, reason: String) {
+        val moved = orderCol.updateOne(
+            and(eq("_id", row.id), eq("status", STATUS_PAYMENT_PENDING)),
+            combine(set("status", "CANCELLED"), set("cancelReason", reason)),
+        ).modifiedCount > 0
+        if (!moved) return
+        restoreStock(row.items)
+        publishOrderUpdate(row.id, STATUS_PAYMENT_PENDING)
+    }
+
+    /**
+     * Cancels PAYMENT_PENDING orders past their window and releases stock. DIRECT_UPI orders with a UTR
+     * are left for the shop to confirm or cancel, since the customer may already have paid.
+     */
+    suspend fun expireUnpaidOrders(): Int {
+        val now = System.currentTimeMillis()
+        val due = orderCol.find(and(eq("status", STATUS_PAYMENT_PENDING), lt("paymentDueAt", now))).toList()
+        var expired = 0
+        due.forEach { row ->
+            when (row.paymentMethod) {
+                PaymentMethod.CASHFREE -> runCatching { syncCashfree(row, expireIfUnpaid = true) }
+                PaymentMethod.UPI_DIRECT -> if (row.paymentUtr.isNullOrBlank()) cancelUnpaid(row, "PAYMENT_NOT_COMPLETED")
+                else -> cancelUnpaid(row, "PAYMENT_NOT_COMPLETED")
+            }
+            if (orderCol.countDocuments(and(eq("_id", row.id), eq("status", "CANCELLED"))) > 0) expired++
+        }
+        return expired
+    }
+
+    /** Inverse of [deductStock] for saved order lines. */
+    private fun restoreStock(items: List<OrderItemDto>) {
+        items.forEach { item ->
+            val product = productCol.find(eq("_id", item.productId)).firstOrNull() ?: return@forEach
+            val variant = item.variantId?.let { vid -> product.variants.firstOrNull { it.id == vid } }
+            val line = ResolvedLine(product, variant, item.quantity)
+            val target = line.stockVariant
+            if (target == null) {
+                productCol.updateOne(eq("_id", product.id), inc("stockQty", line.stockUnits))
+            } else {
+                productCol.updateOne(
+                    and(eq("_id", product.id), eq("variants.id", target.id)),
+                    inc("variants.$.stockQty", line.stockUnits),
+                )
+            }
+        }
+    }
+
+    /** Returns the gateway refund id; DIRECT_UPI money sits with the shop, which refunds the customer by UPI. */
+    private suspend fun refundPayment(row: OrderDoc, amountPaise: Long, reason: String): String? = when {
+        amountPaise <= 0 || row.status == STATUS_PAYMENT_PENDING -> null
+        row.paymentMethod == PaymentMethod.UPI_DIRECT -> null
+        row.paymentMethod == PaymentMethod.CASHFREE -> runCatching {
+            cashfree.refundLink(row.id, amountPaise / 100.0, "rf_${row.id}", reason)
+        }.getOrNull()
+        else -> runCatching {
+            security.refundRazorpayPayment(
+                paymentId = row.paymentId.orEmpty(),
+                amountPaise = amountPaise,
+                notes = mapOf("order_id" to row.id, "reason" to reason),
+            )
+        }.getOrNull()
     }
 
     /**
@@ -1408,18 +1631,11 @@ class AppStore(
         require(row.shopId == shopId) { "Forbidden" }
         require(row.status !in setOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED")) { "Cannot cancel" }
         val reasonText = reason?.trim().orEmpty().ifBlank { "CANCELLED" }
-        val refundPaise = refundAmountPaise(row)
-        val refundId = runCatching {
-            security.refundRazorpayPayment(
-                paymentId = row.paymentId.orEmpty(),
-                amountPaise = refundPaise,
-                notes = mapOf("order_id" to orderId, "reason" to reasonText),
-            )
-        }.getOrNull()
-        row.items.forEach { item ->
-            val product = productCol.find(eq("_id", item.productId)).firstOrNull() ?: return@forEach
-            productCol.updateOne(eq("_id", item.productId), set("stockQty", product.stockQty + item.quantity))
-        }
+        val unpaid = row.status == STATUS_PAYMENT_PENDING
+        if (unpaid && row.paymentMethod == PaymentMethod.CASHFREE) cashfree.cancelLink(row.id)
+        val refundPaise = if (unpaid || row.paymentMethod == PaymentMethod.UPI_DIRECT) 0L else refundAmountPaise(row)
+        val refundId = refundPayment(row, refundPaise, reasonText)
+        restoreStock(row.items)
         deliveryOfferCol.find(eq("orderId", orderId)).toList().forEach { offer ->
             if (offer.status == "RINGING" || offer.status == "ACCEPTED") {
                 deliveryOfferCol.replaceOne(eq("_id", offer.id), offer.copy(status = "CANCELLED"))
@@ -2734,8 +2950,17 @@ class AppStore(
         discountPercent: Double? = null,
         deliveryUntil: String? = null,
         homeDeliveryEnabled: Boolean? = null,
+        minOrderValueInr: Double? = null,
+        freeDeliveryEnabled: Boolean? = null,
+        freeDeliveryAboveInr: Double? = null,
     ) {
         val shop = shopById(shopId)
+        require(minOrderValueInr == null || minOrderValueInr in 0.0..MAX_SHOP_ORDER_LIMIT_INR) {
+            "Minimum order amount must be 0-${MAX_SHOP_ORDER_LIMIT_INR.toLong()}"
+        }
+        require(freeDeliveryAboveInr == null || freeDeliveryAboveInr in 1.0..MAX_SHOP_ORDER_LIMIT_INR) {
+            "Free delivery amount must be 1-${MAX_SHOP_ORDER_LIMIT_INR.toLong()}"
+        }
         require(deliveryUntil.isNullOrBlank() || parseHhMm(deliveryUntil) != null) { "Delivery time must be HH:mm" }
         require(deliveryRadiusKm == null || deliveryRadiusKm in 1.0..100.0) { "Delivery radius must be 1-100 km" }
         require(discountPercent == null || discountPercent in 0.0..90.0) { "Discount must be 0-90%" }
@@ -2781,6 +3006,9 @@ class AppStore(
             if (discountPercent != null) add(set("discountPercent", discountPercent))
             if (deliveryUntil != null) add(set("deliveryUntil", parseHhMm(deliveryUntil)?.toString().orEmpty()))
             if (homeDeliveryEnabled != null) add(set("homeDeliveryEnabled", homeDeliveryEnabled))
+            if (minOrderValueInr != null) add(set("minOrderValueInr", minOrderValueInr))
+            if (freeDeliveryEnabled != null) add(set("freeDeliveryEnabled", freeDeliveryEnabled))
+            if (freeDeliveryAboveInr != null) add(set("freeDeliveryAboveInr", freeDeliveryAboveInr))
         }
         if (updates.isNotEmpty()) {
             shopCol.updateOne(eq("_id", shopId), combine(updates))
@@ -2850,6 +3078,9 @@ class AppStore(
             discountPercent = patch.discountPercent,
             deliveryUntil = patch.deliveryUntil,
             homeDeliveryEnabled = patch.homeDeliveryEnabled,
+            minOrderValueInr = patch.minOrderValueInr,
+            freeDeliveryEnabled = patch.freeDeliveryEnabled,
+            freeDeliveryAboveInr = patch.freeDeliveryAboveInr,
         )
         return shopProfile(userId)
     }
@@ -3126,17 +3357,14 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.refundId.isNullOrBlank()) { "Already refunded" }
         require(!row.paymentId.isNullOrBlank()) { "No payment to refund" }
+        require(row.paymentMethod != PaymentMethod.UPI_DIRECT) {
+            "Paid by UPI directly to the shop: the shop must refund the customer from its UPI app"
+        }
         if (row.status !in setOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED")) {
             return cancelShopOrder(row.shopId, orderId, "ADMIN_REFUND")
         }
         val refundPaise = refundAmountPaise(row)
-        val refundId = runCatching {
-            security.refundRazorpayPayment(
-                paymentId = row.paymentId.orEmpty(),
-                amountPaise = refundPaise,
-                notes = mapOf("order_id" to orderId, "reason" to "ADMIN_REFUND"),
-            )
-        }.getOrNull() ?: error("Refund failed")
+        val refundId = refundPayment(row, refundPaise, "ADMIN_REFUND") ?: error("Refund failed")
         orderCol.replaceOne(eq("_id", orderId), row.copy(refundId = refundId))
         row.customerId?.let { customerId ->
             if (refundPaise > 0) {
@@ -3289,6 +3517,9 @@ class AppStore(
         operatingHours = operatingHours.map { ShopHoursDayDto(it.day, it.start, it.end, it.closed) },
         deliveryUntil = deliveryUntil,
         homeDeliveryEnabled = homeDeliveryEnabled,
+        minOrderValueInr = minOrderValueInr,
+        freeDeliveryEnabled = freeDeliveryEnabled,
+        freeDeliveryAboveInr = freeDeliveryAboveInr,
     )
 
     private fun AdminShopDto.toLegacyShopDto() = ShopDto(
@@ -3616,7 +3847,22 @@ class AppStore(
             refundId = refundId,
             packedProductIds = packedProductIds,
             discount = discount,
+            upiPayUri = upiPayUri(shopRow?.name),
+            payeeUpi = shopUpi?.takeIf { paymentMethod == PaymentMethod.UPI_DIRECT },
+            paymentLinkUrl = paymentLinkUrl?.takeIf { status == STATUS_PAYMENT_PENDING },
+            paymentUtr = paymentUtr,
+            paymentDueAtEpochMs = paymentDueAt?.takeIf { status == STATUS_PAYMENT_PENDING },
         )
+    }
+
+    /** NPCI UPI deep link (`upi://pay`) for a pending DIRECT_UPI order; `tr`/`tn` carry the order id. */
+    private fun OrderDoc.upiPayUri(shopName: String?): String? {
+        if (status != STATUS_PAYMENT_PENDING || paymentMethod != PaymentMethod.UPI_DIRECT) return null
+        val vpa = shopUpi?.takeIf { it.isNotBlank() } ?: return null
+        val amount = "%.2f".format(java.util.Locale.ROOT, quote?.payable ?: return null)
+        fun enc(v: String) = java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")
+        return "upi://pay?pa=${enc(vpa)}&pn=${enc(shopName.orEmpty().ifBlank { "Pansari shop" })}" +
+            "&am=$amount&cu=INR&tr=${enc(id)}&tn=${enc("Pansari order $id")}"
     }
 
     private fun haversine(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {

@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.master
 
+import org.bhargav.pansariwala.designsystem.appDialogProperties
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -329,7 +330,7 @@ private fun SummaryTile(label: String, value: Int, accent: Color, onClick: () ->
 
 @Composable
 private fun WideDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = appDialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             shape = MaterialTheme.shapes.large,
             tonalElevation = 6.dp,

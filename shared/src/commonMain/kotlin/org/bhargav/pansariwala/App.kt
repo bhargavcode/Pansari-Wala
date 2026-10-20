@@ -17,6 +17,7 @@ import org.bhargav.pansariwala.notification.NotificationGateway
 import org.bhargav.pansariwala.notification.NotificationPromptGate
 import org.bhargav.pansariwala.notification.PartnerOfferSocket
 import org.bhargav.pansariwala.notification.PushRegistrar
+import org.bhargav.pansariwala.notification.AppInstallReporter
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
 import org.bhargav.pansariwala.product.AppProduct
 import org.bhargav.pansariwala.product.currentAppProduct
@@ -52,6 +53,7 @@ fun App(
     locationTracker: PartnerLocationTracker = koinInject(),
     pushRegistrar: PushRegistrar = koinInject(),
     orderSync: OfflineOrderSync = koinInject(),
+    installReporter: AppInstallReporter = koinInject(),
 ) {
     val settings by preferences.userSettings.collectAsStateWithLifecycle(
         initialValue = AppUserSettings(),
@@ -65,6 +67,8 @@ fun App(
 
     var showNotificationRationale by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(product) { installReporter.run(product) }
 
     LaunchedEffect(product) {
         notifications.ensureChannels()

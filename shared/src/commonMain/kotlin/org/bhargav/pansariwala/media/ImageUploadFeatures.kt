@@ -21,6 +21,7 @@ enum class ImageUploadFeature(
     DELIVERY_PACKET(AppConstants.S3Prefix.SHOPS_DELIVERY_PACKETS, listOf(CAMERA)),
     INVENTORY_PRODUCT(AppConstants.S3Prefix.SHOPS_PRODUCT_IMAGES, listOf(CAMERA, GALLERY)),
     SHOP_PHOTO(AppConstants.S3Prefix.SHOPS_SHOP, listOf(CAMERA, GALLERY)),
+    ISSUE_ATTACHMENT(AppConstants.Support.ATTACHMENT_PREFIX, listOf(CAMERA, GALLERY)),
     ;
 
     init {

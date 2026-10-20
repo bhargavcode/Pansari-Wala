@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.feature.dashboard
 
 import org.bhargav.pansariwala.feature.order.SubscriptionRenewBanner
+import org.bhargav.pansariwala.feature.support.ReportIssueButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -234,6 +235,7 @@ fun DashboardHeader(
         access.can(ShopPermission.SETTINGS)
     val actions = @Composable {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            ReportIssueButton()
             TextButton(onClick = onOpenProfile) {
                 Text(stringResource(Res.string.profile_title), style = MaterialTheme.typography.titleMedium)
             }

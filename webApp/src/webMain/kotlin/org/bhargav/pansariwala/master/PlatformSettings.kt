@@ -1,12 +1,20 @@
 package org.bhargav.pansariwala.master
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.semantics.Role
+import org.jetbrains.compose.resources.StringResource
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +58,16 @@ import pansariwala.shared.generated.resources.master_partner_settings
 import pansariwala.shared.generated.resources.master_password_changed
 import pansariwala.shared.generated.resources.master_password_mismatch
 import pansariwala.shared.generated.resources.master_paused_message
+import pansariwala.shared.generated.resources.master_payment_mode_cashfree
+import pansariwala.shared.generated.resources.master_payment_mode_cashfree_hint
+import pansariwala.shared.generated.resources.master_payment_mode_direct_upi
+import pansariwala.shared.generated.resources.master_payment_mode_direct_upi_hint
+import pansariwala.shared.generated.resources.master_payment_mode_razorpay
+import pansariwala.shared.generated.resources.master_payment_mode_razorpay_hint
+import pansariwala.shared.generated.resources.master_payment_not_configured
+import pansariwala.shared.generated.resources.master_payment_window
+import pansariwala.shared.generated.resources.master_payments_hint
+import pansariwala.shared.generated.resources.master_payments_title
 import pansariwala.shared.generated.resources.master_platform_fee
 import pansariwala.shared.generated.resources.master_quote_customer_pays
 import pansariwala.shared.generated.resources.master_quote_delivery
@@ -61,6 +79,9 @@ import pansariwala.shared.generated.resources.master_save_changes
 import pansariwala.shared.generated.resources.master_settings_saved
 import pansariwala.shared.generated.resources.master_shop_defaults
 
+private const val PAYMENT_MODE_DIRECT_UPI = "DIRECT_UPI"
+private const val PAYMENT_MODE_CASHFREE = "CASHFREE"
+private const val PAYMENT_MODE_RAZORPAY = "RAZORPAY"
 private const val PREVIEW_ORDER_INR = 500.0
 private const val PREVIEW_DISTANCE_KM = 3.0
 
@@ -281,6 +302,85 @@ internal fun PlatformControlsSection(token: String, onStatus: (String) -> Unit, 
         HorizontalDivider()
         FeatureToggleRow(stringResource(Res.string.master_partner_registration), s.partnerRegistrationEnabled) {
             save(s.copy(partnerRegistrationEnabled = !s.partnerRegistrationEnabled, orderingPausedMessage = pausedMessage))
+        }
+    }
+}
+
+private class PaymentModeOption(val id: String, val label: StringResource, val hint: StringResource)
+
+private val PAYMENT_MODES = listOf(
+    PaymentModeOption(PAYMENT_MODE_DIRECT_UPI, Res.string.master_payment_mode_direct_upi, Res.string.master_payment_mode_direct_upi_hint),
+    PaymentModeOption(PAYMENT_MODE_CASHFREE, Res.string.master_payment_mode_cashfree, Res.string.master_payment_mode_cashfree_hint),
+    PaymentModeOption(PAYMENT_MODE_RAZORPAY, Res.string.master_payment_mode_razorpay, Res.string.master_payment_mode_razorpay_hint),
+)
+
+/** Platform-wide checkout switch; saved immediately on selection. */
+@Composable
+internal fun PaymentsSection(token: String, onStatus: (String) -> Unit) {
+    val api = remember { MasterApi() }
+    val scope = rememberCoroutineScope()
+    var settings by remember { mutableStateOf<PlatformSettingsDto?>(null) }
+    var window by remember { mutableStateOf("") }
+    LaunchedEffect(token) {
+        runCatching { api.platformSettings(token) }
+            .onSuccess { settings = it; window = it.paymentWindowMinutes.toString() }
+            .onFailure { onStatus(it.message.orEmpty()) }
+    }
+    val s = settings ?: return
+    fun save(next: PlatformSettingsDto) {
+        scope.launch {
+            runCatching { api.savePaymentSettings(token, next) }
+                .onSuccess { settings = it; window = it.paymentWindowMinutes.toString(); onStatus(getString(Res.string.master_settings_saved)) }
+                .onFailure { onStatus(it.message.orEmpty()) }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    MasterSectionCard(title = stringResource(Res.string.master_payments_title)) {
+        Text(
+            stringResource(Res.string.master_payments_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        PAYMENT_MODES.forEach { option ->
+            val configured = when (option.id) {
+                PAYMENT_MODE_CASHFREE -> s.cashfreeConfigured
+                PAYMENT_MODE_RAZORPAY -> s.razorpayConfigured
+                else -> true
+            }
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.fillMaxWidth().selectable(
+                    selected = s.paymentMode == option.id,
+                    enabled = configured,
+                    role = Role.RadioButton,
+                    onClick = { if (s.paymentMode != option.id) save(s.copy(paymentMode = option.id)) },
+                ),
+            ) {
+                RadioButton(selected = s.paymentMode == option.id, onClick = null, enabled = configured)
+                Column(Modifier.padding(start = 8.dp)) {
+                    Text(stringResource(option.label), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(option.hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (!configured) {
+                        Text(
+                            stringResource(Res.string.master_payment_not_configured),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+        }
+        HorizontalDivider()
+        NumberField(window, stringResource(Res.string.master_payment_window)) { window = it }
+        val minutes = window.trim().toIntOrNull()
+        if (minutes != null && minutes != s.paymentWindowMinutes) {
+            Button(onClick = { save(s.copy(paymentWindowMinutes = minutes)) }) {
+                Text(stringResource(Res.string.master_save))
+            }
         }
     }
 }

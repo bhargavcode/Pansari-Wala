@@ -14,7 +14,7 @@ enum class FulfillmentStep {
 }
 
 fun OrderStatus.toFulfillmentStep(): FulfillmentStep = when (this) {
-    OrderStatus.DRAFT, OrderStatus.RECEIVED -> FulfillmentStep.PLACED
+    OrderStatus.DRAFT, OrderStatus.PAYMENT_PENDING, OrderStatus.RECEIVED -> FulfillmentStep.PLACED
     OrderStatus.ACCEPTED -> FulfillmentStep.ACCEPTED
     OrderStatus.PACKING, OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED ->
         FulfillmentStep.PACKING
@@ -101,6 +101,10 @@ data class MarketplaceShop(
     val deliveryUntil: String = "",
     /** False past [deliveryUntil]: orders become self-pickup with no delivery charge. */
     val deliveryAvailable: Boolean = true,
+    /** Checkout stays disabled until the cart subtotal reaches this; 0 = no minimum. */
+    val minOrderValueInr: Double = 0.0,
+    /** Delivery is free at or above this subtotal; 0 = shop offers no free delivery. */
+    val freeDeliveryAboveInr: Double = 0.0,
 )
 
 /** Admin-defined master category; [id] is [AppConstants.UNCATEGORIZED_CATEGORY_ID] for products without one. */

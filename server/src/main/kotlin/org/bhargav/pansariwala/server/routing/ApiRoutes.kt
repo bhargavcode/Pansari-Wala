@@ -14,7 +14,9 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.request.receiveMultipart
+import io.ktor.server.request.receiveText
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -36,6 +38,7 @@ import org.bhargav.pansariwala.server.dto.ShopCategoryOrderDto
 import org.bhargav.pansariwala.server.dto.AdminOrderActionRequest
 import org.bhargav.pansariwala.server.dto.AdminPasswordChange
 import org.bhargav.pansariwala.server.dto.PlatformSettingsDto
+import org.bhargav.pansariwala.server.dto.SubmitUtrRequest
 import org.bhargav.pansariwala.server.dto.AdminPartnerPatch
 import org.bhargav.pansariwala.server.dto.AdminShopCreate
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
@@ -85,9 +88,19 @@ import org.bhargav.pansariwala.server.dto.UpdateProfileRequest
 import org.bhargav.pansariwala.server.dto.VerifyPaymentRequest
 import org.bhargav.pansariwala.server.service.AppStore
 import org.bhargav.pansariwala.server.service.PushService
+import org.bhargav.pansariwala.server.service.SupportService
+import org.bhargav.pansariwala.server.dto.AppInstallRequest
+import org.bhargav.pansariwala.server.dto.IssueReportCreate
+import org.bhargav.pansariwala.server.dto.IssueResolveRequest
 
-fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
+private const val PAYMENT_RETURN_HTML = """<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Pansari Wala</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:48px 16px">
+<h2>Payment submitted</h2><p>You can close this page and return to the Pansari Wala app.</p></body></html>"""
+
+fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, support: SupportService) {
     get("/health") { call.respond(OkResponse(true)) }
+    imageProxyRoutes()
     get("/config/public") {
         call.respond(
             PublicConfigDto(
@@ -149,6 +162,20 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         else call.respondSheet("pansari-products.xlsx", bytes)
     }
 
+    // Public: Cashfree server-to-server callback (HMAC-signed) and the browser page after paying.
+    post("/payments/cashfree/webhook") {
+        val raw = call.receiveText()
+        val ok = store.handleCashfreeWebhook(
+            timestamp = call.request.headers["x-webhook-timestamp"].orEmpty(),
+            rawBody = raw,
+            signature = call.request.headers["x-webhook-signature"].orEmpty(),
+        )
+        call.respond(if (ok) HttpStatusCode.OK else HttpStatusCode.Unauthorized, OkResponse(ok))
+    }
+    get("/payments/cashfree/return") {
+        call.respondText(PAYMENT_RETURN_HTML, ContentType.Text.Html)
+    }
+
     authenticate("auth-jwt") {
         post("/shop/products/import") {
             val shopId = call.requireShopPerm(store, ShopPerm.INVENTORY)
@@ -191,6 +218,54 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 deviceId = body.deviceId,
             )
             call.respond(OkResponse())
+        }
+        post("/app/install") {
+            val body = call.receive<AppInstallRequest>()
+            val payload = call.payload()
+            support.recordInstall(
+                principalId = payload.subject,
+                role = payload.getClaim("role").asString().orEmpty(),
+                shopId = payload.getClaim("shopId").asString(),
+                body = body,
+            )
+            call.respond(OkResponse())
+        }
+        post("/issues") {
+            val body = call.receive<IssueReportCreate>()
+            val payload = call.payload()
+            call.respond(
+                support.createIssue(
+                    principalId = payload.subject,
+                    role = payload.getClaim("role").asString().orEmpty(),
+                    shopId = payload.getClaim("shopId").asString(),
+                    body = body,
+                ),
+            )
+        }
+        get("/issues/mine") {
+            call.respond(support.myIssues(call.userId(), call.request.queryParameters["status"]))
+        }
+        get("/admin/issues") {
+            call.requireRole("ADMIN")
+            val params = call.request.queryParameters
+            call.respond(support.adminIssues(params["status"], params["app"]))
+        }
+        get("/admin/issues/counts") {
+            call.requireRole("ADMIN")
+            call.respond(support.issueCounts())
+        }
+        post("/admin/issues/{id}/resolve") {
+            call.requireRole("ADMIN")
+            call.respond(support.resolveIssue(call.parameters["id"]!!, call.receive<IssueResolveRequest>()))
+        }
+        post("/admin/issues/{id}/reopen") {
+            call.requireRole("ADMIN")
+            call.respond(support.reopenIssue(call.parameters["id"]!!))
+        }
+        get("/admin/app-usage") {
+            call.requireRole("ADMIN")
+            val params = call.request.queryParameters
+            call.respond(support.usageReport(params["app"], params["platform"], params["version"], params["paymentMethod"]))
         }
         get("/me") { call.respond(store.me(call.userId())) }
         put("/me/profile") {
@@ -293,6 +368,13 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             call.respond(withContext(Dispatchers.IO) { store.customerOrdersPage(call.userId(), page, size) })
         }
         get("/orders/{id}") { call.respond(store.getOrder(call.parameters["id"]!!)) }
+        post("/orders/{id}/payment/utr") {
+            val body = call.receive<SubmitUtrRequest>()
+            call.respond(store.submitPaymentUtr(call.userId(), call.parameters["id"]!!, body.utr))
+        }
+        post("/orders/{id}/payment/refresh") {
+            call.respond(store.refreshPayment(call.userId(), call.parameters["id"]!!))
+        }
         post("/orders/{id}/rating") {
             val body = call.receive<RateOrderRequest>()
             call.respond(store.rateOrder(call.userId(), call.parameters["id"]!!, body.stars, body.comment))
@@ -336,6 +418,10 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
             val page = call.parameters["page"]?.toIntOrNull() ?: 0
             val size = call.parameters["size"]?.toIntOrNull() ?: 20
             call.respond(withContext(Dispatchers.IO) { store.shopOrdersPage(shopId, statuses, query, page, size) })
+        }
+        post("/shop/orders/{id}/payment/confirm") {
+            val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
+            call.respond(withContext(Dispatchers.IO) { store.confirmUpiPayment(shopId, call.parameters["id"]!!) })
         }
         post("/shop/orders/{id}/accept") {
             call.respond(store.acceptShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!))
@@ -694,6 +780,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
                 discountPercent = body.discountPercent,
                 deliveryUntil = body.deliveryUntil,
                 homeDeliveryEnabled = body.homeDeliveryEnabled,
+                minOrderValueInr = body.minOrderValueInr,
+                freeDeliveryEnabled = body.freeDeliveryEnabled,
+                freeDeliveryAboveInr = body.freeDeliveryAboveInr,
             )
             call.respond(OkResponse())
         }
@@ -808,6 +897,11 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService) {
         post("/admin/platform-settings") {
             call.requireRole("ADMIN")
             call.respond(store.savePlatformSettings(call.receive<PlatformSettingsDto>()))
+        }
+        post("/admin/payment-settings") {
+            call.requireRole("ADMIN")
+            val body = call.receive<PlatformSettingsDto>()
+            call.respond(store.savePaymentSettings(body.paymentMode, body.paymentWindowMinutes))
         }
         post("/admin/account/password") {
             call.requireRole("ADMIN")

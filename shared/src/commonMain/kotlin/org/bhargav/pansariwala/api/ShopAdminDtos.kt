@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.api
 
 import kotlinx.serialization.Serializable
+import org.bhargav.pansariwala.util.AppConstants
 
 @Serializable
 data class ShopFeaturesDto(
@@ -52,6 +53,9 @@ data class ShopDetailsDto(
     val loginUsername: String = "",
     val deliveryUntil: String = "",
     val homeDeliveryEnabled: Boolean = true,
+    val minOrderValueInr: Double = AppConstants.DEFAULT_SHOP_MIN_ORDER_INR,
+    val freeDeliveryEnabled: Boolean = false,
+    val freeDeliveryAboveInr: Double = AppConstants.DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR,
 )
 
 @Serializable
@@ -127,6 +131,9 @@ data class ShopProfilePatch(
     /** "HH:mm"; empty string clears the cutoff. */
     val deliveryUntil: String? = null,
     val homeDeliveryEnabled: Boolean? = null,
+    val minOrderValueInr: Double? = null,
+    val freeDeliveryEnabled: Boolean? = null,
+    val freeDeliveryAboveInr: Double? = null,
     val operatingHours: List<ShopHoursDayDto>? = null,
     val imageUrl: String? = null,
     val lat: Double? = null,

@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.user
 
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,8 +20,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.input.KeyboardType
+import org.bhargav.pansariwala.domain.model.Order
+import kotlin.time.Clock
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -74,6 +82,9 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.cart_min_order_short
+import pansariwala.shared.generated.resources.cart_free_delivery_short
+import pansariwala.shared.generated.resources.cart_free_delivery_unlocked
 import pansariwala.shared.generated.resources.catalog_shop_categories
 import pansariwala.shared.generated.resources.account_all_orders
 import pansariwala.shared.generated.resources.account_transactions
@@ -102,6 +113,18 @@ import pansariwala.shared.generated.resources.checkout_offers_expand
 import pansariwala.shared.generated.resources.checkout_payable
 import pansariwala.shared.generated.resources.checkout_platform_fee
 import pansariwala.shared.generated.resources.checkout_razorpay_hint
+import pansariwala.shared.generated.resources.checkout_cashfree_hint
+import pansariwala.shared.generated.resources.checkout_direct_upi_hint
+import pansariwala.shared.generated.resources.order_pay_check_status
+import pansariwala.shared.generated.resources.order_pay_due
+import pansariwala.shared.generated.resources.order_pay_online_button
+import pansariwala.shared.generated.resources.order_pay_title
+import pansariwala.shared.generated.resources.order_pay_upi_button
+import pansariwala.shared.generated.resources.order_pay_upi_to
+import pansariwala.shared.generated.resources.order_pay_utr_hint
+import pansariwala.shared.generated.resources.order_pay_utr_label
+import pansariwala.shared.generated.resources.order_pay_utr_submit
+import pansariwala.shared.generated.resources.order_pay_utr_submitted
 import pansariwala.shared.generated.resources.checkout_subtotal
 import pansariwala.shared.generated.resources.checkout_title
 import pansariwala.shared.generated.resources.delivery_partner_name
@@ -263,11 +286,12 @@ fun CartScreen(
     viewModel: CartViewModel = koinViewModel(),
     cart: CartStore = koinInject(),
 ) {
+    LaunchedEffect(shopId) { viewModel.load(shopId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val picker = rememberVariantPicker()
     VariantPickerHost(picker, cart)
     state.closedShopName?.let { name ->
-        androidx.compose.material3.AlertDialog(
+        AppAlertDialog(
             onDismissRequest = viewModel::dismissShopClosed,
             title = { Text(stringResource(Res.string.shop_closed_title)) },
             text = { Text(stringResource(Res.string.shop_closed_message, name)) },
@@ -302,10 +326,11 @@ fun CartScreen(
                 HorizontalDivider()
             }
         }
+        if (state.lines.isNotEmpty()) CartOrderRules(state)
         UserPrimaryButton(
             text = stringResource(Res.string.action_proceed_payment, state.subtotal.asMoney()),
             onClick = { viewModel.proceedToCheckout(shopId, onCheckout) },
-            enabled = state.lines.isNotEmpty() && !state.checkingShop,
+            enabled = state.canCheckout,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
@@ -314,6 +339,37 @@ fun CartScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
         )
+        }
+    }
+}
+
+/** Minimum-order shortfall (blocks checkout) and progress towards the shop's free-delivery amount. */
+@Composable
+private fun CartOrderRules(state: CartUiState) {
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (state.shortOfMinimum > 0.0) {
+            Text(
+                stringResource(
+                    Res.string.cart_min_order_short,
+                    state.shortOfMinimum.asMoney(),
+                    state.minOrderValue.asMoney(),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (state.freeDeliveryAbove > 0.0) {
+            val short = state.freeDeliveryAbove - state.subtotal
+            Text(
+                if (short > 0.0) {
+                    stringResource(Res.string.cart_free_delivery_short, short.asMoney())
+                } else {
+                    stringResource(Res.string.cart_free_delivery_unlocked)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (short > 0.0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -459,7 +515,13 @@ fun CheckoutScreen(
             )
         } else {
             Text(
-                stringResource(Res.string.checkout_razorpay_hint),
+                stringResource(
+                    when (quote?.paymentMode) {
+                        AppConstants.Payment.MODE_DIRECT_UPI -> Res.string.checkout_direct_upi_hint
+                        AppConstants.Payment.MODE_CASHFREE -> Res.string.checkout_cashfree_hint
+                        else -> Res.string.checkout_razorpay_hint
+                    },
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -488,6 +550,71 @@ fun ThankYouScreen(
         Text(stringResource(Res.string.thank_you_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(stringResource(Res.string.thank_you_body), modifier = Modifier.padding(top = 8.dp))
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
+        }
+    }
+}
+
+@Composable
+private fun PaymentPendingCard(order: Order, state: OrderDetailsUiState, viewModel: OrderDetailsViewModel) {
+    val uriHandler = LocalUriHandler.current
+    val minutesLeft = order.paymentDueAtEpochMs?.let { due ->
+        ((due - Clock.System.now().toEpochMilliseconds()) / 60_000L).toInt().coerceAtLeast(1)
+    }
+    SectionCard(title = stringResource(Res.string.order_pay_title, order.totalValue.asMoney())) {
+        minutesLeft?.let {
+            Text(
+                stringResource(Res.string.order_pay_due, it),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (order.isDirectUpi) {
+            order.payeeUpi?.let { vpa ->
+                Text(
+                    stringResource(Res.string.order_pay_upi_to, order.shopName.orEmpty(), vpa),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            val submitted = order.paymentUtr
+            if (submitted != null) {
+                Text(stringResource(Res.string.order_pay_utr_submitted, submitted))
+            } else {
+                order.upiPayUri?.let { uri ->
+                    Button(
+                        onClick = { runCatching { uriHandler.openUri(uri) }.onFailure { viewModel.onUpiAppMissing() } },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(Res.string.order_pay_upi_button)) }
+                }
+                Text(stringResource(Res.string.order_pay_utr_hint), style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = state.utr,
+                    onValueChange = viewModel::setUtr,
+                    label = { Text(stringResource(Res.string.order_pay_utr_label)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedButton(
+                    onClick = viewModel::submitUtr,
+                    enabled = !state.paymentBusy && viewModel.canSubmitUtr(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(Res.string.order_pay_utr_submit)) }
+            }
+        } else {
+            order.paymentLinkUrl?.let { url ->
+                Button(
+                    onClick = { runCatching { uriHandler.openUri(url) } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(Res.string.order_pay_online_button)) }
+            }
+            OutlinedButton(
+                onClick = viewModel::checkPayment,
+                enabled = !state.paymentBusy,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(Res.string.order_pay_check_status)) }
+        }
+        state.paymentNote?.let {
+            Text(it.asString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
     }
 }
@@ -541,7 +668,10 @@ fun OrderDetailsScreen(
                     )
                     val isCancelled = order.status == OrderStatus.CANCELLED
                     val isRejected = order.status == OrderStatus.REJECTED
-                    if (!isCancelled && !isRejected) {
+                    if (order.isAwaitingPayment) {
+                        PaymentPendingCard(order, state, viewModel)
+                    }
+                    if (!isCancelled && !isRejected && !order.isAwaitingPayment) {
                         order.deliveryOtp?.let {
                             SectionCard(title = stringResource(Res.string.order_otp_label, it)) {
                                 Text(stringResource(Res.string.order_otp_share_hint))

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.util.asQuantity
 import org.bhargav.pansariwala.api.OfferScope
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.ShopDetailsDto
@@ -42,6 +43,8 @@ import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
 import org.bhargav.pansariwala.platform.pickImageCatching
 import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.shop_free_delivery_invalid
+import pansariwala.shared.generated.resources.shop_min_order_invalid
 import pansariwala.shared.generated.resources.error_camera_permission_denied
 import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_photo_pick_failed
@@ -107,6 +110,13 @@ data class OfferDraft(
 
 data class ReplyDraft(val orderId: String, val text: String)
 
+/** Text inputs for the shop's minimum online order and free-delivery amount. */
+data class OrderRulesDraft(
+    val minOrder: String,
+    val freeDeliveryEnabled: Boolean,
+    val freeDeliveryAbove: String,
+)
+
 data class ShopProfileUiState(
     val loading: Boolean = true,
     val saving: Boolean = false,
@@ -123,6 +133,7 @@ data class ShopProfileUiState(
     val visitors: VisitorStatsDto? = null,
     val detailsDraft: ShopDetailsDraft? = null,
     val hoursDraft: List<ShopHoursDayDto>? = null,
+    val orderRulesDraft: OrderRulesDraft? = null,
     val staffDraft: StaffDraft? = null,
     val offerDraft: OfferDraft? = null,
     val replyDraft: ReplyDraft? = null,
@@ -268,6 +279,41 @@ class ShopProfileViewModel(
     }
 
     fun setHomeDeliveryEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(homeDeliveryEnabled = enabled))
+
+    fun startEditOrderRules() {
+        val shop = _uiState.value.profile?.shop ?: return
+        _uiState.update {
+            it.copy(
+                orderRulesDraft = OrderRulesDraft(
+                    minOrder = shop.minOrderValueInr.asQuantity(),
+                    freeDeliveryEnabled = shop.freeDeliveryEnabled,
+                    freeDeliveryAbove = shop.freeDeliveryAboveInr.asQuantity(),
+                ),
+            )
+        }
+    }
+
+    fun updateOrderRulesDraft(transform: (OrderRulesDraft) -> OrderRulesDraft) =
+        _uiState.update { state -> state.copy(orderRulesDraft = state.orderRulesDraft?.let(transform)) }
+
+    fun cancelEditOrderRules() = _uiState.update { it.copy(orderRulesDraft = null) }
+
+    fun saveOrderRules() {
+        val draft = _uiState.value.orderRulesDraft ?: return
+        val minOrder = draft.minOrder.trim().ifEmpty { "0" }.toDoubleOrNull()?.takeIf { it >= 0.0 }
+        val freeAbove = draft.freeDeliveryAbove.trim().toDoubleOrNull()?.takeIf { it > 0.0 }
+        when {
+            minOrder == null -> showError(UiText.res(Res.string.shop_min_order_invalid))
+            draft.freeDeliveryEnabled && freeAbove == null -> showError(UiText.res(Res.string.shop_free_delivery_invalid))
+            else -> saveProfile(
+                ShopProfilePatch(
+                    minOrderValueInr = minOrder,
+                    freeDeliveryEnabled = draft.freeDeliveryEnabled,
+                    freeDeliveryAboveInr = freeAbove,
+                ),
+            ) { it.copy(orderRulesDraft = null) }
+        }
+    }
 
     fun changeShopPhoto(source: ImageSource) {
         if (_uiState.value.uploadingPhoto) return

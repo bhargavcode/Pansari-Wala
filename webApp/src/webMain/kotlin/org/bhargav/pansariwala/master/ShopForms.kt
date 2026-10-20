@@ -51,6 +51,12 @@ import org.bhargav.pansariwala.designsystem.TimePickerField
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.shop_min_order_label
+import pansariwala.shared.generated.resources.shop_min_order_hint
+import pansariwala.shared.generated.resources.shop_min_order_invalid
+import pansariwala.shared.generated.resources.shop_free_delivery_label
+import pansariwala.shared.generated.resources.shop_free_delivery_amount
+import pansariwala.shared.generated.resources.shop_free_delivery_invalid
 import pansariwala.shared.generated.resources.master_active
 import pansariwala.shared.generated.resources.master_add_new_shop_subtitle
 import pansariwala.shared.generated.resources.master_add_new_shop_title
@@ -186,6 +192,9 @@ internal fun ShopEditorScreen(
     var discountPct by rememberSaveable { mutableStateOf("") }
     var deliveryUntil by rememberSaveable { mutableStateOf("") }
     var homeDelivery by rememberSaveable { mutableStateOf(true) }
+    var minOrder by rememberSaveable { mutableStateOf(AppConstants.DEFAULT_SHOP_MIN_ORDER_INR.plainNumber()) }
+    var freeDelivery by rememberSaveable { mutableStateOf(false) }
+    var freeDeliveryAbove by rememberSaveable { mutableStateOf(AppConstants.DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR.plainNumber()) }
     var hours by remember { mutableStateOf(WEEK_DAYS.map { ShopHoursDayDto(it) }) }
     var shopTypes by remember { mutableStateOf(DefaultShopTypeChoices) }
     var loaded by remember { mutableStateOf(false) }
@@ -227,6 +236,9 @@ internal fun ShopEditorScreen(
                 discountPct = s.discountPercent.plainNumber()
                 deliveryUntil = s.deliveryUntil
                 homeDelivery = s.homeDeliveryEnabled
+                minOrder = s.minOrderValueInr.plainNumber()
+                freeDelivery = s.freeDeliveryEnabled
+                freeDeliveryAbove = s.freeDeliveryAboveInr.plainNumber()
                 hours = withFullWeek(s.operatingHours)
             }.onFailure { onStatus(it.message.orEmpty()) }
         }
@@ -363,6 +375,18 @@ internal fun ShopEditorScreen(
                         LabeledField(stringResource(Res.string.profile_field_upi), upiId, stringResource(Res.string.master_placeholder_upi)) { upiId = it.trim() }
                         LabeledField(stringResource(Res.string.profile_field_radius), radiusKm, "") { radiusKm = it }
                         LabeledField(stringResource(Res.string.profile_field_discount), discountPct, "") { discountPct = it }
+                        LabeledField(stringResource(Res.string.shop_min_order_label), minOrder, "") { minOrder = it.trim() }
+                        Text(
+                            stringResource(Res.string.shop_min_order_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FeatureToggleRow(stringResource(Res.string.shop_free_delivery_label), freeDelivery) { freeDelivery = !freeDelivery }
+                        if (freeDelivery) {
+                            LabeledField(stringResource(Res.string.shop_free_delivery_amount), freeDeliveryAbove, "") {
+                                freeDeliveryAbove = it.trim()
+                            }
+                        }
                         FeatureToggleRow(stringResource(Res.string.shop_home_delivery_label), homeDelivery) { homeDelivery = !homeDelivery }
                         Text(
                             stringResource(Res.string.shop_home_delivery_hint),
@@ -405,12 +429,16 @@ internal fun ShopEditorScreen(
             val errRadius = stringResource(Res.string.master_err_delivery_radius)
             val errDiscount = stringResource(Res.string.master_err_discount)
             val errDeliveryUntil = stringResource(Res.string.master_err_delivery_until)
+            val errMinOrder = stringResource(Res.string.shop_min_order_invalid)
+            val errFreeDelivery = stringResource(Res.string.shop_free_delivery_invalid)
             fun validate(): String? {
                 val phoneDigits = ownerPhone.filter(Char::isDigit).takeLast(10)
                 return when {
                     radiusKm.isNotBlank() && (radiusKm.toDoubleOrNull() ?: -1.0) <= 0.0 -> errRadius
                     discountPct.isNotBlank() && (discountPct.toDoubleOrNull() ?: -1.0) !in 0.0..100.0 -> errDiscount
                     deliveryUntil.isNotBlank() && !HH_MM_REGEX.matches(deliveryUntil) -> errDeliveryUntil
+                    minOrder.isNotBlank() && (minOrder.toDoubleOrNull() ?: -1.0) < 0.0 -> errMinOrder
+                    freeDelivery && (freeDeliveryAbove.toDoubleOrNull() ?: 0.0) <= 0.0 -> errFreeDelivery
                     name.isBlank() -> errNameRequired
                     address.isBlank() && city.isBlank() -> errAddressRequired
                     ownerPhone.isNotBlank() && phoneDigits.length != 10 -> errPhone
@@ -443,6 +471,9 @@ internal fun ShopEditorScreen(
                                     discountPercent = discountPct.toDoubleOrNull(),
                                     deliveryUntil = deliveryUntil,
                                     homeDeliveryEnabled = homeDelivery,
+                                    minOrderValueInr = minOrder.toDoubleOrNull() ?: 0.0,
+                                    freeDeliveryEnabled = freeDelivery,
+                                    freeDeliveryAboveInr = freeDeliveryAbove.toDoubleOrNull()?.takeIf { freeDelivery },
                                 )
                                 if (isEdit && shopId != null) {
                                     api.patchShop(
@@ -454,6 +485,9 @@ internal fun ShopEditorScreen(
                                         discountPercent = discountPct.toDoubleOrNull(),
                                         deliveryUntil = deliveryUntil,
                                         homeDeliveryEnabled = homeDelivery,
+                                        minOrderValueInr = minOrder.toDoubleOrNull() ?: 0.0,
+                                        freeDeliveryEnabled = freeDelivery,
+                                        freeDeliveryAboveInr = freeDeliveryAbove.toDoubleOrNull()?.takeIf { freeDelivery },
                                         active = active,
                                         features = features(),
                                         imageUrl = imageUrl.ifBlank { null },

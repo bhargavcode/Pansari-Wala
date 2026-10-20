@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.order
 
+import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,7 +69,6 @@ import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import pansariwala.shared.generated.resources.pos_upi_payee
 import pansariwala.shared.generated.resources.pos_upi_received
 import pansariwala.shared.generated.resources.pos_upi_scan_title
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import pansariwala.shared.generated.resources.update_and_print_order
 import pansariwala.shared.generated.resources.save_and_print_order
@@ -387,7 +387,7 @@ private fun PosCartBar(state: OrderEditorUiState, onOpen: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PosCartSheet(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = { viewModel.setCartSheetVisible(false) },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
@@ -702,7 +702,7 @@ private fun SearchOrSuggestedItems(
 @Composable
 private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = viewModel::dismissPaymentPicker, sheetState = sheetState) {
+    AppBottomSheet(onDismissRequest = viewModel::dismissPaymentPicker, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

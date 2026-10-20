@@ -33,6 +33,7 @@ import org.bhargav.pansariwala.server.routing.apiRoutes
 import org.bhargav.pansariwala.server.security.Security
 import org.bhargav.pansariwala.server.service.AppStore
 import org.bhargav.pansariwala.server.service.PushService
+import org.bhargav.pansariwala.server.service.SupportService
 import org.bhargav.pansariwala.server.storage.AssetKeyMigration
 import org.bhargav.pansariwala.server.storage.AssetRefs
 import org.bhargav.pansariwala.server.storage.AssetStorageFactory
@@ -53,6 +54,7 @@ fun main() {
     val push = PushService(config, mongo)
     println(if (push.enabled) "Push: FCM HTTP v1 enabled" else "Push: disabled (set FCM_SERVICE_ACCOUNT_FILE or FCM_SERVICE_ACCOUNT_JSON)")
     val store = AppStore(config, security, mongo, storage, assetRefs, push)
+    val support = SupportService(mongo, assetRefs, push)
 
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
         // CORS first so preflight + error responses always include ACAO (web localhost → API).
@@ -131,13 +133,16 @@ fun main() {
             }
         }
         routing {
-            apiRoutes(config, store, push)
+            apiRoutes(config, store, push, support)
         }
         launch(Dispatchers.IO) {
             while (isActive) {
                 runCatching { store.expireStaleOffers() }
                     .onSuccess { if (it > 0) println("Delivery offers: expired $it unpicked offers") }
                     .onFailure { println("Delivery offer sweep failed: ${it.message}") }
+                runCatching { store.expireUnpaidOrders() }
+                    .onSuccess { if (it > 0) println("Payments: cancelled $it unpaid orders") }
+                    .onFailure { println("Unpaid order sweep failed: ${it.message}") }
                 delay(OFFER_SWEEP_INTERVAL_MS)
             }
         }

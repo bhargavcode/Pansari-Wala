@@ -42,3 +42,5 @@ internal actual suspend fun writeImageDiskCache(key: String, bytes: ByteArray) =
     data.writeToFile("$cacheDir/$key", atomically = true)
     Unit
 }
+
+internal actual val imageFetchViaProxy: Boolean = false

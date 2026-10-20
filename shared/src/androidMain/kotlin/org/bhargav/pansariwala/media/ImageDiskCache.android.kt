@@ -44,3 +44,5 @@ private fun trim(dir: File) {
         file.delete()
     }
 }
+
+internal actual val imageFetchViaProxy: Boolean = false

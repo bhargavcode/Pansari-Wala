@@ -1,6 +1,6 @@
 package org.bhargav.pansariwala.platform
 
-import androidx.compose.material3.AlertDialog
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,7 +44,7 @@ internal fun LocationServicesOffDialog(
     onDismiss: () -> Unit,
 ) {
     if (!visible) return
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.location_services_off_title)) },
         text = {
@@ -76,7 +76,7 @@ fun LocationPermissionDeniedDialog(
     message: String? = null,
 ) {
     if (!visible) return
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title ?: stringResource(Res.string.location_permission_denied_title)) },
         text = {

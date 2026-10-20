@@ -9,6 +9,9 @@ import org.jetbrains.compose.resources.getString
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.notify_delivery_offer_body
 import pansariwala.shared.generated.resources.notify_delivery_offer_title
+import pansariwala.shared.generated.resources.notify_issue_resolved_body
+import pansariwala.shared.generated.resources.notify_issue_resolved_body_version
+import pansariwala.shared.generated.resources.notify_issue_resolved_title
 
 /** Single entry for FCM data payloads on every platform: update open screens, then tray alert if any. */
 class PushMessageHandler(
@@ -21,7 +24,25 @@ class PushMessageHandler(
         when (data[Push.KEY_EVENT]) {
             Push.EVENT_ORDER_UPDATE -> handleOrderUpdate(data, showAlert)
             Push.EVENT_DELIVERY_OFFER -> handleDeliveryOffer(data, showAlert)
+            Push.EVENT_ISSUE_UPDATE -> if (showAlert) issueResolvedNotification(data)?.let(gateway::show)
         }
+    }
+
+    private suspend fun issueResolvedNotification(data: Map<String, String>): ShopNotification? {
+        val issueId = data[Push.KEY_ISSUE_ID]?.takeIf { it.isNotBlank() } ?: return null
+        val feature = data[Push.KEY_FEATURE].orEmpty()
+        val fixedIn = data[Push.KEY_FIXED_IN].orEmpty()
+        return ShopNotification(
+            id = generateId("notif"),
+            title = getString(Res.string.notify_issue_resolved_title),
+            body = if (fixedIn.isBlank()) {
+                getString(Res.string.notify_issue_resolved_body, feature)
+            } else {
+                getString(Res.string.notify_issue_resolved_body_version, feature, fixedIn)
+            },
+            type = AppConstants.Support.NOTIFICATION_TYPE,
+            key = "${Push.ALERT_ISSUE_RESOLVED}:$issueId",
+        )
     }
 
     private suspend fun handleOrderUpdate(data: Map<String, String>, showAlert: Boolean) {

@@ -136,7 +136,7 @@ private object ImageBitmapCache {
         val key = imageCacheKey(url)
         readImageDiskCache(key)?.let { cached -> decodeImageOffMain(cached)?.let { return it } }
         return runCatching {
-            val response = client.get(url)
+            val response = client.get(imageFetchUrl(url))
             if (!response.status.isSuccess()) return@runCatching null
             val bytes = response.readRawBytes()
             decodeImageOffMain(bytes)?.also { writeImageDiskCache(key, bytes) }
