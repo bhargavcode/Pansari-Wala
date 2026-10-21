@@ -305,6 +305,12 @@ object AppConstants {
         const val USER_INFO_ORDER_ID: String = "orderId"
     }
 
+    /** User app deep links; the server's Cashfree return page opens `pansariwala://payment/<intentId>`. */
+    object DeepLink {
+        const val SCHEME: String = "pansariwala"
+        const val HOST_PAYMENT: String = "payment"
+    }
+
     /** FCM data payload contract with the server (`PushService`). */
     object Push {
         const val EVENT_ORDER_UPDATE: String = "ORDER_UPDATE"

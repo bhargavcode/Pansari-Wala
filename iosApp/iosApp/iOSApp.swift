@@ -73,6 +73,7 @@ struct iOSApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onOpenURL { url in IosPushBridge.shared.openUrl(url: url.absoluteString) }
         }
     }
 }

@@ -41,6 +41,11 @@ object IosPushBridge : KoinComponent {
         NotificationOpenRequests.fromUserInfo(userInfo.toStringMap())?.let(NotificationOpenRequests::open)
     }
 
+    /** `pansariwala://payment/<id>` from the browser checkout return page. */
+    fun openUrl(url: String) {
+        NotificationOpenRequests.fromDeepLink(url)?.let(NotificationOpenRequests::open)
+    }
+
     private fun Map<Any?, *>.toStringMap(): Map<String, String> =
         entries.mapNotNull { (k, v) -> (k as? String)?.let { key -> (v as? String)?.let { key to it } } }.toMap()
 }

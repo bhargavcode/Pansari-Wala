@@ -193,6 +193,8 @@ private const val MAX_PAYMENT_WINDOW_MIN = 30
 /** DIRECT_UPI: a shop may still confirm a payment that arrived after the window, for this long. */
 private const val LATE_CONFIRM_MS = 24 * 60 * 60_000L
 private const val SHOP_INTENT_LIMIT = 50
+/** `<intentId>_<attemptNo>`, as sent to Cashfree. */
+private val GATEWAY_ORDER_ID = Regex("^[A-Za-z0-9]{1,45}_[0-9]{1,3}$")
 /** Unpaid / failed checkouts stay in the customer's orders list this long. */
 private const val CUSTOMER_INTENT_WINDOW_MS = 3L * 24 * 60 * 60_000
 private const val CUSTOMER_INTENT_LIMIT = 20
@@ -1475,6 +1477,18 @@ class AppStore(
             succeedIntent(intentId, attemptNo, "cf_$gatewayOrderId")
         }
         return true
+    }
+
+    /**
+     * Browser came back from Cashfree checkout: re-check the gateway now (webhooks can lag) and return the
+     * payment transaction id to hand back to the app, or null for an unknown order.
+     */
+    suspend fun cashfreeReturn(gatewayOrderId: String): String? {
+        if (!GATEWAY_ORDER_ID.matches(gatewayOrderId)) return null
+        val row = intentCol.find(eq("_id", gatewayOrderId.substringBeforeLast('_'))).firstOrNull() ?: return null
+        if (row.status == IntentStatus.PENDING) runCatching { syncGateway(row) }
+            .onFailure { println("Cashfree return check failed for ${row.id}: ${it.message}") }
+        return row.id
     }
 
     /**

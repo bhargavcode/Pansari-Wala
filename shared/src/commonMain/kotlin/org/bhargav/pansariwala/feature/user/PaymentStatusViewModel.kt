@@ -108,6 +108,19 @@ class PaymentStatusViewModel(
     }
 
     /** "I have paid": asks the server to re-check the gateway right away. */
+    /** Back from the UPI app / browser checkout: ask the server to re-check the gateway right away. */
+    fun onResumed() {
+        val id = intentId ?: return
+        val current = _state.value.intent ?: return
+        if (current.status != PaymentIntentStatus.PENDING || current.isDirectUpi || _state.value.launchedAttempt == 0) return
+        viewModelScope.launch {
+            lastGatewayCheck = now()
+            runCatching { api.refreshPaymentIntent(id) }
+                .onSuccess(::apply)
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
+
     fun checkNow() {
         val id = intentId ?: return
         runAction {

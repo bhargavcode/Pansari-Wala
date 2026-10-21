@@ -28,6 +28,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -119,8 +123,21 @@ fun PaymentStatusScreen(
         runCatching { uriHandler.openUri(uri) }.onFailure { viewModel.onUpiAppMissing() }
         viewModel.onLaunched(target.attemptNo)
     }
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
+        onPauseOrDispose { }
+    }
+    // Survives activity recreation / process death while the user is in the UPI app or browser checkout.
+    var autoOpenedAttempt by rememberSaveable(intentId) { mutableIntStateOf(0) }
     LaunchedEffect(intent?.attemptNo, state.shouldLaunch) {
-        if (state.shouldLaunch) intent?.let(::openUpi)
+        val target = intent ?: return@LaunchedEffect
+        if (!state.shouldLaunch) return@LaunchedEffect
+        if (target.attemptNo <= autoOpenedAttempt) {
+            viewModel.onLaunched(target.attemptNo)
+            return@LaunchedEffect
+        }
+        autoOpenedAttempt = target.attemptNo
+        openUpi(target)
     }
     NavigationBackHandler(
         state = rememberNavigationEventState(currentInfo = NavigationEventInfo.None),

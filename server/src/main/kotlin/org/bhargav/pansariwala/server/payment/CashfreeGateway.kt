@@ -81,7 +81,10 @@ class CashfreeGateway(private val config: ServerConfig) {
                         customerPhone = customerPhone.filter(Char::isDigit).takeLast(10),
                         customerName = customerName.take(100).ifBlank { null },
                     ),
-                    orderMeta = CashfreeOrderMeta(notifyUrl = base?.let { "$it/payments/cashfree/webhook" }),
+                    orderMeta = CashfreeOrderMeta(
+                        notifyUrl = base?.let { "$it/payments/cashfree/webhook" },
+                        returnUrl = base?.let { "$it/payments/cashfree/return?order_id={order_id}" },
+                    ),
                     orderExpiryTime = ISO.format(Instant.ofEpochMilli(expiresAtMs.coerceAtLeast(System.currentTimeMillis() + MIN_EXPIRY_MS))),
                     orderNote = note.take(200),
                 ),
@@ -174,7 +177,11 @@ private data class CashfreeCustomer(
 )
 
 @Serializable
-private data class CashfreeOrderMeta(@SerialName("notify_url") val notifyUrl: String? = null)
+private data class CashfreeOrderMeta(
+    @SerialName("notify_url") val notifyUrl: String? = null,
+    /** Browser checkout (sandbox simulator / web UPI) lands here after success or failure. */
+    @SerialName("return_url") val returnUrl: String? = null,
+)
 
 @Serializable
 private data class CashfreeOrder(

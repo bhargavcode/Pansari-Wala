@@ -20,6 +20,11 @@ private const val EXTRA_NOTIFICATION_TYPE = "notification_type"
 
 /** Forwards a notification-tap launch intent to [NotificationOpenRequests]; extras are cleared so it fires once. */
 fun handleNotificationIntent(intent: Intent?) {
+    intent?.dataString?.let(NotificationOpenRequests::fromDeepLink)?.let { request ->
+        NotificationOpenRequests.open(request)
+        intent.data = null
+        return
+    }
     val type = intent?.getStringExtra(EXTRA_NOTIFICATION_TYPE) ?: return
     NotificationOpenRequests.open(
         NotificationOpenRequest(type = type, orderId = intent.getStringExtra(EXTRA_ORDER_ID)),

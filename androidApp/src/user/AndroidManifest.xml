@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- singleTask: the Cashfree return page reopens the running app instead of stacking a copy on the browser. -->
+        <activity
+            android:name="org.bhargav.pansariwala.MainActivity"
+            android:launchMode="singleTask"
+            tools:node="merge">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pansariwala" android:host="payment" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -103,6 +103,19 @@ private const val PAYMENT_RETURN_HTML = """<!doctype html><html><head><meta char
 <body style="font-family:sans-serif;text-align:center;padding:48px 16px">
 <h2>Payment submitted</h2><p>You can close this page and return to the Pansari Wala app.</p></body></html>"""
 
+/** User app deep link (`pansariwala://payment/<intentId>`), registered in the user Android/iOS apps. */
+private const val APP_PAYMENT_LINK = "pansariwala://payment/"
+
+private fun paymentReturnHtml(intentId: String): String {
+    val link = APP_PAYMENT_LINK + intentId
+    return """<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Pansari Wala</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:48px 16px">
+<h2>Returning to Pansari Wala…</h2><p>Your payment status will be shown in the app.</p>
+<p><a href="$link" style="display:inline-block;padding:14px 28px;background:#2e7d32;color:#fff;border-radius:24px;text-decoration:none;font-weight:bold">Open Pansari Wala</a></p>
+<script>window.location.replace("$link");</script></body></html>"""
+}
+
 fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, support: SupportService) {
     get("/health") { call.respond(OkResponse(true)) }
     imageProxyRoutes()
@@ -178,7 +191,8 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
         call.respond(if (ok) HttpStatusCode.OK else HttpStatusCode.Unauthorized, OkResponse(ok))
     }
     get("/payments/cashfree/return") {
-        call.respondText(PAYMENT_RETURN_HTML, ContentType.Text.Html)
+        val intentId = call.request.queryParameters["order_id"]?.let { store.cashfreeReturn(it) }
+        call.respondText(intentId?.let(::paymentReturnHtml) ?: PAYMENT_RETURN_HTML, ContentType.Text.Html)
     }
 
     authenticate("auth-jwt") {

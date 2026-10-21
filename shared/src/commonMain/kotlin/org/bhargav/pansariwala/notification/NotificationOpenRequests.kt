@@ -28,6 +28,15 @@ object NotificationOpenRequests {
         _pending.value = null
     }
 
+    /** `pansariwala://payment/<intentId>` (browser checkout returning to the app) → payment screen. */
+    fun fromDeepLink(url: String): NotificationOpenRequest? {
+        val prefix = "${AppConstants.DeepLink.SCHEME}://${AppConstants.DeepLink.HOST_PAYMENT}/"
+        if (!url.startsWith(prefix, ignoreCase = true)) return null
+        val intentId = url.substring(prefix.length).substringBefore('?').substringBefore('/').trim()
+        if (intentId.isEmpty() || !intentId.all { it.isLetterOrDigit() }) return null
+        return NotificationOpenRequest(Notification.TYPE_PAYMENT, intentId)
+    }
+
     /**
      * Tap target for an iOS alert: local notifications carry [Notification.USER_INFO_TYPE];
      * APNs alerts carry the raw FCM data payload.

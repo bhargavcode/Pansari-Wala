@@ -41,6 +41,16 @@
 				<string>app-1-1047763190940-ios-5985b87c9a266e2ea21959</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>org.bhargav.pansariwala.payment</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pansariwala</string>
+			</array>
+		</dict>
 	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
