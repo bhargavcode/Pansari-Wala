@@ -124,17 +124,7 @@ class PaymentStatusViewModel(
         val intent = _state.value.intent ?: return
         viewModelScope.launch {
             _state.update { it.copy(busy = true) }
-            val catalog = runCatching { api.shopCatalog(intent.shopId) }
-                .onFailure { it.rethrowIfStructuredCancellation() }
-                .getOrDefault(emptyList())
-                .associateBy { it.id }
-            val lines = intent.items.mapNotNull { item ->
-                val product = catalog[item.productId] ?: return@mapNotNull null
-                CartStore.Line(product, item.variantId?.let { product.variant(it) }, item.quantity)
-            }
-            // Only a FAILED transaction is retried under its id; a refunded one starts a new transaction.
-            val retryId = intent.id.takeIf { intent.status == PaymentIntentStatus.FAILED }
-            cart.restoreForRetry(intent.shopId, intent.shopName, lines, retryId)
+            restoreCartForRetry(api, cart, intent)
             _state.update { it.copy(busy = false) }
             onCartReady(intent.shopId)
         }
@@ -193,4 +183,18 @@ class PaymentStatusViewModel(
     private fun isFinal(): Boolean = _state.value.intent?.isFinal == true
 
     private fun now(): Long = Clock.System.now().toEpochMilliseconds()
+}
+
+/** Puts an unpaid checkout's items back in the cart; only a FAILED transaction is retried under its own id. */
+internal suspend fun restoreCartForRetry(api: PansariApi, cart: CartStore, intent: PaymentIntent) {
+    val catalog = runCatching { api.shopCatalog(intent.shopId) }
+        .onFailure { it.rethrowIfStructuredCancellation() }
+        .getOrDefault(emptyList())
+        .associateBy { it.id }
+    val lines = intent.items.mapNotNull { item ->
+        val product = catalog[item.productId] ?: return@mapNotNull null
+        CartStore.Line(product, item.variantId?.let { product.variant(it) }, item.quantity)
+    }
+    val retryId = intent.id.takeIf { intent.status == PaymentIntentStatus.FAILED }
+    cart.restoreForRetry(intent.shopId, intent.shopName, lines, retryId)
 }

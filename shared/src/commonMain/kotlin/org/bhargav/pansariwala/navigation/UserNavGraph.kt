@@ -243,6 +243,7 @@ fun UserNavGraph() {
                             onShowShopOffers = { push(UserRoute.ShopOffers(it)) },
                             onOpenCart = { shopId -> push(UserRoute.Cart(shopId)) },
                             onOrder = { push(UserRoute.OrderDetails(it)) },
+                            onPayment = { push(UserRoute.PaymentStatus(it)) },
                             onAllOrders = { push(UserRoute.OrdersList) },
                             onTxns = { push(UserRoute.Transactions) },
                             onHelp = { push(UserRoute.Help) },
@@ -340,7 +341,12 @@ fun UserNavGraph() {
                         )
                     }
                     UserRoute.OrdersList -> NavEntry(route) {
-                        OrdersListScreen(onOpen = { push(UserRoute.OrderDetails(it)) }, onBack = { pop() })
+                        OrdersListScreen(
+                            onOpen = { push(UserRoute.OrderDetails(it)) },
+                            onOpenPayment = { push(UserRoute.PaymentStatus(it)) },
+                            onRetryPayment = { shopId -> push(UserRoute.Cart(shopId)) },
+                            onBack = { pop() },
+                        )
                     }
                     UserRoute.Transactions -> NavEntry(route) {
                         TransactionsScreen(onBack = { pop() })
@@ -373,6 +379,7 @@ private fun UserShell(
     onShowShopOffers: (String) -> Unit,
     onOpenCart: (String) -> Unit,
     onOrder: (String) -> Unit,
+    onPayment: (String) -> Unit,
     onAllOrders: () -> Unit,
     onTxns: () -> Unit,
     onHelp: () -> Unit,
@@ -400,6 +407,8 @@ private fun UserShell(
                     )
                     1 -> AccountHomeScreen(
                         onRecent = onOrder,
+                        onOpenPayment = onPayment,
+                        onRetryPayment = onOpenCart,
                         onAllOrders = onAllOrders,
                         onTxns = onTxns,
                         onHelp = onHelp,

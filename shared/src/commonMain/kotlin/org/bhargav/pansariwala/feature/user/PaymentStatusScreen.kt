@@ -342,7 +342,7 @@ private fun failureReason(intent: PaymentIntent): String = when (intent.failureR
     else -> stringResource(Res.string.pay_reason_not_received)
 }
 
-private fun countdown(seconds: Long): String {
+internal fun countdown(seconds: Long): String {
     val m = seconds / 60
     val s = (seconds % 60).toString().padStart(2, '0')
     return "$m:$s"

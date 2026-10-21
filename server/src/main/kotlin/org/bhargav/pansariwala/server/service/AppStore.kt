@@ -193,6 +193,9 @@ private const val MAX_PAYMENT_WINDOW_MIN = 30
 /** DIRECT_UPI: a shop may still confirm a payment that arrived after the window, for this long. */
 private const val LATE_CONFIRM_MS = 24 * 60 * 60_000L
 private const val SHOP_INTENT_LIMIT = 50
+/** Unpaid / failed checkouts stay in the customer's orders list this long. */
+private const val CUSTOMER_INTENT_WINDOW_MS = 3L * 24 * 60 * 60_000
+private const val CUSTOMER_INTENT_LIMIT = 20
 private const val GATEWAY_POLL_AFTER_MS = 20_000L
 private const val FAIL_NOT_RECEIVED = "PAYMENT_NOT_RECEIVED"
 private const val FAIL_SHOP_NOT_RECEIVED = "SHOP_NOT_RECEIVED"
@@ -1385,7 +1388,21 @@ class AppStore(
     suspend fun refreshPaymentIntent(userId: String, intentId: String): PaymentIntentDto {
         val row = intentCol.find(eq("_id", intentId)).firstOrNull() ?: error("Payment not found")
         require(row.customerId == userId) { "Forbidden" }
-        return syncGateway(row).toDto()
+        val fresh = syncGateway(row)
+        val last = fresh.attempts.lastOrNull()
+        if (fresh.status == IntentStatus.PENDING && (last == null || last.expiresAt <= System.currentTimeMillis())) {
+            failIntent(fresh, FAIL_NOT_RECEIVED)
+            return intentCol.find(eq("_id", intentId)).firstOrNull()?.toDto() ?: fresh.toDto()
+        }
+        return fresh.toDto()
+    }
+
+    /** Customer's checkouts that did not become an order (pending, failed, refunded); successful ones show as orders. */
+    fun customerPaymentIntents(userId: String): List<PaymentIntentDto> {
+        val since = System.currentTimeMillis() - CUSTOMER_INTENT_WINDOW_MS
+        return intentCol.find(
+            and(eq("customerId", userId), gt("createdAt", since), ne("status", IntentStatus.SUCCESS)),
+        ).sort(Sorts.descending("createdAt")).limit(CUSTOMER_INTENT_LIMIT).toList().map { it.toDto() }
     }
 
     /** Customer reports the UPI reference (UTR) of a DIRECT_UPI payment; the shop matches it in its bank app. */

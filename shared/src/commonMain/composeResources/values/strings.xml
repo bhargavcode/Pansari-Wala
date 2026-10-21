@@ -490,6 +490,11 @@
     <string name="pay_refunded_body">Your order could not be placed, so your payment is being refunded.</string>
     <string name="pay_refunded_direct_body">Your order could not be placed. %1$s will return your payment by UPI.</string>
     <string name="pay_retry">Retry payment</string>
+    <string name="pay_check_status">Check current status</string>
+    <string name="pay_status_pending">Payment pending</string>
+    <string name="pay_status_not_received">Payment not received. Please pay again.</string>
+    <string name="pay_status_failed">Payment failed</string>
+    <string name="pay_status_refunded">Payment refunded</string>
     <string name="pay_home">Back to home</string>
     <string name="pay_leave_title">Leave this screen?</string>
     <string name="pay_leave_body">Your payment is still being checked. If you have paid, the order is placed automatically and you will get a notification.</string>

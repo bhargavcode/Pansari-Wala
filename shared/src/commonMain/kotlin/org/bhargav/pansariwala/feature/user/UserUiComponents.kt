@@ -135,6 +135,21 @@ import pansariwala.shared.generated.resources.status_rejected
 import pansariwala.shared.generated.resources.user_brand_title
 import pansariwala.shared.generated.resources.user_cart_items
 import kotlin.math.roundToInt
+import kotlin.time.Clock
+import kotlinx.coroutines.delay
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.produceState
+import org.bhargav.pansariwala.domain.model.PaymentIntent
+import org.bhargav.pansariwala.domain.model.PaymentIntentStatus
+import pansariwala.shared.generated.resources.pay_check_status
+import pansariwala.shared.generated.resources.pay_detail_txn
+import pansariwala.shared.generated.resources.pay_retry
+import pansariwala.shared.generated.resources.pay_status_failed
+import pansariwala.shared.generated.resources.pay_status_not_received
+import pansariwala.shared.generated.resources.pay_status_pending
+import pansariwala.shared.generated.resources.pay_status_refunded
+import pansariwala.shared.generated.resources.pay_time_left
 
 @Composable
 fun shopTypeLabel(type: ShopType): String = stringResource(
@@ -735,6 +750,67 @@ fun OrderAccountTile(
         Column(horizontalAlignment = Alignment.End) {
             Text(order.totalValue.asMoney(), fontWeight = FontWeight.SemiBold)
             Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Orders-list row for a checkout that is not an order yet (payment pending, not received, failed or refunded). */
+@Composable
+fun PaymentAccountTile(
+    intent: PaymentIntent,
+    busy: Boolean,
+    onClick: () -> Unit,
+    onCheckStatus: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val nowMs by produceState(Clock.System.now().toEpochMilliseconds(), intent.id, intent.status) {
+        while (intent.status == PaymentIntentStatus.PENDING) {
+            value = Clock.System.now().toEpochMilliseconds()
+            delay(AppConstants.Payment.COUNTDOWN_TICK_MS)
+        }
+    }
+    val secondsLeft = ((intent.expiresAtEpochMs - nowMs) / 1000).coerceAtLeast(0)
+    val waiting = intent.status == PaymentIntentStatus.PENDING && secondsLeft > 0
+    val (label, color) = when {
+        waiting -> stringResource(Res.string.pay_status_pending) to MaterialTheme.colorScheme.tertiary
+        intent.status == PaymentIntentStatus.PENDING -> stringResource(Res.string.pay_status_not_received) to MaterialTheme.colorScheme.error
+        intent.status == PaymentIntentStatus.REFUNDED -> stringResource(Res.string.pay_status_refunded) to MaterialTheme.colorScheme.onSurfaceVariant
+        else -> stringResource(Res.string.pay_status_failed) to MaterialTheme.colorScheme.error
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(intent.shopName, fontWeight = FontWeight.SemiBold)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = color, fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(Res.string.pay_detail_txn, intent.id),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (waiting) {
+                    Text(
+                        stringResource(Res.string.pay_time_left, countdown(secondsLeft)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(intent.amountInr.asMoney(), fontWeight = FontWeight.SemiBold)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (waiting) {
+                OutlinedButton(onClick = onCheckStatus, enabled = !busy) { Text(stringResource(Res.string.pay_check_status)) }
+            } else {
+                Button(onClick = onRetry, enabled = !busy) { Text(stringResource(Res.string.pay_retry)) }
+            }
+            if (busy) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         }
     }
 }

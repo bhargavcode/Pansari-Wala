@@ -757,6 +757,8 @@ private fun OrderProgressStepper(
 @Composable
 fun OrdersListScreen(
     onOpen: (String) -> Unit,
+    onOpenPayment: (String) -> Unit,
+    onRetryPayment: (String) -> Unit,
     onBack: () -> Unit,
     viewModel: AccountViewModel = koinViewModel(),
 ) {
@@ -789,6 +791,18 @@ fun OrdersListScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         ) {
+            val payments = data?.payments.orEmpty()
+            items(payments.size, key = { "pay_" + payments[it].id }) { index ->
+                val intent = payments[index]
+                PaymentAccountTile(
+                    intent = intent,
+                    busy = data?.paymentBusyId == intent.id,
+                    onClick = { onOpenPayment(intent.id) },
+                    onCheckStatus = { viewModel.checkPayment(intent.id) },
+                    onRetry = { viewModel.retryPayment(intent.id, onRetryPayment) },
+                )
+                HorizontalDivider()
+            }
             items(orders.size, key = { orders[it].id }) { index ->
                 val order = orders[index]
                 OrderAccountTile(order = order, onClick = { onOpen(order.id) })

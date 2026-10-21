@@ -510,6 +510,8 @@ fun MarketScreen(
 @Composable
 fun AccountHomeScreen(
     onRecent: (String) -> Unit,
+    onOpenPayment: (String) -> Unit,
+    onRetryPayment: (String) -> Unit,
     onAllOrders: () -> Unit,
     onTxns: () -> Unit,
     onHelp: () -> Unit,
@@ -536,13 +538,23 @@ fun AccountHomeScreen(
                 modifier = Modifier.padding(bottom = 4.dp),
             )
             SectionCard(title = stringResource(Res.string.account_recent_three)) {
-                if (data?.recent.isNullOrEmpty()) {
+                data?.payments.orEmpty().forEach { intent ->
+                    PaymentAccountTile(
+                        intent = intent,
+                        busy = data?.paymentBusyId == intent.id,
+                        onClick = { onOpenPayment(intent.id) },
+                        onCheckStatus = { viewModel.checkPayment(intent.id) },
+                        onRetry = { viewModel.retryPayment(intent.id, onRetryPayment) },
+                    )
+                    HorizontalDivider()
+                }
+                if (data?.recent.isNullOrEmpty() && data?.payments.isNullOrEmpty()) {
                     Text(
                         stringResource(Res.string.no_orders_yet),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    data.recent.forEach { order ->
+                    data?.recent.orEmpty().forEach { order ->
                         OrderAccountTile(order = order, onClick = { onRecent(order.id) })
                         HorizontalDivider()
                     }

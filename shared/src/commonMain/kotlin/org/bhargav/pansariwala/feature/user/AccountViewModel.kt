@@ -16,13 +16,19 @@ import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.MoneyTxn
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.CustomerProfile
+import org.bhargav.pansariwala.domain.model.PaymentIntent
+import org.bhargav.pansariwala.domain.model.PaymentIntentStatus
 import org.bhargav.pansariwala.notification.OrderUpdates
+import org.bhargav.pansariwala.notification.PaymentUpdates
 import org.bhargav.pansariwala.ui.AsyncUiState
 import org.bhargav.pansariwala.ui.beginLoad
 import org.bhargav.pansariwala.util.AppConstants
 
 data class AccountData(
     val orders: List<Order> = emptyList(),
+    /** Checkouts not yet an order: pending, failed or refunded payments. */
+    val payments: List<PaymentIntent> = emptyList(),
+    val paymentBusyId: String? = null,
     val txns: List<MoneyTxn> = emptyList(),
     val profile: CustomerProfile? = null,
     val ordersPage: Int = 0,
@@ -38,6 +44,7 @@ typealias AccountUiState = AsyncUiState<AccountData>
 class AccountViewModel(
     private val api: PansariApi,
     private val preferences: AppPreferences,
+    private val cart: CartStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow<AccountUiState>(AsyncUiState.Idle)
     val state: StateFlow<AccountUiState> = _state.asStateFlow()
@@ -49,6 +56,9 @@ class AccountViewModel(
             }
         }
         refresh()
+        viewModelScope.launch {
+            PaymentUpdates.events.collect { refresh() }
+        }
         viewModelScope.launch {
             OrderUpdates.events.collect { update ->
                 val current = _state.value as? AsyncUiState.Success ?: return@collect
@@ -82,9 +92,15 @@ class AccountViewModel(
                     val orders = async { api.myOrdersPage(0, AppConstants.ORDER_PAGE_SIZE) }
                     val txns = async { api.myTransactions() }
                     val profile = async { api.me() }
+                    val payments = async {
+                        runCatching { api.myPaymentIntents() }
+                            .onFailure { it.rethrowIfStructuredCancellation() }
+                            .getOrDefault(emptyList())
+                    }
                     val page = orders.await()
                     AccountData(
                         orders = page.items,
+                        payments = payments.await(),
                         txns = txns.await(),
                         profile = profile.await(),
                         ordersPage = 0,
@@ -104,6 +120,53 @@ class AccountViewModel(
                 }
             }
         }
+    }
+
+    /** Asks the server for the latest payment state; an overdue payment comes back FAILED so it can be retried. */
+    fun checkPayment(intentId: String) {
+        runPaymentAction(intentId) {
+            val fresh = api.refreshPaymentIntent(intentId)
+            if (fresh.status == PaymentIntentStatus.SUCCESS) refresh() else replacePayment(fresh)
+        }
+    }
+
+    /** Re-checks first (the payment may have arrived), then refills the cart for a new attempt. */
+    fun retryPayment(intentId: String, onCartReady: (String) -> Unit) {
+        runPaymentAction(intentId) {
+            val current = (_state.value as? AsyncUiState.Success)?.data?.payments?.firstOrNull { it.id == intentId }
+                ?: return@runPaymentAction
+            val fresh = if (current.status == PaymentIntentStatus.PENDING) api.refreshPaymentIntent(intentId) else current
+            when (fresh.status) {
+                PaymentIntentStatus.SUCCESS -> refresh()
+                PaymentIntentStatus.PENDING -> replacePayment(fresh)
+                else -> {
+                    restoreCartForRetry(api, cart, fresh)
+                    onCartReady(fresh.shopId)
+                }
+            }
+        }
+    }
+
+    private fun runPaymentAction(intentId: String, block: suspend () -> Unit) {
+        val current = _state.value as? AsyncUiState.Success ?: return
+        if (current.data.paymentBusyId != null) return
+        _state.value = current.copy(data = current.data.copy(paymentBusyId = intentId))
+        viewModelScope.launch {
+            runCatching { block() }.onFailure { error ->
+                error.rethrowIfStructuredCancellation()
+                val latest = _state.value as? AsyncUiState.Success ?: return@onFailure
+                _state.value = latest.copy(bannerError = error.toApiUiText())
+            }
+            val latest = _state.value as? AsyncUiState.Success ?: return@launch
+            _state.value = latest.copy(data = latest.data.copy(paymentBusyId = null))
+        }
+    }
+
+    private fun replacePayment(intent: PaymentIntent) {
+        val current = _state.value as? AsyncUiState.Success ?: return
+        _state.value = current.copy(
+            data = current.data.copy(payments = current.data.payments.map { if (it.id == intent.id) intent else it }),
+        )
     }
 
     fun loadMoreOrders() {

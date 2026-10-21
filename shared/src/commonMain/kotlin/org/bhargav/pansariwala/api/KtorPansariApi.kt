@@ -290,6 +290,12 @@ class KtorPansariApi(
     override suspend fun paymentIntent(intentId: String): PaymentIntent =
         client.get("payments/intents/$intentId").body<PaymentIntentDto>().toModel(nowMs())
 
+    override suspend fun myPaymentIntents(): List<PaymentIntent> {
+        val rows = client.get("payments/intents").body<List<PaymentIntentDto>>()
+        val now = nowMs()
+        return rows.map { it.toModel(now) }
+    }
+
     override suspend fun refreshPaymentIntent(intentId: String): PaymentIntent =
         client.post("payments/intents/$intentId/refresh").body<PaymentIntentDto>().toModel(nowMs())
 

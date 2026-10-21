@@ -70,6 +70,8 @@ interface PansariApi {
     /** DIRECT_UPI / CASHFREE checkout: starts (or retries, via [PlaceOrderRequest.retryIntentId]) a payment. */
     suspend fun createPaymentIntent(request: PlaceOrderRequest): PaymentIntent
     suspend fun paymentIntent(intentId: String): PaymentIntent
+    /** Recent checkouts that did not become an order (pending, failed, refunded), newest first. */
+    suspend fun myPaymentIntents(): List<PaymentIntent>
     /** Re-checks the gateway (CASHFREE); returns the latest state. */
     suspend fun refreshPaymentIntent(intentId: String): PaymentIntent
     /** DIRECT_UPI: customer reports the UPI reference for the shop to match. */

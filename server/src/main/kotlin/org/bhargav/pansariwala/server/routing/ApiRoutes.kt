@@ -376,6 +376,9 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
         post("/payments/intents") {
             call.respond(store.createPaymentIntent(call.userId(), call.receive<PlaceOrderRequest>()))
         }
+        get("/payments/intents") {
+            call.respond(withContext(Dispatchers.IO) { store.customerPaymentIntents(call.userId()) })
+        }
         get("/payments/intents/{id}") {
             call.respond(withContext(Dispatchers.IO) { store.paymentIntent(call.userId(), call.parameters["id"]!!) })
         }
