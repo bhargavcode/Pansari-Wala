@@ -31,6 +31,7 @@ import org.bhargav.pansariwala.server.db.CategoryPriorityDoc
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderDto
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderItemDto
 import org.bhargav.pansariwala.server.dto.OtpConfigResponse
+import org.bhargav.pansariwala.server.dto.PAYMENT_FLOW_INTENT
 import org.bhargav.pansariwala.server.security.OtpAppProof
 import org.bhargav.pansariwala.server.db.CustomerAddressDoc
 import org.bhargav.pansariwala.server.db.CustomerDoc
@@ -75,9 +76,24 @@ import org.bhargav.pansariwala.server.dto.AdminUserDetailDto
 import org.bhargav.pansariwala.server.dto.AdminUserDto
 import org.bhargav.pansariwala.server.dto.CreateRazorpayRequest
 import org.bhargav.pansariwala.server.payment.CashfreeGateway
+import org.bhargav.pansariwala.server.payment.IntentStatus
 import org.bhargav.pansariwala.server.payment.PaymentMethod
 import org.bhargav.pansariwala.server.payment.PaymentMode
-import org.bhargav.pansariwala.server.payment.STATUS_PAYMENT_PENDING
+import org.bhargav.pansariwala.server.payment.SettlementStatus
+import org.bhargav.pansariwala.server.db.PaymentAttemptDoc
+import org.bhargav.pansariwala.server.db.PaymentIntentDoc
+import org.bhargav.pansariwala.server.db.SettlementDoc
+import org.bhargav.pansariwala.server.db.ShopBillingDoc
+import org.bhargav.pansariwala.server.dto.BillingModel
+import org.bhargav.pansariwala.server.dto.PaymentIntentDto
+import com.mongodb.ErrorCategory
+import com.mongodb.MongoWriteException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.server.dto.CustomerDto
 import org.bhargav.pansariwala.server.dto.DeliveryOfferDto
 import org.bhargav.pansariwala.server.dto.MasterCategoryDto
@@ -172,6 +188,23 @@ private const val VARIANT_BUNDLE = "BUNDLE"
 private val VARIANT_SELL_MODES = setOf(VARIANT_PACK, VARIANT_LOOSE, VARIANT_BUNDLE)
 private const val DEFAULT_LOOSE_STEP = 0.05
 private const val QTY_EPSILON = 1e-6
+private const val CAS_RETRIES = 5
+private const val MAX_PAYMENT_WINDOW_MIN = 30
+/** DIRECT_UPI: a shop may still confirm a payment that arrived after the window, for this long. */
+private const val LATE_CONFIRM_MS = 24 * 60 * 60_000L
+private const val SHOP_INTENT_LIMIT = 50
+private const val GATEWAY_POLL_AFTER_MS = 20_000L
+private const val FAIL_NOT_RECEIVED = "PAYMENT_NOT_RECEIVED"
+private const val FAIL_SHOP_NOT_RECEIVED = "SHOP_NOT_RECEIVED"
+private const val FAIL_OUT_OF_STOCK = "OUT_OF_STOCK"
+private const val NOTE_DUPLICATE = "DUPLICATE_PAYMENT"
+private val UTR_STATUSES = setOf(IntentStatus.PENDING, IntentStatus.FAILED)
+private val SETTLE_STATUSES = listOf("DELIVERED", "COMPLETED")
+private const val MAX_SPLIT_ATTEMPTS = 5
+private const val SPLIT_RETRY_MS = 2 * 60_000L
+private const val SETTLEMENT_SCAN_MS = 10 * 60_000L
+private const val SETTLEMENT_LOOKBACK_MS = 7 * 24 * 60 * 60_000L
+private const val VENDOR_ID_MAX = 50
 private const val MAX_SHOP_ORDER_LIMIT_INR = 100_000.0
 private val LOOSE_UNITS = setOf("KG", "LITRE", "GRAM")
 private const val PLATFORM_SETTINGS_ID = "global"
@@ -221,6 +254,13 @@ class AppStore(
     /** Raw orders collection for id-only projections (OrderDoc codec rejects partial docs). */
     private val orderIdCol = mongo.db.getCollection<Document>("orders")
     private val txnCol = mongo.db.getCollection<TxnDoc>("transactions")
+    private val intentCol = mongo.db.getCollection<PaymentIntentDoc>("payment_intents")
+    private val settlementCol = mongo.db.getCollection<SettlementDoc>("settlements")
+    private val billingCol = mongo.db.getCollection<ShopBillingDoc>("shop_billing")
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val _paymentEvents = MutableSharedFlow<PaymentIntentDto>(extraBufferCapacity = 256)
+    /** Every payment transaction change; `/ws/payments/{id}` streams the matching ones. */
+    val paymentEvents: SharedFlow<PaymentIntentDto> = _paymentEvents
     private val deliveryOfferCol = mongo.db.getCollection<DeliveryOfferDoc>("delivery_offers")
     private val offerPayoutCol = mongo.db.getCollection<Document>("delivery_offers")
     private val otpCol = mongo.db.getCollection<OtpDoc>("otp_challenges")
@@ -1039,7 +1079,7 @@ class AppStore(
             deliveryCharge = delivery,
             payable = (subtotal - discount + fee + delivery).coerceAtLeast(0.0),
             deliveryDistanceKm = dist,
-            paymentMode = settings.paymentMode,
+            paymentMode = if (request.paymentFlow >= PAYMENT_FLOW_INTENT) settings.paymentMode else PaymentMode.RAZORPAY,
         )
     }
 
@@ -1055,8 +1095,10 @@ class AppStore(
         val shop = shopById(request.shopId)
         require(shop.openNow()) { "${shop.name} is closed and not taking orders right now." }
         when (settings.paymentMode) {
-            PaymentMode.DIRECT_UPI -> require(shop.upiId.isNotBlank()) { "${shop.name} has not set up UPI payments yet." }
-            PaymentMode.CASHFREE -> require(cashfree.enabled) { "Online payments are not available right now." }
+            PaymentMode.DIRECT_UPI -> require(shop.directUpi() != null) { "${shop.name} has not set up UPI payments yet." }
+            PaymentMode.CASHFREE -> require(cashfree.enabled || shop.directUpi() != null) {
+                "Online payments are not available right now."
+            }
         }
         if (!request.selfPickup) {
             require(shop.deliveryAvailableNow()) {
@@ -1172,84 +1214,35 @@ class AppStore(
                 error("Payments are not configured")
             }
         }
+        require(mode == PaymentMode.RAZORPAY) { "Payment not completed. Please try again." }
         val customer = validateCheckout(userId, request)
         val drop = resolveDrop(customer, request)
         val shop = shopById(request.shopId)
-        val shopUpi = if (mode == PaymentMode.DIRECT_UPI) shop.upiId else shop.upiId.ifBlank { config.defaultShopUpi }
+        val shopUpi = shop.upiId.ifBlank { config.defaultShopUpi }
         val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng, request.selfPickup))
         val resolved = resolveLines(request.shopId, request.items)
-        val items = resolved.map { line ->
-            val image = (line.variant?.imageUrls.orEmpty() + line.product.imageUrls).firstOrNull { assets.isValidRef(it) }
-            OrderItemDto(
-                productId = line.product.id,
-                productName = line.product.name,
-                unit = line.variant?.baseUnit?.takeIf { line.variant.sellMode == VARIANT_LOOSE } ?: line.product.unit,
-                quantity = line.quantity,
-                unitPrice = line.unitPrice,
-                imageUrl = image?.let { assets.toUrl(it) },
-                variantId = line.variant?.id,
-                variantLabel = line.variant?.name,
-                sellMode = line.variant?.sellMode,
-            )
-        }
         val id = security.newOrderId()
-        val otp = security.deliveryOtp()
         val now = System.currentTimeMillis()
-        val prepaid = mode == PaymentMode.RAZORPAY
-        val paymentMethod = when (mode) {
-            PaymentMode.DIRECT_UPI -> PaymentMethod.UPI_DIRECT
-            PaymentMode.CASHFREE -> PaymentMethod.CASHFREE
-            else -> if (request.razorpayPaymentId.isNullOrBlank()) PaymentMethod.COD else PaymentMethod.RAZORPAY
-        }
-        val paymentDueAt = if (prepaid) null else now + settings.paymentWindowMinutes * 60_000L
-        val paymentLink = if (mode == PaymentMode.CASHFREE) {
-            cashfree.createLink(
-                linkId = id,
-                amountInr = q.payable,
-                purpose = "Order $id at ${shop.name}",
-                customerName = customer.name,
-                customerPhone = customer.phone,
-                expiresAtMs = paymentDueAt!!,
-            ).linkUrl ?: error("Cashfree did not return a payment link")
-        } else {
-            null
-        }
+        val paymentMethod = if (request.razorpayPaymentId.isNullOrBlank()) PaymentMethod.COD else PaymentMethod.RAZORPAY
         deductStock(resolved)
         orderCol.insertOne(
-            OrderDoc(
+            newOnlineOrder(
                 id = id,
-                shopId = request.shopId,
-                customerId = userId,
-                status = if (prepaid) "RECEIVED" else STATUS_PAYMENT_PENDING,
-                channel = "ONLINE",
-                customerName = customer.name,
-                customerPhone = customer.phone,
-                customerLat = drop.lat,
-                customerLng = drop.lng,
-                deliveryAddress = if (request.selfPickup) shop.address else drop.formatted,
-                dropoffInstructions = if (request.selfPickup) {
-                    "Customer will collect at the shop"
-                } else {
-                    "Drop at doorstep unless customer says otherwise"
-                },
-                selfPickup = request.selfPickup,
-                deliveryOtp = otp,
-                paymentId = if (prepaid) request.razorpayPaymentId ?: "pay_dev" else null,
+                userId = userId,
+                customer = customer,
+                drop = drop,
+                shop = shop,
+                request = request,
+                resolved = resolved,
+                quote = q,
+                now = now,
+            ).copy(
+                paymentId = request.razorpayPaymentId ?: "pay_dev",
                 paymentMethod = paymentMethod,
                 razorpayOrderId = request.razorpayOrderId,
                 shopUpi = shopUpi,
-                paymentLinkUrl = paymentLink,
-                paymentDueAt = paymentDueAt,
-                createdAt = now,
-                items = items,
-                quote = q,
             ),
         )
-        if (!prepaid) {
-            // CASHFREE: the shop only hears about the order once it is paid.
-            if (mode == PaymentMode.DIRECT_UPI) publishOrderUpdate(id, previousStatus = null)
-            return getOrder(id)
-        }
         txnCol.insertOne(TxnDoc(security.randomId("txn"), id, userId, q.payable, "Order $id", now))
         publishOrderUpdate(id, previousStatus = null)
         if (config.paymentsEnabled) {
@@ -1265,117 +1258,585 @@ class AppStore(
         return getOrder(id)
     }
 
+    /** RECEIVED online order built from server-priced [resolved] lines; payment fields are set by the caller. */
+    private fun newOnlineOrder(
+        id: String,
+        userId: String,
+        customer: CustomerDto,
+        drop: DropPoint,
+        shop: ShopDoc,
+        request: PlaceOrderRequest,
+        resolved: List<ResolvedLine>,
+        quote: QuoteDto,
+        now: Long,
+    ): OrderDoc {
+        val items = resolved.map { line ->
+            val image = (line.variant?.imageUrls.orEmpty() + line.product.imageUrls).firstOrNull { assets.isValidRef(it) }
+            OrderItemDto(
+                productId = line.product.id,
+                productName = line.product.name,
+                unit = line.variant?.baseUnit?.takeIf { line.variant.sellMode == VARIANT_LOOSE } ?: line.product.unit,
+                quantity = line.quantity,
+                unitPrice = line.unitPrice,
+                imageUrl = image?.let { assets.toUrl(it) },
+                variantId = line.variant?.id,
+                variantLabel = line.variant?.name,
+                sellMode = line.variant?.sellMode,
+            )
+        }
+        return OrderDoc(
+            id = id,
+            shopId = request.shopId,
+            customerId = userId,
+            status = "RECEIVED",
+            channel = "ONLINE",
+            customerName = customer.name,
+            customerPhone = customer.phone,
+            customerLat = drop.lat,
+            customerLng = drop.lng,
+            deliveryAddress = if (request.selfPickup) shop.address else drop.formatted,
+            dropoffInstructions = if (request.selfPickup) {
+                "Customer will collect at the shop"
+            } else {
+                "Drop at doorstep unless customer says otherwise"
+            },
+            selfPickup = request.selfPickup,
+            deliveryOtp = security.deliveryOtp(),
+            createdAt = now,
+            items = items,
+            quote = quote,
+        )
+    }
+
     fun getOrder(orderId: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         return row.toDto()
     }
 
+    // ---- Payment transactions (DIRECT_UPI / CASHFREE): pay first, order created only on success ----
+
+    /**
+     * Starts (or retries under the same id) a payment transaction: prices the cart, holds stock and
+     * returns the UPI link to open. The shop order is created only once the payment succeeds.
+     */
+    suspend fun createPaymentIntent(userId: String, request: PlaceOrderRequest): PaymentIntentDto {
+        val settings = platform()
+        require(settings.paymentMode != PaymentMode.RAZORPAY) { "Please pay with online checkout" }
+        val retry = request.retryIntentId?.takeIf { it.isNotBlank() }?.let { id ->
+            val row = intentCol.find(eq("_id", id)).firstOrNull() ?: error("Payment not found")
+            require(row.customerId == userId) { "Forbidden" }
+            when (row.status) {
+                IntentStatus.PENDING, IntentStatus.SUCCESS -> return row.toDto()
+                IntentStatus.FAILED -> row
+                else -> null
+            }
+        }
+        val customer = validateCheckout(userId, request)
+        val drop = resolveDrop(customer, request)
+        val shop = shopById(request.shopId)
+        val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng, request.selfPickup))
+        val resolved = resolveLines(request.shopId, request.items)
+        val now = System.currentTimeMillis()
+        val id = retry?.id ?: newIntentId()
+        val attempt = newAttempt(id, (retry?.attempts?.size ?: 0) + 1, q.payable, shop, customer, settings, now)
+        val next = PaymentIntentDoc(
+            id = id,
+            orderId = retry?.orderId ?: security.newOrderId(),
+            customerId = userId,
+            customerName = customer.name,
+            customerPhone = customer.phone,
+            shopId = shop.id,
+            shopName = shop.name,
+            payeeUpi = if (attempt.method == PaymentMethod.UPI_DIRECT) shop.directUpi() else null,
+            request = request.copy(retryIntentId = null, razorpayOrderId = null, razorpayPaymentId = null, razorpaySignature = null),
+            order = newOnlineOrder(retry?.orderId ?: "", userId, customer, drop, shop, request, resolved, q, now),
+            amountInr = q.payable,
+            status = IntentStatus.PENDING,
+            stockHeld = true,
+            attempts = retry?.attempts.orEmpty() + attempt,
+            refundId = retry?.refundId,
+            createdAt = retry?.createdAt ?: now,
+            updatedAt = retry?.nextStamp() ?: now,
+        ).let { it.copy(order = it.order.copy(id = it.orderId)) }
+        deductStock(resolved)
+        val saved = if (retry == null) {
+            runCatching { intentCol.insertOne(next) }.isSuccess
+        } else {
+            casIntent(retry, next)
+        }
+        if (!saved) {
+            restoreStock(next.order.items)
+            error("This payment is already being processed. Please wait.")
+        }
+        notifyIntent(next)
+        if (attempt.method == PaymentMethod.UPI_DIRECT) {
+            push.paymentToConfirm(shop.id, id, customer.name, q.payable, utr = null)
+        }
+        return next.toDto()
+    }
+
+    fun paymentIntent(userId: String, intentId: String): PaymentIntentDto {
+        val row = intentCol.find(eq("_id", intentId)).firstOrNull() ?: error("Payment not found")
+        require(row.customerId == userId) { "Forbidden" }
+        return row.toDto()
+    }
+
+    /** Re-checks Cashfree (webhooks can lag or be unreachable); no-op for DIRECT_UPI. */
+    suspend fun refreshPaymentIntent(userId: String, intentId: String): PaymentIntentDto {
+        val row = intentCol.find(eq("_id", intentId)).firstOrNull() ?: error("Payment not found")
+        require(row.customerId == userId) { "Forbidden" }
+        return syncGateway(row).toDto()
+    }
+
     /** Customer reports the UPI reference (UTR) of a DIRECT_UPI payment; the shop matches it in its bank app. */
-    fun submitPaymentUtr(userId: String, orderId: String, utr: String): OrderDto {
+    fun submitIntentUtr(userId: String, intentId: String, utr: String): PaymentIntentDto {
         val ref = utr.trim().uppercase()
         require(ref.length in 6..35 && ref.all { it.isLetterOrDigit() }) { "Enter the 12-digit UPI reference number (UTR)" }
-        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
-        require(row.customerId == userId) { "Forbidden" }
-        require(row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.UPI_DIRECT) {
-            "This order is not waiting for a UPI payment"
+        repeat(CAS_RETRIES) {
+            val row = intentCol.find(eq("_id", intentId)).firstOrNull() ?: error("Payment not found")
+            require(row.customerId == userId) { "Forbidden" }
+            val last = row.attempts.lastOrNull()
+            require(last?.method == PaymentMethod.UPI_DIRECT && row.status in UTR_STATUSES) {
+                "This payment is not waiting for a UPI reference"
+            }
+            val next = row.copy(
+                attempts = row.attempts.dropLast(1) + last!!.copy(utr = ref),
+                updatedAt = row.nextStamp(),
+            )
+            if (casIntent(row, next)) {
+                notifyIntent(next, pushCustomer = false)
+                push.paymentToConfirm(row.shopId, row.id, row.customerName, row.amountInr, ref)
+                return next.toDto()
+            }
         }
-        orderCol.updateOne(eq("_id", orderId), set("paymentUtr", ref))
-        publishOrderUpdate(orderId, row.status, always = true)
-        return getOrder(orderId)
+        error("Please try again")
     }
 
-    /** Shop saw the DIRECT_UPI money arrive in its own bank / UPI app. */
-    fun confirmUpiPayment(shopId: String, orderId: String): OrderDto {
-        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+    /** DIRECT_UPI transactions the shop still has to confirm (pending, or failed in the last day with a UTR). */
+    fun shopPaymentIntents(shopId: String): List<PaymentIntentDto> {
+        val since = System.currentTimeMillis() - LATE_CONFIRM_MS
+        return intentCol.find(
+            and(
+                eq("shopId", shopId),
+                or(eq("status", IntentStatus.PENDING), and(eq("status", IntentStatus.FAILED), gt("updatedAt", since))),
+            ),
+        ).sort(Sorts.descending("createdAt")).limit(SHOP_INTENT_LIMIT).toList()
+            .filter { row ->
+                val last = row.attempts.lastOrNull()
+                last?.method == PaymentMethod.UPI_DIRECT &&
+                    (row.status == IntentStatus.PENDING || !last.utr.isNullOrBlank())
+            }
+            .map { it.toDto() }
+    }
+
+    /** Shop saw the money in its own bank / UPI app; creates the order (also for late payments). */
+    suspend fun shopConfirmIntent(shopId: String, intentId: String): PaymentIntentDto {
+        val row = intentCol.find(eq("_id", intentId)).firstOrNull() ?: error("Payment not found")
         require(row.shopId == shopId) { "Forbidden" }
-        require(row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.UPI_DIRECT) {
-            "This order is not waiting for a UPI payment"
-        }
-        markPaid(row, row.paymentUtr?.let { "utr_$it" } ?: "upi_${row.id}")
-        return getOrder(orderId)
+        val last = row.attempts.lastOrNull()
+        require(last?.method == PaymentMethod.UPI_DIRECT) { "This payment is confirmed automatically" }
+        require(row.status in UTR_STATUSES) { "This payment is already closed" }
+        val ref = last!!.utr?.let { "utr_$it" } ?: "upi_${row.id}_${last.no}"
+        return (succeedIntent(row.id, last.no, ref) ?: row).toDto()
     }
 
-    /** Customer app calls this after returning from the payment page (webhooks can lag or be unreachable). */
-    suspend fun refreshPayment(userId: String, orderId: String): OrderDto {
-        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
-        require(row.customerId == userId) { "Forbidden" }
-        if (row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.CASHFREE) {
-            runCatching { syncCashfree(row, expireIfUnpaid = false) }
-        }
-        return getOrder(orderId)
+    fun shopRejectIntent(shopId: String, intentId: String): PaymentIntentDto {
+        val row = intentCol.find(eq("_id", intentId)).firstOrNull() ?: error("Payment not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        require(row.status == IntentStatus.PENDING) { "This payment is already closed" }
+        failIntent(row, FAIL_SHOP_NOT_RECEIVED)
+        return intentCol.find(eq("_id", intentId)).first().toDto()
     }
 
-    /** Signature-checked; the link status is re-read from Cashfree instead of trusting the body. */
+    /** Signature-checked; the payment status is re-read from Cashfree instead of trusting the body. */
     suspend fun handleCashfreeWebhook(timestamp: String, rawBody: String, signature: String): Boolean {
         if (!cashfree.verifyWebhook(timestamp, rawBody, signature)) return false
-        val linkId = cashfree.webhookLinkId(rawBody) ?: return true
-        val row = orderCol.find(eq("_id", linkId)).firstOrNull() ?: return true
-        if (row.status == STATUS_PAYMENT_PENDING && row.paymentMethod == PaymentMethod.CASHFREE) {
-            syncCashfree(row, expireIfUnpaid = false)
+        val gatewayOrderId = cashfree.webhookOrderId(rawBody) ?: return true
+        val intentId = gatewayOrderId.substringBeforeLast('_')
+        val attemptNo = gatewayOrderId.substringAfterLast('_').toIntOrNull() ?: return true
+        if (cashfree.orderStatus(gatewayOrderId) == CashfreeGateway.ORDER_PAID) {
+            succeedIntent(intentId, attemptNo, "cf_$gatewayOrderId")
         }
         return true
     }
 
-    private suspend fun syncCashfree(row: OrderDoc, expireIfUnpaid: Boolean) {
-        val link = cashfree.getLink(row.id)
-        when {
-            link.linkStatus == CashfreeGateway.LINK_PAID -> markPaid(row, "cf_${link.linkId}")
-            link.linkStatus in CashfreeGateway.LINK_DEAD || expireIfUnpaid -> {
-                cashfree.cancelLink(row.id)
-                cancelUnpaid(row, "PAYMENT_NOT_COMPLETED")
+    /**
+     * Sweeper: fails transactions whose window passed (after a last Cashfree check), finishes order
+     * inserts interrupted by a crash, and retries settlements.
+     */
+    suspend fun expirePaymentIntents() {
+        val now = System.currentTimeMillis()
+        intentCol.find(eq("status", IntentStatus.PENDING)).toList().forEach { row ->
+            runCatching {
+                val last = row.attempts.lastOrNull()
+                val fresh = if (last?.gatewayOrderId != null && now - last.startedAt > GATEWAY_POLL_AFTER_MS) {
+                    syncGateway(row)
+                } else {
+                    row
+                }
+                if (fresh.status == IntentStatus.PENDING && (last == null || last.expiresAt <= now)) {
+                    failIntent(fresh, FAIL_NOT_RECEIVED)
+                }
+            }.onFailure { println("Payment sweep failed for ${row.id}: ${it.message}") }
+        }
+        intentCol.find(and(eq("status", IntentStatus.SUCCESS), eq("orderPlaced", false))).toList().forEach { row ->
+            runCatching { placeIntentOrder(row) }.onFailure { println("Order insert retry failed for ${row.id}: ${it.message}") }
+        }
+        runCatching { retrySettlements(now) }.onFailure { println("Settlement sweep failed: ${it.message}") }
+    }
+
+    private suspend fun newAttempt(
+        intentId: String,
+        no: Int,
+        amountInr: Double,
+        shop: ShopDoc,
+        customer: CustomerDto,
+        settings: PlatformSettingsDoc,
+        now: Long,
+    ): PaymentAttemptDoc {
+        val expiresAt = now + settings.paymentWindowMinutes.coerceIn(1, MAX_PAYMENT_WINDOW_MIN) * 60_000L
+        if (settings.paymentMode == PaymentMode.CASHFREE && cashfree.enabled) {
+            val gatewayOrderId = "${intentId}_$no"
+            val uri = runCatching {
+                cashfree.createUpiIntent(
+                    gatewayOrderId = gatewayOrderId,
+                    amountInr = amountInr,
+                    customerId = customer.id,
+                    customerName = customer.name,
+                    customerPhone = customer.phone,
+                    note = "Pansari ${shop.name} $intentId",
+                    expiresAtMs = expiresAt,
+                )
+            }.onFailure { println("Cashfree UPI intent failed for $gatewayOrderId: ${it.message}") }.getOrNull()
+            if (uri != null) {
+                return PaymentAttemptDoc(no, PaymentMethod.CASHFREE, gatewayOrderId, uri, now, expiresAt)
             }
         }
+        val payee = shop.directUpi() ?: error("Online payments are not available right now.")
+        return PaymentAttemptDoc(
+            no = no,
+            method = PaymentMethod.UPI_DIRECT,
+            upiPayUri = upiPayUri(payee, shop.name, amountInr, intentId),
+            startedAt = now,
+            expiresAt = expiresAt,
+        )
     }
 
-    private fun markPaid(row: OrderDoc, paymentId: String) {
-        val moved = orderCol.updateOne(
-            and(eq("_id", row.id), eq("status", STATUS_PAYMENT_PENDING)),
-            combine(set("status", "RECEIVED"), set("paymentId", paymentId)),
-        ).modifiedCount > 0
-        if (!moved) return
-        row.customerId?.let { customerId ->
-            txnCol.insertOne(
-                TxnDoc(
-                    security.randomId("txn"),
-                    row.id,
-                    customerId,
-                    row.quote?.payable ?: 0.0,
-                    "Order ${row.id}",
-                    System.currentTimeMillis(),
-                ),
-            )
-        }
-        publishOrderUpdate(row.id, STATUS_PAYMENT_PENDING)
-    }
-
-    private fun cancelUnpaid(row: OrderDoc, reason: String) {
-        val moved = orderCol.updateOne(
-            and(eq("_id", row.id), eq("status", STATUS_PAYMENT_PENDING)),
-            combine(set("status", "CANCELLED"), set("cancelReason", reason)),
-        ).modifiedCount > 0
-        if (!moved) return
-        restoreStock(row.items)
-        publishOrderUpdate(row.id, STATUS_PAYMENT_PENDING)
+    private suspend fun syncGateway(row: PaymentIntentDoc): PaymentIntentDoc {
+        if (row.status !in UTR_STATUSES) return row
+        val last = row.attempts.lastOrNull() ?: return row
+        val gatewayOrderId = last.gatewayOrderId ?: return row
+        if (cashfree.orderStatus(gatewayOrderId) != CashfreeGateway.ORDER_PAID) return row
+        return succeedIntent(row.id, last.no, "cf_$gatewayOrderId") ?: row
     }
 
     /**
-     * Cancels PAYMENT_PENDING orders past their window and releases stock. DIRECT_UPI orders with a UTR
-     * are left for the shop to confirm or cancel, since the customer may already have paid.
+     * Idempotent: the first paid attempt flips the transaction to SUCCESS (compare-and-swap) and the order
+     * is inserted under the reserved id. A payment after expiry re-takes stock, or is refunded if it is gone;
+     * a second paid attempt is refunded.
      */
-    suspend fun expireUnpaidOrders(): Int {
-        val now = System.currentTimeMillis()
-        val due = orderCol.find(and(eq("status", STATUS_PAYMENT_PENDING), lt("paymentDueAt", now))).toList()
-        var expired = 0
-        due.forEach { row ->
-            when (row.paymentMethod) {
-                PaymentMethod.CASHFREE -> runCatching { syncCashfree(row, expireIfUnpaid = true) }
-                PaymentMethod.UPI_DIRECT -> if (row.paymentUtr.isNullOrBlank()) cancelUnpaid(row, "PAYMENT_NOT_COMPLETED")
-                else -> cancelUnpaid(row, "PAYMENT_NOT_COMPLETED")
+    private suspend fun succeedIntent(intentId: String, attemptNo: Int, paymentRef: String): PaymentIntentDoc? {
+        repeat(CAS_RETRIES) {
+            val row = intentCol.find(eq("_id", intentId)).firstOrNull() ?: return null
+            val attempt = row.attempts.firstOrNull { it.no == attemptNo } ?: return row
+            if (row.status == IntentStatus.SUCCESS || row.status == IntentStatus.REFUNDED) {
+                val paid = row.attempts.firstOrNull { it.status == IntentStatus.ATTEMPT_PAID }
+                if (paid != null && paid.no != attemptNo && attempt.status != IntentStatus.ATTEMPT_PAID) {
+                    val marked = row.copy(
+                        attempts = row.attempts.map {
+                            if (it.no == attemptNo) it.copy(status = IntentStatus.ATTEMPT_PAID, note = NOTE_DUPLICATE) else it
+                        },
+                        updatedAt = row.nextStamp(),
+                    )
+                    if (casIntent(row, marked)) refundAttempt(marked, attempt, NOTE_DUPLICATE)
+                }
+                return row
             }
-            if (orderCol.countDocuments(and(eq("_id", row.id), eq("status", "CANCELLED"))) > 0) expired++
+            val attempts = row.attempts.map {
+                if (it.no == attemptNo) it.copy(status = IntentStatus.ATTEMPT_PAID, gatewayPaymentId = paymentRef) else it
+            }
+            val stockOk = row.stockHeld || stockAvailable(row.shopId, row.order.items)
+            if (!stockOk) {
+                val refunded = row.copy(
+                    status = IntentStatus.REFUNDED,
+                    attempts = attempts,
+                    failureReason = FAIL_OUT_OF_STOCK,
+                    updatedAt = row.nextStamp(),
+                )
+                if (!casIntent(row, refunded)) return@repeat
+                val refundId = refundAttempt(refunded, attempt, FAIL_OUT_OF_STOCK)
+                val done = intentCol.find(eq("_id", intentId)).firstOrNull() ?: refunded
+                notifyIntent(done.copy(refundId = refundId ?: done.refundId))
+                return done
+            }
+            val next = row.copy(
+                status = IntentStatus.SUCCESS,
+                attempts = attempts,
+                stockHeld = true,
+                failureReason = null,
+                updatedAt = row.nextStamp(),
+            )
+            if (!casIntent(row, next)) return@repeat
+            if (!row.stockHeld) deductStock(resolveLines(row.shopId, row.order.items.toPlaceItems()))
+            placeIntentOrder(next)
+            return next
         }
-        return expired
+        return intentCol.find(eq("_id", intentId)).firstOrNull()
     }
+
+    /** Inserts the paid order (duplicate inserts are ignored) and tells the shop and the customer. */
+    private fun placeIntentOrder(intent: PaymentIntentDoc) {
+        val attempt = intent.attempts.firstOrNull { it.status == IntentStatus.ATTEMPT_PAID } ?: intent.attempts.last()
+        val now = System.currentTimeMillis()
+        val inserted = runCatching {
+            orderCol.insertOne(
+                intent.order.copy(
+                    id = intent.orderId,
+                    paymentId = attempt.gatewayPaymentId ?: intent.id,
+                    paymentMethod = attempt.method,
+                    paymentIntentId = intent.id,
+                    paymentUtr = attempt.utr,
+                    gatewayOrderId = attempt.gatewayOrderId,
+                    shopUpi = intent.payeeUpi,
+                    createdAt = now,
+                ),
+            )
+        }.fold(
+            onSuccess = { true },
+            onFailure = { e ->
+                if ((e as? MongoWriteException)?.error?.category != ErrorCategory.DUPLICATE_KEY) throw e
+                false
+            },
+        )
+        if (inserted) {
+            txnCol.insertOne(
+                TxnDoc(security.randomId("txn"), intent.orderId, intent.customerId, intent.amountInr, "Order ${intent.orderId}", now),
+            )
+            publishOrderUpdate(intent.orderId, previousStatus = null)
+        }
+        intentCol.updateOne(eq("_id", intent.id), set("orderPlaced", true))
+        notifyIntent(intent.copy(orderPlaced = true))
+    }
+
+    private fun failIntent(row: PaymentIntentDoc, reason: String): Boolean {
+        val next = row.copy(
+            status = IntentStatus.FAILED,
+            stockHeld = false,
+            attempts = row.attempts.mapIndexed { i, a ->
+                if (i == row.attempts.lastIndex && a.status == IntentStatus.PENDING) a.copy(status = IntentStatus.FAILED, note = reason) else a
+            },
+            failureReason = reason,
+            updatedAt = row.nextStamp(),
+        )
+        if (!casIntent(row, next)) return false
+        if (row.stockHeld) restoreStock(row.order.items)
+        notifyIntent(next)
+        return true
+    }
+
+    /** Gateway refund for one paid attempt; DIRECT_UPI money is with the shop, which refunds by UPI. */
+    private suspend fun refundAttempt(row: PaymentIntentDoc, attempt: PaymentAttemptDoc, reason: String): String? {
+        val gatewayOrderId = attempt.gatewayOrderId ?: return null
+        val refundId = runCatching { cashfree.refund(gatewayOrderId, row.amountInr, "rf_$gatewayOrderId", reason) }
+            .onFailure { println("Cashfree refund failed for $gatewayOrderId: ${it.message}") }
+            .getOrNull() ?: return null
+        intentCol.updateOne(eq("_id", row.id), set("refundId", refundId))
+        return refundId
+    }
+
+    private fun stockAvailable(shopId: String, items: List<OrderItemDto>): Boolean = runCatching {
+        resolveLines(shopId, items.toPlaceItems())
+            .groupBy { it.product.id to it.stockVariant?.id }
+            .values
+            .all { group -> group.first().available + QTY_EPSILON >= group.sumOf { it.stockUnits } }
+    }.getOrDefault(false)
+
+    private fun List<OrderItemDto>.toPlaceItems() = map { PlaceOrderItemDto(it.productId, it.quantity, it.variantId) }
+
+    private fun notifyIntent(row: PaymentIntentDoc, pushCustomer: Boolean = true) {
+        _paymentEvents.tryEmit(row.toDto())
+        if (pushCustomer) push.paymentResult(row.customerId, row.id, row.orderId, row.status, row.shopName, row.amountInr)
+    }
+
+    private fun casIntent(old: PaymentIntentDoc, new: PaymentIntentDoc): Boolean =
+        intentCol.replaceOne(
+            and(eq("_id", old.id), eq("status", old.status), eq("updatedAt", old.updatedAt)),
+            new,
+        ).modifiedCount > 0
+
+    private fun PaymentIntentDoc.nextStamp(): Long = maxOf(System.currentTimeMillis(), updatedAt + 1)
+
+    private fun newIntentId(): String =
+        "PTX" + System.currentTimeMillis().toString(36).uppercase() + security.randomId("p").takeLast(6).uppercase()
+
+    /** Real UPI ID for direct payments; the seeded Razorpay test VPA does not count. */
+    private fun ShopDoc.directUpi(): String? = upiId.trim().takeIf { it.contains('@') && it != config.defaultShopUpi }
+
+    private fun upiPayUri(payee: String, payeeName: String, amountInr: Double, ref: String): String {
+        fun enc(v: String) = java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")
+        val amount = String.format(java.util.Locale.US, "%.2f", amountInr)
+        return "upi://pay?pa=${enc(payee)}&pn=${enc(payeeName.take(40))}&am=$amount&cu=INR&tr=${enc(ref)}&tn=${enc("Pansari $ref")}"
+    }
+
+    private fun PaymentIntentDoc.toDto(): PaymentIntentDto {
+        val last = attempts.lastOrNull()
+        return PaymentIntentDto(
+            id = id,
+            orderId = orderId,
+            status = status,
+            method = last?.method ?: PaymentMethod.UPI_DIRECT,
+            amountInr = amountInr,
+            shopId = shopId,
+            shopName = shopName,
+            customerName = customerName,
+            customerPhone = customerPhone,
+            payeeUpi = payeeUpi.takeIf { last?.method == PaymentMethod.UPI_DIRECT },
+            upiPayUri = last?.upiPayUri?.takeIf { status == IntentStatus.PENDING },
+            attemptNo = last?.no ?: 0,
+            attemptStartedAtEpochMs = last?.startedAt ?: createdAt,
+            expiresAtEpochMs = last?.expiresAt ?: createdAt,
+            serverNowEpochMs = System.currentTimeMillis(),
+            utr = last?.utr,
+            failureReason = failureReason,
+            refundId = refundId,
+            items = order.items,
+            quote = order.quote,
+            selfPickup = request.selfPickup,
+            addressId = request.addressId,
+            deliveryAddress = order.deliveryAddress.orEmpty(),
+            createdAtEpochMs = createdAt,
+            updatedAtEpochMs = updatedAt,
+        )
+    }
+
+    // ---- Cashfree Easy Split: shop + partner shares released once the order is delivered ----
+
+    private fun scheduleSettlement(orderId: String) {
+        backgroundScope.launch {
+            runCatching { settleOrder(orderId) }.onFailure { println("Settlement failed for $orderId: ${it.message}") }
+        }
+    }
+
+    private suspend fun settleOrder(orderId: String) {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: return
+        if (row.paymentMethod != PaymentMethod.CASHFREE || row.gatewayOrderId.isNullOrBlank() || row.status !in SETTLE_STATUSES) return
+        val existing = settlementCol.find(eq("_id", orderId)).firstOrNull()
+        if (existing != null && existing.status != SettlementStatus.FAILED && existing.status != SettlementStatus.PENDING) return
+        val doc = existing ?: newSettlement(row).also { plan ->
+            val created = runCatching { settlementCol.insertOne(plan) }.isSuccess
+            if (!created) return
+        }
+        runSplit(doc)
+    }
+
+    private fun newSettlement(row: OrderDoc): SettlementDoc {
+        val now = System.currentTimeMillis()
+        val q = row.quote
+        val sale = ((q?.itemsSubtotal ?: 0.0) - (q?.discount ?: 0.0)).coerceAtLeast(0.0)
+        val billing = billingCol.find(eq("_id", row.shopId)).firstOrNull()
+        val commission = if (billing?.model == BillingModel.COMMISSION) sale * billing.commissionPercent / 100.0 else 0.0
+        val shopAmount = (sale - commission).coerceAtLeast(0.0).money()
+        val partnerId = row.partnerId?.takeIf { row.deliveryMode == "PARTNER" }
+        val partnerAmount = if (partnerId != null) (row.partnerPayoutInr ?: 0.0).coerceAtLeast(0.0).money() else 0.0
+        val payable = q?.payable ?: 0.0
+        return SettlementDoc(
+            orderId = row.id,
+            gatewayOrderId = row.gatewayOrderId.orEmpty(),
+            shopId = row.shopId,
+            shopVendorId = shopCol.find(eq("_id", row.shopId)).firstOrNull()?.cashfreeVendorId.orEmpty(),
+            shopAmount = shopAmount,
+            partnerId = partnerId,
+            partnerVendorId = partnerId?.let { id -> partnerCol.find(eq("_id", id)).firstOrNull()?.cashfreeVendorId }.orEmpty(),
+            partnerAmount = partnerAmount,
+            platformAmount = (payable - shopAmount - partnerAmount).money(),
+            status = SettlementStatus.PENDING,
+            createdAt = now,
+            updatedAt = now,
+        )
+    }
+
+    /** Splits what has a vendor id; anything without one is left for a manual payout (status MANUAL). */
+    private suspend fun runSplit(doc: SettlementDoc) {
+        val now = System.currentTimeMillis()
+        val refunded = orderCol.find(eq("_id", doc.orderId)).firstOrNull()?.refundId != null
+        val missing = buildList {
+            if (doc.shopAmount > 0 && doc.shopVendorId.isBlank()) add("shop")
+            if (doc.partnerAmount > 0 && doc.partnerVendorId.isBlank()) add("partner")
+        }
+        val shares = buildMap {
+            if (doc.shopAmount > 0 && doc.shopVendorId.isNotBlank()) put(doc.shopVendorId, doc.shopAmount)
+            if (doc.partnerAmount > 0 && doc.partnerVendorId.isNotBlank()) {
+                put(doc.partnerVendorId, (this[doc.partnerVendorId] ?: 0.0) + doc.partnerAmount)
+            }
+        }
+        if (refunded || shares.isEmpty()) {
+            val note = if (refunded) "Order was refunded; settle manually" else "No Cashfree vendor id for: ${missing.joinToString()}"
+            settlementCol.updateOne(
+                eq("_id", doc.orderId),
+                combine(set("status", SettlementStatus.MANUAL), set("lastError", note), set("updatedAt", now)),
+            )
+            return
+        }
+        val result = runCatching { cashfree.split(doc.gatewayOrderId, shares) }
+        val update = result.fold(
+            onSuccess = {
+                combine(
+                    set("status", if (missing.isEmpty()) SettlementStatus.SPLIT else SettlementStatus.MANUAL),
+                    set("lastError", missing.takeIf { it.isNotEmpty() }?.let { "Pay manually: ${it.joinToString()}" }),
+                    set("attempts", doc.attempts + 1),
+                    set("updatedAt", now),
+                )
+            },
+            onFailure = {
+                combine(
+                    set("status", SettlementStatus.FAILED),
+                    set("lastError", it.message?.take(300)),
+                    set("attempts", doc.attempts + 1),
+                    set("updatedAt", now),
+                )
+            },
+        )
+        settlementCol.updateOne(eq("_id", doc.orderId), update)
+    }
+
+    @Volatile private var lastSettlementScan = 0L
+
+    private suspend fun retrySettlements(now: Long) {
+        settlementCol.find(
+            and(
+                lt("attempts", MAX_SPLIT_ATTEMPTS),
+                or(
+                    and(eq("status", SettlementStatus.FAILED), lt("updatedAt", now - SPLIT_RETRY_MS)),
+                    and(eq("status", SettlementStatus.PENDING), lt("updatedAt", now - SPLIT_RETRY_MS)),
+                ),
+            ),
+        ).toList().forEach { runSplit(it) }
+        if (now - lastSettlementScan < SETTLEMENT_SCAN_MS) return
+        lastSettlementScan = now
+        val due = orderIdCol.find(
+            and(
+                eq("paymentMethod", PaymentMethod.CASHFREE),
+                `in`("status", SETTLE_STATUSES),
+                gt("createdAt", now - SETTLEMENT_LOOKBACK_MS),
+            ),
+        ).projection(include("_id")).map { it.getString("_id") }.toList()
+        if (due.isEmpty()) return
+        val done = settlementCol.find(`in`("_id", due)).toList().map { it.orderId }.toSet()
+        due.filterNot { it in done }.forEach { settleOrder(it) }
+    }
+
+    /** Master: Cashfree vendor ids used by Easy Split (vendors are created + KYC'd in the Cashfree dashboard). */
+    fun setShopVendorId(shopId: String, vendorId: String) {
+        shopById(shopId)
+        shopCol.updateOne(eq("_id", shopId), set("cashfreeVendorId", vendorId.trim().take(VENDOR_ID_MAX)))
+    }
+
+    fun setPartnerVendorId(partnerId: String, vendorId: String) {
+        require(partnerCol.countDocuments(eq("_id", partnerId)) > 0) { "Partner not found" }
+        partnerCol.updateOne(eq("_id", partnerId), set("cashfreeVendorId", vendorId.trim().take(VENDOR_ID_MAX)))
+    }
+
+    private fun Double.money(): Double = Math.round(this * 100) / 100.0
 
     /** Inverse of [deductStock] for saved order lines. */
     private fun restoreStock(items: List<OrderItemDto>) {
@@ -1397,10 +1858,10 @@ class AppStore(
 
     /** Returns the gateway refund id; DIRECT_UPI money sits with the shop, which refunds the customer by UPI. */
     private suspend fun refundPayment(row: OrderDoc, amountPaise: Long, reason: String): String? = when {
-        amountPaise <= 0 || row.status == STATUS_PAYMENT_PENDING -> null
+        amountPaise <= 0 -> null
         row.paymentMethod == PaymentMethod.UPI_DIRECT -> null
         row.paymentMethod == PaymentMethod.CASHFREE -> runCatching {
-            cashfree.refundLink(row.id, amountPaise / 100.0, "rf_${row.id}", reason)
+            cashfree.refund(row.gatewayOrderId ?: error("Missing gateway order"), amountPaise / 100.0, "rf_${row.id}", reason)
         }.getOrNull()
         else -> runCatching {
             security.refundRazorpayPayment(
@@ -1421,6 +1882,7 @@ class AppStore(
         partnerTimeout: Boolean = false,
         always: Boolean = false,
     ) {
+        if (previousStatus != null) scheduleSettlement(orderId)
         if (!push.enabled) return
         val row = orderCol.find(eq("_id", orderId)).projection(orderListProjection).firstOrNull() ?: return
         if (row.channel != "ONLINE") return
@@ -1631,9 +2093,7 @@ class AppStore(
         require(row.shopId == shopId) { "Forbidden" }
         require(row.status !in setOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED")) { "Cannot cancel" }
         val reasonText = reason?.trim().orEmpty().ifBlank { "CANCELLED" }
-        val unpaid = row.status == STATUS_PAYMENT_PENDING
-        if (unpaid && row.paymentMethod == PaymentMethod.CASHFREE) cashfree.cancelLink(row.id)
-        val refundPaise = if (unpaid || row.paymentMethod == PaymentMethod.UPI_DIRECT) 0L else refundAmountPaise(row)
+        val refundPaise = if (row.paymentMethod == PaymentMethod.UPI_DIRECT) 0L else refundAmountPaise(row)
         val refundId = refundPayment(row, refundPaise, reasonText)
         restoreStock(row.items)
         deliveryOfferCol.find(eq("orderId", orderId)).toList().forEach { offer ->
@@ -3493,6 +3953,7 @@ class AppStore(
         paymentsEnabled = paymentsEnabled,
         discountPercent = discountPercent,
         upiId = upiId,
+        cashfreeVendorId = cashfreeVendorId,
         address = address,
         deliveryRadiusKm = deliveryRadiusKm,
         shopType = shopType,
@@ -3553,6 +4014,7 @@ class AppStore(
     )
 
     private fun PartnerDoc.toAdminPartnerDto() = AdminPartnerDto(
+        cashfreeVendorId = cashfreeVendorId,
         id = id,
         name = name,
         phone = phone,
@@ -3847,22 +4309,10 @@ class AppStore(
             refundId = refundId,
             packedProductIds = packedProductIds,
             discount = discount,
-            upiPayUri = upiPayUri(shopRow?.name),
-            payeeUpi = shopUpi?.takeIf { paymentMethod == PaymentMethod.UPI_DIRECT },
-            paymentLinkUrl = paymentLinkUrl?.takeIf { status == STATUS_PAYMENT_PENDING },
+            paymentIntentId = paymentIntentId,
             paymentUtr = paymentUtr,
-            paymentDueAtEpochMs = paymentDueAt?.takeIf { status == STATUS_PAYMENT_PENDING },
+            gatewayOrderId = gatewayOrderId,
         )
-    }
-
-    /** NPCI UPI deep link (`upi://pay`) for a pending DIRECT_UPI order; `tr`/`tn` carry the order id. */
-    private fun OrderDoc.upiPayUri(shopName: String?): String? {
-        if (status != STATUS_PAYMENT_PENDING || paymentMethod != PaymentMethod.UPI_DIRECT) return null
-        val vpa = shopUpi?.takeIf { it.isNotBlank() } ?: return null
-        val amount = "%.2f".format(java.util.Locale.ROOT, quote?.payable ?: return null)
-        fun enc(v: String) = java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")
-        return "upi://pay?pa=${enc(vpa)}&pn=${enc(shopName.orEmpty().ifBlank { "Pansari shop" })}" +
-            "&am=$amount&cu=INR&tr=${enc(id)}&tn=${enc("Pansari order $id")}"
     }
 
     private fun haversine(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {

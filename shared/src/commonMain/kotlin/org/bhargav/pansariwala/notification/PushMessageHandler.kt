@@ -2,6 +2,15 @@ package org.bhargav.pansariwala.notification
 
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.OrderStatus
+import org.bhargav.pansariwala.domain.model.PaymentIntentStatus
+import pansariwala.shared.generated.resources.notify_payment_confirm_body
+import pansariwala.shared.generated.resources.notify_payment_confirm_title
+import pansariwala.shared.generated.resources.notify_payment_failed_body
+import pansariwala.shared.generated.resources.notify_payment_failed_title
+import pansariwala.shared.generated.resources.notify_payment_refunded_body
+import pansariwala.shared.generated.resources.notify_payment_refunded_title
+import pansariwala.shared.generated.resources.notify_payment_success_body
+import pansariwala.shared.generated.resources.notify_payment_success_title
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.AppConstants.Push
 import org.bhargav.pansariwala.util.generateId
@@ -25,7 +34,46 @@ class PushMessageHandler(
             Push.EVENT_ORDER_UPDATE -> handleOrderUpdate(data, showAlert)
             Push.EVENT_DELIVERY_OFFER -> handleDeliveryOffer(data, showAlert)
             Push.EVENT_ISSUE_UPDATE -> if (showAlert) issueResolvedNotification(data)?.let(gateway::show)
+            Push.EVENT_PAYMENT_UPDATE, Push.EVENT_PAYMENT_CONFIRM -> handlePayment(data, showAlert)
         }
+    }
+
+    private suspend fun handlePayment(data: Map<String, String>, showAlert: Boolean) {
+        val intentId = data[Push.KEY_INTENT_ID]?.takeIf { it.isNotBlank() } ?: return
+        PaymentUpdates.emit(intentId)
+        if (!showAlert || data[Push.KEY_ALERT].isNullOrBlank()) return
+        val amount = data[Push.KEY_AMOUNT].orEmpty()
+        val shopName = data[Push.KEY_SHOP_NAME].orEmpty()
+        val orderId = data[Push.KEY_ORDER_ID].orEmpty()
+        val (title, body) = when {
+            data[Push.KEY_EVENT] == Push.EVENT_PAYMENT_CONFIRM ->
+                getString(Res.string.notify_payment_confirm_title) to
+                    getString(Res.string.notify_payment_confirm_body, amount, data[Push.KEY_CUSTOMER_NAME].orEmpty(), intentId)
+            data[Push.KEY_STATUS] == PaymentIntentStatus.SUCCESS.name ->
+                getString(Res.string.notify_payment_success_title) to
+                    getString(Res.string.notify_payment_success_body, amount, shopName, orderId)
+            data[Push.KEY_STATUS] == PaymentIntentStatus.REFUNDED.name ->
+                getString(Res.string.notify_payment_refunded_title) to
+                    getString(Res.string.notify_payment_refunded_body, amount, shopName)
+            data[Push.KEY_STATUS] == PaymentIntentStatus.FAILED.name ->
+                getString(Res.string.notify_payment_failed_title) to
+                    getString(Res.string.notify_payment_failed_body, amount, shopName)
+            else -> return
+        }
+        gateway.show(
+            ShopNotification(
+                id = generateId("notif"),
+                title = title,
+                body = body,
+                orderId = intentId,
+                type = if (data[Push.KEY_EVENT] == Push.EVENT_PAYMENT_CONFIRM) {
+                    AppConstants.Notification.TYPE_PAYMENT_CONFIRM
+                } else {
+                    AppConstants.Notification.TYPE_PAYMENT
+                },
+                key = "${data[Push.KEY_EVENT]}:$intentId",
+            ),
+        )
     }
 
     private suspend fun issueResolvedNotification(data: Map<String, String>): ShopNotification? {

@@ -32,6 +32,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound, .badge])
     }
 
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            IosPushBridge.shared.didOpen(userInfo: response.notification.request.content.userInfo)
+        }
+        completionHandler()
+    }
+
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         if let fcmToken {
             IosPushBridge.shared.onToken(token: fcmToken)

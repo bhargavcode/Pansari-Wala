@@ -35,6 +35,29 @@ if ! ssh "${SSH_OPTS[@]}" -o BatchMode=yes "${EC2_USER}@${EC2_HOST}" "true"; the
   exit 255
 fi
 
+# Upsert app secrets passed from CI into the systemd EnvironmentFile (values never hit the command line or logs).
+SYNC_ENV_KEYS=(CASHFREE_APP_ID CASHFREE_SECRET_KEY CASHFREE_ENV PUBLIC_API_BASE_URL)
+REMOTE_ENV="${EC2_DEPLOY_PATH%/}/env"
+ENV_UPDATES="$(mktemp)"
+trap 'rm -f "$ENV_UPDATES"' EXIT
+for key in "${SYNC_ENV_KEYS[@]}"; do
+  value="${!key:-}"
+  [[ -n "$value" ]] && printf '%s=%s\n' "$key" "$value" >> "$ENV_UPDATES"
+done
+if [[ -s "$ENV_UPDATES" ]]; then
+  echo "Updating $(wc -l < "$ENV_UPDATES" | xargs) env keys in ${REMOTE_ENV}"
+  ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" "
+    set -e
+    touch '${REMOTE_ENV}' && chmod 600 '${REMOTE_ENV}'
+    tmp=\$(mktemp)
+    cat > \"\$tmp.new\"
+    cut -d= -f1 \"\$tmp.new\" | sed 's/^/^/; s/\$/=/' > \"\$tmp.keys\"
+    { grep -v -f \"\$tmp.keys\" '${REMOTE_ENV}' || true; cat \"\$tmp.new\"; } > \"\$tmp\"
+    cat \"\$tmp\" > '${REMOTE_ENV}'
+    rm -f \"\$tmp\" \"\$tmp.new\" \"\$tmp.keys\"
+  " < "$ENV_UPDATES"
+fi
+
 echo "Uploading $JAR_PATH -> ${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}"
 scp "${SSH_OPTS[@]}" "$JAR_PATH" "${EC2_USER}@${EC2_HOST}:${REMOTE_JAR}.tmp"
 ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" \

@@ -296,6 +296,13 @@ object AppConstants {
         const val TYPE_ORDER: String = "order"
         const val TYPE_ONLINE_ORDER: String = "online_order"
         const val TYPE_DELIVERY_OFFER: String = "delivery_offer"
+        /** Customer payment result; the notification's order id field carries the payment transaction id. */
+        const val TYPE_PAYMENT: String = "payment"
+        /** Shop: DIRECT_UPI payment waiting for confirmation (opens online orders). */
+        const val TYPE_PAYMENT_CONFIRM: String = "payment_confirm"
+        /** iOS local notification userInfo keys, read back when the user taps the alert. */
+        const val USER_INFO_TYPE: String = "notificationType"
+        const val USER_INFO_ORDER_ID: String = "orderId"
     }
 
     /** FCM data payload contract with the server (`PushService`). */
@@ -325,6 +332,10 @@ object AppConstants {
         const val KEY_ISSUE_ID: String = "issueId"
         const val KEY_FEATURE: String = "feature"
         const val KEY_FIXED_IN: String = "fixedIn"
+        const val EVENT_PAYMENT_UPDATE: String = "PAYMENT_UPDATE"
+        const val EVENT_PAYMENT_CONFIRM: String = "PAYMENT_CONFIRM"
+        const val KEY_INTENT_ID: String = "intentId"
+        const val KEY_AMOUNT: String = "amount"
     }
 
     /** In-app issue reports and build tracking (server `SupportService`). */
@@ -351,11 +362,23 @@ object AppConstants {
     object Payment {
         const val MODE_DIRECT_UPI: String = "DIRECT_UPI"
         const val MODE_CASHFREE: String = "CASHFREE"
+        /** Sent in quotes so the server offers DIRECT_UPI / CASHFREE; older apps get RAZORPAY. */
+        const val FLOW_INTENT: Int = 2
         const val MODE_RAZORPAY: String = "RAZORPAY"
         const val METHOD_UPI_DIRECT: String = "UPI_DIRECT"
         const val METHOD_CASHFREE: String = "CASHFREE"
         const val UTR_MIN_LENGTH: Int = 6
         const val UTR_MAX_LENGTH: Int = 35
+        /** Polling fallback while the payment WebSocket is down. */
+        const val POLL_MS: Long = 4_000L
+        /** CASHFREE: how often the waiting screen asks the server to re-check the gateway. */
+        const val GATEWAY_CHECK_MS: Long = 10_000L
+        const val SOCKET_RETRY_MS: Long = 3_000L
+        const val COUNTDOWN_TICK_MS: Long = 1_000L
+        /** Server `PaymentIntentDoc.failureReason` values. */
+        const val REASON_NOT_RECEIVED: String = "PAYMENT_NOT_RECEIVED"
+        const val REASON_SHOP_NOT_RECEIVED: String = "SHOP_NOT_RECEIVED"
+        const val REASON_OUT_OF_STOCK: String = "OUT_OF_STOCK"
     }
 
     object Razorpay {

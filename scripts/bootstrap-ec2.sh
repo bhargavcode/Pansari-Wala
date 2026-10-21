@@ -43,6 +43,11 @@ REQUIRE_S3=false
 PUBLIC_BASE_URL=https://api.pansariwala.shop
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=
+# Cashfree (CI deploy keeps these in sync from GitHub secrets)
+CASHFREE_APP_ID=
+CASHFREE_SECRET_KEY=
+CASHFREE_ENV=sandbox
+PUBLIC_API_BASE_URL=https://api.pansariwala.shop
 FIREBASE_PROJECT_ID=
 EOF
   chmod 600 "$DEPLOY_PATH/env"

@@ -23,3 +23,6 @@ server/data/
 *.jks
 *.keystore
 scripts/.catalog-cache/
+
+# Local server secrets (loaded by :server:run)
+server/.env

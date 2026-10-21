@@ -53,6 +53,11 @@ private val CUSTOMER_ROLES = listOf("CUSTOMER", "USER")
 private object PushContract {
     const val EVENT_ORDER_UPDATE = "ORDER_UPDATE"
     const val EVENT_DELIVERY_OFFER = "DELIVERY_OFFER"
+    const val EVENT_PAYMENT_UPDATE = "PAYMENT_UPDATE"
+    const val EVENT_PAYMENT_CONFIRM = "PAYMENT_CONFIRM"
+    /** Followed by the intent status: PAYMENT_SUCCESS, PAYMENT_FAILED, PAYMENT_REFUNDED. */
+    const val ALERT_PAYMENT_PREFIX = "PAYMENT_"
+    const val ALERT_PAYMENT_CONFIRM = "PAYMENT_CONFIRM"
     const val ALERT_DELIVERY_OFFER = "DELIVERY_OFFER"
     const val ALERT_ORDER_NEW = "ORDER_NEW"
     const val ALERT_PARTNER_TIMEOUT = "PARTNER_TIMEOUT"
@@ -205,6 +210,65 @@ class PushService(
         )
     }
 
+    /**
+     * Payment transaction [intentId] changed. SUCCESS / FAILED / REFUNDED raise a tray alert for the customer
+     * (tap opens the payment screen); PENDING is silent and only refreshes an open screen.
+     */
+    fun paymentResult(
+        customerId: String,
+        intentId: String,
+        orderId: String,
+        status: String,
+        shopName: String,
+        amountInr: Double,
+    ) {
+        if (!enabled) return
+        val amount = "₹" + String.format(java.util.Locale.US, "%.2f", amountInr)
+        val data = mapOf(
+            "event" to PushContract.EVENT_PAYMENT_UPDATE,
+            "intentId" to intentId,
+            "orderId" to orderId,
+            "status" to status,
+            "shopName" to shopName,
+            "amount" to amount,
+        )
+        val text = when (status) {
+            "SUCCESS" -> "Payment successful" to "$amount paid to $shopName. Order $orderId is placed."
+            "FAILED" -> "Payment failed" to "$amount to $shopName was not received. Tap to retry."
+            "REFUNDED" -> "Payment refunded" to "Order $orderId could not be placed; $amount is being refunded."
+            else -> null
+        }
+        val alert = text?.let { (title, body) ->
+            Alert(PushContract.ALERT_PAYMENT_PREFIX + status, "${PushContract.EVENT_PAYMENT_UPDATE}:$intentId", title, body)
+        }
+        send(and(`in`("role", CUSTOMER_ROLES), eq("principalId", customerId)), PushMessage(intentId, data, alert))
+    }
+
+    /** DIRECT_UPI money goes straight to the shop, so the shop must confirm it arrived. */
+    fun paymentToConfirm(shopId: String, intentId: String, customerName: String, amountInr: Double, utr: String?) {
+        if (!enabled) return
+        val amount = "₹" + String.format(java.util.Locale.US, "%.2f", amountInr)
+        val data = mapOf(
+            "event" to PushContract.EVENT_PAYMENT_CONFIRM,
+            "intentId" to intentId,
+            "orderId" to intentId,
+            "amount" to amount,
+            "customerName" to customerName,
+        )
+        val body = buildString {
+            append("$amount from ${customerName.ifBlank { "a customer" }} ($intentId).")
+            if (!utr.isNullOrBlank()) append(" UTR $utr.")
+            append(" Confirm once it reaches your bank.")
+        }
+        val alert = Alert(
+            PushContract.ALERT_PAYMENT_CONFIRM,
+            "${PushContract.ALERT_PAYMENT_CONFIRM}:$intentId",
+            "Check UPI payment",
+            body,
+        )
+        send(and(eq("role", "SHOP"), eq("shopId", shopId)), PushMessage(intentId, data, alert))
+    }
+
     /** Tells the reporter (any app) that Master marked their issue fixed, and in which build. */
     fun issueResolved(reporterId: String, issueId: String, featureLabel: String, fixedInVersion: String) {
         if (!enabled) return
@@ -237,17 +301,11 @@ class PushService(
                 title = "No delivery partner found",
                 body = "No partner accepted order $short in 5 minutes. Request a delivery partner again.",
             )
-            u.status == "RECEIVED" && (u.previousStatus == null || u.previousStatus == "PAYMENT_PENDING") -> Alert(
+            u.status == "RECEIVED" && u.previousStatus == null -> Alert(
                 kind = PushContract.ALERT_ORDER_NEW,
                 key = "${PushContract.ALERT_ORDER_NEW}:${u.orderId}",
                 title = "New online order",
                 body = "Order $short from ${u.customerName.ifBlank { u.orderId }}",
-            )
-            u.previousStatus == null && u.status == "PAYMENT_PENDING" -> Alert(
-                kind = PushContract.ALERT_ORDER_NEW,
-                key = "${PushContract.ALERT_ORDER_NEW}:${u.orderId}:pay",
-                title = "New UPI order: check payment",
-                body = "Order $short from ${u.customerName.ifBlank { u.orderId }}. Confirm once the UPI payment reaches your bank.",
             )
             else -> null
         }
@@ -257,11 +315,6 @@ class PushService(
         if (u.previousStatus == u.status) return null
         val shop = u.shopName
         val (kind, text) = when (u.status) {
-            "RECEIVED" -> if (u.previousStatus == "PAYMENT_PENDING") {
-                PushContract.ALERT_ACCEPTED to ("Payment received" to "$shop received your payment.")
-            } else {
-                return null
-            }
             "ACCEPTED" -> if (u.previousStatus == "RECEIVED") {
                 PushContract.ALERT_ACCEPTED to ("Order accepted" to "$shop is preparing your order.")
             } else {

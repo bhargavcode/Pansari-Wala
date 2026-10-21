@@ -57,6 +57,10 @@ import pansariwala.shared.generated.resources.master_variants_count
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.action_save
+import pansariwala.shared.generated.resources.master_cashfree_vendor_hint
+import pansariwala.shared.generated.resources.master_cashfree_vendor_id
+import pansariwala.shared.generated.resources.master_cashfree_vendor_saved
 import pansariwala.shared.generated.resources.shop_min_order_label
 import pansariwala.shared.generated.resources.currency_symbol
 import pansariwala.shared.generated.resources.shop_min_order_none
@@ -1306,6 +1310,7 @@ internal fun PartnerDetailScreen(token: String, partnerId: String, onNavigate: (
                             LabelValue(stringResource(Res.string.master_join_date), formatEpochDate(p.joinedAtEpochMs))
                             OnOffToggle(p.active) { /* read-only in detail */ }
                         }
+                        PartnerVendorCard(token, p.id, p.cashfreeVendorId, onStatus)
                     },
                     right = {
                         MasterSectionCard(title = stringResource(Res.string.master_accepted_orders)) {
@@ -1323,6 +1328,41 @@ internal fun PartnerDetailScreen(token: String, partnerId: String, onNavigate: (
                 OutlinedButton(onClick = LocalMasterBack.current) { Text(stringResource(Res.string.action_back)) }
             }
         }
+    }
+}
+
+/** Cashfree Easy Split vendor id: delivery fees for Cashfree-paid orders go here after delivery. */
+@Composable
+private fun PartnerVendorCard(token: String, partnerId: String, initial: String, onStatus: (String) -> Unit) {
+    val api = remember { MasterApi() }
+    val scope = rememberCoroutineScope()
+    var vendorId by remember(partnerId, initial) { mutableStateOf(initial) }
+    var saving by remember { mutableStateOf(false) }
+    val saved = stringResource(Res.string.master_cashfree_vendor_saved)
+    MasterSectionCard(title = stringResource(Res.string.master_cashfree_vendor_id)) {
+        OutlinedTextField(
+            value = vendorId,
+            onValueChange = { vendorId = it.trim() },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        Text(
+            stringResource(Res.string.master_cashfree_vendor_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            enabled = !saving,
+            onClick = {
+                saving = true
+                scope.launch {
+                    runCatching { api.setPartnerVendorId(token, partnerId, vendorId) }
+                        .onSuccess { onStatus(saved) }
+                        .onFailure { onStatus(it.message.orEmpty()) }
+                    saving = false
+                }
+            },
+        ) { Text(stringResource(Res.string.action_save)) }
     }
 }
 

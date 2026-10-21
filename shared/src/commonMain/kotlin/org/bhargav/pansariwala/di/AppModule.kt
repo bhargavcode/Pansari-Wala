@@ -49,6 +49,7 @@ import org.bhargav.pansariwala.feature.user.CartViewModel
 import org.bhargav.pansariwala.feature.user.CheckoutViewModel
 import org.bhargav.pansariwala.feature.user.MarketViewModel
 import org.bhargav.pansariwala.feature.user.OrderDetailsViewModel
+import org.bhargav.pansariwala.feature.user.PaymentStatusViewModel
 import org.bhargav.pansariwala.feature.user.PhoneAuthViewModel
 import org.bhargav.pansariwala.feature.user.AddressViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogViewModel
@@ -136,6 +137,7 @@ val appModule = module {
     viewModelOf(::CheckoutViewModel)
     viewModelOf(::ThankYouViewModel)
     viewModelOf(::OrderDetailsViewModel)
+    viewModelOf(::PaymentStatusViewModel)
     viewModelOf(::PartnerLoginViewModel)
     viewModelOf(::PartnerRegisterViewModel)
     viewModelOf(::PartnerHomeViewModel)

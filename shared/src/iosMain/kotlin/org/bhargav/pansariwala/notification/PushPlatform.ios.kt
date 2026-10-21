@@ -36,6 +36,11 @@ object IosPushBridge : KoinComponent {
         scope.launch { handler.handle(data, showAlert = false) }
     }
 
+    /** User tapped an alert (local or APNs): route like Android's notification intent. */
+    fun didOpen(userInfo: Map<Any?, *>) {
+        NotificationOpenRequests.fromUserInfo(userInfo.toStringMap())?.let(NotificationOpenRequests::open)
+    }
+
     private fun Map<Any?, *>.toStringMap(): Map<String, String> =
         entries.mapNotNull { (k, v) -> (k as? String)?.let { key -> (v as? String)?.let { key to it } } }.toMap()
 }

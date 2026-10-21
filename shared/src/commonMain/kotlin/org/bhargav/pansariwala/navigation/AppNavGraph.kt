@@ -140,7 +140,9 @@ fun AppNavGraph(
                 duration = SnackbarDuration.Long,
             )
             if (result == SnackbarResult.ActionPerformed) {
-                if (notification.type == AppConstants.Notification.TYPE_ONLINE_ORDER) {
+                if (notification.type == AppConstants.Notification.TYPE_ONLINE_ORDER ||
+                    notification.type == AppConstants.Notification.TYPE_PAYMENT_CONFIRM
+                ) {
                     push(AppRoute.OnlineOrders)
                 } else {
                     notification.orderId?.let { push(AppRoute.OrdersWorkspace(it)) }
@@ -157,7 +159,8 @@ fun AppNavGraph(
         if (!canOpen) return@LaunchedEffect
         NotificationOpenRequests.consume()
         when {
-            request.type == AppConstants.Notification.TYPE_ONLINE_ORDER -> {
+            request.type == AppConstants.Notification.TYPE_ONLINE_ORDER ||
+                request.type == AppConstants.Notification.TYPE_PAYMENT_CONFIRM -> {
                 if (backStack.lastOrNull() !is AppRoute.OnlineOrders) push(AppRoute.OnlineOrders)
             }
             request.orderId != null -> push(AppRoute.OrdersWorkspace(request.orderId))

@@ -255,6 +255,23 @@ class CartStore(private val preferences: AppPreferences) {
         _lines.value = emptyList()
     }
 
+    private var retry: Pair<String, String>? = null
+
+    /** Failed payment transaction to reuse on the next checkout of [shopId] (same transaction id). */
+    fun retryIntentFor(shopId: String): String? = retry?.takeIf { it.first == shopId }?.second
+
+    fun clearRetry() {
+        retry = null
+    }
+
+    /** Payment retry: puts the transaction's items back in the cart and remembers [intentId]. */
+    fun restoreForRetry(shopId: String, shopName: String?, lines: List<Line>, intentId: String?) {
+        _shopId.value = shopId
+        _shopName.value = shopName
+        if (lines.isNotEmpty()) _lines.value = lines
+        retry = intentId?.let { shopId to it }
+    }
+
     companion object {
         fun lineKey(productId: String, variantId: String?): String =
             if (variantId.isNullOrBlank()) productId else "$productId#$variantId"

@@ -69,6 +69,9 @@ Four products share one Kotlin codebase and one Ktor backend.
 | `PASSWORD_SALT` | server env | Shop/admin password hash = SHA-256(salt + password). Upgrade to bcrypt/argon2 before production. |
 | `RAZORPAY_KEY_SECRET` | server env **only** | Used to create orders (Basic auth) and verify checkout signatures. |
 | `RAZORPAY_KEY_ID` | server + public `/config/public` | Safe to expose to the User Android SDK. |
+| `CASHFREE_APP_ID` / `CASHFREE_SECRET_KEY` | server env **only** (GitHub secrets → `/opt/pansari/env` on deploy; locally `server/.env`, gitignored) | Cashfree UPI checkout, webhook HMAC, refunds, Easy Split. |
+| `CASHFREE_ENV` | server env | `sandbox` (default; UPI link is a payment simulator page) or `production`. |
+| `PUBLIC_API_BASE_URL` | server env | HTTPS API origin for the Cashfree webhook (`/payments/cashfree/webhook`). |
 | `FIREBASE_PROJECT_ID` | server env | Token `aud`/`iss` must match. |
 | `FCM_SERVICE_ACCOUNT_FILE` / `FCM_SERVICE_ACCOUNT_JSON` | server env **only** | Firebase service account for FCM HTTP v1 push (shop: new order, partner timeout; customer: accepted / on the way / delivered). Unset → push disabled, apps fall back to polling. |
 | OTP hashes | Mongo `otp_challenges` | SHA-256 of code, 5 min TTL, deleted after use. |

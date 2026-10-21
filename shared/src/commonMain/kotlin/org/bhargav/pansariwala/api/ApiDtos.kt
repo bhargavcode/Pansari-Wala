@@ -2,6 +2,8 @@ package org.bhargav.pansariwala.api
 
 import kotlinx.serialization.Serializable
 import org.bhargav.pansariwala.domain.model.CheckoutQuote
+import org.bhargav.pansariwala.domain.model.PaymentIntent
+import org.bhargav.pansariwala.domain.model.PaymentIntentStatus
 import org.bhargav.pansariwala.domain.model.CustomerProfile
 import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.DeliveryOfferStatus
@@ -365,6 +367,8 @@ data class PlaceOrderRequest(
     val userLat: Double? = null,
     val userLng: Double? = null,
     val selfPickup: Boolean = false,
+    /** Retry a FAILED payment transaction under the same id. */
+    val retryIntentId: String? = null,
 )
 
 @Serializable
@@ -374,6 +378,7 @@ data class QuoteRequest(
     val userLat: Double,
     val userLng: Double,
     val selfPickup: Boolean = false,
+    val paymentFlow: Int = AppConstants.Payment.FLOW_INTENT,
 )
 
 @Serializable
@@ -390,6 +395,36 @@ data class QuoteDto(
 
 @Serializable
 data class SubmitUtrRequest(val utr: String)
+
+/** Checkout payment transaction (PTX…); see server `PaymentIntentDto`. */
+@Serializable
+data class PaymentIntentDto(
+    val id: String,
+    val orderId: String,
+    val status: String,
+    val method: String,
+    val amountInr: Double,
+    val shopId: String,
+    val shopName: String,
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val payeeUpi: String? = null,
+    val upiPayUri: String? = null,
+    val attemptNo: Int = 1,
+    val attemptStartedAtEpochMs: Long = 0L,
+    val expiresAtEpochMs: Long = 0L,
+    val serverNowEpochMs: Long = 0L,
+    val utr: String? = null,
+    val failureReason: String? = null,
+    val refundId: String? = null,
+    val items: List<OrderItemDto> = emptyList(),
+    val quote: QuoteDto? = null,
+    val selfPickup: Boolean = false,
+    val addressId: String? = null,
+    val deliveryAddress: String = "",
+    val createdAtEpochMs: Long = 0L,
+    val updatedAtEpochMs: Long = 0L,
+)
 
 @Serializable
 data class CreateRazorpayRequest(val shopId: String, val amountPaise: Long)
@@ -474,11 +509,8 @@ data class OrderDto(
     val deliveryMode: String = AppConstants.DELIVERY_MODE_PARTNER,
     /** POS bill discount in INR. Online orders keep theirs on [quote]. */
     val discount: Double = 0.0,
-    val upiPayUri: String? = null,
-    val payeeUpi: String? = null,
-    val paymentLinkUrl: String? = null,
+    val paymentIntentId: String? = null,
     val paymentUtr: String? = null,
-    val paymentDueAtEpochMs: Long? = null,
 )
 
 @Serializable
@@ -960,11 +992,44 @@ fun OrderDto.toModel() = Order(
     packedProductIds = packedProductIds.toSet(),
     isSelfDelivery = deliveryMode == AppConstants.DELIVERY_MODE_SELF,
     discount = discount,
-    upiPayUri = upiPayUri,
-    payeeUpi = payeeUpi,
-    paymentLinkUrl = paymentLinkUrl,
+    paymentIntentId = paymentIntentId,
     paymentUtr = paymentUtr,
-    paymentDueAtEpochMs = paymentDueAtEpochMs,
+)
+
+fun PaymentIntentDto.toModel(receivedAtEpochMs: Long) = PaymentIntent(
+    id = id,
+    orderId = orderId,
+    status = PaymentIntentStatus.fromName(status),
+    method = method,
+    amountInr = amountInr,
+    shopId = shopId,
+    shopName = shopName,
+    customerName = customerName,
+    payeeUpi = payeeUpi,
+    upiPayUri = upiPayUri,
+    attemptNo = attemptNo,
+    // Server clock skew: shift the deadline into this device's clock.
+    expiresAtEpochMs = expiresAtEpochMs - serverNowEpochMs + receivedAtEpochMs,
+    utr = utr,
+    failureReason = failureReason,
+    refundId = refundId,
+    items = items.map {
+        OrderItem(
+            productId = it.productId,
+            productName = it.productName,
+            unit = ProductUnit.fromName(it.unit),
+            quantity = it.quantity,
+            unitPrice = it.unitPrice,
+            imageUrl = it.imageUrl,
+            variantId = it.variantId,
+            variantLabel = it.variantLabel,
+        )
+    },
+    quote = quote?.toModel(),
+    selfPickup = selfPickup,
+    addressId = addressId,
+    deliveryAddress = deliveryAddress,
+    createdAtEpochMs = createdAtEpochMs,
 )
 
 fun OfferDto.toModel() = ShopOffer(

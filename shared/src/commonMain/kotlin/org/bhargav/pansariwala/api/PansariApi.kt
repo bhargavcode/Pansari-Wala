@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.api
 
+import kotlinx.coroutines.flow.Flow
+import org.bhargav.pansariwala.domain.model.PaymentIntent
 import org.bhargav.pansariwala.domain.model.CustomerProfile
 import org.bhargav.pansariwala.domain.model.DeliveryOffer
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
@@ -65,12 +67,19 @@ interface PansariApi {
     suspend fun myOrders(): List<Order>
     suspend fun myOrdersPage(page: Int, pageSize: Int): OrderPage
     suspend fun order(orderId: String): Order
+    /** DIRECT_UPI / CASHFREE checkout: starts (or retries, via [PlaceOrderRequest.retryIntentId]) a payment. */
+    suspend fun createPaymentIntent(request: PlaceOrderRequest): PaymentIntent
+    suspend fun paymentIntent(intentId: String): PaymentIntent
+    /** Re-checks the gateway (CASHFREE); returns the latest state. */
+    suspend fun refreshPaymentIntent(intentId: String): PaymentIntent
     /** DIRECT_UPI: customer reports the UPI reference for the shop to match. */
-    suspend fun submitPaymentUtr(orderId: String, utr: String): Order
-    /** CASHFREE: re-checks the gateway after the customer returns from the payment page. */
-    suspend fun refreshPayment(orderId: String): Order
-    /** Shop confirms a DIRECT_UPI payment reached its bank. */
-    suspend fun confirmOrderPayment(orderId: String): Order
+    suspend fun submitPaymentUtr(intentId: String, utr: String): PaymentIntent
+    /** Live state over `/ws/payments/{id}`; completes when the socket closes (callers fall back to polling). */
+    fun paymentIntentUpdates(intentId: String): Flow<PaymentIntent>
+    /** Shop: DIRECT_UPI payments waiting for confirmation. */
+    suspend fun shopPaymentIntents(): List<PaymentIntent>
+    suspend fun confirmShopPayment(intentId: String): PaymentIntent
+    suspend fun rejectShopPayment(intentId: String): PaymentIntent
     suspend fun myTransactions(): List<MoneyTxn>
     suspend fun rateOrder(orderId: String, stars: Int, comment: String?): Order
 

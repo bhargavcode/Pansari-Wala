@@ -22,6 +22,13 @@ import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.notification.NotificationGateway
 import org.bhargav.pansariwala.notification.OrderUpdate
 import org.bhargav.pansariwala.notification.OrderUpdates
+import org.bhargav.pansariwala.notification.PaymentUpdates
+import org.bhargav.pansariwala.domain.model.PaymentIntent
+import org.bhargav.pansariwala.domain.model.PaymentIntentStatus
+import org.bhargav.pansariwala.util.asMoney
+import pansariwala.shared.generated.resources.shop_pay_confirmed
+import pansariwala.shared.generated.resources.shop_pay_refund_needed
+import pansariwala.shared.generated.resources.shop_pay_rejected
 import org.bhargav.pansariwala.settings.CancelOrderReason
 import pansariwala.shared.generated.resources.Res
 /** POS online-order filter tabs; [statuses] empty → every status. */
@@ -29,7 +36,6 @@ enum class OnlineOrderTab(val statuses: List<OrderStatus>) {
     /** Every open order: not yet delivered, completed, rejected or cancelled. */
     ACTIVE(
         listOf(
-            OrderStatus.PAYMENT_PENDING,
             OrderStatus.RECEIVED,
             OrderStatus.ACCEPTED,
             OrderStatus.PACKING,
@@ -38,7 +44,7 @@ enum class OnlineOrderTab(val statuses: List<OrderStatus>) {
             OrderStatus.ON_THE_WAY,
         ),
     ),
-    NEW(listOf(OrderStatus.PAYMENT_PENDING, OrderStatus.RECEIVED)),
+    NEW(listOf(OrderStatus.RECEIVED)),
     ACCEPTED(listOf(OrderStatus.ACCEPTED)),
     PACKING(listOf(OrderStatus.PACKING)),
     DELIVERY(listOf(OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED, OrderStatus.ON_THE_WAY)),
@@ -78,6 +84,10 @@ data class OnlineOrdersUiState(
     val partnersLoading: Boolean = false,
     val partnerForm: ShopPartnerForm? = null,
     val partnerError: UiText? = null,
+    /** DIRECT_UPI payments the shop must confirm against its bank before the order exists. */
+    val paymentIntents: List<PaymentIntent> = emptyList(),
+    val paymentBusyId: String? = null,
+    val paymentNotice: UiText? = null,
 )
 
 data class ShopPartnerForm(val name: String = "", val phone: String = "", val vehicleReg: String = "") {
@@ -104,6 +114,51 @@ class OnlineOrdersViewModel(
     init {
         viewModelScope.launch {
             OrderUpdates.events.collect(::onOrderUpdate)
+        }
+        viewModelScope.launch {
+            PaymentUpdates.events.collect {
+                loadPaymentIntents()
+                if (visible) notifications.clearOrder(it)
+            }
+        }
+    }
+
+    private suspend fun loadPaymentIntents() {
+        runCatching { api.shopPaymentIntents() }
+            .onSuccess { list -> _uiState.update { it.copy(paymentIntents = list) } }
+            .onFailure { it.rethrowIfStructuredCancellation() }
+    }
+
+    fun confirmShopPayment(intentId: String) = runPaymentAction(intentId) {
+        val result = api.confirmShopPayment(intentId)
+        when (result.status) {
+            PaymentIntentStatus.SUCCESS -> UiText.res(Res.string.shop_pay_confirmed, result.orderId)
+            PaymentIntentStatus.REFUNDED -> UiText.res(Res.string.shop_pay_refund_needed, result.amountInr.asMoney())
+            else -> null
+        }
+    }
+
+    fun rejectShopPayment(intentId: String) = runPaymentAction(intentId) {
+        api.rejectShopPayment(intentId)
+        UiText.res(Res.string.shop_pay_rejected)
+    }
+
+    fun consumePaymentNotice() { _uiState.update { it.copy(paymentNotice = null) } }
+
+    private fun runPaymentAction(intentId: String, block: suspend () -> UiText?) {
+        if (_uiState.value.paymentBusyId != null) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(paymentBusyId = intentId) }
+            runCatching { block() }
+                .onSuccess { notice -> _uiState.update { it.copy(paymentNotice = notice) } }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _uiState.update { it.copy(error = mapOnlineOrdersError(err)) }
+                }
+            _uiState.update { it.copy(paymentBusyId = null) }
+            notifications.clearOrder(intentId)
+            loadPaymentIntents()
+            refresh(silent = true)
         }
     }
 
@@ -187,6 +242,7 @@ class OnlineOrdersViewModel(
 
     /** Reloads the first page for the current tab/search. [silent] keeps the list visible. */
     fun refresh(silent: Boolean = false, pullToRefresh: Boolean = false) {
+        viewModelScope.launch { loadPaymentIntents() }
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.update {
@@ -250,8 +306,6 @@ class OnlineOrdersViewModel(
     }
 
     fun accept(id: String) = runOrderAction(id) { api.acceptOrder(id) }
-
-    fun confirmPayment(id: String) = runOrderAction(id) { api.confirmOrderPayment(id) }
 
     fun markPacking(id: String) = runOrderAction(id) {
         api.setOrderStatus(id, OrderStatus.PACKING.name)

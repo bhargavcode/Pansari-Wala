@@ -28,7 +28,16 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.bearerAuth
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
+import org.bhargav.pansariwala.domain.model.PaymentIntent
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.CustomerProfile
 import org.bhargav.pansariwala.domain.model.DeliveryOffer
@@ -275,14 +284,53 @@ class KtorPansariApi(
     override suspend fun order(orderId: String): Order =
         client.get("orders/$orderId").body<OrderDto>().toModel()
 
-    override suspend fun submitPaymentUtr(orderId: String, utr: String): Order =
-        client.post("orders/$orderId/payment/utr") { setBody(SubmitUtrRequest(utr)) }.body<OrderDto>().toModel()
+    override suspend fun createPaymentIntent(request: PlaceOrderRequest): PaymentIntent =
+        client.post("payments/intents") { setBody(request) }.body<PaymentIntentDto>().toModel(nowMs())
 
-    override suspend fun refreshPayment(orderId: String): Order =
-        client.post("orders/$orderId/payment/refresh").body<OrderDto>().toModel()
+    override suspend fun paymentIntent(intentId: String): PaymentIntent =
+        client.get("payments/intents/$intentId").body<PaymentIntentDto>().toModel(nowMs())
 
-    override suspend fun confirmOrderPayment(orderId: String): Order =
-        client.post("shop/orders/$orderId/payment/confirm").body<OrderDto>().toModel()
+    override suspend fun refreshPaymentIntent(intentId: String): PaymentIntent =
+        client.post("payments/intents/$intentId/refresh").body<PaymentIntentDto>().toModel(nowMs())
+
+    override suspend fun submitPaymentUtr(intentId: String, utr: String): PaymentIntent =
+        client.post("payments/intents/$intentId/utr") { setBody(SubmitUtrRequest(utr)) }
+            .body<PaymentIntentDto>().toModel(nowMs())
+
+    override fun paymentIntentUpdates(intentId: String): Flow<PaymentIntent> = channelFlow {
+        val token = currentJwtTokens()?.accessToken ?: return@channelFlow
+        socketClient.webSocket(urlString = wsUrl("ws/payments/$intentId"), request = { bearerAuth(token) }) {
+            for (frame in incoming) {
+                val text = (frame as? Frame.Text)?.readText() ?: continue
+                if (text == "pong" || text.isBlank()) continue
+                val dto = runCatching { json.decodeFromString<PaymentIntentDto>(text) }.getOrNull() ?: continue
+                send(dto.toModel(nowMs()))
+            }
+        }
+    }
+
+    override suspend fun shopPaymentIntents(): List<PaymentIntent> =
+        client.get("shop/payment-intents").body<List<PaymentIntentDto>>().map { it.toModel(nowMs()) }
+
+    override suspend fun confirmShopPayment(intentId: String): PaymentIntent =
+        client.post("shop/payment-intents/$intentId/confirm").body<PaymentIntentDto>().toModel(nowMs())
+
+    override suspend fun rejectShopPayment(intentId: String): PaymentIntent =
+        client.post("shop/payment-intents/$intentId/reject").body<PaymentIntentDto>().toModel(nowMs())
+
+    private val socketClient by lazy { createPlatformHttpClient().config { install(WebSockets) } }
+
+    private fun wsUrl(path: String): String {
+        val base = baseUrl.trimEnd('/')
+        val ws = when {
+            base.startsWith("https://", ignoreCase = true) -> "wss://" + base.substringAfter("://")
+            base.startsWith("http://", ignoreCase = true) -> "ws://" + base.substringAfter("://")
+            else -> base
+        }
+        return "$ws/$path"
+    }
+
+    private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
     override suspend fun myTransactions(): List<MoneyTxn> =
         client.get("me/transactions").body<List<TxnDto>>().map { it.toModel() }

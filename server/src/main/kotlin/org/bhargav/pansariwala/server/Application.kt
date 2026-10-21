@@ -140,9 +140,8 @@ fun main() {
                 runCatching { store.expireStaleOffers() }
                     .onSuccess { if (it > 0) println("Delivery offers: expired $it unpicked offers") }
                     .onFailure { println("Delivery offer sweep failed: ${it.message}") }
-                runCatching { store.expireUnpaidOrders() }
-                    .onSuccess { if (it > 0) println("Payments: cancelled $it unpaid orders") }
-                    .onFailure { println("Unpaid order sweep failed: ${it.message}") }
+                runCatching { store.expirePaymentIntents() }
+                    .onFailure { println("Payment sweep failed: ${it.message}") }
                 delay(OFFER_SWEEP_INTERVAL_MS)
             }
         }

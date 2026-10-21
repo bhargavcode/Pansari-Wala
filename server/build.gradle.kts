@@ -33,6 +33,21 @@ tasks.shadowJar {
     }
 }
 
+tasks.named<JavaExec>("run") {
+    // Real environment variables win over server/.env (gitignored local secrets).
+    val envFile = file(".env")
+    if (envFile.isFile) {
+        envFile.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') }
+            .forEach { line ->
+                val key = line.substringBefore('=').trim()
+                val value = line.substringAfter('=').trim()
+                if (value.isNotEmpty() && System.getenv(key).isNullOrBlank()) environment(key, value)
+            }
+    }
+}
+
 tasks.named("build") {
     dependsOn(tasks.shadowJar)
 }

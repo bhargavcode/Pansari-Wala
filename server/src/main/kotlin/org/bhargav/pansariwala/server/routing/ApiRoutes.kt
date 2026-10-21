@@ -30,7 +30,12 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import org.bhargav.pansariwala.server.dto.PaymentIntentDto
+import org.bhargav.pansariwala.server.dto.VendorIdRequest
 import kotlinx.io.readByteArray
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.dto.AdminLoginRequest
@@ -368,12 +373,18 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
             call.respond(withContext(Dispatchers.IO) { store.customerOrdersPage(call.userId(), page, size) })
         }
         get("/orders/{id}") { call.respond(store.getOrder(call.parameters["id"]!!)) }
-        post("/orders/{id}/payment/utr") {
-            val body = call.receive<SubmitUtrRequest>()
-            call.respond(store.submitPaymentUtr(call.userId(), call.parameters["id"]!!, body.utr))
+        post("/payments/intents") {
+            call.respond(store.createPaymentIntent(call.userId(), call.receive<PlaceOrderRequest>()))
         }
-        post("/orders/{id}/payment/refresh") {
-            call.respond(store.refreshPayment(call.userId(), call.parameters["id"]!!))
+        get("/payments/intents/{id}") {
+            call.respond(withContext(Dispatchers.IO) { store.paymentIntent(call.userId(), call.parameters["id"]!!) })
+        }
+        post("/payments/intents/{id}/utr") {
+            val body = call.receive<SubmitUtrRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.submitIntentUtr(call.userId(), call.parameters["id"]!!, body.utr) })
+        }
+        post("/payments/intents/{id}/refresh") {
+            call.respond(store.refreshPaymentIntent(call.userId(), call.parameters["id"]!!))
         }
         post("/orders/{id}/rating") {
             val body = call.receive<RateOrderRequest>()
@@ -419,9 +430,16 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
             val size = call.parameters["size"]?.toIntOrNull() ?: 20
             call.respond(withContext(Dispatchers.IO) { store.shopOrdersPage(shopId, statuses, query, page, size) })
         }
-        post("/shop/orders/{id}/payment/confirm") {
+        get("/shop/payment-intents") {
+            call.respond(withContext(Dispatchers.IO) { store.shopPaymentIntents(call.requireShopId()) })
+        }
+        post("/shop/payment-intents/{id}/confirm") {
             val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
-            call.respond(withContext(Dispatchers.IO) { store.confirmUpiPayment(shopId, call.parameters["id"]!!) })
+            call.respond(store.shopConfirmIntent(shopId, call.parameters["id"]!!))
+        }
+        post("/shop/payment-intents/{id}/reject") {
+            val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
+            call.respond(withContext(Dispatchers.IO) { store.shopRejectIntent(shopId, call.parameters["id"]!!) })
         }
         post("/shop/orders/{id}/accept") {
             call.respond(store.acceptShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!))
@@ -903,6 +921,18 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
             val body = call.receive<PlatformSettingsDto>()
             call.respond(store.savePaymentSettings(body.paymentMode, body.paymentWindowMinutes))
         }
+        post("/admin/shops/{id}/cashfree-vendor") {
+            call.requireRole("ADMIN")
+            val body = call.receive<VendorIdRequest>()
+            withContext(Dispatchers.IO) { store.setShopVendorId(call.parameters["id"]!!, body.vendorId) }
+            call.respond(OkResponse())
+        }
+        post("/admin/partners/{id}/cashfree-vendor") {
+            call.requireRole("ADMIN")
+            val body = call.receive<VendorIdRequest>()
+            withContext(Dispatchers.IO) { store.setPartnerVendorId(call.parameters["id"]!!, body.vendorId) }
+            call.respond(OkResponse())
+        }
         post("/admin/account/password") {
             call.requireRole("ADMIN")
             val body = call.receive<AdminPasswordChange>()
@@ -975,6 +1005,30 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
             } finally {
                 store.unregisterSocket(partnerId, this)
                 close(CloseReason(CloseReason.Codes.GOING_AWAY, "bye"))
+            }
+        }
+
+        // Live status of one payment transaction: current state first, then every change until closed.
+        webSocket("/ws/payments/{id}") {
+            val intentId = call.parameters["id"]!!
+            val initial = runCatching { withContext(Dispatchers.IO) { store.paymentIntent(call.userId(), intentId) } }.getOrNull()
+            if (initial == null) {
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "not found"))
+                return@webSocket
+            }
+            val json = Json { encodeDefaults = true }
+            send(Frame.Text(json.encodeToString(PaymentIntentDto.serializer(), initial)))
+            val relay = launch {
+                store.paymentEvents.filter { it.id == intentId }.collect { dto ->
+                    send(Frame.Text(json.encodeToString(PaymentIntentDto.serializer(), dto)))
+                }
+            }
+            try {
+                for (frame in incoming) {
+                    if (frame is Frame.Text && frame.readText() == "ping") send(Frame.Text("pong"))
+                }
+            } finally {
+                relay.cancel()
             }
         }
     }

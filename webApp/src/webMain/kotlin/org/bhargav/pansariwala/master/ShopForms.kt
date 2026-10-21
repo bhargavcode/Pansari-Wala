@@ -51,6 +51,8 @@ import org.bhargav.pansariwala.designsystem.TimePickerField
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.master_cashfree_vendor_hint
+import pansariwala.shared.generated.resources.master_cashfree_vendor_id
 import pansariwala.shared.generated.resources.shop_min_order_label
 import pansariwala.shared.generated.resources.shop_min_order_hint
 import pansariwala.shared.generated.resources.shop_min_order_invalid
@@ -188,6 +190,7 @@ internal fun ShopEditorScreen(
     var reports by rememberSaveable { mutableStateOf(true) }
     var paymentsEnabled by rememberSaveable { mutableStateOf(true) }
     var upiId by rememberSaveable { mutableStateOf("") }
+    var vendorId by rememberSaveable { mutableStateOf("") }
     var radiusKm by rememberSaveable { mutableStateOf("") }
     var discountPct by rememberSaveable { mutableStateOf("") }
     var deliveryUntil by rememberSaveable { mutableStateOf("") }
@@ -232,6 +235,7 @@ internal fun ShopEditorScreen(
                 inventory = s.features.inventoryAlerts
                 paymentsEnabled = s.paymentsEnabled
                 upiId = s.upiId
+                vendorId = s.cashfreeVendorId
                 radiusKm = s.deliveryRadiusKm.plainNumber()
                 discountPct = s.discountPercent.plainNumber()
                 deliveryUntil = s.deliveryUntil
@@ -373,6 +377,12 @@ internal fun ShopEditorScreen(
                         SectionTitle(stringResource(Res.string.master_delivery_payments))
                         FeatureToggleRow(stringResource(Res.string.profile_payments_enabled), paymentsEnabled) { paymentsEnabled = !paymentsEnabled }
                         LabeledField(stringResource(Res.string.profile_field_upi), upiId, stringResource(Res.string.master_placeholder_upi)) { upiId = it.trim() }
+                        LabeledField(stringResource(Res.string.master_cashfree_vendor_id), vendorId, "") { vendorId = it.trim() }
+                        Text(
+                            stringResource(Res.string.master_cashfree_vendor_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         LabeledField(stringResource(Res.string.profile_field_radius), radiusKm, "") { radiusKm = it }
                         LabeledField(stringResource(Res.string.profile_field_discount), discountPct, "") { discountPct = it }
                         LabeledField(stringResource(Res.string.shop_min_order_label), minOrder, "") { minOrder = it.trim() }
@@ -509,6 +519,7 @@ internal fun ShopEditorScreen(
                                         loginUsername = loginUsername.ifBlank { null },
                                         loginPassword = loginPassword.ifBlank { null },
                                     )
+                                    api.setShopVendorId(token, shopId, vendorId)
                                 } else {
                                     val created = api.createShop(
                                         token,
@@ -536,6 +547,7 @@ internal fun ShopEditorScreen(
                                         ),
                                     )
                                     patchDeliveryAndPayments(created.id)
+                                    if (vendorId.isNotBlank()) api.setShopVendorId(token, created.id, vendorId)
                                 }
                             }.onSuccess {
                                 saving = false

@@ -114,17 +114,10 @@ import pansariwala.shared.generated.resources.checkout_payable
 import pansariwala.shared.generated.resources.checkout_platform_fee
 import pansariwala.shared.generated.resources.checkout_razorpay_hint
 import pansariwala.shared.generated.resources.checkout_cashfree_hint
+import pansariwala.shared.generated.resources.pay_details_title
+import pansariwala.shared.generated.resources.pay_detail_txn
+import pansariwala.shared.generated.resources.pay_detail_utr
 import pansariwala.shared.generated.resources.checkout_direct_upi_hint
-import pansariwala.shared.generated.resources.order_pay_check_status
-import pansariwala.shared.generated.resources.order_pay_due
-import pansariwala.shared.generated.resources.order_pay_online_button
-import pansariwala.shared.generated.resources.order_pay_title
-import pansariwala.shared.generated.resources.order_pay_upi_button
-import pansariwala.shared.generated.resources.order_pay_upi_to
-import pansariwala.shared.generated.resources.order_pay_utr_hint
-import pansariwala.shared.generated.resources.order_pay_utr_label
-import pansariwala.shared.generated.resources.order_pay_utr_submit
-import pansariwala.shared.generated.resources.order_pay_utr_submitted
 import pansariwala.shared.generated.resources.checkout_subtotal
 import pansariwala.shared.generated.resources.checkout_title
 import pansariwala.shared.generated.resources.delivery_partner_name
@@ -379,6 +372,7 @@ private fun CartOrderRules(state: CartUiState) {
 fun CheckoutScreen(
     shopId: String,
     onPlaced: (String) -> Unit,
+    onPaymentStarted: (String) -> Unit,
     onCompleteProfile: () -> Unit,
     onAddAddress: () -> Unit,
     onBack: () -> Unit,
@@ -502,7 +496,7 @@ fun CheckoutScreen(
                 payableLabel = quote.payable.asMoney(),
                 onConfirm = {
                     showPolicy = false
-                    viewModel.place(shopId, onPlaced)
+                    viewModel.place(shopId, onPlaced, onPaymentStarted)
                 },
                 onDismiss = { showPolicy = false },
             )
@@ -555,66 +549,12 @@ fun ThankYouScreen(
 }
 
 @Composable
-private fun PaymentPendingCard(order: Order, state: OrderDetailsUiState, viewModel: OrderDetailsViewModel) {
-    val uriHandler = LocalUriHandler.current
-    val minutesLeft = order.paymentDueAtEpochMs?.let { due ->
-        ((due - Clock.System.now().toEpochMilliseconds()) / 60_000L).toInt().coerceAtLeast(1)
-    }
-    SectionCard(title = stringResource(Res.string.order_pay_title, order.totalValue.asMoney())) {
-        minutesLeft?.let {
-            Text(
-                stringResource(Res.string.order_pay_due, it),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (order.isDirectUpi) {
-            order.payeeUpi?.let { vpa ->
-                Text(
-                    stringResource(Res.string.order_pay_upi_to, order.shopName.orEmpty(), vpa),
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            val submitted = order.paymentUtr
-            if (submitted != null) {
-                Text(stringResource(Res.string.order_pay_utr_submitted, submitted))
-            } else {
-                order.upiPayUri?.let { uri ->
-                    Button(
-                        onClick = { runCatching { uriHandler.openUri(uri) }.onFailure { viewModel.onUpiAppMissing() } },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(Res.string.order_pay_upi_button)) }
-                }
-                Text(stringResource(Res.string.order_pay_utr_hint), style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(
-                    value = state.utr,
-                    onValueChange = viewModel::setUtr,
-                    label = { Text(stringResource(Res.string.order_pay_utr_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedButton(
-                    onClick = viewModel::submitUtr,
-                    enabled = !state.paymentBusy && viewModel.canSubmitUtr(),
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.order_pay_utr_submit)) }
-            }
-        } else {
-            order.paymentLinkUrl?.let { url ->
-                Button(
-                    onClick = { runCatching { uriHandler.openUri(url) } },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.order_pay_online_button)) }
-            }
-            OutlinedButton(
-                onClick = viewModel::checkPayment,
-                enabled = !state.paymentBusy,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(Res.string.order_pay_check_status)) }
-        }
-        state.paymentNote?.let {
-            Text(it.asString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+private fun OrderPaymentCard(order: Order) {
+    val txn = order.paymentIntentId ?: return
+    SectionCard(title = stringResource(Res.string.pay_details_title)) {
+        Text(stringResource(Res.string.pay_detail_txn, txn), style = MaterialTheme.typography.bodySmall)
+        order.paymentUtr?.let {
+            Text(stringResource(Res.string.pay_detail_utr, it), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -668,10 +608,8 @@ fun OrderDetailsScreen(
                     )
                     val isCancelled = order.status == OrderStatus.CANCELLED
                     val isRejected = order.status == OrderStatus.REJECTED
-                    if (order.isAwaitingPayment) {
-                        PaymentPendingCard(order, state, viewModel)
-                    }
-                    if (!isCancelled && !isRejected && !order.isAwaitingPayment) {
+                    OrderPaymentCard(order)
+                    if (!isCancelled && !isRejected) {
                         order.deliveryOtp?.let {
                             SectionCard(title = stringResource(Res.string.order_otp_label, it)) {
                                 Text(stringResource(Res.string.order_otp_share_hint))

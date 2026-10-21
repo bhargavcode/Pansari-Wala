@@ -28,7 +28,10 @@ import java.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/** Cashfree PG (Payment Links API, version [API_VERSION]). All calls throw on HTTP errors. */
+/**
+ * Cashfree PG, API version [API_VERSION]: Orders + "Order Pay" UPI intent (returns a `upi://pay` link
+ * the app opens directly), refunds and Easy Split. All calls throw on HTTP errors.
+ */
 class CashfreeGateway(private val config: ServerConfig) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
     private val http = HttpClient(CIO) {
@@ -42,8 +45,11 @@ class CashfreeGateway(private val config: ServerConfig) {
 
     val enabled: Boolean get() = config.cashfreeEnabled
 
+    private val isProduction: Boolean
+        get() = config.cashfreeEnv.equals("production", ignoreCase = true)
+
     private val baseUrl: String
-        get() = if (config.cashfreeEnv.equals("production", ignoreCase = true)) PROD_URL else SANDBOX_URL
+        get() = if (isProduction) PROD_URL else SANDBOX_URL
 
     private fun HttpRequestBuilder.auth() {
         header("x-client-id", config.cashfreeAppId)
@@ -51,57 +57,70 @@ class CashfreeGateway(private val config: ServerConfig) {
         header("x-api-version", API_VERSION)
     }
 
-    suspend fun createLink(
-        linkId: String,
+    /** Creates the gateway order and asks for a UPI intent; returns the `upi://pay` link. */
+    suspend fun createUpiIntent(
+        gatewayOrderId: String,
         amountInr: Double,
-        purpose: String,
+        customerId: String,
         customerName: String,
         customerPhone: String,
+        note: String,
         expiresAtMs: Long,
-    ): CashfreeLink {
+    ): String {
         require(enabled) { "Cashfree is not configured on the server" }
-        val base = config.publicApiBaseUrl
-        val body = CashfreeLinkRequest(
-            linkId = linkId,
-            linkAmount = Math.round(amountInr * 100) / 100.0,
-            linkPurpose = purpose.take(500),
-            customerDetails = CashfreeCustomer(
-                customerPhone = customerPhone.filter(Char::isDigit).takeLast(10),
-                customerName = customerName.take(100).ifBlank { null },
-            ),
-            linkExpiryTime = ISO.format(Instant.ofEpochMilli(expiresAtMs)),
-            linkNotes = mapOf("order_id" to linkId),
-            linkMeta = CashfreeLinkMeta(
-                notifyUrl = base.takeIf { it.startsWith("https://") }?.let { "$it/payments/cashfree/webhook" },
-                returnUrl = base.takeIf { it.startsWith("https://") }?.let { "$it/payments/cashfree/return?order_id=$linkId" },
-            ),
-        )
-        val response = http.post("$baseUrl/pg/links") {
+        val base = config.publicApiBaseUrl.takeIf { it.startsWith("https://") }
+        val order: CashfreeOrder = http.post("$baseUrl/pg/orders") {
             auth()
             contentType(ContentType.Application.Json)
-            setBody(body)
-        }
-        return response.decode("create payment link")
-    }
-
-    suspend fun getLink(linkId: String): CashfreeLink =
-        http.get("$baseUrl/pg/links/$linkId") { auth() }.decode("fetch payment link")
-
-    suspend fun cancelLink(linkId: String) {
-        runCatching { http.post("$baseUrl/pg/links/$linkId/cancel") { auth() } }
-    }
-
-    /** Refunds the paid order behind [linkId]; returns Cashfree's refund id. */
-    suspend fun refundLink(linkId: String, amountInr: Double, refundId: String, note: String): String {
-        val orders: List<CashfreeLinkOrder> =
-            http.get("$baseUrl/pg/links/$linkId/orders") { auth() }.decode("fetch link orders")
-        val paid = orders.firstOrNull { it.orderStatus == "PAID" } ?: error("No paid Cashfree order to refund")
-        val response = http.post("$baseUrl/pg/orders/${paid.orderId}/refunds") {
+            setBody(
+                CashfreeOrderRequest(
+                    orderId = gatewayOrderId,
+                    orderAmount = amountInr.money(),
+                    customerDetails = CashfreeCustomer(
+                        customerId = customerId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }.take(50).ifBlank { "guest" },
+                        customerPhone = customerPhone.filter(Char::isDigit).takeLast(10),
+                        customerName = customerName.take(100).ifBlank { null },
+                    ),
+                    orderMeta = CashfreeOrderMeta(notifyUrl = base?.let { "$it/payments/cashfree/webhook" }),
+                    orderExpiryTime = ISO.format(Instant.ofEpochMilli(expiresAtMs.coerceAtLeast(System.currentTimeMillis() + MIN_EXPIRY_MS))),
+                    orderNote = note.take(200),
+                ),
+            )
+        }.decode("create order")
+        val session = order.paymentSessionId ?: error("Cashfree did not return a payment session")
+        val pay: CashfreeOrderPay = http.post("$baseUrl/pg/orders/sessions") {
             auth()
             contentType(ContentType.Application.Json)
-            setBody(CashfreeRefundRequest(Math.round(amountInr * 100) / 100.0, refundId, note.take(100)))
+            setBody(CashfreeOrderPayRequest(session, CashfreePaymentMethod(CashfreeUpi("link"))))
+        }.decode("start UPI payment")
+        val link = pay.data?.payload?.get("default").orEmpty()
+        // Sandbox answers with an https payment-simulator page instead of a real upi:// intent.
+        val usable = link.startsWith("upi://") || (!isProduction && link.startsWith("https://"))
+        return link.takeIf { usable }
+            ?: error("Cashfree did not return a UPI link (enable UPI intent / seamless on the account)")
+    }
+
+    /** `ACTIVE`, `PAID`, `EXPIRED` or `TERMINATED`. */
+    suspend fun orderStatus(gatewayOrderId: String): String =
+        http.get("$baseUrl/pg/orders/$gatewayOrderId") { auth() }.decode<CashfreeOrder>("fetch order").orderStatus
+
+    suspend fun refund(gatewayOrderId: String, amountInr: Double, refundId: String, note: String): String {
+        val response = http.post("$baseUrl/pg/orders/$gatewayOrderId/refunds") {
+            auth()
+            contentType(ContentType.Application.Json)
+            setBody(CashfreeRefundRequest(amountInr.money(), refundId.take(40), note.take(100)))
         }
         return response.decode<CashfreeRefund>("refund").refundId ?: refundId
+    }
+
+    /** Easy Split after payment: sends each vendor its share of [gatewayOrderId]. */
+    suspend fun split(gatewayOrderId: String, shares: Map<String, Double>) {
+        require(shares.isNotEmpty()) { "Nothing to split" }
+        http.post("$baseUrl/pg/easy-split/orders/$gatewayOrderId/split") {
+            auth()
+            contentType(ContentType.Application.Json)
+            setBody(CashfreeSplitRequest(shares.map { (vendor, amount) -> CashfreeSplit(vendor, amount.money()) }))
+        }.decode<Map<String, kotlinx.serialization.json.JsonElement>>("split order")
     }
 
     /** `x-webhook-signature` = base64(HMAC-SHA256(timestamp + rawBody, secret)). */
@@ -113,10 +132,9 @@ class CashfreeGateway(private val config: ServerConfig) {
         return MessageDigest.isEqual(expected.toByteArray(), signature.toByteArray())
     }
 
-    /** Pulls `link_id` out of a webhook body without trusting its status (we re-fetch it). */
-    fun webhookLinkId(rawBody: String): String? =
-        runCatching { json.decodeFromString<CashfreeWebhook>(rawBody).data?.linkId }.getOrNull()
-            ?: Regex("\"link_id\"\\s*:\\s*\"([^\"]+)\"").find(rawBody)?.groupValues?.get(1)
+    /** Pulls `order_id` out of a webhook body without trusting its status (we re-fetch it). */
+    fun webhookOrderId(rawBody: String): String? =
+        Regex("\"order_id\"\\s*:\\s*\"([^\"]+)\"").find(rawBody)?.groupValues?.get(1)
 
     private suspend inline fun <reified T> HttpResponse.decode(action: String): T {
         val text = bodyAsText()
@@ -124,63 +142,64 @@ class CashfreeGateway(private val config: ServerConfig) {
         return json.decodeFromString(text)
     }
 
+    private fun Double.money(): Double = Math.round(this * 100) / 100.0
+
     companion object {
         private const val API_VERSION = "2023-08-01"
         private const val SANDBOX_URL = "https://sandbox.cashfree.com"
         private const val PROD_URL = "https://api.cashfree.com"
+        /** Cashfree rejects order expiries closer than ~15 minutes; our own 5-minute timer still applies. */
+        private const val MIN_EXPIRY_MS = 16 * 60_000L
         private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneId.of("Asia/Kolkata"))
-        const val LINK_PAID = "PAID"
-        val LINK_DEAD = setOf("EXPIRED", "CANCELLED", "TERMINATED")
+        const val ORDER_PAID = "PAID"
     }
 }
 
 @Serializable
-data class CashfreeLink(
-    @SerialName("link_id") val linkId: String,
-    @SerialName("link_url") val linkUrl: String? = null,
-    @SerialName("link_status") val linkStatus: String = "",
-    @SerialName("link_amount_paid") val linkAmountPaid: Double = 0.0,
-)
-
-@Serializable
-private data class CashfreeLinkRequest(
-    @SerialName("link_id") val linkId: String,
-    @SerialName("link_amount") val linkAmount: Double,
-    @SerialName("link_currency") val linkCurrency: String = "INR",
-    @SerialName("link_purpose") val linkPurpose: String,
+private data class CashfreeOrderRequest(
+    @SerialName("order_id") val orderId: String,
+    @SerialName("order_amount") val orderAmount: Double,
+    @SerialName("order_currency") val orderCurrency: String = "INR",
     @SerialName("customer_details") val customerDetails: CashfreeCustomer,
-    @SerialName("link_partial_payments") val linkPartialPayments: Boolean = false,
-    @SerialName("link_expiry_time") val linkExpiryTime: String,
-    @SerialName("link_notify") val linkNotify: CashfreeNotify = CashfreeNotify(),
-    @SerialName("link_auto_reminders") val linkAutoReminders: Boolean = false,
-    @SerialName("link_notes") val linkNotes: Map<String, String> = emptyMap(),
-    @SerialName("link_meta") val linkMeta: CashfreeLinkMeta,
+    @SerialName("order_meta") val orderMeta: CashfreeOrderMeta,
+    @SerialName("order_expiry_time") val orderExpiryTime: String,
+    @SerialName("order_note") val orderNote: String,
 )
 
 @Serializable
 private data class CashfreeCustomer(
+    @SerialName("customer_id") val customerId: String,
     @SerialName("customer_phone") val customerPhone: String,
     @SerialName("customer_name") val customerName: String? = null,
 )
 
 @Serializable
-private data class CashfreeNotify(
-    @SerialName("send_sms") val sendSms: Boolean = false,
-    @SerialName("send_email") val sendEmail: Boolean = false,
-)
+private data class CashfreeOrderMeta(@SerialName("notify_url") val notifyUrl: String? = null)
 
 @Serializable
-private data class CashfreeLinkMeta(
-    @SerialName("notify_url") val notifyUrl: String? = null,
-    @SerialName("return_url") val returnUrl: String? = null,
-    @SerialName("upi_intent") val upiIntent: Boolean = true,
-)
-
-@Serializable
-private data class CashfreeLinkOrder(
-    @SerialName("order_id") val orderId: String,
+private data class CashfreeOrder(
+    @SerialName("order_id") val orderId: String = "",
     @SerialName("order_status") val orderStatus: String = "",
+    @SerialName("payment_session_id") val paymentSessionId: String? = null,
 )
+
+@Serializable
+private data class CashfreeOrderPayRequest(
+    @SerialName("payment_session_id") val paymentSessionId: String,
+    @SerialName("payment_method") val paymentMethod: CashfreePaymentMethod,
+)
+
+@Serializable
+private data class CashfreePaymentMethod(val upi: CashfreeUpi)
+
+@Serializable
+private data class CashfreeUpi(val channel: String)
+
+@Serializable
+private data class CashfreeOrderPay(val data: CashfreeOrderPayData? = null)
+
+@Serializable
+private data class CashfreeOrderPayData(val payload: Map<String, String>? = null)
 
 @Serializable
 private data class CashfreeRefundRequest(
@@ -193,7 +212,13 @@ private data class CashfreeRefundRequest(
 private data class CashfreeRefund(@SerialName("refund_id") val refundId: String? = null)
 
 @Serializable
-private data class CashfreeWebhook(val data: CashfreeWebhookData? = null)
+private data class CashfreeSplitRequest(
+    val split: List<CashfreeSplit>,
+    @SerialName("split_type") val splitType: String = "ORDER_AMOUNT",
+)
 
 @Serializable
-private data class CashfreeWebhookData(@SerialName("link_id") val linkId: String? = null)
+private data class CashfreeSplit(
+    @SerialName("vendor_id") val vendorId: String,
+    val amount: Double,
+)

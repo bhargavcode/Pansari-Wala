@@ -4,6 +4,7 @@ import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
 import platform.UserNotifications.UNAuthorizationStatusNotDetermined
+import org.bhargav.pansariwala.util.AppConstants
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import platform.UserNotifications.UNMutableNotificationContent
@@ -34,7 +35,12 @@ private class IosNotificationGateway : NotificationGateway {
         content.setTitle(notification.title)
         content.setBody(notification.body)
         content.setSound(UNNotificationSound.defaultSound)
-        notification.orderId?.let { content.setUserInfo(mapOf(ORDER_ID_KEY to it)) }
+        content.setUserInfo(
+            buildMap<Any?, Any?> {
+                put(AppConstants.Notification.USER_INFO_TYPE, notification.type)
+                notification.orderId?.let { put(ORDER_ID_KEY, it) }
+            },
+        )
         val trigger = UNTimeIntervalNotificationTrigger.triggerWithTimeInterval(0.15, repeats = false)
         val request = UNNotificationRequest.requestWithIdentifier(
             identifier = notification.key ?: notification.id,
@@ -57,6 +63,6 @@ private class IosNotificationGateway : NotificationGateway {
     }
 }
 
-private const val ORDER_ID_KEY = "orderId"
+private const val ORDER_ID_KEY = AppConstants.Notification.USER_INFO_ORDER_ID
 
 actual fun createNotificationGateway(): NotificationGateway = IosNotificationGateway()

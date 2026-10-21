@@ -25,6 +25,8 @@ sealed interface UserRoute : NavKey {
     @Serializable data class ShopOffers(val shopId: String) : UserRoute
     @Serializable data class Checkout(val shopId: String) : UserRoute
     @Serializable data class ThankYou(val orderId: String) : UserRoute
+    /** Waiting / result screen for payment transaction [intentId]; [autoLaunch] opens the UPI app once. */
+    @Serializable data class PaymentStatus(val intentId: String, val autoLaunch: Boolean = false) : UserRoute
     @Serializable data class OrderDetails(val orderId: String) : UserRoute
     @Serializable data object OrdersList : UserRoute
     @Serializable data object Transactions : UserRoute

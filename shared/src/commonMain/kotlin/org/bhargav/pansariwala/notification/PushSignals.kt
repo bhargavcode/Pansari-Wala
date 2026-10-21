@@ -25,6 +25,16 @@ object OrderUpdates {
     }
 }
 
+/** Payment transaction ids changed by push (customer result or shop "confirm payment"); open screens reload. */
+object PaymentUpdates {
+    private val _events = MutableSharedFlow<String>(extraBufferCapacity = 32)
+    val events: SharedFlow<String> = _events.asSharedFlow()
+
+    fun emit(intentId: String) {
+        _events.tryEmit(intentId)
+    }
+}
+
 /** Defers the notification permission prompt until the signed-in home screen is shown. */
 object NotificationPromptGate {
     val homeReached = MutableStateFlow(false)

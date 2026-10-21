@@ -224,6 +224,7 @@ data class AdminShopDto(
     val minOrderValueInr: Double = 0.0,
     val freeDeliveryEnabled: Boolean = false,
     val freeDeliveryAboveInr: Double = 0.0,
+    val cashfreeVendorId: String = "",
 )
 
 @Serializable
@@ -320,6 +321,7 @@ data class AdminPartnerDto(
     val active: Boolean = true,
     val verified: Boolean = false,
     val joinedAtEpochMs: Long = 0L,
+    val cashfreeVendorId: String = "",
 )
 
 @Serializable
@@ -624,6 +626,8 @@ data class PlaceOrderRequest(
     val userLng: Double? = null,
     /** Customer collects at the shop: no delivery charge, no radius check, no partner. */
     val selfPickup: Boolean = false,
+    /** Retry a FAILED payment transaction under the same id (DIRECT_UPI / CASHFREE). */
+    val retryIntentId: String? = null,
 )
 
 @Serializable
@@ -633,7 +637,12 @@ data class QuoteRequest(
     val userLat: Double,
     val userLng: Double,
     val selfPickup: Boolean = false,
+    /** Checkout flows the app supports; apps without [PAYMENT_FLOW_INTENT] can only pay via Razorpay. */
+    val paymentFlow: Int = 0,
 )
+
+/** App supports pay-first payment transactions (DIRECT_UPI / CASHFREE). */
+const val PAYMENT_FLOW_INTENT = 2
 
 @Serializable
 data class QuoteDto(
@@ -649,6 +658,45 @@ data class QuoteDto(
 
 @Serializable
 data class SubmitUtrRequest(val utr: String)
+
+/** One checkout payment transaction (PTX…); the order exists only once [status] is SUCCESS. */
+@Serializable
+data class PaymentIntentDto(
+    val id: String,
+    /** Reserved order id; the order is created under it on success. */
+    val orderId: String,
+    /** PENDING, SUCCESS, FAILED, REFUNDED. */
+    val status: String,
+    /** UPI_DIRECT or CASHFREE for the current attempt. */
+    val method: String,
+    val amountInr: Double,
+    val shopId: String,
+    val shopName: String,
+    val customerName: String = "",
+    val customerPhone: String = "",
+    /** UPI ID the money goes to (shop for UPI_DIRECT; null for gateway collection). */
+    val payeeUpi: String? = null,
+    /** `upi://pay` link to open while [status] is PENDING. */
+    val upiPayUri: String? = null,
+    val attemptNo: Int,
+    val attemptStartedAtEpochMs: Long,
+    val expiresAtEpochMs: Long,
+    val serverNowEpochMs: Long,
+    val utr: String? = null,
+    val failureReason: String? = null,
+    val refundId: String? = null,
+    val items: List<OrderItemDto> = emptyList(),
+    val quote: QuoteDto? = null,
+    val selfPickup: Boolean = false,
+    val addressId: String? = null,
+    val deliveryAddress: String = "",
+    val createdAtEpochMs: Long,
+    val updatedAtEpochMs: Long,
+)
+
+/** Master: Cashfree Easy Split vendor id (created + KYC'd in the Cashfree dashboard). */
+@Serializable
+data class VendorIdRequest(val vendorId: String)
 
 @Serializable
 data class CreateRazorpayRequest(val shopId: String, val amountPaise: Long)
@@ -785,12 +833,10 @@ data class OrderDto(
     val packedProductIds: List<String> = emptyList(),
     val deliveryMode: String = "PARTNER",
     val discount: Double = 0.0,
-    /** PAYMENT_PENDING only: UPI deep link (DIRECT_UPI) or hosted page (CASHFREE) to complete payment. */
-    val upiPayUri: String? = null,
-    val payeeUpi: String? = null,
-    val paymentLinkUrl: String? = null,
+    /** Payment transaction (PTX…) that created this order, with its UPI reference and gateway order. */
+    val paymentIntentId: String? = null,
     val paymentUtr: String? = null,
-    val paymentDueAtEpochMs: Long? = null,
+    val gatewayOrderId: String? = null,
 )
 
 @Serializable

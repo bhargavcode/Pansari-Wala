@@ -18,6 +18,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.dto.OrderItemDto
+import org.bhargav.pansariwala.server.dto.PlaceOrderRequest
 import org.bhargav.pansariwala.server.dto.QuoteDto
 import org.bhargav.pansariwala.server.security.Security
 import org.bson.codecs.configuration.CodecRegistries.fromProviders
@@ -117,6 +118,8 @@ data class ShopDoc(
     val paymentsEnabled: Boolean,
     val discountPercent: Double,
     val upiId: String = "success@razorpay",
+    /** Cashfree Easy Split vendor id (created + KYC'd in the Cashfree dashboard); blank → settled manually. */
+    val cashfreeVendorId: String = "",
     val address: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
@@ -210,6 +213,8 @@ data class PartnerDoc(
     val email: String,
     val address: String,
     val vehicleReg: String,
+    /** Cashfree Easy Split vendor id for delivery-fee payouts; blank → paid manually. */
+    val cashfreeVendorId: String = "",
     val platePhoto: String = "",
     val vehiclePhoto: String = "",
     val profilePhoto: String = "",
@@ -401,10 +406,10 @@ data class OrderDoc(
     val shopUpi: String? = null,
     /** UPI transaction ref (UTR) the customer reported for a DIRECT_UPI payment. */
     val paymentUtr: String? = null,
-    /** Hosted payment page for CASHFREE orders. */
-    val paymentLinkUrl: String? = null,
-    /** PAYMENT_PENDING orders are auto-cancelled after this time. */
-    val paymentDueAt: Long? = null,
+    /** Payment transaction this order was created from (see [PaymentIntentDoc]). */
+    val paymentIntentId: String? = null,
+    /** Cashfree order id of the paid attempt; used for refunds and Easy Split. */
+    val gatewayOrderId: String? = null,
     val createdAt: Long,
     val items: List<OrderItemDto> = emptyList(),
     val quote: QuoteDto? = null,
@@ -429,6 +434,75 @@ data class OrderDoc(
     val discount: Double = 0.0,
     /** Server write time for POS bills; cursor for device pull sync. */
     val syncedAt: Long = 0L,
+)
+
+/** One try at paying a [PaymentIntentDoc]; retries append a new attempt under the same intent id. */
+@Serializable
+data class PaymentAttemptDoc(
+    val no: Int,
+    /** CASHFREE or UPI_DIRECT. */
+    val method: String,
+    /** Cashfree order id (`<intentId>_<no>`); null for UPI_DIRECT. */
+    val gatewayOrderId: String? = null,
+    val upiPayUri: String? = null,
+    val startedAt: Long,
+    val expiresAt: Long,
+    /** PENDING, PAID, FAILED. */
+    val status: String = "PENDING",
+    val utr: String? = null,
+    val gatewayPaymentId: String? = null,
+    val note: String? = null,
+)
+
+/**
+ * Temporary payment transaction created before any shop order. The order (id [orderId], reserved up
+ * front so retries and late webhooks can never create two) is only inserted once a payment succeeds.
+ */
+@Serializable
+data class PaymentIntentDoc(
+    @SerialName("_id") val id: String,
+    val orderId: String,
+    val customerId: String,
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val shopId: String,
+    val shopName: String = "",
+    val payeeUpi: String? = null,
+    val request: PlaceOrderRequest,
+    /** Fully priced order (status RECEIVED, reserved [orderId]) inserted as-is once the payment succeeds. */
+    val order: OrderDoc,
+    val amountInr: Double,
+    /** PENDING, SUCCESS, FAILED, REFUNDED. */
+    val status: String,
+    val stockHeld: Boolean = false,
+    /** False between SUCCESS and the order insert; the sweeper finishes any interrupted insert. */
+    val orderPlaced: Boolean = false,
+    val attempts: List<PaymentAttemptDoc> = emptyList(),
+    val failureReason: String? = null,
+    val refundId: String? = null,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+/** Easy Split payout plan for one Cashfree-paid order, executed once the order is delivered. */
+@Serializable
+data class SettlementDoc(
+    @SerialName("_id") val orderId: String,
+    val gatewayOrderId: String,
+    val shopId: String,
+    val shopVendorId: String = "",
+    val shopAmount: Double,
+    val partnerId: String? = null,
+    val partnerVendorId: String = "",
+    val partnerAmount: Double = 0.0,
+    /** Platform fee + delivery margin + commission left with the platform. */
+    val platformAmount: Double,
+    /** PENDING, SPLIT, MANUAL (no vendor ids), FAILED (retried by the sweeper). */
+    val status: String,
+    val attempts: Int = 0,
+    val lastError: String? = null,
+    val createdAt: Long,
+    val updatedAt: Long,
 )
 
 @Serializable
@@ -509,8 +583,8 @@ data class PlatformSettingsDoc(
     val partnerRegistrationEnabled: Boolean = true,
     /** How customers pay online orders: DIRECT_UPI, CASHFREE or RAZORPAY (see `PaymentMode`). */
     val paymentMode: String = "DIRECT_UPI",
-    /** Unpaid DIRECT_UPI / CASHFREE orders are cancelled (stock released) after this many minutes. */
-    val paymentWindowMinutes: Int = 15,
+    /** How long the server waits for a DIRECT_UPI / CASHFREE payment before failing the transaction. */
+    val paymentWindowMinutes: Int = 5,
     val updatedAt: Long = 0L,
 )
 
@@ -854,6 +928,12 @@ private fun ensureIndexes(db: MongoDatabase) {
         createIndex(Indexes.descending("joinedAt"))
     }
     db.getCollection<ShopDoc>("shops").createIndex(Indexes.ascending("active"))
+    db.getCollection<PaymentIntentDoc>("payment_intents").apply {
+        createIndex(Indexes.ascending("status"))
+        createIndex(Indexes.ascending("attempts.gatewayOrderId"))
+        createIndex(Indexes.compoundIndex(Indexes.ascending("shopId"), Indexes.ascending("status")))
+    }
+    db.getCollection<SettlementDoc>("settlements").createIndex(Indexes.ascending("status"))
     db.getCollection<OfferDoc>("offers").createIndex(Indexes.ascending("shopId"))
     db.getCollection<CustomerRatingDoc>("customer_ratings").apply {
         createIndex(Indexes.compoundIndex(Indexes.ascending("customerId"), Indexes.descending("createdAt")))

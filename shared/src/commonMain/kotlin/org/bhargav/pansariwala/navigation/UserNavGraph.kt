@@ -59,6 +59,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.bhargav.pansariwala.feature.user.ShopCatalogScreen
 import org.bhargav.pansariwala.feature.user.ShopOffersScreen
 import org.bhargav.pansariwala.feature.user.ThankYouScreen
+import org.bhargav.pansariwala.feature.user.PaymentStatusScreen
 import org.bhargav.pansariwala.feature.user.TransactionsScreen
 import org.bhargav.pansariwala.feature.user.UserLanguageScreen
 import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
@@ -66,6 +67,7 @@ import org.bhargav.pansariwala.feature.user.UserSettingsHub
 import org.bhargav.pansariwala.feature.user.UserThemeScreen
 import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.notification.NotificationOpenRequests
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.notification.NotificationRouter
 import androidx.compose.runtime.collectAsState
 import org.jetbrains.compose.resources.stringResource
@@ -93,6 +95,7 @@ private val userNavConfig = SavedStateConfiguration {
             subclass(UserRoute.Cart::class, UserRoute.Cart.serializer())
             subclass(UserRoute.Checkout::class, UserRoute.Checkout.serializer())
             subclass(UserRoute.ThankYou::class, UserRoute.ThankYou.serializer())
+            subclass(UserRoute.PaymentStatus::class, UserRoute.PaymentStatus.serializer())
             subclass(UserRoute.OrderDetails::class, UserRoute.OrderDetails.serializer())
             subclass(UserRoute.OrdersList::class, UserRoute.OrdersList.serializer())
             subclass(UserRoute.Transactions::class, UserRoute.Transactions.serializer())
@@ -147,7 +150,15 @@ fun UserNavGraph() {
                 duration = SnackbarDuration.Long,
             )
             if (result == SnackbarResult.ActionPerformed) {
-                notification.orderId?.let { push(UserRoute.OrderDetails(it)) }
+                notification.orderId?.let {
+                    push(
+                        if (notification.type == AppConstants.Notification.TYPE_PAYMENT) {
+                            UserRoute.PaymentStatus(it)
+                        } else {
+                            UserRoute.OrderDetails(it)
+                        },
+                    )
+                }
             }
         }
     }
@@ -162,14 +173,18 @@ fun UserNavGraph() {
         if (!signedIn) return@LaunchedEffect
         NotificationOpenRequests.consume()
         val orderId = request.orderId ?: return@LaunchedEffect
-        if ((backStack.lastOrNull() as? UserRoute.OrderDetails)?.orderId != orderId) {
+        if (request.type == AppConstants.Notification.TYPE_PAYMENT) {
+            if ((backStack.lastOrNull() as? UserRoute.PaymentStatus)?.intentId != orderId) {
+                push(UserRoute.PaymentStatus(orderId))
+            }
+        } else if ((backStack.lastOrNull() as? UserRoute.OrderDetails)?.orderId != orderId) {
             push(UserRoute.OrderDetails(orderId))
         }
     }
 
     fun onBack() {
         when (backStack.lastOrNull()) {
-            is UserRoute.OrderDetails -> popOr(UserRoute.Shell)
+            is UserRoute.OrderDetails, is UserRoute.PaymentStatus -> popOr(UserRoute.Shell)
             else -> pop()
         }
     }
@@ -289,6 +304,11 @@ fun UserNavGraph() {
                         CheckoutScreen(
                             shopId = route.shopId,
                             onPlaced = { replaceAll(UserRoute.ThankYou(it)) },
+                            onPaymentStarted = { intentId ->
+                                // Shell stays underneath so leaving the waiting screen lands on home.
+                                replaceAll(UserRoute.Shell)
+                                push(UserRoute.PaymentStatus(intentId, autoLaunch = true))
+                            },
                             onCompleteProfile = { push(UserRoute.ProfileSetup) },
                             onAddAddress = { push(UserRoute.Address) },
                             onBack = { pop() },
@@ -300,6 +320,18 @@ fun UserNavGraph() {
                             replaceAll(UserRoute.Shell)
                             push(UserRoute.OrderDetails(route.orderId))
                         })
+                    }
+                    is UserRoute.PaymentStatus -> NavEntry(route) {
+                        PaymentStatusScreen(
+                            intentId = route.intentId,
+                            autoLaunch = route.autoLaunch,
+                            onViewOrder = { orderId ->
+                                replaceAll(UserRoute.Shell)
+                                push(UserRoute.OrderDetails(orderId))
+                            },
+                            onRetry = { shopId -> push(UserRoute.Cart(shopId)) },
+                            onHome = { replaceAll(UserRoute.Shell) },
+                        )
                     }
                     is UserRoute.OrderDetails -> NavEntry(route) {
                         OrderDetailsScreen(

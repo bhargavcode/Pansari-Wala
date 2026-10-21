@@ -383,6 +383,10 @@ jobs:
           EC2_DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
           EC2_SERVICE_NAME: ${{ secrets.EC2_SERVICE_NAME }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          CASHFREE_APP_ID: ${{ secrets.CASHFREE_APP_ID }}
+          CASHFREE_SECRET_KEY: ${{ secrets.CASHFREE_SECRET_KEY }}
+          CASHFREE_ENV: ${{ secrets.CASHFREE_ENV }}
+          PUBLIC_API_BASE_URL: ${{ secrets.PUBLIC_API_BASE_URL }}
         run: |
           EC2_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n' | xargs)"
           EC2_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n' | xargs)"

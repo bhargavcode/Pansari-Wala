@@ -360,6 +360,22 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
     suspend fun partnerDetail(token: String, id: String): PartnerDetailDto =
         client.get(url("/admin/partners/$id")) { bearer(token) }.body()
 
+    suspend fun setShopVendorId(token: String, shopId: String, vendorId: String) {
+        client.post(url("/admin/shops/$shopId/cashfree-vendor")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(VendorIdBody(vendorId))
+        }
+    }
+
+    suspend fun setPartnerVendorId(token: String, partnerId: String, vendorId: String) {
+        client.post(url("/admin/partners/$partnerId/cashfree-vendor")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(VendorIdBody(vendorId))
+        }
+    }
+
     suspend fun patchPartner(token: String, id: String, active: Boolean) {
         client.post(url("/admin/partners/$id")) {
             bearer(token)
@@ -821,6 +837,7 @@ data class ShopDto(
     val minOrderValueInr: Double = AppConstants.DEFAULT_SHOP_MIN_ORDER_INR,
     val freeDeliveryEnabled: Boolean = false,
     val freeDeliveryAboveInr: Double = AppConstants.DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR,
+    val cashfreeVendorId: String = "",
 )
 
 @Serializable
@@ -964,7 +981,11 @@ data class PartnerDto(
     val active: Boolean = true,
     val verified: Boolean = false,
     val joinedAtEpochMs: Long = 0L,
+    val cashfreeVendorId: String = "",
 )
+
+@Serializable
+data class VendorIdBody(val vendorId: String)
 
 @Serializable
 data class PartnerDetailDto(

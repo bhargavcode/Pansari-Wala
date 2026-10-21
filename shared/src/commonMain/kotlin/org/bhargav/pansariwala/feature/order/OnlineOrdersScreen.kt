@@ -104,8 +104,18 @@ import pansariwala.shared.generated.resources.customer_rating_badge_cd
 import pansariwala.shared.generated.resources.order_action_mark_collected
 import pansariwala.shared.generated.resources.order_pickup_badge
 import pansariwala.shared.generated.resources.action_confirm_payment
-import pansariwala.shared.generated.resources.online_order_payment_pending_online
-import pansariwala.shared.generated.resources.online_order_payment_pending_upi
+import pansariwala.shared.generated.resources.shop_pay_hint
+import pansariwala.shared.generated.resources.shop_pay_late
+import pansariwala.shared.generated.resources.shop_pay_not_received
+import pansariwala.shared.generated.resources.shop_pay_row
+import pansariwala.shared.generated.resources.shop_pay_time_left
+import pansariwala.shared.generated.resources.shop_pay_title
+import pansariwala.shared.generated.resources.shop_pay_txn
+import org.bhargav.pansariwala.domain.model.PaymentIntent
+import org.bhargav.pansariwala.domain.model.PaymentIntentStatus
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.delay
+import kotlin.time.Clock
 import pansariwala.shared.generated.resources.online_order_payment_utr
 import pansariwala.shared.generated.resources.status_payment_pending
 import kotlin.math.roundToInt
@@ -226,6 +236,28 @@ fun OnlineOrdersScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            state.paymentNotice?.let { notice ->
+                item(key = "paymentNotice") {
+                    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(12.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(notice.asString(), modifier = Modifier.weight(1f))
+                            IconButton(onClick = viewModel::consumePaymentNotice) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_clear))
+                            }
+                        }
+                    }
+                }
+            }
+            if (state.paymentIntents.isNotEmpty()) {
+                item(key = "paymentsToConfirm") {
+                    PaymentsToConfirmCard(
+                        intents = state.paymentIntents,
+                        busyId = state.paymentBusyId,
+                        onConfirm = viewModel::confirmShopPayment,
+                        onReject = viewModel::rejectShopPayment,
+                    )
+                }
+            }
             if (state.orders.isEmpty() && !state.loading && state.error == null) {
                 item(key = "empty") { Text(stringResource(Res.string.online_orders_empty)) }
             }
@@ -309,7 +341,6 @@ fun OnlineOrdersScreen(
                         busy = busy,
                         packedCount = packedChecks.size,
                         onAccept = { viewModel.accept(order.id) },
-                        onConfirmPayment = { viewModel.confirmPayment(order.id) },
                         onPacking = { viewModel.markPacking(order.id) },
                         onRequestPartner = { viewModel.requestDeliveryPartner(order.id) },
                         onSelfDeliver = { viewModel.startSelfDelivery(order.id) },
@@ -420,17 +451,6 @@ internal fun formatRating(value: Double): String = ((value * 10).roundToInt() / 
 
 @Composable
 private fun OnlineOrderStatusNote(order: Order) {
-    if (order.isAwaitingPayment) {
-        if (order.isDirectUpi) {
-            Text(stringResource(Res.string.online_order_payment_pending_upi, order.totalValue.asMoney()))
-            order.paymentUtr?.let {
-                Text(stringResource(Res.string.online_order_payment_utr, it), fontWeight = FontWeight.SemiBold)
-            }
-        } else {
-            Text(stringResource(Res.string.online_order_payment_pending_online))
-        }
-        return
-    }
     val note = when (order.status) {
         OrderStatus.LOOKING_FOR_PARTNER -> stringResource(Res.string.online_order_looking_partner)
         OrderStatus.PARTNER_ACCEPTED -> stringResource(Res.string.online_order_waiting_pickup)
@@ -438,6 +458,63 @@ private fun OnlineOrderStatusNote(order: Order) {
         else -> null
     }
     note?.let { Text(it) }
+}
+
+/** DIRECT_UPI money goes straight to the shop's UPI ID, so the shop confirms it before the order is created. */
+@Composable
+private fun PaymentsToConfirmCard(
+    intents: List<PaymentIntent>,
+    busyId: String?,
+    onConfirm: (String) -> Unit,
+    onReject: (String) -> Unit,
+) {
+    val now by produceState(Clock.System.now().toEpochMilliseconds()) {
+        while (true) {
+            value = Clock.System.now().toEpochMilliseconds()
+            delay(AppConstants.Payment.COUNTDOWN_TICK_MS)
+        }
+    }
+    SectionCard(title = stringResource(Res.string.shop_pay_title), subtitle = stringResource(Res.string.shop_pay_hint)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            intents.forEach { intent ->
+                val busy = busyId == intent.id
+                val secondsLeft = ((intent.expiresAtEpochMs - now) / 1_000L).coerceAtLeast(0L)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        stringResource(Res.string.shop_pay_row, intent.amountInr.asMoney(), intent.customerName),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(stringResource(Res.string.shop_pay_txn, intent.id), style = MaterialTheme.typography.bodySmall)
+                    intent.utr?.let {
+                        Text(stringResource(Res.string.online_order_payment_utr, it), fontWeight = FontWeight.SemiBold)
+                    }
+                    Text(
+                        if (intent.status == PaymentIntentStatus.PENDING && secondsLeft > 0) {
+                            stringResource(Res.string.shop_pay_time_left, "${secondsLeft / 60}:${(secondsLeft % 60).toString().padStart(2, '0')}")
+                        } else {
+                            stringResource(Res.string.shop_pay_late)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { onConfirm(intent.id) }, enabled = busyId == null) {
+                            if (busy) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(stringResource(Res.string.action_confirm_payment))
+                            }
+                        }
+                        if (intent.status == PaymentIntentStatus.PENDING) {
+                            OutlinedButton(onClick = { onReject(intent.id) }, enabled = busyId == null) {
+                                Text(stringResource(Res.string.shop_pay_not_received))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -461,7 +538,6 @@ private fun OnlineOrderActions(
     busy: Boolean,
     packedCount: Int,
     onAccept: () -> Unit,
-    onConfirmPayment: () -> Unit,
     onPacking: () -> Unit,
     onRequestPartner: () -> Unit,
     onSelfDeliver: () -> Unit,
@@ -496,7 +572,6 @@ private fun OnlineOrderActions(
         }
     }
     val nextLabel = when (order.status) {
-        OrderStatus.PAYMENT_PENDING -> if (order.isDirectUpi) stringResource(Res.string.action_confirm_payment) else null
         OrderStatus.RECEIVED -> stringResource(Res.string.action_accept_order)
         OrderStatus.ACCEPTED -> stringResource(Res.string.action_packing)
         OrderStatus.PACKING -> if (order.selfPickup) {
@@ -510,7 +585,6 @@ private fun OnlineOrderActions(
     }
     val nextEnabled = order.status != OrderStatus.PACKING || packedCount > 0
     val nextAction = when (order.status) {
-        OrderStatus.PAYMENT_PENDING -> if (order.isDirectUpi) onConfirmPayment else null
         OrderStatus.RECEIVED -> onAccept
         OrderStatus.ACCEPTED -> onPacking
         OrderStatus.PACKING -> if (order.selfPickup) onMarkCollected else onRequestPartner
