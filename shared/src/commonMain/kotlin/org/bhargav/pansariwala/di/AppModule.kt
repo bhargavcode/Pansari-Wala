@@ -63,6 +63,7 @@ import org.bhargav.pansariwala.feature.user.SpendDetailsViewModel
 import org.bhargav.pansariwala.feature.user.SpendReportViewModel
 import org.bhargav.pansariwala.feature.printer.PrinterSettingsViewModel
 import org.bhargav.pansariwala.feature.reports.ReportsViewModel
+import org.bhargav.pansariwala.feature.reports.SalesDrillViewModel
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
 import org.bhargav.pansariwala.printer.PrinterSettingsStore
 import org.bhargav.pansariwala.printing.PosPrintService
@@ -153,6 +154,7 @@ val appModule = module {
     viewModelOf(::CustomerRatingsViewModel)
     viewModelOf(::PrinterSettingsViewModel)
     viewModelOf(::ReportsViewModel)
+    viewModelOf(::SalesDrillViewModel)
     viewModelOf(::ShopProfileViewModel)
     viewModelOf(::IssueReportViewModel)
 }

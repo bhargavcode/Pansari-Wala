@@ -75,6 +75,8 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.CustomerRatings::class, AppRoute.CustomerRatings.serializer())
             subclass(AppRoute.PrinterSettings::class, AppRoute.PrinterSettings.serializer())
             subclass(AppRoute.Reports::class, AppRoute.Reports.serializer())
+            subclass(AppRoute.CategorySales::class, AppRoute.CategorySales.serializer())
+            subclass(AppRoute.ProductSales::class, AppRoute.ProductSales.serializer())
             subclass(AppRoute.ShopProfile::class, AppRoute.ShopProfile.serializer())
             subclass(AppRoute.Subscription::class, AppRoute.Subscription.serializer())
             subclass(AppRoute.CommissionDay::class, AppRoute.CommissionDay.serializer())
@@ -300,7 +302,28 @@ fun AppNavGraph(
                     }
 
                     AppRoute.Reports -> NavEntry(route) {
-                        org.bhargav.pansariwala.feature.reports.ReportsScreen(onBack = { pop() })
+                        org.bhargav.pansariwala.feature.reports.ReportsScreen(
+                            onBack = { pop() },
+                            onOpenCategory = { category, window -> push(AppRoute.CategorySales(category, window)) },
+                        )
+                    }
+
+                    is AppRoute.CategorySales -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.reports.CategorySalesScreen(
+                            category = route.category,
+                            window = route.window,
+                            onBack = { pop() },
+                            onOpenProduct = { id, name, window -> push(AppRoute.ProductSales(id, name, window)) },
+                        )
+                    }
+
+                    is AppRoute.ProductSales -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.reports.ProductSalesScreen(
+                            productId = route.productId,
+                            productName = route.productName,
+                            window = route.window,
+                            onBack = { pop() },
+                        )
                     }
 
                     AppRoute.ShopProfile -> NavEntry(route) {

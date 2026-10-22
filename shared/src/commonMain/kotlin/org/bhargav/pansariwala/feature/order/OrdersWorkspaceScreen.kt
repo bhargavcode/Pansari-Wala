@@ -74,6 +74,8 @@ import pansariwala.shared.generated.resources.sales_orders
 import pansariwala.shared.generated.resources.sales_revenue
 import pansariwala.shared.generated.resources.select_order_hint
 import pansariwala.shared.generated.resources.status_cancelled
+import pansariwala.shared.generated.resources.status_returned_to_shop
+import pansariwala.shared.generated.resources.status_returning_to_shop
 import pansariwala.shared.generated.resources.status_completed
 import pansariwala.shared.generated.resources.status_draft
 import pansariwala.shared.generated.resources.status_payment_pending
@@ -493,6 +495,8 @@ private fun orderStatusLabel(status: OrderStatus): String = stringResource(
         OrderStatus.RECEIVED -> Res.string.status_received
         OrderStatus.COMPLETED -> Res.string.status_completed
         OrderStatus.CANCELLED -> Res.string.status_cancelled
+        OrderStatus.RETURNING_TO_SHOP -> Res.string.status_returning_to_shop
+        OrderStatus.RETURNED_TO_SHOP -> Res.string.status_returned_to_shop
         OrderStatus.DRAFT -> Res.string.status_draft
         OrderStatus.PAYMENT_PENDING -> Res.string.status_payment_pending
         OrderStatus.ACCEPTED -> Res.string.status_accepted

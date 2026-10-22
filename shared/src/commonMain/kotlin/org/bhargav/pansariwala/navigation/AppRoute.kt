@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.navigation
 
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
+import org.bhargav.pansariwala.feature.reports.SalesWindow
 
 /**
  * Typed Nav3 destinations (custom data model → destination).
@@ -51,6 +52,12 @@ sealed interface AppRoute : NavKey {
     data object Reports : AppRoute
 
     @Serializable
+    data class CategorySales(val category: String, val window: SalesWindow) : AppRoute
+
+    @Serializable
+    data class ProductSales(val productId: String, val productName: String, val window: SalesWindow) : AppRoute
+
+    @Serializable
     data object ShopProfile : AppRoute
 
     @Serializable
@@ -79,6 +86,8 @@ fun AppRoute.screenName(): String = when (this) {
     is AppRoute.CustomerRatings -> "customer_ratings"
     AppRoute.PrinterSettings -> "printer_settings"
     AppRoute.Reports -> "reports"
+    is AppRoute.CategorySales -> "category_sales"
+    is AppRoute.ProductSales -> "product_sales"
     AppRoute.ShopProfile -> "shop_profile"
     AppRoute.Subscription -> "subscription"
     is AppRoute.CommissionDay -> "commission_day"

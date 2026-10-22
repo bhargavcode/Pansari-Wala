@@ -393,7 +393,7 @@ data class PlatformSettingsDto(
     val orderingPausedMessage: String = "",
     val partnerRegistrationEnabled: Boolean = true,
     val paymentMode: String = "DIRECT_UPI",
-    val paymentWindowMinutes: Int = 15,
+    val paymentWindowMinutes: Int = 5,
     /** Read-only: server has Cashfree / Razorpay keys configured. */
     val cashfreeConfigured: Boolean = false,
     val razorpayConfigured: Boolean = false,
@@ -906,6 +906,9 @@ data class ShopActionRequest(val rejectedProductIds: List<String> = emptyList(),
 data class StatusPatch(val status: String)
 
 @Serializable
+data class ReturnRequest(val reason: String? = null)
+
+@Serializable
 data class DeliveryRequest(val packedProductIds: List<String> = emptyList())
 
 @Serializable
@@ -1012,6 +1015,16 @@ data class TxnDto(
     val amount: Double,
     val title: String,
     val createdAtEpochMs: Long,
+    val isRefund: Boolean = false,
+    val shopId: String? = null,
+    val shopName: String? = null,
+    val orderStatus: String? = null,
+    val paymentMethod: String? = null,
+    /** Gateway payment id or UPI UTR. */
+    val paymentRef: String? = null,
+    val refundId: String? = null,
+    val itemCount: Int = 0,
+    val selfPickup: Boolean = false,
 )
 
 @Serializable

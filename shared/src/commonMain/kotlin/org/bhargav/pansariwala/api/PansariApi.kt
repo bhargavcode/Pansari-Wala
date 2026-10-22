@@ -109,6 +109,7 @@ interface PansariApi {
     suspend fun requestDelivery(orderId: String, packedProductIds: List<String>): DeliveryOffer
     suspend fun startSelfDelivery(orderId: String, packedProductIds: List<String>): Order
     suspend fun completeSelfDelivery(orderId: String, otp: String): Order
+    suspend fun acceptReturn(orderId: String, reason: String? = null): Order
     suspend fun shopPartners(): List<ShopPartnerDto>
     suspend fun addShopPartner(request: ShopPartnerRequest): ShopPartnerDto
     suspend fun removeShopPartner(id: String)
@@ -157,6 +158,7 @@ interface PansariApi {
     suspend fun verifyBags(orderId: String, photoOne: String = "", photoTwo: String = ""): Order
     suspend fun submitPickup(orderId: String, photoOne: String, photoTwo: String): Order
     suspend fun arrivedAtCustomer(orderId: String): Order
+    suspend fun returnToShop(orderId: String, reason: String?): Order
     suspend fun deliverOrder(orderId: String, otp: String): Order
     suspend fun rateCustomer(orderId: String, stars: Int, comment: String?): Order
     /** Shop staff: partner ratings of [customerId]; [stars] empty → all. */

@@ -377,7 +377,7 @@ internal fun PaymentsSection(token: String, onStatus: (String) -> Unit) {
         HorizontalDivider()
         NumberField(window, stringResource(Res.string.master_payment_window)) { window = it }
         val minutes = window.trim().toIntOrNull()
-        if (minutes != null && minutes != s.paymentWindowMinutes) {
+        if (minutes != null && minutes in 1..5 && minutes != s.paymentWindowMinutes) {
             Button(onClick = { save(s.copy(paymentWindowMinutes = minutes)) }) {
                 Text(stringResource(Res.string.master_save))
             }

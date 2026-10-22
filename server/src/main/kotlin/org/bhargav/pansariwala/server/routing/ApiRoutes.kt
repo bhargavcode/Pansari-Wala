@@ -89,6 +89,7 @@ import org.bhargav.pansariwala.server.dto.ChangePhoneRequest
 import org.bhargav.pansariwala.server.dto.CustomerPhotoRequest
 import org.bhargav.pansariwala.server.dto.ShopActionRequest
 import org.bhargav.pansariwala.server.dto.ShopLoginRequest
+import org.bhargav.pansariwala.server.dto.ReturnRequest
 import org.bhargav.pansariwala.server.dto.StatusPatch
 import org.bhargav.pansariwala.server.dto.SyncPushRequest
 import org.bhargav.pansariwala.server.dto.UpdateProfileRequest
@@ -502,6 +503,10 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
             val body = call.receive<DeliverRequest>()
             call.respond(store.completeSelfDelivery(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body.otp))
         }
+        post("/shop/orders/{id}/accept-return") {
+            val body = runCatching { call.receive<ReturnRequest>() }.getOrNull()
+            call.respond(store.acceptReturn(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body?.reason))
+        }
         post("/shop/orders/{id}/cancel") {
             val body = call.receive<ShopActionRequest>()
             call.respond(store.cancelShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body.reason))
@@ -706,6 +711,10 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
         }
         post("/partners/jobs/{id}/arrived-customer") {
             call.respond(store.arrivedAtCustomer(call.userId(), call.parameters["id"]!!))
+        }
+        post("/partners/jobs/{id}/return-to-shop") {
+            val body = runCatching { call.receive<ReturnRequest>() }.getOrNull()
+            call.respond(store.returnToShop(call.userId(), call.parameters["id"]!!, body?.reason))
         }
         post("/partners/jobs/{id}/deliver") {
             val body = call.receive<DeliverRequest>()

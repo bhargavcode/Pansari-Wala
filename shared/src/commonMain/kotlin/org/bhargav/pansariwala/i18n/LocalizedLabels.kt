@@ -6,6 +6,7 @@ import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.anonymous_customer
 import pansariwala.shared.generated.resources.category_fortune_branded
 import pansariwala.shared.generated.resources.category_general_grocery
 import pansariwala.shared.generated.resources.category_high_value_spices
@@ -45,12 +46,15 @@ fun ProductUnit.localizedLabel(): String = stringResource(labelRes)
 /** Stored default customer name when blank; localize for display. */
 const val WALK_IN_CUSTOMER_KEY: String = "Walk-in"
 
+/** Stored customer name for stock sold earlier without a bill (recorded from POS). */
+const val ANONYMOUS_CUSTOMER_KEY: String = "Anonymous"
+
 @Composable
 fun localizeCustomerName(name: String?): String {
     val trimmed = name?.trim().orEmpty()
-    return if (trimmed.isEmpty() || trimmed.equals(WALK_IN_CUSTOMER_KEY, ignoreCase = true)) {
-        stringResource(Res.string.walk_in)
-    } else {
-        trimmed
+    return when {
+        trimmed.isEmpty() || trimmed.equals(WALK_IN_CUSTOMER_KEY, ignoreCase = true) -> stringResource(Res.string.walk_in)
+        trimmed.equals(ANONYMOUS_CUSTOMER_KEY, ignoreCase = true) -> stringResource(Res.string.anonymous_customer)
+        else -> trimmed
     }
 }

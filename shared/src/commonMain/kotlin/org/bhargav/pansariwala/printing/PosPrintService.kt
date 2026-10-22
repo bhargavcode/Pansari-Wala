@@ -19,6 +19,7 @@ import org.bhargav.pansariwala.feature.order.paymentMethodLabelRes
 import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.Product
+import org.bhargav.pansariwala.i18n.ANONYMOUS_CUSTOMER_KEY
 import org.bhargav.pansariwala.i18n.WALK_IN_CUSTOMER_KEY
 import org.bhargav.pansariwala.i18n.labelRes
 import org.bhargav.pansariwala.printer.PrinterManager
@@ -39,6 +40,7 @@ import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.getString
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.anonymous_customer
 import pansariwala.shared.generated.resources.print_address
 import pansariwala.shared.generated.resources.print_amount
 import pansariwala.shared.generated.resources.print_bill_to
@@ -280,6 +282,7 @@ class PosPrintService(
         return when {
             trimmed.isEmpty() -> null
             trimmed.equals(WALK_IN_CUSTOMER_KEY, ignoreCase = true) -> getString(Res.string.walk_in)
+            trimmed.equals(ANONYMOUS_CUSTOMER_KEY, ignoreCase = true) -> getString(Res.string.anonymous_customer)
             else -> trimmed
         }
     }

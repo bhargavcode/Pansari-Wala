@@ -51,6 +51,12 @@ import org.bhargav.pansariwala.voice.SpeechToText
 import org.bhargav.pansariwala.voice.VoiceIntentParser
 import org.bhargav.pansariwala.voice.VoiceLineItem
 import pansariwala.shared.generated.resources.Res
+import org.bhargav.pansariwala.feature.user.displayName
+import org.bhargav.pansariwala.i18n.ANONYMOUS_CUSTOMER_KEY
+import org.bhargav.pansariwala.util.asQuantity
+import pansariwala.shared.generated.resources.unbilled_sale_over_stock
+import pansariwala.shared.generated.resources.unbilled_sale_saved
+import pansariwala.shared.generated.resources.error_generic
 import pansariwala.shared.generated.resources.variant_saved
 import pansariwala.shared.generated.resources.error_mic_permission
 import pansariwala.shared.generated.resources.error_order_empty
@@ -132,6 +138,12 @@ data class OrderEditorUiState(
     val showCartSheet: Boolean = false,
     val billing: ShopBillingDto? = null,
     val scannerPlans: List<SubscriptionPlanDto> = emptyList(),
+    /** Product whose full details sheet is open (tap on the product image). */
+    val infoOption: PurchaseOption? = null,
+    /** Cart line whose price is being changed for this bill only. */
+    val priceEditKey: String? = null,
+    /** Option being recorded as sold earlier without a bill (anonymous customer). */
+    val unbilledSaleOption: PurchaseOption? = null,
 ) {
     val cartQuantityByProduct: Map<String, Double>
         get() = cart.groupBy { it.product.id }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
@@ -639,6 +651,76 @@ class OrderEditorViewModel(
         }
     }
 
+    fun openProductInfo(option: PurchaseOption) = _uiState.update { it.copy(infoOption = option) }
+
+    fun dismissProductInfo() = _uiState.update { it.copy(infoOption = null) }
+
+    fun openLinePrice(key: String) = _uiState.update { it.copy(priceEditKey = key) }
+
+    fun dismissLinePrice() = _uiState.update { it.copy(priceEditKey = null) }
+
+    /** Price for this bill only; null goes back to the catalog price. The product itself is not changed. */
+    fun setLinePrice(key: String, price: Double?) {
+        if (price != null && price < 0.0) return
+        _uiState.update { state ->
+            state.copy(
+                cart = state.cart.map { if (it.key == key) it.copy(lockedUnitPrice = price) else it },
+                priceEditKey = null,
+            )
+        }
+    }
+
+    fun openUnbilledSale(option: PurchaseOption) =
+        _uiState.update { it.copy(unbilledSaleOption = option, infoOption = null) }
+
+    fun dismissUnbilledSale() = _uiState.update { it.copy(unbilledSaleOption = null) }
+
+    /**
+     * Stock that left the shop without a bill: saved as a completed sale to an anonymous customer so
+     * stock and sales reports match the shelf. Does not touch the open cart.
+     */
+    fun recordUnbilledSale(quantity: Double) {
+        val option = _uiState.value.unbilledSaleOption ?: return
+        val qty = option.normalize(quantity)
+        if (qty <= AppConstants.LooseQty.EPSILON) return
+        if (qty > option.stock + AppConstants.LooseQty.EPSILON) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.unbilled_sale_over_stock)) }
+            return
+        }
+        val order = Order(
+            id = generateId("order"),
+            shopId = shopId,
+            createdAtEpochMs = AppClock.nowMillis(),
+            status = OrderStatus.COMPLETED,
+            customerName = ANONYMOUS_CUSTOMER_KEY,
+            channel = OrderChannel.POS,
+            paymentMethod = AppConstants.PosPayment.CASH,
+            items = listOf(
+                OrderItem(
+                    productId = option.product.id,
+                    productName = option.product.name,
+                    unit = option.product.unit,
+                    quantity = qty,
+                    unitPrice = option.unitPrice,
+                    variantId = option.variant?.id,
+                    variantLabel = option.variant?.label,
+                ),
+            ),
+        )
+        viewModelScope.launch {
+            _uiState.update { it.copy(unbilledSaleOption = null) }
+            runCatching { shopRepository.saveOrder(order) }
+                .onSuccess {
+                    analytics.log(AnalyticsEvent.ButtonClicked(buttonId = "unbilled_sale", screen = "order_editor"))
+                    showScanMessage(UiText.res(Res.string.unbilled_sale_saved, qty.asQuantity(), option.displayName))
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _uiState.update { it.copy(error = UiText.res(Res.string.error_generic)) }
+                }
+        }
+    }
+
     fun removeLine(key: String) {
         _uiState.update { state -> state.copy(cart = state.cart.filterNot { it.key == key }) }
     }
@@ -648,7 +730,8 @@ class OrderEditorViewModel(
         if (needsPrice(option, quantity, targetKey)) return
         _uiState.update { state ->
             val qty = option.normalize(quantity)
-            val replaced = CartLine(option.product, qty, option.variant)
+            val keptPrice = state.cart.firstOrNull { it.key == targetKey && it.key == option.key }?.lockedUnitPrice
+            val replaced = CartLine(option.product, qty, option.variant, keptPrice)
             val others = state.cart.filterNot { it.key == targetKey || it.key == option.key }
             val index = state.cart.indexOfFirst { it.key == targetKey }.takeIf { it >= 0 } ?: others.size
             state.copy(

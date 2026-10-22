@@ -42,12 +42,21 @@ enum class OnlineOrderTab(val statuses: List<OrderStatus>) {
             OrderStatus.LOOKING_FOR_PARTNER,
             OrderStatus.PARTNER_ACCEPTED,
             OrderStatus.ON_THE_WAY,
+            OrderStatus.RETURNING_TO_SHOP,
+            OrderStatus.RETURNED_TO_SHOP,
         ),
     ),
     NEW(listOf(OrderStatus.RECEIVED)),
     ACCEPTED(listOf(OrderStatus.ACCEPTED)),
     PACKING(listOf(OrderStatus.PACKING)),
-    DELIVERY(listOf(OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED, OrderStatus.ON_THE_WAY)),
+    DELIVERY(
+        listOf(
+            OrderStatus.LOOKING_FOR_PARTNER,
+            OrderStatus.PARTNER_ACCEPTED,
+            OrderStatus.ON_THE_WAY,
+            OrderStatus.RETURNING_TO_SHOP,
+        ),
+    ),
     DELIVERED(listOf(OrderStatus.DELIVERED, OrderStatus.COMPLETED)),
     CANCELLED(listOf(OrderStatus.CANCELLED, OrderStatus.REJECTED)),
     ALL(emptyList()),
@@ -88,6 +97,8 @@ data class OnlineOrdersUiState(
     val paymentIntents: List<PaymentIntent> = emptyList(),
     val paymentBusyId: String? = null,
     val paymentNotice: UiText? = null,
+    /** Order whose returned parcel the shop is verifying (partner return or own-rider return). */
+    val returnOrderId: String? = null,
 )
 
 data class ShopPartnerForm(val name: String = "", val phone: String = "", val vehicleReg: String = "") {
@@ -314,6 +325,17 @@ class OnlineOrdersViewModel(
     /** Self-pickup orders end at the counter: the customer collected, no partner involved. */
     fun markCollected(id: String) = runOrderAction(id) {
         api.setOrderStatus(id, OrderStatus.COMPLETED.name)
+    }
+
+    fun openAcceptReturn(id: String) { _uiState.update { it.copy(returnOrderId = id) } }
+
+    fun dismissAcceptReturn() { _uiState.update { it.copy(returnOrderId = null) } }
+
+    /** Shop checked the parcel back in; [reason] is only sent for its own rider's returns. */
+    fun confirmAcceptReturn(reason: String? = null) {
+        val id = _uiState.value.returnOrderId ?: return
+        _uiState.update { it.copy(returnOrderId = null) }
+        runOrderAction(id) { api.acceptReturn(id, reason) }
     }
 
     fun togglePacked(orderId: String, productId: String) {

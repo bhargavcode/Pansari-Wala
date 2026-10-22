@@ -9,6 +9,7 @@ import org.bhargav.pansariwala.api.toModel
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.auth.Credentials
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.ItemSale
 import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderItem
 import org.bhargav.pansariwala.domain.model.OrderStatus
@@ -83,6 +84,20 @@ class RoomShopRepository(
 
     override suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary> =
         orderDao.ordersBetween(shopId, fromEpochMs, toEpochMs).map { it.toSummary() }
+
+    override suspend fun itemSalesBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<ItemSale> =
+        orderDao.itemSalesBetween(shopId, fromEpochMs, toEpochMs).map {
+            ItemSale(
+                orderId = it.orderId,
+                productId = it.productId,
+                productName = it.productName,
+                variantLabel = it.variantLabel,
+                quantity = it.quantity,
+                lineTotal = it.lineTotal,
+                createdAtEpochMs = it.createdAt,
+                channel = OrderChannel.POS,
+            )
+        }
 
     override fun observeProductPage(shopId: String, filter: ShopProductFilter, limit: Int): Flow<List<Product>> {
         val q = filter.query.trim()

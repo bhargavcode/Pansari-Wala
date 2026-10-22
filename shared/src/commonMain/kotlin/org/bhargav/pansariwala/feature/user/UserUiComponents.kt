@@ -10,6 +10,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.border
@@ -123,6 +124,8 @@ import pansariwala.shared.generated.resources.shop_closed
 import pansariwala.shared.generated.resources.shop_outside_delivery
 import pansariwala.shared.generated.resources.status_accepted
 import pansariwala.shared.generated.resources.status_cancelled
+import pansariwala.shared.generated.resources.status_user_returned_to_shop
+import pansariwala.shared.generated.resources.status_user_returning_to_shop
 import pansariwala.shared.generated.resources.status_delivered
 import pansariwala.shared.generated.resources.status_draft
 import pansariwala.shared.generated.resources.status_payment_pending
@@ -279,6 +282,47 @@ fun UserPrimaryButton(
         ),
     ) {
         Text(text, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Aligned label / value line for detail cards (payments, transactions). */
+@Composable
+fun LabelValueRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    emphasize: Boolean = false,
+    valueColor: Color = Color.Unspecified,
+) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(0.42f),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            value,
+            style = if (emphasize) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+            fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Medium,
+            color = valueColor,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(0.58f),
+        )
+    }
+}
+
+/** Small rounded pill used for statuses and payment methods. */
+@Composable
+fun StatusPill(text: String, container: Color, content: Color, modifier: Modifier = Modifier) {
+    Surface(color = container, contentColor = content, shape = RoundedCornerShape(50), modifier = modifier) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 
@@ -828,5 +872,7 @@ fun userOrderStatusLabel(status: OrderStatus): String = stringResource(
         OrderStatus.DELIVERED, OrderStatus.COMPLETED -> Res.string.status_delivered
         OrderStatus.REJECTED -> Res.string.status_rejected
         OrderStatus.CANCELLED -> Res.string.status_cancelled
+        OrderStatus.RETURNING_TO_SHOP -> Res.string.status_user_returning_to_shop
+        OrderStatus.RETURNED_TO_SHOP -> Res.string.status_user_returned_to_shop
     },
 )

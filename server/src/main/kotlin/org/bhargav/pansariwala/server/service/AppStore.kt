@@ -186,7 +186,7 @@ private const val MAX_ORDER_PAGE_SIZE = 20
 private const val ACCOUNT_DELETION_GRACE_MS = 2L * 24 * 60 * 60 * 1000
 private const val DELETED_CUSTOMER_NAME = "Deleted user"
 /** A pending deletion only runs once every order of the customer is in one of these states. */
-private val ACCOUNT_PURGE_DONE_STATUSES = listOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED", "DRAFT")
+private val ACCOUNT_PURGE_DONE_STATUSES = listOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED", "DRAFT", "RETURNED_TO_SHOP")
 private val SPEND_EXCLUDED_STATUSES = listOf("CANCELLED", "REJECTED", "DRAFT", "PAYMENT_PENDING")
 private const val MAX_MASTER_PAGE_SIZE = 100
 private const val TOP_OFFERS_ON_CARD = 3
@@ -199,7 +199,9 @@ private val VARIANT_SELL_MODES = setOf(VARIANT_PACK, VARIANT_LOOSE, VARIANT_BUND
 private const val DEFAULT_LOOSE_STEP = 0.05
 private const val QTY_EPSILON = 1e-6
 private const val CAS_RETRIES = 5
-private const val MAX_PAYMENT_WINDOW_MIN = 30
+private const val MAX_PAYMENT_WINDOW_MIN = 5
+private const val MAX_RETURN_REASON = 200
+private const val RETURN_REASON_UNREACHABLE = "CUSTOMER_UNREACHABLE"
 /** DIRECT_UPI: a shop may still confirm a payment that arrived after the window, for this long. */
 private const val LATE_CONFIRM_MS = 24 * 60 * 60_000L
 private const val SHOP_INTENT_LIMIT = 50
@@ -413,7 +415,7 @@ class AppStore(
         require(paymentMode != PaymentMode.CASHFREE || cashfree.enabled) {
             "Cashfree keys are not set on the server (CASHFREE_APP_ID / CASHFREE_SECRET_KEY)"
         }
-        require(paymentWindowMinutes in 5..120) { "Payment window must be 5-120 minutes" }
+        require(paymentWindowMinutes in 1..MAX_PAYMENT_WINDOW_MIN) { "Payment window must be 1-$MAX_PAYMENT_WINDOW_MIN minutes" }
         val current = platformSettingsCol.find(eq("_id", PLATFORM_SETTINGS_ID)).firstOrNull() ?: PlatformSettingsDoc()
         val doc = current.copy(
             id = PLATFORM_SETTINGS_ID,
@@ -443,7 +445,7 @@ class AppStore(
         orderingPausedMessage = orderingPausedMessage,
         partnerRegistrationEnabled = partnerRegistrationEnabled,
         paymentMode = paymentMode,
-        paymentWindowMinutes = paymentWindowMinutes,
+        paymentWindowMinutes = paymentWindowMinutes.coerceIn(1, MAX_PAYMENT_WINDOW_MIN),
         cashfreeConfigured = cashfree.enabled,
         razorpayConfigured = config.paymentsEnabled,
         updatedAt = updatedAt,
@@ -2078,12 +2080,37 @@ class AppStore(
                 .toList(),
         )
 
-    fun transactions(userId: String): List<TxnDto> =
-        txnCol.find(eq("customerId", userId))
+    fun transactions(userId: String): List<TxnDto> {
+        val rows = txnCol.find(eq("customerId", userId))
             .sort(Sorts.descending("createdAt"))
             .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
             .toList()
-            .map { TxnDto(it.id, it.orderId, it.amount, it.title, it.createdAt) }
+        val orders = rows.map { it.orderId }.distinct().takeIf { it.isNotEmpty() }
+            ?.let { ids -> orderCol.find(`in`("_id", ids)).toList().associateBy { it.id } }
+            .orEmpty()
+        val shopNames = orders.values.map { it.shopId }.distinct().takeIf { it.isNotEmpty() }
+            ?.let { ids -> shopCol.find(`in`("_id", ids)).toList().associate { it.id to it.name } }
+            .orEmpty()
+        return rows.map { txn ->
+            val order = orders[txn.orderId]
+            TxnDto(
+                id = txn.id,
+                orderId = txn.orderId,
+                amount = txn.amount,
+                title = txn.title,
+                createdAtEpochMs = txn.createdAt,
+                isRefund = txn.title.startsWith("Refund"),
+                shopId = order?.shopId,
+                shopName = order?.shopId?.let(shopNames::get),
+                orderStatus = order?.status,
+                paymentMethod = order?.paymentMethod,
+                paymentRef = order?.paymentUtr ?: order?.paymentId,
+                refundId = order?.refundId,
+                itemCount = order?.items?.size ?: 0,
+                selfPickup = order?.selfPickup ?: false,
+            )
+        }
+    }
 
     fun rateOrder(userId: String, orderId: String, stars: Int, comment: String?): OrderDto {
         require(stars in 1..5) { "Stars must be 1-5" }
@@ -2874,6 +2901,44 @@ class AppStore(
         return getOrder(orderId)
     }
 
+    /** Partner could not hand over the parcel (customer unreachable / not responding) and takes it back to the shop. */
+    fun returnToShop(partnerId: String, orderId: String, reason: String?): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.partnerId == partnerId) { "Forbidden" }
+        require(row.status == "ON_THE_WAY") { "Only orders out for delivery can be returned" }
+        orderCol.updateOne(
+            eq("_id", orderId),
+            combine(
+                set("status", "RETURNING_TO_SHOP"),
+                set("partnerProgress", "RETURNING"),
+                set("cancelReason", reason?.trim()?.take(MAX_RETURN_REASON)?.ifBlank { null } ?: RETURN_REASON_UNREACHABLE),
+            ),
+        )
+        publishOrderUpdate(orderId, row.status)
+        return getOrder(orderId)
+    }
+
+    /**
+     * Shop verified the returned parcel. Stock stays with the order: the customer collects it at the shop.
+     * Self / own-rider deliveries can be returned straight from ON_THE_WAY.
+     */
+    fun acceptReturn(shopId: String, orderId: String, reason: String?): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        val ownDelivery = row.deliveryMode != "PARTNER" && row.status == "ON_THE_WAY"
+        require(row.status == "RETURNING_TO_SHOP" || ownDelivery) { "Order is not being returned" }
+        val updates = buildList {
+            add(set("status", "RETURNED_TO_SHOP"))
+            add(set("partnerProgress", ""))
+            if (ownDelivery) {
+                add(set("cancelReason", reason?.trim()?.take(MAX_RETURN_REASON)?.ifBlank { null } ?: RETURN_REASON_UNREACHABLE))
+            }
+        }
+        orderCol.updateOne(eq("_id", orderId), combine(updates))
+        publishOrderUpdate(orderId, row.status)
+        return getOrder(orderId)
+    }
+
     fun partnerDashboard(partnerId: String, from: Long, to: Long): PartnerDashboardDto {
         val delivered = orderCol.find(and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))))
             .toList()
@@ -2889,7 +2954,7 @@ class AppStore(
     }
 
     fun partnerJobs(partnerId: String, delivered: Boolean, from: Long? = null, to: Long? = null): List<OrderDto> {
-        val statuses = if (delivered) listOf("DELIVERED", "COMPLETED") else listOf("PARTNER_ACCEPTED", "ON_THE_WAY")
+        val statuses = if (delivered) listOf("DELIVERED", "COMPLETED") else listOf("PARTNER_ACCEPTED", "ON_THE_WAY", "RETURNING_TO_SHOP")
         val filter = if (delivered && from != null && to != null) {
             and(
                 eq("partnerId", partnerId),

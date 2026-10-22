@@ -22,6 +22,9 @@ import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.CategoryStock
+import org.bhargav.pansariwala.domain.model.ItemSale
+import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppClock
@@ -57,6 +60,7 @@ data class ReportsUiState(
     val summary: ReportSummary = ReportSummary(),
     val buckets: List<ReportBucket> = emptyList(),
     val inventory: List<CategoryStock> = emptyList(),
+    val categorySales: List<CategorySales> = emptyList(),
     val pageRows: List<ReportOrder> = emptyList(),
     val page: Int = 0,
     val pageCount: Int = 0,
@@ -84,9 +88,11 @@ class ReportsViewModel(
     private var customTo: LocalDate? = null
 
     /** Online orders for the last fetched range; channel changes reuse them, period changes refetch. */
-    private var onlineOrders: List<ReportOrder>? = null
+    private var onlineOrders: List<Order>? = null
     private var onlineRange: Pair<Long, Long>? = null
     private var rangeOrders: List<ReportOrder> = emptyList()
+    private var rangeItems: List<ItemSale> = emptyList()
+    private var categoryById: Map<String, ProductCategory> = emptyMap()
     private var filtered: List<ReportOrder> = emptyList()
     private var loadJob: Job? = null
 
@@ -122,6 +128,8 @@ class ReportsViewModel(
         reload()
     }
 
+    fun window(): SalesWindow = salesWindow(_state.value.period, _state.value.channel, customFrom, customTo)
+
     fun dismissDatePicker() { _state.update { it.copy(showDatePicker = false) } }
 
     /** [toUtcMs] null = a single specific date. Picker values are UTC-midnight millis. */
@@ -148,6 +156,12 @@ class ReportsViewModel(
             val fromMs = range.fromMs(tz)
             val toMs = range.toMs(tz)
             val onlineDeferred = async { fetchOnlineOrders(fromMs, toMs) }
+            val offlineItems = async {
+                runCatching { repository.itemSalesBetween(shopId, fromMs, toMs) }.getOrElse { err ->
+                    err.rethrowIfStructuredCancellation()
+                    emptyList()
+                }
+            }
             val offline = runCatching { repository.ordersBetween(shopId, fromMs, toMs) }
                 .getOrElse { err ->
                     err.rethrowIfStructuredCancellation()
@@ -166,33 +180,32 @@ class ReportsViewModel(
                         status = it.status,
                     )
                 }
-            val online = onlineDeferred.await().filter { it.createdAtEpochMs in fromMs until toMs }
+            val onlineRaw = onlineDeferred.await().filter { it.createdAtEpochMs in fromMs until toMs }
+            val online = onlineRaw.map {
+                ReportOrder(
+                    id = it.id,
+                    displayNumber = it.displayNumber,
+                    createdAtEpochMs = it.createdAtEpochMs,
+                    channel = OrderChannel.ONLINE,
+                    customerName = it.customerName,
+                    itemCount = it.itemCount,
+                    total = it.totalValue,
+                    status = it.status,
+                )
+            }
             rangeOrders = withContext(Dispatchers.Default) {
                 (online + offline).sortedByDescending { it.createdAtEpochMs }
             }
+            rangeItems = offlineItems.await() + SalesBreakdown.onlineItemSales(onlineRaw)
             _state.update { it.copy(range = range, bucketUnit = ReportCalculator.bucketUnit(range)) }
             recompute(resetPage = true)
             _state.update { it.copy(loading = false) }
         }
     }
 
-    private suspend fun fetchOnlineOrders(fromMs: Long, toMs: Long): List<ReportOrder> {
+    private suspend fun fetchOnlineOrders(fromMs: Long, toMs: Long): List<Order> {
         if (onlineRange == fromMs to toMs) onlineOrders?.let { return it }
         return runCatching { api.shopOnlineOrders(fromMs, toMs) }
-            .map { orders ->
-                orders.map {
-                    ReportOrder(
-                        id = it.id,
-                        displayNumber = it.displayNumber,
-                        createdAtEpochMs = it.createdAtEpochMs,
-                        channel = OrderChannel.ONLINE,
-                        customerName = it.customerName,
-                        itemCount = it.itemCount,
-                        total = it.totalValue,
-                        status = it.status,
-                    )
-                }
-            }
             .onSuccess {
                 onlineOrders = it
                 onlineRange = fromMs to toMs
@@ -208,6 +221,7 @@ class ReportsViewModel(
         val state = _state.value
         val range = state.range ?: return
         val channel = state.channel
+        val categories = categoryById
         val (list, summary, buckets) = withContext(Dispatchers.Default) {
             val list = ReportCalculator.filterChannel(rangeOrders, channel)
             Triple(
@@ -216,6 +230,11 @@ class ReportsViewModel(
                 ReportCalculator.buckets(list, range, state.bucketUnit, tz),
             )
         }
+        val categorySales = withContext(Dispatchers.Default) {
+            SalesBreakdown.byCategory(SalesBreakdown.filterChannel(rangeItems, channel)) {
+                categories[it] ?: ProductCategory.GENERAL_GROCERY
+            }
+        }
         filtered = list
         val pageCount = (list.size + AppConstants.REPORT_PAGE_SIZE - 1) / AppConstants.REPORT_PAGE_SIZE
         val page = if (resetPage) 0 else state.page.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
@@ -223,6 +242,7 @@ class ReportsViewModel(
             it.copy(
                 summary = summary,
                 buckets = buckets,
+                categorySales = categorySales,
                 totalRows = list.size,
                 pageCount = pageCount,
                 page = page,
@@ -239,6 +259,7 @@ class ReportsViewModel(
 
     private suspend fun loadInventory() {
         val products = runCatching { repository.observeProducts(shopId).first() }.getOrNull() ?: return
+        categoryById = products.associate { it.id to it.category }
         val breakdown = withContext(Dispatchers.Default) {
             products.groupBy { it.category }
                 .map { (category, list) ->
@@ -247,6 +268,7 @@ class ReportsViewModel(
                 .sortedByDescending { it.stockValue }
         }
         _state.update { it.copy(inventory = breakdown) }
+        if (rangeItems.isNotEmpty()) recompute(resetPage = false)
     }
 
     /** Snapshot of the current channel + period for the printer; very long periods print the summary only. */

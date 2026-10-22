@@ -94,6 +94,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import org.bhargav.pansariwala.feature.delivery.ReturnToShopDialog
+import org.bhargav.pansariwala.feature.delivery.returnReasonLabel
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.feature.printer.orderPrintActions
 import androidx.compose.ui.semantics.Role
@@ -137,6 +139,14 @@ import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.online_order_returning
+import pansariwala.shared.generated.resources.online_order_returned
+import pansariwala.shared.generated.resources.return_shop_verify_title
+import pansariwala.shared.generated.resources.return_shop_verify_body
+import pansariwala.shared.generated.resources.return_shop_verify_confirm
+import pansariwala.shared.generated.resources.return_shop_own_action
+import pansariwala.shared.generated.resources.return_shop_verify_action
+import pansariwala.shared.generated.resources.return_shop_collected_action
 import pansariwala.shared.generated.resources.action_accept_order
 import pansariwala.shared.generated.resources.action_back
 import pansariwala.shared.generated.resources.action_cancel_order
@@ -167,6 +177,8 @@ import pansariwala.shared.generated.resources.status_partner_accepted
 import pansariwala.shared.generated.resources.status_received
 import pansariwala.shared.generated.resources.status_rejected
 import pansariwala.shared.generated.resources.status_cancelled
+import pansariwala.shared.generated.resources.status_returned_to_shop
+import pansariwala.shared.generated.resources.status_returning_to_shop
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -327,7 +339,8 @@ fun OnlineOrdersScreen(
                         }
                     }
                     OnlineOrderStatusNote(order)
-                    order.cancelReason?.let { reason ->
+                    val isReturn = order.status == OrderStatus.RETURNING_TO_SHOP || order.status == OrderStatus.RETURNED_TO_SHOP
+                    (if (isReturn) returnReasonLabel(order.cancelReason) else order.cancelReason)?.let { reason ->
                         Text(
                             text = "${stringResource(Res.string.cancel_reason_label)}: $reason",
                             style = MaterialTheme.typography.bodySmall,
@@ -348,6 +361,7 @@ fun OnlineOrdersScreen(
                         onCompleteSelfDelivery = { viewModel.openSelfDeliverComplete(order.id) },
                         onCancel = { viewModel.openCancel(order.id) },
                         onMarkCollected = { viewModel.markCollected(order.id) },
+                        onAcceptReturn = { viewModel.openAcceptReturn(order.id) },
                     )
                 }
                 }
@@ -384,6 +398,30 @@ fun OnlineOrdersScreen(
                 onDismiss = viewModel::dismissCancel,
                 busy = state.busyId == state.cancelOrderId,
             )
+        }
+        state.returnOrderId?.let { orderId ->
+            val target = state.orders.firstOrNull { it.id == orderId }
+            if (target?.status == OrderStatus.RETURNING_TO_SHOP) {
+                AppAlertDialog(
+                    onDismissRequest = viewModel::dismissAcceptReturn,
+                    title = { Text(stringResource(Res.string.return_shop_verify_title)) },
+                    text = { Text(stringResource(Res.string.return_shop_verify_body)) },
+                    confirmButton = {
+                        Button(onClick = { viewModel.confirmAcceptReturn() }) {
+                            Text(stringResource(Res.string.return_shop_verify_confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = viewModel::dismissAcceptReturn) { Text(stringResource(Res.string.action_cancel)) }
+                    },
+                )
+            } else {
+                ReturnToShopDialog(
+                    busy = state.busyId == orderId,
+                    onConfirm = viewModel::confirmAcceptReturn,
+                    onDismiss = viewModel::dismissAcceptReturn,
+                )
+            }
         }
         state.selfDeliverOrderId?.let { orderId ->
             AppAlertDialog(
@@ -455,6 +493,8 @@ private fun OnlineOrderStatusNote(order: Order) {
         OrderStatus.LOOKING_FOR_PARTNER -> stringResource(Res.string.online_order_looking_partner)
         OrderStatus.PARTNER_ACCEPTED -> stringResource(Res.string.online_order_waiting_pickup)
         OrderStatus.ON_THE_WAY -> if (order.isSelfDelivery) stringResource(Res.string.online_order_self_delivering) else null
+        OrderStatus.RETURNING_TO_SHOP -> stringResource(Res.string.online_order_returning)
+        OrderStatus.RETURNED_TO_SHOP -> stringResource(Res.string.online_order_returned)
         else -> null
     }
     note?.let { Text(it) }
@@ -545,6 +585,7 @@ private fun OnlineOrderActions(
     onCompleteSelfDelivery: () -> Unit,
     onCancel: () -> Unit,
     onMarkCollected: () -> Unit,
+    onAcceptReturn: () -> Unit,
 ) {
     val canSelfDeliver = !order.selfPickup && !order.hasAssignedPartner && (
         (order.status == OrderStatus.PACKING && packedCount > 0) ||
@@ -568,12 +609,17 @@ private fun OnlineOrderActions(
                 Button(onClick = onCompleteSelfDelivery, enabled = !busy) {
                     Text(stringResource(Res.string.action_mark_delivered))
                 }
+                TextButton(onClick = onAcceptReturn, enabled = !busy) {
+                    Text(stringResource(Res.string.return_shop_own_action), color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
     val nextLabel = when (order.status) {
         OrderStatus.RECEIVED -> stringResource(Res.string.action_accept_order)
         OrderStatus.ACCEPTED -> stringResource(Res.string.action_packing)
+        OrderStatus.RETURNING_TO_SHOP -> stringResource(Res.string.return_shop_verify_action)
+        OrderStatus.RETURNED_TO_SHOP -> stringResource(Res.string.return_shop_collected_action)
         OrderStatus.PACKING -> if (order.selfPickup) {
             stringResource(Res.string.order_action_mark_collected)
         } else if (packedCount in 1 until order.items.size) {
@@ -588,6 +634,8 @@ private fun OnlineOrderActions(
         OrderStatus.RECEIVED -> onAccept
         OrderStatus.ACCEPTED -> onPacking
         OrderStatus.PACKING -> if (order.selfPickup) onMarkCollected else onRequestPartner
+        OrderStatus.RETURNING_TO_SHOP -> onAcceptReturn
+        OrderStatus.RETURNED_TO_SHOP -> onMarkCollected
         else -> null
     }
     if (nextAction == null && !order.canCancel) return
@@ -889,6 +937,7 @@ private fun onlineOrderStatusColor(status: OrderStatus?): Color = when (status) 
     OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED, OrderStatus.ON_THE_WAY -> Color(0xFF00897B)
     OrderStatus.DELIVERED, OrderStatus.COMPLETED -> Color(0xFF43A047)
     OrderStatus.REJECTED, OrderStatus.CANCELLED -> MaterialTheme.colorScheme.error
+    OrderStatus.RETURNING_TO_SHOP, OrderStatus.RETURNED_TO_SHOP -> Color(0xFFD84315)
 }
 
 @Composable
@@ -904,5 +953,7 @@ private fun onlineOrderStatusLabel(status: OrderStatus): String = stringResource
         OrderStatus.DELIVERED, OrderStatus.COMPLETED -> Res.string.status_delivered
         OrderStatus.REJECTED -> Res.string.status_rejected
         OrderStatus.CANCELLED -> Res.string.status_cancelled
+        OrderStatus.RETURNING_TO_SHOP -> Res.string.status_returning_to_shop
+        OrderStatus.RETURNED_TO_SHOP -> Res.string.status_returned_to_shop
     },
 )

@@ -65,6 +65,9 @@ private object PushContract {
     const val ALERT_ON_THE_WAY = "ON_THE_WAY"
     const val ALERT_DELIVERED = "DELIVERED"
     const val ALERT_CANCELLED = "CANCELLED"
+    const val ALERT_RETURNING = "RETURNING_TO_SHOP"
+    const val ALERT_RETURNED = "RETURNED_TO_SHOP"
+    const val ALERT_RETURN_VERIFY = "RETURN_VERIFY"
     const val KEY_PREFIX_STATUS = "ORDER_STATUS"
     const val EVENT_ISSUE_UPDATE = "ISSUE_UPDATE"
     const val ALERT_ISSUE_RESOLVED = "ISSUE_RESOLVED"
@@ -311,6 +314,12 @@ class PushService(
                 title = "New online order",
                 body = "Order $short from ${u.customerName.ifBlank { u.orderId }}",
             )
+            u.status == "RETURNING_TO_SHOP" && u.previousStatus != u.status -> Alert(
+                kind = PushContract.ALERT_RETURN_VERIFY,
+                key = "${PushContract.ALERT_RETURN_VERIFY}:${u.orderId}",
+                title = "Order coming back",
+                body = "Order $short could not be delivered. Verify the parcel and accept the return.",
+            )
             else -> null
         }
     }
@@ -328,6 +337,10 @@ class PushService(
             "DELIVERED" -> PushContract.ALERT_DELIVERED to ("Delivered" to "Order from $shop was delivered.")
             "CANCELLED", "REJECTED" ->
                 PushContract.ALERT_CANCELLED to ("Order cancelled" to "Your order from $shop was cancelled.")
+            "RETURNING_TO_SHOP" -> PushContract.ALERT_RETURNING to
+                ("Delivery unsuccessful" to "We couldn't reach you, so your order is going back to $shop.")
+            "RETURNED_TO_SHOP" -> PushContract.ALERT_RETURNED to
+                ("Order returned to shop" to "Your order has been returned to $shop. Please collect it from there.")
             else -> return null
         }
         return Alert(kind, "${PushContract.KEY_PREFIX_STATUS}:${u.orderId}:$kind", text.first, text.second)

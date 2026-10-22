@@ -430,6 +430,11 @@ class KtorPansariApi(
             setBody(DeliverRequest(otp))
         }.body<OrderDto>().toModel()
 
+    override suspend fun acceptReturn(orderId: String, reason: String?): Order =
+        client.post("shop/orders/$orderId/accept-return") {
+            setBody(ReturnRequest(reason))
+        }.body<OrderDto>().toModel()
+
     override suspend fun shopPartners(): List<ShopPartnerDto> =
         client.get("shop/partners").body()
 
@@ -594,6 +599,11 @@ class KtorPansariApi(
 
     override suspend fun arrivedAtCustomer(orderId: String): Order =
         client.post("partners/jobs/$orderId/arrived-customer").body<OrderDto>().toModel()
+
+    override suspend fun returnToShop(orderId: String, reason: String?): Order =
+        client.post("partners/jobs/$orderId/return-to-shop") {
+            setBody(ReturnRequest(reason))
+        }.body<OrderDto>().toModel()
 
     override suspend fun deliverOrder(orderId: String, otp: String): Order =
         client.post("partners/jobs/$orderId/deliver") {

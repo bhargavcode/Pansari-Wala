@@ -374,7 +374,7 @@ fun UserNavGraph() {
                         )
                     }
                     UserRoute.Transactions -> NavEntry(route) {
-                        TransactionsScreen(onBack = { pop() })
+                        TransactionsScreen(onBack = { pop() }, onOpenOrder = { push(UserRoute.OrderDetails(it)) })
                     }
                     UserRoute.Help -> NavEntry(route) {
                         HelpScreen(onBack = { pop() })

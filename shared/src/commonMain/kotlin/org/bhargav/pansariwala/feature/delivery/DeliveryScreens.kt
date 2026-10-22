@@ -76,6 +76,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.return_partner_action
 import pansariwala.shared.generated.resources.action_accept
 import pansariwala.shared.generated.resources.partner_job_load_failed
 import pansariwala.shared.generated.resources.partner_route_header_meta
@@ -698,6 +699,7 @@ fun PartnerDeliverToCustomerScreen(
 fun PartnerCustomerPaymentScreen(
     orderId: String,
     onComplete: () -> Unit,
+    onReturning: () -> Unit = {},
     onBack: () -> Unit = {},
     viewModel: PartnerJobViewModel = koinViewModel(),
 ) {
@@ -708,6 +710,14 @@ fun PartnerCustomerPaymentScreen(
     var otp by remember { mutableStateOf("") }
     val otpReady = otp.length == AppConstants.DELIVERY_OTP_LENGTH
     val pickupPhotos = order?.visiblePickupPhotos.orEmpty()
+    var showReturnDialog by remember { mutableStateOf(false) }
+    if (showReturnDialog) {
+        ReturnToShopDialog(
+            busy = state.submitting,
+            onConfirm = { reason -> viewModel.returnToShop(reason) { showReturnDialog = false; onReturning() } },
+            onDismiss = { showReturnDialog = false },
+        )
+    }
     PansariScreen(
         title = stringResource(Res.string.partner_customer_payment),
         onBack = onBack,
@@ -815,6 +825,17 @@ fun PartnerCustomerPaymentScreen(
             modifier = Modifier.padding(16.dp),
             enabled = order != null && !state.submitting && otpReady,
         )
+        TextButton(
+            onClick = { showReturnDialog = true },
+            enabled = order != null && !state.submitting,
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        ) {
+            Text(
+                stringResource(Res.string.return_partner_action),
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         }
     }
 }

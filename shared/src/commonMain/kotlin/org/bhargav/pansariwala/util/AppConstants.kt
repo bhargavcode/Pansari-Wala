@@ -126,6 +126,15 @@ object AppConstants {
     const val PUBLIC_ORDER_CODE_LENGTH: Int = 8
     const val REPORT_PAGE_SIZE: Int = 20
 
+    /** Return-to-shop reason codes stored in the order's cancel reason (server `RETURN_REASON_*`). */
+    object ReturnReason {
+        const val CUSTOMER_UNREACHABLE: String = "CUSTOMER_UNREACHABLE"
+        const val CUSTOMER_NOT_RESPONDING: String = "CUSTOMER_NOT_RESPONDING"
+        const val MAX_LENGTH: Int = 200
+        /** How often the partner's return screen re-checks for shop verification. */
+        const val POLL_MS: Long = 10_000L
+    }
+
     object PartnerProgress {
         const val TO_STORE: String = "TO_STORE"
         const val AT_STORE: String = "AT_STORE"
@@ -329,6 +338,9 @@ object AppConstants {
         const val ALERT_ON_THE_WAY: String = "ON_THE_WAY"
         const val ALERT_DELIVERED: String = "DELIVERED"
         const val ALERT_CANCELLED: String = "CANCELLED"
+        const val ALERT_RETURNING: String = "RETURNING_TO_SHOP"
+        const val ALERT_RETURNED: String = "RETURNED_TO_SHOP"
+        const val ALERT_RETURN_VERIFY: String = "RETURN_VERIFY"
         const val KEY_PREFIX_STATUS: String = "ORDER_STATUS"
         const val KEY_EVENT: String = "event"
         const val KEY_ORDER_ID: String = "orderId"
@@ -380,6 +392,8 @@ object AppConstants {
         const val METHOD_CASHFREE: String = "CASHFREE"
         const val UTR_MIN_LENGTH: Int = 6
         const val UTR_MAX_LENGTH: Int = 35
+        /** Server caps the payment window at 5 minutes; drives the countdown ring. */
+        const val WINDOW_MAX_SECONDS: Long = 5 * 60L
         /** Polling fallback while the payment WebSocket is down. */
         const val POLL_MS: Long = 4_000L
         /** CASHFREE: how often the waiting screen asks the server to re-check the gateway. */

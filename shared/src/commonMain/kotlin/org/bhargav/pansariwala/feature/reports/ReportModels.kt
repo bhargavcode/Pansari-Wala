@@ -17,6 +17,15 @@ import kotlin.time.Instant
 
 enum class ReportChannel { ALL, ONLINE, OFFLINE }
 
+/** Report filters handed to drill-down routes; custom dates are UTC-midnight picker millis. */
+@kotlinx.serialization.Serializable
+data class SalesWindow(
+    val period: String,
+    val channel: String,
+    val customFromUtc: Long? = null,
+    val customToUtc: Long? = null,
+)
+
 enum class ReportPeriod { TODAY, YESTERDAY, WEEK, MONTH, YEAR, CUSTOM }
 
 enum class BucketUnit { HOUR, DAY, MONTH }

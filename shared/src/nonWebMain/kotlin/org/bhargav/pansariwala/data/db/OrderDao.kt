@@ -13,6 +13,16 @@ data class SalesRow(
     val totalValue: Double,
 )
 
+data class ItemSaleRow(
+    val orderId: String,
+    val productId: String,
+    val productName: String,
+    val variantLabel: String?,
+    val quantity: Double,
+    val lineTotal: Double,
+    val createdAt: Long,
+)
+
 @Dao
 abstract class OrderDao {
     @Query("SELECT * FROM orders WHERE shopId = :shopId ORDER BY createdAt DESC LIMIT :limit")
@@ -29,6 +39,15 @@ abstract class OrderDao {
             "ORDER BY createdAt DESC",
     )
     abstract suspend fun ordersBetween(shopId: String, from: Long, to: Long): List<OrderEntity>
+
+    @Query(
+        "SELECT oi.orderId AS orderId, oi.productId AS productId, oi.productName AS productName, " +
+            "oi.variantLabel AS variantLabel, oi.quantity AS quantity, oi.lineTotal AS lineTotal, o.createdAt AS createdAt " +
+            "FROM order_items oi INNER JOIN orders o ON o.id = oi.orderId " +
+            "WHERE o.shopId = :shopId AND o.createdAt >= :from AND o.createdAt < :to " +
+            "AND o.status NOT IN ('CANCELLED', 'REJECTED', 'DRAFT')",
+    )
+    abstract suspend fun itemSalesBetween(shopId: String, from: Long, to: Long): List<ItemSaleRow>
 
     @Query(
         "SELECT * FROM orders WHERE shopId = :shopId AND pendingSync = 1 ORDER BY createdAt ASC",

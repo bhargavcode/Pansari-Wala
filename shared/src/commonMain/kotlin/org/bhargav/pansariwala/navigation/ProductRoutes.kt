@@ -63,6 +63,7 @@ sealed interface DeliveryRoute : NavKey {
     @Serializable data class DeliverToCustomer(val orderId: String) : DeliveryRoute
     @Serializable data class CustomerPayment(val orderId: String) : DeliveryRoute
     @Serializable data class DeliveryComplete(val orderId: String) : DeliveryRoute
+    @Serializable data class ReturnToShop(val orderId: String) : DeliveryRoute
     @Serializable data object Earnings : DeliveryRoute
     @Serializable data object LanguagePrefs : DeliveryRoute
     @Serializable data object ThemePrefs : DeliveryRoute

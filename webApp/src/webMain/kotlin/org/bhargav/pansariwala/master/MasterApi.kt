@@ -762,7 +762,7 @@ data class PlatformSettingsDto(
     val partnerRegistrationEnabled: Boolean = true,
     /** DIRECT_UPI, CASHFREE or RAZORPAY. */
     val paymentMode: String = "DIRECT_UPI",
-    val paymentWindowMinutes: Int = 15,
+    val paymentWindowMinutes: Int = 5,
     val cashfreeConfigured: Boolean = false,
     val razorpayConfigured: Boolean = false,
     val updatedAt: Long = 0L,

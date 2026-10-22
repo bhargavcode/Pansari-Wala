@@ -652,6 +652,9 @@ data class PickupRequest(val photoOneUrl: String, val photoTwoUrl: String)
 data class DeliverRequest(val otp: String)
 
 @Serializable
+data class ReturnRequest(val reason: String? = null)
+
+@Serializable
 data class PartnerDashboardDto(
     val deliveredCount: Int,
     val acceptedCount: Int,
@@ -667,6 +670,15 @@ data class TxnDto(
     val amount: Double,
     val title: String,
     val createdAtEpochMs: Long,
+    val isRefund: Boolean = false,
+    val shopId: String? = null,
+    val shopName: String? = null,
+    val orderStatus: String? = null,
+    val paymentMethod: String? = null,
+    val paymentRef: String? = null,
+    val refundId: String? = null,
+    val itemCount: Int = 0,
+    val selfPickup: Boolean = false,
 )
 
 @Serializable
@@ -1138,4 +1150,19 @@ fun PartnerEarningsDto.toModel() = PartnerEarnings(
     rangeDeliveredCount = rangeDeliveredCount,
 )
 
-fun TxnDto.toModel() = MoneyTxn(id, orderId, amount, title, createdAtEpochMs)
+fun TxnDto.toModel() = MoneyTxn(
+    id = id,
+    orderId = orderId,
+    amount = amount,
+    title = title,
+    createdAtEpochMs = createdAtEpochMs,
+    isRefund = isRefund,
+    shopId = shopId,
+    shopName = shopName,
+    orderStatus = orderStatus?.let(OrderStatus::fromName),
+    paymentMethod = paymentMethod,
+    paymentRef = paymentRef,
+    refundId = refundId,
+    itemCount = itemCount,
+    selfPickup = selfPickup,
+)

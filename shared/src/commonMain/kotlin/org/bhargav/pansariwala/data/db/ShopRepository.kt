@@ -2,6 +2,7 @@ package org.bhargav.pansariwala.data.db
 
 import kotlinx.coroutines.flow.Flow
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.ItemSale
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.SalesSnapshot
@@ -22,6 +23,8 @@ interface ShopRepository {
     fun observeTodaySales(shopId: String, startOfDayEpochMs: Long): Flow<SalesSnapshot>
     /** Local (POS/offline) orders with `from <= createdAt < to`, newest first. */
     suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary>
+    /** Sold lines of local orders in the range, skipping cancelled / rejected / draft orders. */
+    suspend fun itemSalesBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<ItemSale>
 
     /** First [limit] products matching [filter], ordered by name; grow [limit] to page. */
     fun observeProductPage(shopId: String, filter: ShopProductFilter, limit: Int): Flow<List<Product>>

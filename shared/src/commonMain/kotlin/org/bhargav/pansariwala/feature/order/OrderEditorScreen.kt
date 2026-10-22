@@ -107,6 +107,8 @@ import org.bhargav.pansariwala.voice.RequestMicrophonePermission
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import androidx.compose.material.icons.filled.Edit
+import pansariwala.shared.generated.resources.pos_line_price_edit_cd
 import pansariwala.shared.generated.resources.action_add
 import pansariwala.shared.generated.resources.action_back
 import pansariwala.shared.generated.resources.action_remove
@@ -177,6 +179,26 @@ fun OrderEditorScreen(
             onConfirm = viewModel::upsertOption,
             onDismiss = viewModel::dismissPicker,
         )
+    }
+    state.infoOption?.let { option ->
+        PosProductInfoSheet(
+            option = option,
+            inCartQty = state.cart.firstOrNull { it.key == option.key }?.quantity ?: 0.0,
+            onAdd = {
+                viewModel.dismissProductInfo()
+                viewModel.addVariant(option)
+            },
+            onRecordUnbilled = { viewModel.openUnbilledSale(option) },
+            onDismiss = viewModel::dismissProductInfo,
+        )
+    }
+    state.unbilledSaleOption?.let { option ->
+        UnbilledSaleDialog(option = option, onSave = viewModel::recordUnbilledSale, onDismiss = viewModel::dismissUnbilledSale)
+    }
+    state.priceEditKey?.let { key ->
+        state.cart.firstOrNull { it.key == key }?.let { line ->
+            PosLinePriceDialog(line = line, onSave = { viewModel.setLinePrice(key, it) }, onDismiss = viewModel::dismissLinePrice)
+        }
     }
     state.addVariantFor?.let { product ->
         PosAddVariantDialog(
@@ -316,7 +338,7 @@ private fun PosOptionRow(option: PurchaseOption, line: CartLine?, viewModel: Ord
         NetworkImage(
             url = option.imageUrl,
             contentDescription = option.displayName,
-            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
+            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)).clickable { viewModel.openProductInfo(option) },
         )
         Column(Modifier.weight(1f)) {
             Text(option.displayName, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -607,7 +629,7 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
         NetworkImage(
             url = line.option.imageUrl,
             contentDescription = line.product.name,
-            modifier = Modifier.size(40.dp).clip(MaterialTheme.shapes.small),
+            modifier = Modifier.size(40.dp).clip(MaterialTheme.shapes.small).clickable { viewModel.openProductInfo(line.option) },
         )
         Spacer(Modifier.width(8.dp))
         Column(
@@ -619,13 +641,29 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
                 text = line.option.displayName,
                 style = MaterialTheme.typography.bodyMedium,
             )
-            if (line.lockedUnitPrice == null) {
-                line.option.OfferPrice(priceStyle = MaterialTheme.typography.labelSmall)
-            } else {
-                Text(
-                    text = line.unitPrice.asMoney(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                modifier = Modifier.clickable { viewModel.openLinePrice(line.key) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (line.lockedUnitPrice == null) {
+                    line.option.OfferPrice(priceStyle = MaterialTheme.typography.labelSmall)
+                } else {
+                    Text(
+                        text = line.unitPrice.asMoney(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (line.unitPrice != line.option.unitPrice) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = stringResource(Res.string.pos_line_price_edit_cd),
+                    modifier = Modifier.padding(start = 4.dp).size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary,
                 )
             }
             LineOfferPrice(line.lineTotal, line.baseLineTotal)

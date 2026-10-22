@@ -1,6 +1,42 @@
 package org.bhargav.pansariwala.feature.user
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.style.TextOverflow
+import pansariwala.shared.generated.resources.pay_time_left_label
+import pansariwala.shared.generated.resources.pay_amount_to_pay
+import pansariwala.shared.generated.resources.pay_method_direct_short
+import pansariwala.shared.generated.resources.pay_method_gateway_short
+import pansariwala.shared.generated.resources.pay_steps_title
+import pansariwala.shared.generated.resources.pay_step_open
+import pansariwala.shared.generated.resources.pay_step_pay
+import pansariwala.shared.generated.resources.pay_step_return
+import pansariwala.shared.generated.resources.pay_step_return_direct
+import pansariwala.shared.generated.resources.pay_label_amount
+import pansariwala.shared.generated.resources.pay_label_shop
+import pansariwala.shared.generated.resources.pay_label_method
+import pansariwala.shared.generated.resources.pay_label_upi
+import pansariwala.shared.generated.resources.pay_label_txn
+import pansariwala.shared.generated.resources.pay_label_order
+import pansariwala.shared.generated.resources.pay_label_attempt
+import pansariwala.shared.generated.resources.pay_label_utr
+import pansariwala.shared.generated.resources.pay_label_refund
+import pansariwala.shared.generated.resources.pay_label_items
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,16 +98,6 @@ import pansariwala.shared.generated.resources.order_pay_utr_hint
 import pansariwala.shared.generated.resources.order_pay_utr_label
 import pansariwala.shared.generated.resources.order_pay_utr_submit
 import pansariwala.shared.generated.resources.order_pay_utr_submitted
-import pansariwala.shared.generated.resources.pay_detail_amount
-import pansariwala.shared.generated.resources.pay_detail_attempt
-import pansariwala.shared.generated.resources.pay_detail_item
-import pansariwala.shared.generated.resources.pay_detail_method
-import pansariwala.shared.generated.resources.pay_detail_order
-import pansariwala.shared.generated.resources.pay_detail_refund
-import pansariwala.shared.generated.resources.pay_detail_shop
-import pansariwala.shared.generated.resources.pay_detail_txn
-import pansariwala.shared.generated.resources.pay_detail_upi
-import pansariwala.shared.generated.resources.pay_detail_utr
 import pansariwala.shared.generated.resources.pay_details_title
 import pansariwala.shared.generated.resources.pay_do_not_close
 import pansariwala.shared.generated.resources.pay_failed_body
@@ -93,7 +119,6 @@ import pansariwala.shared.generated.resources.pay_refunded_title
 import pansariwala.shared.generated.resources.pay_retry
 import pansariwala.shared.generated.resources.pay_success_body
 import pansariwala.shared.generated.resources.pay_success_title
-import pansariwala.shared.generated.resources.pay_time_left
 import pansariwala.shared.generated.resources.pay_time_up
 import pansariwala.shared.generated.resources.pay_title
 import pansariwala.shared.generated.resources.pay_view_order
@@ -233,76 +258,168 @@ private fun PendingBlock(
     viewModel: PaymentStatusViewModel,
     onOpenUpi: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        CircularProgressIndicator(Modifier.size(48.dp))
-        Spacer(Modifier.height(12.dp))
-        Text(
-            stringResource(Res.string.pay_waiting_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            if (intent.isDirectUpi) {
-                stringResource(Res.string.pay_waiting_direct_body, intent.shopName)
-            } else {
-                stringResource(Res.string.pay_waiting_body)
-            },
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        Text(
-            if (state.secondsLeft > 0) {
-                stringResource(Res.string.pay_time_left, countdown(state.secondsLeft))
-            } else {
-                stringResource(Res.string.pay_time_up)
-            },
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 8.dp),
-        )
+    val seconds = state.secondsLeft
+    val total = maxOf(AppConstants.Payment.WINDOW_MAX_SECONDS, seconds).coerceAtLeast(1L)
+    val urgent = seconds in 1..PAY_URGENT_SECONDS
+    val ringColor = if (urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            Modifier.padding(vertical = 24.dp, horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(132.dp)) {
+                if (seconds > 0) {
+                    CircularProgressIndicator(
+                        progress = { seconds.toFloat() / total },
+                        modifier = Modifier.fillMaxSize(),
+                        color = ringColor,
+                        strokeWidth = 8.dp,
+                        trackColor = ringColor.copy(alpha = 0.15f),
+                        strokeCap = StrokeCap.Round,
+                    )
+                } else {
+                    CircularProgressIndicator(Modifier.fillMaxSize(), color = ringColor, strokeWidth = 8.dp)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        if (seconds > 0) countdown(seconds) else "…",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = ringColor,
+                    )
+                    Text(stringResource(Res.string.pay_time_left_label), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Text(
+                stringResource(Res.string.pay_waiting_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                if (seconds > 0) {
+                    if (intent.isDirectUpi) {
+                        stringResource(Res.string.pay_waiting_direct_body, intent.shopName)
+                    } else {
+                        stringResource(Res.string.pay_waiting_body)
+                    }
+                } else {
+                    stringResource(Res.string.pay_time_up)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-        Text(
-            stringResource(Res.string.pay_do_not_close),
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(12.dp),
-        )
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = CircleShape, modifier = Modifier.size(44.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Storefront, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(Res.string.pay_amount_to_pay), style = MaterialTheme.typography.labelMedium)
+                Text(intent.amountInr.asMoney(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    intent.shopName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            StatusPill(
+                stringResource(if (intent.isDirectUpi) Res.string.pay_method_direct_short else Res.string.pay_method_gateway_short),
+                container = MaterialTheme.colorScheme.tertiaryContainer,
+                content = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
     }
-    PaymentDetailsCard(intent)
+    SectionCard(title = stringResource(Res.string.pay_steps_title)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            PayStep(1, stringResource(Res.string.pay_step_open))
+            PayStep(2, stringResource(Res.string.pay_step_pay, intent.amountInr.asMoney()))
+            PayStep(3, stringResource(if (intent.isDirectUpi) Res.string.pay_step_return_direct else Res.string.pay_step_return))
+        }
+    }
     if (intent.upiPayUri != null) {
         UserPrimaryButton(stringResource(Res.string.pay_open_upi), onClick = onOpenUpi, enabled = !state.busy)
     }
     if (intent.isDirectUpi) {
         val submitted = intent.utr
-        if (submitted != null) {
-            Text(stringResource(Res.string.order_pay_utr_submitted, submitted), style = MaterialTheme.typography.bodySmall)
-        } else {
-            Text(stringResource(Res.string.order_pay_utr_hint), style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(
-                value = state.utr,
-                onValueChange = viewModel::setUtr,
-                label = { Text(stringResource(Res.string.order_pay_utr_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedButton(
-                onClick = viewModel::submitUtr,
-                enabled = viewModel.canSubmitUtr(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(Res.string.order_pay_utr_submit)) }
+        SectionCard(title = stringResource(Res.string.order_pay_utr_label)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (submitted != null) {
+                    Text(stringResource(Res.string.order_pay_utr_submitted, submitted), style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text(
+                        stringResource(Res.string.order_pay_utr_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = state.utr,
+                        onValueChange = viewModel::setUtr,
+                        label = { Text(stringResource(Res.string.order_pay_utr_label)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedButton(
+                        onClick = viewModel::submitUtr,
+                        enabled = viewModel.canSubmitUtr(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(Res.string.order_pay_utr_submit)) }
+                }
+            }
         }
     } else {
         OutlinedButton(
             onClick = viewModel::checkNow,
             enabled = !state.busy,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(12.dp),
         ) { Text(stringResource(Res.string.order_pay_check_status)) }
     }
     state.note?.let {
         Text(it.asString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    PaymentDetailsCard(intent, collapsible = true)
+    Surface(
+        color = PAY_NOTICE_CONTAINER,
+        contentColor = PAY_NOTICE_CONTENT,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Info, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(Res.string.pay_do_not_close), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun PayStep(number: Int, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, shape = CircleShape) {
+            Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                Text(number.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -316,37 +433,57 @@ private fun ResultHeader(icon: ImageVector, tint: androidx.compose.ui.graphics.C
 }
 
 @Composable
-private fun PaymentDetailsCard(intent: PaymentIntent) {
-    SectionCard(title = stringResource(Res.string.pay_details_title)) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                stringResource(Res.string.pay_detail_amount, intent.amountInr.asMoney()),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(stringResource(Res.string.pay_detail_shop, intent.shopName))
-            intent.payeeUpi?.let { Text(stringResource(Res.string.pay_detail_upi, it)) }
-            Text(
-                stringResource(
-                    Res.string.pay_detail_method,
-                    stringResource(if (intent.isDirectUpi) Res.string.pay_method_direct else Res.string.pay_method_gateway),
-                ),
-            )
-            Text(stringResource(Res.string.pay_detail_txn, intent.id), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(Res.string.pay_detail_order, intent.orderId), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(Res.string.pay_detail_attempt, intent.attemptNo), style = MaterialTheme.typography.bodySmall)
-            intent.utr?.let { Text(stringResource(Res.string.pay_detail_utr, it), style = MaterialTheme.typography.bodySmall) }
-            intent.refundId?.let { Text(stringResource(Res.string.pay_detail_refund, it), style = MaterialTheme.typography.bodySmall) }
-            intent.items.forEach { item ->
+private fun PaymentDetailsCard(intent: PaymentIntent, collapsible: Boolean = false) {
+    var expanded by rememberSaveable(intent.id) { mutableStateOf(!collapsible) }
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth().then(if (collapsible) Modifier.clickable { expanded = !expanded } else Modifier),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ReceiptLong, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    stringResource(
-                        Res.string.pay_detail_item,
-                        item.quantity.asQuantity(),
-                        listOfNotNull(item.productName, item.variantLabel).joinToString(" "),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    stringResource(Res.string.pay_details_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
                 )
+                if (collapsible) {
+                    Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null)
+                }
+            }
+            if (!expanded) return@Column
+            HorizontalDivider()
+            LabelValueRow(stringResource(Res.string.pay_label_amount), intent.amountInr.asMoney(), emphasize = true)
+            LabelValueRow(stringResource(Res.string.pay_label_shop), intent.shopName)
+            LabelValueRow(
+                stringResource(Res.string.pay_label_method),
+                stringResource(if (intent.isDirectUpi) Res.string.pay_method_direct else Res.string.pay_method_gateway),
+            )
+            intent.payeeUpi?.let { LabelValueRow(stringResource(Res.string.pay_label_upi), it) }
+            LabelValueRow(stringResource(Res.string.pay_label_txn), intent.id)
+            LabelValueRow(stringResource(Res.string.pay_label_order), intent.orderId)
+            if (intent.attemptNo > 1) LabelValueRow(stringResource(Res.string.pay_label_attempt), intent.attemptNo.toString())
+            intent.utr?.let { LabelValueRow(stringResource(Res.string.pay_label_utr), it) }
+            intent.refundId?.let { LabelValueRow(stringResource(Res.string.pay_label_refund), it) }
+            if (intent.items.isNotEmpty()) {
+                HorizontalDivider()
+                Text(
+                    stringResource(Res.string.pay_label_items, intent.items.size),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                intent.items.forEach { item ->
+                    LabelValueRow(
+                        listOfNotNull(item.productName, item.variantLabel).joinToString(" "),
+                        "× ${item.quantity.asQuantity()}",
+                    )
+                }
             }
         }
     }
@@ -358,6 +495,10 @@ private fun failureReason(intent: PaymentIntent): String = when (intent.failureR
     AppConstants.Payment.REASON_OUT_OF_STOCK -> stringResource(Res.string.pay_reason_out_of_stock)
     else -> stringResource(Res.string.pay_reason_not_received)
 }
+
+private const val PAY_URGENT_SECONDS = 60L
+private val PAY_NOTICE_CONTAINER = Color(0xFFFFF8E1)
+private val PAY_NOTICE_CONTENT = Color(0xFF7A5200)
 
 internal fun countdown(seconds: Long): String {
     val m = seconds / 60

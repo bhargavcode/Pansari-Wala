@@ -1340,6 +1340,31 @@ class PartnerJobViewModel(
         }
     }
 
+    fun returnToShop(reason: String, onDone: () -> Unit) {
+        val orderId = _state.value.order?.id ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(submitting = true, error = null) }
+            runCatching { api.returnToShop(orderId, reason) }
+                .onSuccess { order ->
+                    _state.update { it.copy(submitting = false, order = order) }
+                    OrderUpdates.emit(OrderUpdate(orderId, OrderStatus.RETURNING_TO_SHOP))
+                    onDone()
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { s -> s.copy(submitting = false, error = err.toApiUiText()) }
+                }
+        }
+    }
+
+    /** Re-reads the job without the full-screen loader (return screen polls for shop verification). */
+    fun refresh() {
+        val orderId = _state.value.order?.id ?: return
+        viewModelScope.launch {
+            runCatching { api.partnerJob(orderId) }.onSuccess { order -> _state.update { it.copy(order = order) } }
+        }
+    }
+
     fun completeDelivery(otp: String, onDone: () -> Unit) {
         val orderId = _state.value.order?.id ?: return
         viewModelScope.launch {

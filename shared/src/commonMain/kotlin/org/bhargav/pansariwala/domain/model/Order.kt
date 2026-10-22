@@ -17,12 +17,26 @@ enum class OrderStatus {
     COMPLETED,
     REJECTED,
     CANCELLED,
+    /** Partner could not reach the customer and is taking the parcel back. */
+    RETURNING_TO_SHOP,
+    /** Shop verified the returned parcel; the customer collects it at the shop. */
+    RETURNED_TO_SHOP,
     ;
 
     companion object {
         fun fromName(value: String): OrderStatus =
             entries.firstOrNull { it.name == value } ?: COMPLETED
     }
+}
+
+/** Customer-facing order number, see [Order.displayNumber]. */
+fun publicOrderNumber(shopId: String, orderId: String): String {
+    val shopPart = shopId.filter { it.isDigit() }.ifBlank { shopId.substringAfterLast('_', shopId) }
+    val raw = orderId.substringAfterLast('_').ifBlank { orderId }
+    val orderPart = raw.filter { it.isLetterOrDigit() }
+        .takeLast(AppConstants.PUBLIC_ORDER_CODE_LENGTH)
+        .uppercase()
+    return "$shopPart$orderPart"
 }
 
 data class OrderItem(
@@ -37,6 +51,18 @@ data class OrderItem(
 ) {
     val lineTotal: Double get() = quantity * unitPrice
 }
+
+/** One sold line with its order time, for product / category sales reports. */
+data class ItemSale(
+    val orderId: String,
+    val productId: String,
+    val productName: String,
+    val variantLabel: String?,
+    val quantity: Double,
+    val lineTotal: Double,
+    val createdAtEpochMs: Long,
+    val channel: OrderChannel,
+)
 
 data class OrderSummary(
     val id: String,
@@ -117,14 +143,7 @@ data class Order(
         get() = status == OrderStatus.PARTNER_ACCEPTED || status == OrderStatus.ON_THE_WAY
     /** Shop digits + 8-char order code, e.g. shop_12 + 24B112A4 → 1224B112A4. */
     val displayNumber: String
-        get() {
-            val shopPart = shopId.filter { it.isDigit() }.ifBlank { shopId.substringAfterLast('_', shopId) }
-            val raw = id.substringAfterLast('_').ifBlank { id }
-            val orderPart = raw.filter { it.isLetterOrDigit() }
-                .takeLast(AppConstants.PUBLIC_ORDER_CODE_LENGTH)
-                .uppercase()
-            return "$shopPart$orderPart"
-        }
+        get() = publicOrderNumber(shopId, id)
     val visiblePickupPhotos: List<String>
         get() = pickupPhotoUrls.filter(::isHttpImageUrl)
     val resumeProgress: String

@@ -99,6 +99,7 @@ import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 @Composable
 fun ReportsScreen(
     onBack: () -> Unit,
+    onOpenCategory: (category: String, window: SalesWindow) -> Unit = { _, _ -> },
     viewModel: ReportsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -174,6 +175,11 @@ fun ReportsScreen(
                         }
                     }
                 }
+                item(key = "category_sales", contentType = "category_sales") {
+                    CategorySalesSection(state.categorySales) { category ->
+                        onOpenCategory(category.name, viewModel.window())
+                    }
+                }
                 item(key = "inventory", contentType = "inventory") {
                     SectionCard(title = stringResource(Res.string.report_inventory_title)) {
                         InventoryPieChart(state.inventory)
@@ -222,12 +228,12 @@ fun ReportsScreen(
     }
 }
 
-/** filters, kpis, charts, inventory → header sits at index 4. */
-private const val LIST_HEADER_INDEX = 4
+/** filters, kpis, charts, category sales, inventory → header sits at index 5. */
+private const val LIST_HEADER_INDEX = 5
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReportFilters(
+internal fun ReportFilters(
     channel: ReportChannel,
     period: ReportPeriod,
     range: ReportRange?,
@@ -446,7 +452,7 @@ internal fun CustomRangeDialog(onDismiss: () -> Unit, onConfirm: (Long, Long?) -
 }
 
 @Composable
-private fun channelLabel(channel: ReportChannel): String = stringResource(
+internal fun channelLabel(channel: ReportChannel): String = stringResource(
     when (channel) {
         ReportChannel.ALL -> Res.string.report_channel_all
         ReportChannel.ONLINE -> Res.string.report_channel_online
@@ -455,7 +461,7 @@ private fun channelLabel(channel: ReportChannel): String = stringResource(
 )
 
 @Composable
-private fun periodLabel(period: ReportPeriod): String = stringResource(
+internal fun periodLabel(period: ReportPeriod): String = stringResource(
     when (period) {
         ReportPeriod.TODAY -> Res.string.report_period_today
         ReportPeriod.YESTERDAY -> Res.string.report_period_yesterday
@@ -473,7 +479,7 @@ private fun Int.two(): String = toString().padStart(2, '0')
 
 internal fun LocalDate.short(): String = "${day.two()}/${month.number.two()}/$year"
 
-private fun bucketLabel(b: ReportBucket, months: List<String>, multiYear: Boolean): String {
+internal fun bucketLabel(b: ReportBucket, months: List<String>, multiYear: Boolean): String {
     val monthName = months.getOrElse(b.month - 1) { b.month.toString() }
     return when (b.unit) {
         BucketUnit.HOUR -> b.hour.two()

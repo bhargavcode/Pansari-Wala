@@ -18,6 +18,12 @@ import pansariwala.shared.generated.resources.notify_order_cancelled_body
 import pansariwala.shared.generated.resources.notify_order_cancelled_title
 import pansariwala.shared.generated.resources.notify_partner_timeout_body
 import pansariwala.shared.generated.resources.notify_partner_timeout_title
+import pansariwala.shared.generated.resources.notify_return_verify_body
+import pansariwala.shared.generated.resources.notify_return_verify_title
+import pansariwala.shared.generated.resources.notify_returned_body
+import pansariwala.shared.generated.resources.notify_returned_title
+import pansariwala.shared.generated.resources.notify_returning_body
+import pansariwala.shared.generated.resources.notify_returning_title
 
 /** Builds the localized tray notification for an FCM order update that carries an `alert`. */
 object OrderAlerts {
@@ -54,6 +60,18 @@ object OrderAlerts {
                 customer(orderId, alert, Res.string.notify_delivered_title, Res.string.notify_delivered_body, shopName)
             Push.ALERT_CANCELLED ->
                 customer(orderId, alert, Res.string.notify_order_cancelled_title, Res.string.notify_order_cancelled_body, shopName)
+            Push.ALERT_RETURNING ->
+                customer(orderId, alert, Res.string.notify_returning_title, Res.string.notify_returning_body, shopName)
+            Push.ALERT_RETURNED ->
+                customer(orderId, alert, Res.string.notify_returned_title, Res.string.notify_returned_body, shopName)
+            Push.ALERT_RETURN_VERIFY -> ShopNotification(
+                id = generateId("notif"),
+                title = getString(Res.string.notify_return_verify_title),
+                body = getString(Res.string.notify_return_verify_body, short),
+                orderId = orderId,
+                type = AppConstants.Notification.TYPE_ONLINE_ORDER,
+                key = "${Push.ALERT_RETURN_VERIFY}:$orderId",
+            )
             else -> null
         }
     }

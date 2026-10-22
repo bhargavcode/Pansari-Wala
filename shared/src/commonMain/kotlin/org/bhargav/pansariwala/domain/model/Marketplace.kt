@@ -18,7 +18,7 @@ fun OrderStatus.toFulfillmentStep(): FulfillmentStep = when (this) {
     OrderStatus.ACCEPTED -> FulfillmentStep.ACCEPTED
     OrderStatus.PACKING, OrderStatus.LOOKING_FOR_PARTNER, OrderStatus.PARTNER_ACCEPTED ->
         FulfillmentStep.PACKING
-    OrderStatus.ON_THE_WAY -> FulfillmentStep.ON_THE_WAY
+    OrderStatus.ON_THE_WAY, OrderStatus.RETURNING_TO_SHOP, OrderStatus.RETURNED_TO_SHOP -> FulfillmentStep.ON_THE_WAY
     OrderStatus.DELIVERED, OrderStatus.COMPLETED -> FulfillmentStep.DELIVERED
     OrderStatus.REJECTED, OrderStatus.CANCELLED -> FulfillmentStep.PLACED
 }
@@ -215,4 +215,14 @@ data class MoneyTxn(
     val amount: Double,
     val title: String,
     val createdAtEpochMs: Long,
+    val isRefund: Boolean = false,
+    val shopId: String? = null,
+    val shopName: String? = null,
+    val orderStatus: OrderStatus? = null,
+    val paymentMethod: String? = null,
+    /** Gateway payment id or UPI UTR. */
+    val paymentRef: String? = null,
+    val refundId: String? = null,
+    val itemCount: Int = 0,
+    val selfPickup: Boolean = false,
 )

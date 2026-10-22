@@ -82,12 +82,27 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AssignmentReturn
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import org.bhargav.pansariwala.feature.delivery.returnReasonLabel
+import pansariwala.shared.generated.resources.order_returned_title
+import pansariwala.shared.generated.resources.order_returning_title
+import pansariwala.shared.generated.resources.order_returned_body
+import pansariwala.shared.generated.resources.order_returning_body
+import pansariwala.shared.generated.resources.order_returned_collect_at
+import pansariwala.shared.generated.resources.return_reason_label
+import pansariwala.shared.generated.resources.checkout_policy_shop_fallback
 import pansariwala.shared.generated.resources.cart_min_order_short
 import pansariwala.shared.generated.resources.cart_free_delivery_short
 import pansariwala.shared.generated.resources.cart_free_delivery_unlocked
 import pansariwala.shared.generated.resources.catalog_shop_categories
 import pansariwala.shared.generated.resources.account_all_orders
-import pansariwala.shared.generated.resources.account_transactions
 import pansariwala.shared.generated.resources.action_add_address
 import pansariwala.shared.generated.resources.action_complete_profile
 import pansariwala.shared.generated.resources.action_place_order
@@ -616,6 +631,9 @@ fun OrderDetailsScreen(
                             }
                         }
                     }
+                    if (order.status == OrderStatus.RETURNING_TO_SHOP || order.status == OrderStatus.RETURNED_TO_SHOP) {
+                        OrderReturnBanner(order)
+                    }
                     if (isCancelled || isRejected) {
                         SectionCard(
                             title = stringResource(if (isCancelled) Res.string.status_cancelled else Res.string.status_rejected),
@@ -699,6 +717,57 @@ fun OrderDetailsScreen(
         }
     }
 }
+
+@Composable
+private fun OrderReturnBanner(order: Order) {
+    val returned = order.status == OrderStatus.RETURNED_TO_SHOP
+    val shop = order.shopName?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.checkout_policy_shop_fallback)
+    Surface(
+        color = RETURN_BANNER_CONTAINER,
+        contentColor = RETURN_BANNER_CONTENT,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, RETURN_BANNER_BORDER),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+            Icon(
+                if (returned) Icons.Filled.Storefront
+                else Icons.AutoMirrored.Filled.AssignmentReturn,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(if (returned) Res.string.order_returned_title else Res.string.order_returning_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    stringResource(if (returned) Res.string.order_returned_body else Res.string.order_returning_body, shop),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                returnReasonLabel(order.cancelReason)?.let {
+                    Text(
+                        stringResource(Res.string.return_reason_label, it),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                order.shopAddress?.takeIf { returned && it.isNotBlank() }?.let {
+                    Text(
+                        stringResource(Res.string.order_returned_collect_at, it),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val RETURN_BANNER_CONTAINER = Color(0xFFFFF3E0)
+private val RETURN_BANNER_BORDER = Color(0xFFFFB74D)
+private val RETURN_BANNER_CONTENT = Color(0xFF8A3A00)
 
 @Composable
 private fun OrderProgressStepper(
@@ -815,29 +884,6 @@ fun OrdersListScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun TransactionsScreen(
-    onBack: () -> Unit,
-    viewModel: AccountViewModel = koinViewModel(),
-) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val txns = (state as? AsyncUiState.Success)?.data?.txns.orEmpty()
-    PansariScreen(
-        title = stringResource(Res.string.account_transactions),
-        onBack = onBack,
-        error = state.errorBannerOrNull(),
-        onErrorAction = {
-            handleErrorBannerAction(it, onRetry = viewModel::refresh, onDismiss = viewModel::dismissError)
-        },
-        isLoading = state.isBlockingLoad(),
-        isRefreshing = state.isRefreshing(),
-    ) {
-        Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-            txns.forEach { Text("${it.title}  ${it.amount.asMoney()}") }
         }
     }
 }

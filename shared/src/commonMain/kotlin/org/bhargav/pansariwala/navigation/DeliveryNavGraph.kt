@@ -40,6 +40,7 @@ import org.bhargav.pansariwala.feature.delivery.PartnerRegisterDetailsScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterOtpScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterVehicleScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterViewModel
+import org.bhargav.pansariwala.feature.delivery.PartnerReturnToShopScreen
 import org.koin.compose.viewmodel.koinViewModel
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.feature.user.UserLanguageScreen
@@ -50,6 +51,7 @@ import org.bhargav.pansariwala.notification.NotificationRouter
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.util.AppConstants
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
@@ -72,6 +74,7 @@ private val deliveryNavConfig = SavedStateConfiguration {
             subclass(DeliveryRoute.DeliverToCustomer::class, DeliveryRoute.DeliverToCustomer.serializer())
             subclass(DeliveryRoute.CustomerPayment::class, DeliveryRoute.CustomerPayment.serializer())
             subclass(DeliveryRoute.DeliveryComplete::class, DeliveryRoute.DeliveryComplete.serializer())
+            subclass(DeliveryRoute.ReturnToShop::class, DeliveryRoute.ReturnToShop.serializer())
             subclass(DeliveryRoute.Earnings::class, DeliveryRoute.Earnings.serializer())
             subclass(DeliveryRoute.LanguagePrefs::class, DeliveryRoute.LanguagePrefs.serializer())
             subclass(DeliveryRoute.ThemePrefs::class, DeliveryRoute.ThemePrefs.serializer())
@@ -82,6 +85,7 @@ private val deliveryNavConfig = SavedStateConfiguration {
 
 private fun resumePartnerJob(order: Order): DeliveryRoute {
     val id = order.id
+    if (order.status == OrderStatus.RETURNING_TO_SHOP) return DeliveryRoute.ReturnToShop(id)
     return when (order.resumeProgress) {
         AppConstants.PartnerProgress.AT_STORE -> DeliveryRoute.PickupItems(id)
         AppConstants.PartnerProgress.CAPTURE -> DeliveryRoute.CapturePhotos(id)
@@ -255,7 +259,15 @@ fun DeliveryNavGraph() {
                         PartnerCustomerPaymentScreen(
                             orderId = route.orderId,
                             onComplete = { push(DeliveryRoute.DeliveryComplete(route.orderId)) },
+                            onReturning = { replaceAll(DeliveryRoute.Home); push(DeliveryRoute.ReturnToShop(route.orderId)) },
                             onBack = { pop() },
+                        )
+                    }
+                    is DeliveryRoute.ReturnToShop -> NavEntry(route) {
+                        PartnerReturnToShopScreen(
+                            orderId = route.orderId,
+                            onDone = { replaceAll(DeliveryRoute.Home) },
+                            onBack = { replaceAll(DeliveryRoute.Home) },
                         )
                     }
                     is DeliveryRoute.DeliveryComplete -> NavEntry(route) {

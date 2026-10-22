@@ -87,7 +87,7 @@ import kotlin.time.Instant
 val OnlineColor = Color(0xFF1565C0)
 val OfflineColor = Color(0xFFEF6C00)
 
-private val pieColors = listOf(
+internal val pieColors = listOf(
     Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFFEF6C00), Color(0xFF6A1B9A),
     Color(0xFFC62828), Color(0xFF00838F), Color(0xFF9E9D24), Color(0xFF5D4037),
 )

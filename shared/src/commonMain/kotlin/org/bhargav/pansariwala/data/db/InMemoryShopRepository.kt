@@ -8,6 +8,8 @@ import kotlinx.coroutines.sync.withLock
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.auth.Credentials
 import org.bhargav.pansariwala.domain.model.Order
+import org.bhargav.pansariwala.domain.model.ItemSale
+import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.domain.model.Product
@@ -71,6 +73,27 @@ class InMemoryShopRepository : ShopRepository {
             }
             SalesSnapshot(orderCount = today.size, totalValue = today.sumOf { it.totalValue })
         }
+
+    override suspend fun itemSalesBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<ItemSale> =
+        ordersFlow.value
+            .filter {
+                it.shopId == shopId && it.createdAtEpochMs >= fromEpochMs && it.createdAtEpochMs < toEpochMs &&
+                    it.status != OrderStatus.CANCELLED && it.status != OrderStatus.REJECTED && it.status != OrderStatus.DRAFT
+            }
+            .flatMap { order ->
+                order.items.map { item ->
+                    ItemSale(
+                        orderId = order.id,
+                        productId = item.productId,
+                        productName = item.productName,
+                        variantLabel = item.variantLabel,
+                        quantity = item.quantity,
+                        lineTotal = item.lineTotal,
+                        createdAtEpochMs = order.createdAtEpochMs,
+                        channel = OrderChannel.POS,
+                    )
+                }
+            }
 
     override suspend fun ordersBetween(shopId: String, fromEpochMs: Long, toEpochMs: Long): List<OrderSummary> =
         ordersFlow.value
