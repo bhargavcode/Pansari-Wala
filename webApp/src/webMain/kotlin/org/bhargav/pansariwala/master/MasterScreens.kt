@@ -231,6 +231,8 @@ import pansariwala.shared.generated.resources.master_admin_account
 import pansariwala.shared.generated.resources.master_master_data
 import pansariwala.shared.generated.resources.master_platform_controls
 import pansariwala.shared.generated.resources.master_platform_subtitle
+import pansariwala.shared.generated.resources.pay_detail_refund
+import pansariwala.shared.generated.resources.master_translations_action
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -607,6 +609,9 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
                 AddProductPromoCard(onClick = { onNavigate(MasterDest.ProductEdit(null)) })
                 OutlinedButton(onClick = { sheet = SheetImportUiState() }) {
                     Text(stringResource(Res.string.sheet_import_action))
+                }
+                OutlinedButton(onClick = { onNavigate(MasterDest.ProductTranslations()) }) {
+                    Text(stringResource(Res.string.master_translations_action))
                 }
             }
             sheet?.let { current ->
@@ -1053,7 +1058,7 @@ internal fun TxnDetailScreen(token: String, orderId: String, onNavigate: (Master
                         }
                         MasterSectionCard(title = stringResource(Res.string.master_order_timeline)) {
                             Text("${formatEpochDate(t.createdAtEpochMs)} · ${t.status}")
-                            if (t.refundId != null) Text("Refund: ${t.refundId}")
+                            if (t.refundId != null) Text(stringResource(Res.string.pay_detail_refund, t.refundId))
                         }
                     },
                 )

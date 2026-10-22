@@ -236,6 +236,7 @@ import pansariwala.shared.generated.resources.visitors_subtitle
 import pansariwala.shared.generated.resources.visitors_title
 import pansariwala.shared.generated.resources.visitors_unique
 import pansariwala.shared.generated.resources.visitors_visits
+import org.bhargav.pansariwala.i18n.localizedName
 
 @Composable
 fun ShopProfileScreen(
@@ -1048,11 +1049,11 @@ private fun OfferDialog(
             Field(Res.string.offer_products_search, draft.productQuery) { v -> onChange { it.copy(productQuery = v) } }
             val query = draft.productQuery.trim().lowercase()
             products
-                .filter { query.isEmpty() || it.name.lowercase().contains(query) || it.nameHi.contains(query) }
+                .filter { query.isEmpty() || it.name.lowercase().contains(query) || it.nameHi.contains(query) || it.translations.values.any { t -> t.contains(query, ignoreCase = true) } }
                 .sortedByDescending { it.id in draft.productIds }
                 .take(MAX_PRODUCT_ROWS)
                 .forEach { product ->
-                    CheckRow("${product.name} · ${product.sellingPrice.asMoney()}", product.id in draft.productIds) { checked ->
+                    CheckRow("${product.localizedName} · ${product.sellingPrice.asMoney()}", product.id in draft.productIds) { checked ->
                         onChange { it.copy(productIds = if (checked) it.productIds + product.id else it.productIds - product.id) }
                     }
                 }

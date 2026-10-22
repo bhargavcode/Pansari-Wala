@@ -10,7 +10,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import org.bhargav.pansariwala.platform.AndroidActivityHolder
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.compose.resources.getString
 import org.koin.core.component.KoinComponent
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.notif_channel_description
 import org.koin.core.component.inject
 
 private const val DEFAULT_CHANNEL_ID = "pansari_default"
@@ -44,7 +48,7 @@ private class AndroidNotificationGateway(
             DEFAULT_CHANNEL_NAME,
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = "Orders, sync, and shop alerts"
+            description = runBlocking { getString(Res.string.notif_channel_description) }
             enableVibration(true)
         }
         manager.createNotificationChannel(channel)

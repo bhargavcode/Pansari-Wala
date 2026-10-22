@@ -35,6 +35,7 @@ import pansariwala.shared.generated.resources.action_cancel
 import pansariwala.shared.generated.resources.action_save
 import pansariwala.shared.generated.resources.variant_add_variant_title
 import pansariwala.shared.generated.resources.variant_current_label
+import org.bhargav.pansariwala.i18n.localizedName
 
 /** Adds one variant to [product] from billing; a variant-less product also names its current pack. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,7 +61,7 @@ internal fun PosAddVariantDialog(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = stringResource(Res.string.variant_add_variant_title, product.name),
+                text = stringResource(Res.string.variant_add_variant_title, product.localizedName),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )

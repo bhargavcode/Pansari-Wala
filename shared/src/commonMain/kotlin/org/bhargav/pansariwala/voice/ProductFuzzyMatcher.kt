@@ -129,6 +129,7 @@ object ProductFuzzyMatcher {
         val raw = buildList {
             add(product.name)
             add(product.nameHi)
+            addAll(product.translations.values)
             product.voiceAlias?.let { add(it) }
             // Also try individual alias tokens separated by /
             product.voiceAlias?.split(',', '/', '|')?.forEach { add(it) }

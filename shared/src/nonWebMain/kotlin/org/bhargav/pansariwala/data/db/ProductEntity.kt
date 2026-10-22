@@ -44,6 +44,9 @@ data class ProductEntity(
     val isActive: Boolean = true,
     val categoryId: String? = null,
     val subCategoryId: String? = null,
+    /** JSON object language code → product name. */
+    @ColumnInfo(defaultValue = "")
+    val translationsJson: String = "",
 )
 
 /** Pull cursors and other small sync bookmarks. */

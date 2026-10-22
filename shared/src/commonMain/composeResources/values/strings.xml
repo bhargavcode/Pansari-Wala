@@ -2258,11 +2258,13 @@
     <string name="borrowed_repay_yes">Yes, paid</string>
     <string name="borrowed_repay_no">No, it failed</string>
     <string name="borrowed_repay_no_upi">This shop has not set up UPI yet.</string>
-    <string name="shop_type_supermarket">Supermarket</string>
-    <string name="shop_type_grocery">Grocery</string>
-    <string name="shop_type_boutique">Boutique</string>
-    <string name="shop_type_general_store">General Store</string>
-    <string name="shop_type_medical_store">Medical Store</string>
-    <string name="shop_type_hardware">Hardware</string>
-    <string name="shop_type_sweet_shop">Sweet Shop</string>
+    <string name="master_translations_action">Translate names</string>
+    <string name="master_translations_title">Product name translations</string>
+    <string name="master_translations_shop_title">Product name translations · %1$s</string>
+    <string name="master_translations_language">Translate to</string>
+    <string name="master_translations_english">English</string>
+    <string name="master_translations_missing_only">Missing only</string>
+    <string name="master_translations_hint">Type the %1$s name next to each English name. Leave it blank to show the English name.</string>
+    <string name="master_translations_save">Save %1$d changes</string>
+    <string name="master_translations_saved">Saved %1$d translations</string>
 </resources>

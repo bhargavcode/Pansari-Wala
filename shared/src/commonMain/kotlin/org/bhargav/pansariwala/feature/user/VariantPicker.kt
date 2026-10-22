@@ -84,6 +84,8 @@ import pansariwala.shared.generated.resources.variant_picker_title
 import pansariwala.shared.generated.resources.variant_price_per
 import pansariwala.shared.generated.resources.variant_quantity
 import pansariwala.shared.generated.resources.variant_update_amount
+import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.i18n.appLanguageName
 
 /** "250 g", "1.5 kg", "500 ml", or a plain pack count. */
 @Composable
@@ -231,11 +233,11 @@ private fun VariantPickerSheet(
                 NetworkImage(
                     url = selected.imageUrl,
                     modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
-                    contentDescription = product.name,
+                    contentDescription = product.localizedName,
                 )
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (options.size == 1) selected.displayName else product.name,
+                        if (options.size == 1) selected.displayName else product.localizedName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
@@ -427,7 +429,7 @@ private fun displayValue(quantity: Double, subUnit: Boolean): String =
 
 /** "Parle-G · Large" for a variant card, the plain product name otherwise. */
 val PurchaseOption.displayName: String
-    get() = variant?.label?.takeIf { it.isNotBlank() }?.let { "${product.name} · $it" } ?: product.name
+    get() = variant?.label?.takeIf { it.isNotBlank() }?.let { "${product.appLanguageName} · $it" } ?: product.appLanguageName
 
 /** "100 g" net content of a pack variant, or null when not set. */
 @Composable
@@ -547,10 +549,10 @@ fun CartLineRow(
         NetworkImage(
             url = option.imageUrl,
             modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)),
-            contentDescription = line.product.name,
+            contentDescription = line.product.localizedName,
         )
         Column(Modifier.weight(1f)) {
-            Text(line.product.name, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(line.product.localizedName, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             line.variant?.let {
                 val detail = listOfNotNull(it.label, option.packSizeLabel()).distinct().joinToString(" · ")
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -153,6 +153,7 @@ import pansariwala.shared.generated.resources.pay_status_not_received
 import pansariwala.shared.generated.resources.pay_status_pending
 import pansariwala.shared.generated.resources.pay_status_refunded
 import pansariwala.shared.generated.resources.pay_time_left
+import org.bhargav.pansariwala.i18n.localizedName
 
 @Composable
 fun shopTypeLabel(type: ShopType): String = stringResource(
@@ -444,7 +445,7 @@ fun ResumeCartSheet(
                     lines.take(RESUME_SHEET_MAX_LINES).forEach { line ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(
-                                listOfNotNull(line.product.name, line.variant?.label).joinToString(" · ") +
+                                listOfNotNull(line.product.localizedName, line.variant?.label).joinToString(" · ") +
                                     " × ${line.option.quantityLabel(line.quantity)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,

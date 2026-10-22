@@ -117,7 +117,12 @@ data class Product(
     /** Master catalog category (root) and optional sub-category; [category] stays the fixed shop bucket. */
     val categoryId: String? = null,
     val subCategoryId: String? = null,
+    /** Name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
+    val translations: Map<String, String> = emptyMap(),
 ) {
+    /** Name in [languageCode], falling back to Hindi [nameHi] and then English [name]. */
+    fun displayName(languageCode: String?): String = localizedProductName(name, nameHi, translations, languageCode)
+
     /** Price after [offer] for one unit priced [base] (a variant price or [sellingPrice]). */
     fun salePrice(base: Double = sellingPrice): Double = offer?.unitPriceOn(base) ?: base
     val hasOffer: Boolean get() = offer != null && salePrice() < sellingPrice
@@ -170,6 +175,16 @@ data class Product(
         )
     }
 }
+
+/** Shared by shop and master products: [translations] wins, then [nameHi] for Hindi, then English [name]. */
+fun localizedProductName(name: String, nameHi: String, translations: Map<String, String>, languageCode: String?): String {
+    val lang = languageCode?.lowercase()?.substringBefore('-')?.substringBefore('_') ?: return name
+    translations[lang]?.takeIf { it.isNotBlank() }?.let { return it }
+    if (lang == HINDI_CODE && nameHi.isNotBlank()) return nameHi
+    return name
+}
+
+private const val HINDI_CODE = "hi"
 
 enum class DiscountType {
     PERCENT,
@@ -235,6 +250,7 @@ data class ShopProductFilter(
         return product.id == q || product.barcode == q || product.masterProductId == q ||
             product.name.contains(q, ignoreCase = true) ||
             product.nameHi.contains(q, ignoreCase = true) ||
+            product.translations.values.any { it.contains(q, ignoreCase = true) } ||
             product.brandName.contains(q, ignoreCase = true) ||
             product.voiceAlias?.contains(q, ignoreCase = true) == true
     }

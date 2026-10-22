@@ -118,11 +118,12 @@ import pansariwala.shared.generated.resources.master_shop_products_title
 import pansariwala.shared.generated.resources.master_status
 import pansariwala.shared.generated.resources.master_stock
 import pansariwala.shared.generated.resources.master_stock_total
+import pansariwala.shared.generated.resources.master_translations_action
 
 private const val SHOP_PRODUCTS_PAGE_SIZE = 25
 private const val MASTER_PICKER_PAGE_SIZE = 20
 private const val SHOP_SEARCH_DEBOUNCE_MS = 350L
-private const val STATUS_ALL = "all"
+internal const val STATUS_ALL = "all"
 private const val STATUS_ACTIVE = "active"
 private const val STATUS_INACTIVE = "inactive"
 
@@ -134,7 +135,13 @@ private fun Double.plainQty(): String = if (this == this.toLong().toDouble()) to
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ShopProductsScreen(token: String, shopId: String, shopName: String?, onStatus: (String) -> Unit) {
+internal fun ShopProductsScreen(
+    token: String,
+    shopId: String,
+    shopName: String?,
+    onTranslate: () -> Unit,
+    onStatus: (String) -> Unit,
+) {
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
     var pageData by remember { mutableStateOf(ShopProductPageDto()) }
@@ -181,6 +188,9 @@ internal fun ShopProductsScreen(token: String, shopId: String, shopName: String?
                 }
                 SummaryTile(stringResource(Res.string.inv_stock_out), summary.outOfStock, stockOutColor) {
                     lowStock = true; page = 0
+                }
+                OutlinedButton(onClick = onTranslate) {
+                    Text(stringResource(Res.string.master_translations_action))
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

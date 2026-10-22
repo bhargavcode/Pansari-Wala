@@ -87,6 +87,7 @@ import org.bhargav.pansariwala.api.SubscriptionPlanDto
 import org.bhargav.pansariwala.scanner.ScannerSettings
 import org.bhargav.pansariwala.scanner.barcodeScannerSupported
 import org.bhargav.pansariwala.scanner.scanFeedback
+import org.bhargav.pansariwala.i18n.appLanguageName
 
 data class CartLine(
     val product: Product,
@@ -181,6 +182,7 @@ data class OrderEditorUiState(
             return catalog.filter {
                 it.name.lowercase().contains(q) ||
                     it.nameHi.contains(searchQuery.trim()) ||
+                    it.translations.values.any { t -> t.contains(searchQuery.trim(), ignoreCase = true) } ||
                     (it.voiceAlias?.lowercase()?.contains(q) == true) ||
                     (barcodeSearchEnabled && it.barcode?.contains(q) == true)
             }
@@ -637,7 +639,7 @@ class OrderEditorViewModel(
                     cart = state.cart.map { if (it.product.id == product.id) it.copy(product = updated) else it },
                 )
             }
-            showScanMessage(UiText.res(Res.string.variant_saved, product.name))
+            showScanMessage(UiText.res(Res.string.variant_saved, product.appLanguageName))
         }
     }
 
@@ -1173,7 +1175,7 @@ class OrderEditorViewModel(
             openPicker(option.product, optionKey = option.key)
         } else if (!needsPrice(option)) {
             addOption(option)
-            showScanMessage(UiText.res(Res.string.scanner_added, option.product.name))
+            showScanMessage(UiText.res(Res.string.scanner_added, option.product.appLanguageName))
         }
     }
 

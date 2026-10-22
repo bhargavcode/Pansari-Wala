@@ -255,8 +255,8 @@ fun OrderEditorScreen(
 
     state.priceRequest?.let { request ->
         val product = request.option.product
-        val name = request.option.variant?.let { stringResource(Res.string.category_price, product.name, it.label) }
-            ?: product.name
+        val name = request.option.variant?.let { stringResource(Res.string.category_price, product.localizedName, it.label) }
+            ?: product.localizedName
         ProductDetailsSheet(
             title = stringResource(Res.string.pos_price_required_title, name),
             subtitle = stringResource(Res.string.pos_price_required_hint),
@@ -779,7 +779,7 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
     ) {
         NetworkImage(
             url = line.option.imageUrl,
-            contentDescription = line.product.name,
+            contentDescription = line.product.localizedName,
             modifier = Modifier.size(40.dp).clip(MaterialTheme.shapes.small).clickable { viewModel.openProductInfo(line.option) },
         )
         Spacer(Modifier.width(8.dp))

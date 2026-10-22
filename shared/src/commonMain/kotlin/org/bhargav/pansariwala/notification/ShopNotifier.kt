@@ -12,6 +12,8 @@ import org.jetbrains.compose.resources.getString
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.notif_low_stock_body
 import pansariwala.shared.generated.resources.notif_low_stock_title
+import pansariwala.shared.generated.resources.notif_order_cancelled_title
+import pansariwala.shared.generated.resources.notif_order_cancelled_body
 
 class ShopNotifier(
     private val gateway: NotificationGateway,
@@ -45,8 +47,8 @@ class ShopNotifier(
         gateway.show(
             ShopNotification(
                 id = generateId("notif"),
-                title = "Order cancelled",
-                body = "Order ${order.id.takeLast(6)} was cancelled",
+                title = getString(Res.string.notif_order_cancelled_title),
+                body = getString(Res.string.notif_order_cancelled_body, order.id.takeLast(6)),
                 orderId = order.id,
             ),
         )

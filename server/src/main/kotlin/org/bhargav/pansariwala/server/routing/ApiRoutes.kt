@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import org.bhargav.pansariwala.server.dto.ProductTranslationsRequest
 import org.bhargav.pansariwala.server.dto.PaymentIntentDto
 import org.bhargav.pansariwala.server.dto.VendorIdRequest
 import kotlinx.io.readByteArray
@@ -883,6 +884,10 @@ fun Route.apiRoutes(
             val ids = call.request.queryParameters["ids"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
             call.respond(store.adminShopMasterLinks(call.parameters["id"]!!, ids))
         }
+        post("/admin/shops/{id}/products/translations") {
+            call.requireRole("ADMIN")
+            call.respond(store.saveShopProductTranslations(call.parameters["id"]!!, call.receive<ProductTranslationsRequest>()))
+        }
         post("/admin/shops/{id}/products/from-master") {
             call.requireRole("ADMIN")
             call.respond(store.adminAddShopProductFromMaster(call.parameters["id"]!!, call.receive<AddFromMasterRequest>()))
@@ -1107,6 +1112,10 @@ fun Route.apiRoutes(
             call.requireRole("ADMIN")
             store.deleteMasterCategory(call.parameters["id"]!!)
             call.respond(OkResponse())
+        }
+        post("/admin/master/products/translations") {
+            call.requireRole("ADMIN")
+            call.respond(store.saveMasterProductTranslations(call.receive<ProductTranslationsRequest>()))
         }
         post("/admin/master/products") {
             call.requireRole("ADMIN")

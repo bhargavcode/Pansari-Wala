@@ -339,7 +339,7 @@ private fun TopValueBars(products: List<Product>, onOpenProduct: (String) -> Uni
             ) {
                 Row(Modifier.fillMaxWidth()) {
                     Text(
-                        product.name,
+                        product.localizedName,
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -367,7 +367,7 @@ private fun LowStockGaugeRow(product: Product, onOpenProduct: (String) -> Unit) 
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onOpenProduct(product.id) }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(product.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(product.localizedName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
                     product.category.localizedName(),
                     style = MaterialTheme.typography.labelSmall,

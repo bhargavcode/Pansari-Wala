@@ -21,6 +21,10 @@ import platform.darwin.dispatch_after
 import platform.darwin.dispatch_get_main_queue
 import platform.darwin.dispatch_time
 import platform.darwin.DISPATCH_TIME_NOW
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_mic_permission
+import pansariwala.shared.generated.resources.error_speech_failed
+import pansariwala.shared.generated.resources.error_speech_unavailable
 
 private const val NSEC_PER_MSEC: Long = 1_000_000L
 private const val MAX_RESTART_BACKOFF_MS: Long = 3_000L
@@ -69,7 +73,7 @@ private class IosSpeechToText : SpeechToText {
             } else {
                 _events.tryEmit(
                     SpeechEvent.Error(
-                        message = "Speech / microphone permission is required for voice orders.",
+                        message = Res.string.error_mic_permission,
                         needsPermission = true,
                     ),
                 )
@@ -80,7 +84,7 @@ private class IosSpeechToText : SpeechToText {
     private fun startEngine() {
         if (!continuous || intentionalStop) return
         if (!isAvailable()) {
-            _events.tryEmit(SpeechEvent.Error("Speech recognition is not available on this device."))
+            _events.tryEmit(SpeechEvent.Error(Res.string.error_speech_unavailable))
             return
         }
 
@@ -217,7 +221,7 @@ private class IosSpeechToText : SpeechToText {
 
         continuous = false
         sessionActive = false
-        _events.tryEmit(SpeechEvent.Error("Speech recognition failed. Tap the mic and try again."))
+        _events.tryEmit(SpeechEvent.Error(Res.string.error_speech_failed))
         teardownEngine()
         _events.tryEmit(SpeechEvent.Ended)
     }

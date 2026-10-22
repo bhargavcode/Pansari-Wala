@@ -28,6 +28,8 @@ import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.db.AdminUserDoc
 import org.bhargav.pansariwala.server.db.CategoryDoc
 import org.bhargav.pansariwala.server.db.CategoryPriorityDoc
+import org.bhargav.pansariwala.server.dto.ProductTranslationsRequest
+import org.bhargav.pansariwala.server.dto.ProductTranslationsResult
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderDto
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderItemDto
 import org.bhargav.pansariwala.server.dto.OtpConfigResponse
@@ -191,6 +193,9 @@ private const val DELETED_CUSTOMER_NAME = "Deleted user"
 private val ACCOUNT_PURGE_DONE_STATUSES = listOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED", "DRAFT", "RETURNED_TO_SHOP")
 private val SPEND_EXCLUDED_STATUSES = listOf("CANCELLED", "REJECTED", "DRAFT", "PAYMENT_PENDING")
 private const val MAX_MASTER_PAGE_SIZE = 100
+private const val HINDI = "hi"
+/** Product name languages besides English; mirrors the app's `AppLanguage` codes. */
+private val PRODUCT_LANGUAGES = setOf(HINDI, "kn", "pa", "mr", "bn")
 private const val TOP_OFFERS_ON_CARD = 3
 /** Shops are in India; delivery cutoffs are wall-clock times there regardless of server zone. */
 private val SHOP_ZONE: java.time.ZoneId = java.time.ZoneId.of("Asia/Kolkata")
@@ -947,6 +952,7 @@ class AppStore(
             parts += or(
                 regex("name", pattern, "i"),
                 regex("nameHi", pattern, "i"),
+                *translationRegexes(pattern),
                 regex("voiceAlias", pattern, "i"),
                 regex("brandName", pattern, "i"),
                 eq("barcode", q),
@@ -1078,6 +1084,7 @@ class AppStore(
                 eq("masterProductId", q),
                 regex("name", pattern, "i"),
                 regex("nameHi", pattern, "i"),
+                *translationRegexes(pattern),
                 regex("brandName", pattern, "i"),
                 regex("voiceAlias", pattern, "i"),
             )
@@ -1127,6 +1134,7 @@ class AppStore(
             shopId = shopId,
             name = master.name,
             nameHi = master.nameHi,
+            translations = master.translations,
             category = body.category?.takeIf { it.isNotBlank() } ?: DEFAULT_SHOP_CATEGORY,
             unit = master.unit,
             barcode = master.barcode?.takeIf { it.isNotBlank() },
@@ -1184,6 +1192,7 @@ class AppStore(
         val next = existing.copy(
             name = body.name.trim(),
             nameHi = body.nameHi.trim(),
+            translations = body.translations?.let { cleanTranslations(it, body.nameHi) } ?: existing.translations,
             category = body.category.ifBlank { existing.category },
             brandName = body.brandName.trim(),
             barcode = body.barcode?.trim()?.takeIf { it.isNotEmpty() },
@@ -3129,7 +3138,7 @@ class AppStore(
     fun pushSync(shopId: String, request: SyncPushRequest): SyncPushResponse {
         request.products.filter { it.shopId == shopId }.forEach { product ->
             val previous = productCol.find(eq("_id", product.id)).firstOrNull()
-            val doc = product.toDoc()
+            val doc = product.toDoc().keepTranslations(previous)
             val stored = productCol.replaceOne(eq("_id", product.id), doc, ReplaceOptions().upsert(true))
             if (stored.wasAcknowledged()) recordPriceChange(previous, doc)
         }
@@ -3157,7 +3166,7 @@ class AppStore(
             if (envelope.revision <= 0L || product.id.isBlank() || product.shopId != shopId) continue
             val existing = productCol.find(eq("_id", product.id)).firstOrNull()
             if (existing != null && existing.shopId != shopId) continue
-            val doc = product.toDoc()
+            val doc = product.toDoc().keepTranslations(existing)
             val stored = productCol.replaceOne(eq("_id", product.id), doc, ReplaceOptions().upsert(true))
             if (stored.wasAcknowledged()) {
                 recordPriceChange(existing, doc)
@@ -3242,6 +3251,7 @@ class AppStore(
             parts += or(
                 regex("name", pattern, "i"),
                 regex("nameHi", pattern, "i"),
+                *translationRegexes(pattern),
                 regex("brandName", pattern, "i"),
                 eq("barcode", q),
                 eq("variants.barcode", q),
@@ -3304,6 +3314,9 @@ class AppStore(
             weightKg = body.weightKg,
             dimensions = body.dimensions.trim(),
             variants = body.variants.toVariantDocs(),
+            translations = body.translations?.let { cleanTranslations(it, body.nameHi) }
+                ?: existing?.translations?.let { cleanTranslations(it, body.nameHi) }
+                ?: cleanTranslations(emptyMap(), body.nameHi),
         )
         masterProductCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
         return doc.toDto()
@@ -3312,6 +3325,61 @@ class AppStore(
     fun deleteMasterProduct(id: String) {
         masterProductCol.deleteOne(eq("_id", id))
     }
+
+    /**
+     * Saves one language column of master product names. Shop products added from a master item
+     * that still use the master's English name get the same translation.
+     */
+    fun saveMasterProductTranslations(body: ProductTranslationsRequest): ProductTranslationsResult {
+        val lang = translationLanguage(body.language)
+        var updated = 0
+        body.items.forEach { item ->
+            val master = masterProductCol.find(eq("_id", item.id)).firstOrNull() ?: return@forEach
+            val update = translationUpdate(lang, item.name)
+            if (masterProductCol.updateOne(eq("_id", master.id), update).matchedCount > 0L) updated++
+            productCol.updateMany(and(eq("masterProductId", master.id), eq("name", master.name)), update)
+        }
+        return ProductTranslationsResult(updated)
+    }
+
+    /** Saves one language column of a shop's own (POS) product names. */
+    fun saveShopProductTranslations(shopId: String, body: ProductTranslationsRequest): ProductTranslationsResult {
+        val lang = translationLanguage(body.language)
+        val updated = body.items.count { item ->
+            productCol.updateOne(and(eq("_id", item.id), eq("shopId", shopId)), translationUpdate(lang, item.name)).matchedCount > 0L
+        }
+        return ProductTranslationsResult(updated)
+    }
+
+    private fun translationLanguage(code: String): String {
+        val lang = code.trim().lowercase()
+        require(lang in PRODUCT_LANGUAGES) { "Unsupported language: $code" }
+        return lang
+    }
+
+    /** Hindi is mirrored into the legacy `nameHi` field that older apps read. */
+    private fun translationUpdate(lang: String, name: String): Bson {
+        val value = name.trim()
+        val field = "translations.$lang"
+        val updates = mutableListOf(if (value.isEmpty()) unset(field) else set(field, value))
+        if (lang == HINDI) updates += set("nameHi", value)
+        return combine(updates)
+    }
+
+    private fun cleanTranslations(raw: Map<String, String>, nameHi: String): Map<String, String> {
+        val cleaned = raw.mapKeys { it.key.trim().lowercase() }
+            .filter { (lang, name) -> lang in PRODUCT_LANGUAGES && name.isNotBlank() }
+            .mapValues { it.value.trim() }
+        val hi = nameHi.trim()
+        return if (hi.isNotEmpty()) cleaned + (HINDI to hi) else cleaned
+    }
+
+    /** Device pushes carry stale or no translations; translations are edited on the server only. */
+    private fun ProductDoc.keepTranslations(previous: ProductDoc?): ProductDoc =
+        if (previous == null) this else copy(translations = previous.translations)
+
+    private fun translationRegexes(pattern: String): Array<Bson> =
+        PRODUCT_LANGUAGES.map { regex("translations.$it", pattern, "i") }.toTypedArray()
 
     private class ImportTally(val dryRun: Boolean) {
         var productsCreated = 0
@@ -4270,6 +4338,7 @@ class AppStore(
         weightKg = weightKg,
         dimensions = dimensions,
         variants = variants.map { it.toDto() },
+        translations = translations,
     )
 
     private fun ShopDoc.toAdminDto(loginUsername: String = "") = AdminShopDto(
@@ -4491,6 +4560,7 @@ class AppStore(
         active = active,
         categoryId = categoryId,
         subCategoryId = subCategoryId,
+        translations = translations,
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
@@ -4502,6 +4572,7 @@ class AppStore(
         active = active,
         categoryId = categoryId?.takeIf { it.isNotBlank() },
         subCategoryId = subCategoryId?.takeIf { it.isNotBlank() },
+        translations = cleanTranslations(translations, nameHi),
     )
 
     private fun ProductVariantDoc.toDto() = ProductVariantDto(

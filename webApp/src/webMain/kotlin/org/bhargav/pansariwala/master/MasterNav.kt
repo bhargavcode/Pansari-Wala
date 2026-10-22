@@ -13,6 +13,8 @@ sealed class MasterDest {
     data class ShopEdit(val id: String) : MasterDest()
     data class ShopProducts(val id: String, val name: String? = null) : MasterDest()
     data object Products : MasterDest()
+    /** [shopId] null = master catalog names, else that shop's POS products. */
+    data class ProductTranslations(val shopId: String? = null, val shopName: String? = null) : MasterDest()
     data class ProductEdit(val id: String?) : MasterDest()
     data object Transactions : MasterDest()
     data class TxnDetail(val id: String) : MasterDest()

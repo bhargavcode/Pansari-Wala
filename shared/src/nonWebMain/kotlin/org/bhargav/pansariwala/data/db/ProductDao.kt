@@ -14,7 +14,8 @@ private const val PRODUCT_FILTER =
         " AND (:lowOnly = 0 OR stockQty <= lowStockThreshold)" +
         " AND (:query = '' OR id = :query OR barcode = :query OR masterProductId = :query" +
         " OR name LIKE :pattern ESCAPE '\\' OR nameHi LIKE :pattern ESCAPE '\\'" +
-        " OR brandName LIKE :pattern ESCAPE '\\' OR voiceAlias LIKE :pattern ESCAPE '\\')"
+        " OR brandName LIKE :pattern ESCAPE '\\' OR voiceAlias LIKE :pattern ESCAPE '\\'" +
+        " OR translationsJson LIKE :pattern ESCAPE '\\')"
 
 private const val QUEUE_SYNC = "pendingSync = 1, syncRevision = syncRevision + 1"
 

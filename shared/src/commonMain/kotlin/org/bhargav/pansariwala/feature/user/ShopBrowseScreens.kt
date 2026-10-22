@@ -100,6 +100,7 @@ import org.bhargav.pansariwala.feature.reports.PriceTrendChart
 import pansariwala.shared.generated.resources.product_weight_kg
 import pansariwala.shared.generated.resources.user_cart_items
 import pansariwala.shared.generated.resources.variant_in_cart
+import org.bhargav.pansariwala.i18n.localizedName
 
 private const val PRODUCT_COUNT_ROUNDING = 100
 
@@ -453,7 +454,7 @@ private fun ProductDetailContent(
             height = 260.dp,
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(product.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(product.localizedName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             if (product.nameHi.isNotBlank()) {
                 Text(product.nameHi, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

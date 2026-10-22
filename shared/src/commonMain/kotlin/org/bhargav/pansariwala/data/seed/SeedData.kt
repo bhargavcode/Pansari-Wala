@@ -52,6 +52,7 @@ object SeedData {
             stock: Double,
             threshold: Double,
             alias: String,
+            translations: Map<String, String>,
         ): Product {
             counter += 1
             return Product(
@@ -67,42 +68,45 @@ object SeedData {
                 stockQty = stock,
                 lowStockThreshold = threshold,
                 voiceAlias = alias,
+                translations = mapOf("hi" to nameHi) + translations,
             )
         }
 
+        fun t(kn: String, pa: String, mr: String, bn: String) = mapOf("kn" to kn, "pa" to pa, "mr" to mr, "bn" to bn)
+
         return listOf(
             // Fortune / Branded
-            p("Fortune Sunflower Oil 1L", "फॉर्च्यून सूरजमुखी तेल 1L", ProductCategory.FORTUNE_BRANDED, ProductUnit.LITRE, "8901234500011", 160.0, 140.0, 48.0, 12.0, "sunflower oil"),
-            p("Fortune Mustard Oil 1L", "फॉर्च्यून सरसों तेल 1L", ProductCategory.FORTUNE_BRANDED, ProductUnit.LITRE, "8901234500028", 175.0, 150.0, 9.0, 10.0, "sarson tel"),
-            p("Fortune Chakki Atta 5kg", "फॉर्च्यून चक्की आटा 5kg", ProductCategory.FORTUNE_BRANDED, ProductUnit.PACKET, "8901234500035", 245.0, 220.0, 30.0, 8.0, "atta"),
-            p("Fortune Basmati Rice 5kg", "फॉर्च्यून बासमती चावल 5kg", ProductCategory.FORTUNE_BRANDED, ProductUnit.PACKET, "8901234500042", 520.0, 470.0, 6.0, 8.0, "basmati chawal"),
-            p("Fortune Soyabean Oil 1L", "फॉर्च्यून सोयाबीन तेल 1L", ProductCategory.FORTUNE_BRANDED, ProductUnit.LITRE, "8901234500059", 150.0, 132.0, 20.0, 10.0, "soya oil"),
+            p("Fortune Sunflower Oil 1L", "फॉर्च्यून सूरजमुखी तेल 1L", ProductCategory.FORTUNE_BRANDED, ProductUnit.LITRE, "8901234500011", 160.0, 140.0, 48.0, 12.0, "sunflower oil", t("ಫಾರ್ಚೂನ್ ಸೂರ್ಯಕಾಂತಿ ಎಣ್ಣೆ 1L", "ਫਾਰਚੂਨ ਸੂਰਜਮੁਖੀ ਤੇਲ 1L", "फॉर्च्यून सूर्यफूल तेल 1L", "ফরচুন সূর্যমুখী তেল 1L")),
+            p("Fortune Mustard Oil 1L", "फॉर्च्यून सरसों तेल 1L", ProductCategory.FORTUNE_BRANDED, ProductUnit.LITRE, "8901234500028", 175.0, 150.0, 9.0, 10.0, "sarson tel", t("ಫಾರ್ಚೂನ್ ಸಾಸಿವೆ ಎಣ್ಣೆ 1L", "ਫਾਰਚੂਨ ਸਰ੍ਹੋਂ ਦਾ ਤੇਲ 1L", "फॉर्च्यून मोहरी तेल 1L", "ফরচুন সরিষার তেল 1L")),
+            p("Fortune Chakki Atta 5kg", "फॉर्च्यून चक्की आटा 5kg", ProductCategory.FORTUNE_BRANDED, ProductUnit.PACKET, "8901234500035", 245.0, 220.0, 30.0, 8.0, "atta", t("ಫಾರ್ಚೂನ್ ಚಕ್ಕಿ ಗೋಧಿ ಹಿಟ್ಟು 5kg", "ਫਾਰਚੂਨ ਚੱਕੀ ਆਟਾ 5kg", "फॉर्च्यून चक्की आटा 5kg", "ফরচুন চাক্কি আটা 5kg")),
+            p("Fortune Basmati Rice 5kg", "फॉर्च्यून बासमती चावल 5kg", ProductCategory.FORTUNE_BRANDED, ProductUnit.PACKET, "8901234500042", 520.0, 470.0, 6.0, 8.0, "basmati chawal", t("ಫಾರ್ಚೂನ್ ಬಾಸ್ಮತಿ ಅಕ್ಕಿ 5kg", "ਫਾਰਚੂਨ ਬਾਸਮਤੀ ਚੌਲ 5kg", "फॉर्च्यून बासमती तांदूळ 5kg", "ফরচুন বাসমতী চাল 5kg")),
+            p("Fortune Soyabean Oil 1L", "फॉर्च्यून सोयाबीन तेल 1L", ProductCategory.FORTUNE_BRANDED, ProductUnit.LITRE, "8901234500059", 150.0, 132.0, 20.0, 10.0, "soya oil", t("ಫಾರ್ಚೂನ್ ಸೋಯಾಬೀನ್ ಎಣ್ಣೆ 1L", "ਫਾਰਚੂਨ ਸੋਇਆਬੀਨ ਤੇਲ 1L", "फॉर्च्यून सोयाबीन तेल 1L", "ফরচুন সয়াবিন তেল 1L")),
 
             // General grocery
-            p("Sugar", "चीनी", ProductCategory.GENERAL_GROCERY, ProductUnit.KG, "8901234510015", 45.0, 40.0, 120.0, 25.0, "cheeni,chini,sugar,चीनी"),
-            p("Iodised Salt 1kg", "नमक 1kg", ProductCategory.GENERAL_GROCERY, ProductUnit.PACKET, "8901234510022", 28.0, 22.0, 80.0, 20.0, "namak"),
-            p("Toor Dal", "तूर दाल", ProductCategory.GENERAL_GROCERY, ProductUnit.KG, "8901234510039", 140.0, 122.0, 7.0, 10.0, "toor dal,tuar dal,tuar daal,toor daal,तूर दाल"),
-            p("Tea 250g", "चाय 250g", ProductCategory.GENERAL_GROCERY, ProductUnit.PACKET, "8901234510046", 130.0, 110.0, 40.0, 12.0, "chai"),
-            p("Poha 500g", "पोहा 500g", ProductCategory.GENERAL_GROCERY, ProductUnit.PACKET, "8901234510053", 35.0, 28.0, 4.0, 10.0, "poha"),
+            p("Sugar", "चीनी", ProductCategory.GENERAL_GROCERY, ProductUnit.KG, "8901234510015", 45.0, 40.0, 120.0, 25.0, "cheeni,chini,sugar,चीनी", t("ಸಕ್ಕರೆ", "ਖੰਡ", "साखर", "চিনি")),
+            p("Iodised Salt 1kg", "नमक 1kg", ProductCategory.GENERAL_GROCERY, ProductUnit.PACKET, "8901234510022", 28.0, 22.0, 80.0, 20.0, "namak", t("ಅಯೋಡಿನ್ ಉಪ್ಪು 1kg", "ਆਇਓਡੀਨ ਵਾਲਾ ਲੂਣ 1kg", "आयोडीनयुक्त मीठ 1kg", "আয়োডিনযুক্ত লবণ 1kg")),
+            p("Toor Dal", "तूर दाल", ProductCategory.GENERAL_GROCERY, ProductUnit.KG, "8901234510039", 140.0, 122.0, 7.0, 10.0, "toor dal,tuar dal,tuar daal,toor daal,तूर दाल", t("ತೊಗರಿ ಬೇಳೆ", "ਅਰਹਰ ਦਾਲ", "तूर डाळ", "অড়হর ডাল")),
+            p("Tea 250g", "चाय 250g", ProductCategory.GENERAL_GROCERY, ProductUnit.PACKET, "8901234510046", 130.0, 110.0, 40.0, 12.0, "chai", t("ಚಹಾ ಪುಡಿ 250g", "ਚਾਹ ਪੱਤੀ 250g", "चहा पावडर 250g", "চা পাতা 250g")),
+            p("Poha 500g", "पोहा 500g", ProductCategory.GENERAL_GROCERY, ProductUnit.PACKET, "8901234510053", 35.0, 28.0, 4.0, 10.0, "poha", t("ಅವಲಕ್ಕಿ 500g", "ਪੋਹਾ 500g", "पोहे 500g", "চিঁড়ে 500g")),
 
             // Puja samagri
-            p("Agarbatti Pack", "अगरबत्ती", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520014", 40.0, 30.0, 60.0, 15.0, "agarbatti"),
-            p("Camphor 50g", "कपूर 50g", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520021", 90.0, 72.0, 5.0, 8.0, "kapoor"),
-            p("Diya Pack", "दीया पैक", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520038", 60.0, 45.0, 25.0, 10.0, "diya"),
-            p("Roli Chawal", "रोली चावल", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520045", 25.0, 18.0, 3.0, 8.0, "roli chawal"),
+            p("Agarbatti Pack", "अगरबत्ती", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520014", 40.0, 30.0, 60.0, 15.0, "agarbatti", t("ಊದುಬತ್ತಿ ಪ್ಯಾಕ್", "ਅਗਰਬੱਤੀ ਪੈਕ", "अगरबत्ती पॅक", "ধূপকাঠি প্যাক")),
+            p("Camphor 50g", "कपूर 50g", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520021", 90.0, 72.0, 5.0, 8.0, "kapoor", t("ಕರ್ಪೂರ 50g", "ਕਪੂਰ 50g", "कापूर 50g", "কর্পূর 50g")),
+            p("Diya Pack", "दीया पैक", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520038", 60.0, 45.0, 25.0, 10.0, "diya", t("ಹಣತೆ ಪ್ಯಾಕ್", "ਦੀਵਾ ਪੈਕ", "पणती पॅक", "প্রদীপ প্যাক")),
+            p("Roli Chawal", "रोली चावल", ProductCategory.PUJA_SAMAGRI, ProductUnit.PACKET, "8901234520045", 25.0, 18.0, 3.0, 8.0, "roli chawal", t("ಕುಂಕುಮ ಅಕ್ಷತೆ", "ਰੋਲੀ ਚੌਲ", "कुंकू अक्षता", "রোলি চাল")),
 
             // Standard spices
-            p("Turmeric Powder 100g", "हल्दी पाउडर 100g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530013", 35.0, 27.0, 55.0, 15.0, "haldi"),
-            p("Red Chilli Powder 100g", "लाल मिर्च 100g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530020", 45.0, 35.0, 6.0, 12.0, "mirchi"),
-            p("Coriander Powder 100g", "धनिया पाउडर 100g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530037", 30.0, 23.0, 42.0, 12.0, "dhaniya,dhaniya powder,धनिया,धनिया पाउडर"),
-            p("Garam Masala 50g", "गरम मसाला 50g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530044", 55.0, 42.0, 2.0, 8.0, "garam masala,masala,मसाला"),
+            p("Turmeric Powder 100g", "हल्दी पाउडर 100g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530013", 35.0, 27.0, 55.0, 15.0, "haldi", t("ಅರಿಶಿನ ಪುಡಿ 100g", "ਹਲਦੀ ਪਾਊਡਰ 100g", "हळद पावडर 100g", "হলুদ গুঁড়ো 100g")),
+            p("Red Chilli Powder 100g", "लाल मिर्च 100g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530020", 45.0, 35.0, 6.0, 12.0, "mirchi", t("ಖಾರದ ಪುಡಿ 100g", "ਲਾਲ ਮਿਰਚ ਪਾਊਡਰ 100g", "लाल तिखट 100g", "লাল লঙ্কা গুঁড়ো 100g")),
+            p("Coriander Powder 100g", "धनिया पाउडर 100g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530037", 30.0, 23.0, 42.0, 12.0, "dhaniya,dhaniya powder,धनिया,धनिया पाउडर", t("ಕೊತ್ತಂಬರಿ ಪುಡಿ 100g", "ਧਨੀਆ ਪਾਊਡਰ 100g", "धणे पावडर 100g", "ধনে গুঁড়ো 100g")),
+            p("Garam Masala 50g", "गरम मसाला 50g", ProductCategory.STANDARD_SPICES, ProductUnit.PACKET, "8901234530044", 55.0, 42.0, 2.0, 8.0, "garam masala,masala,मसाला", t("ಗರಂ ಮಸಾಲಾ 50g", "ਗਰਮ ਮਸਾਲਾ 50g", "गरम मसाला 50g", "গরম মশলা 50g")),
 
             // High-value spices
-            p("Saffron (Kesar) 1g", "केसर 1g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.GRAM, "8901234540012", 320.0, 260.0, 8.0, 5.0, "kesar"),
-            p("Green Cardamom 50g", "हरी इलायची 50g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.PACKET, "8901234540029", 180.0, 150.0, 3.0, 6.0, "elaichi"),
-            p("Black Pepper 100g", "काली मिर्च 100g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.PACKET, "8901234540036", 120.0, 95.0, 18.0, 8.0, "kali mirch"),
-            p("Cloves 50g", "लौंग 50g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.PACKET, "8901234540043", 95.0, 78.0, 4.0, 6.0, "laung"),
-            p("Curd (Dahi)", "दही", ProductCategory.GENERAL_GROCERY, ProductUnit.KG, "8901234510060", 80.0, 62.0, 20.0, 5.0, "dahi,curd,दही"),
+            p("Saffron (Kesar) 1g", "केसर 1g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.GRAM, "8901234540012", 320.0, 260.0, 8.0, 5.0, "kesar", t("ಕೇಸರಿ 1g", "ਕੇਸਰ 1g", "केशर 1g", "জাফরান (কেশর) 1g")),
+            p("Green Cardamom 50g", "हरी इलायची 50g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.PACKET, "8901234540029", 180.0, 150.0, 3.0, 6.0, "elaichi", t("ಹಸಿರು ಏಲಕ್ಕಿ 50g", "ਹਰੀ ਇਲਾਇਚੀ 50g", "हिरवी वेलची 50g", "সবুজ এলাচ 50g")),
+            p("Black Pepper 100g", "काली मिर्च 100g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.PACKET, "8901234540036", 120.0, 95.0, 18.0, 8.0, "kali mirch", t("ಕರಿಮೆಣಸು 100g", "ਕਾਲੀ ਮਿਰਚ 100g", "काळी मिरी 100g", "গোলমরিচ 100g")),
+            p("Cloves 50g", "लौंग 50g", ProductCategory.HIGH_VALUE_SPICES, ProductUnit.PACKET, "8901234540043", 95.0, 78.0, 4.0, 6.0, "laung", t("ಲವಂಗ 50g", "ਲੌਂਗ 50g", "लवंग 50g", "লবঙ্গ 50g")),
+            p("Curd (Dahi)", "दही", ProductCategory.GENERAL_GROCERY, ProductUnit.KG, "8901234510060", 80.0, 62.0, 20.0, 5.0, "dahi,curd,दही", t("ಮೊಸರು", "ਦਹੀਂ", "दही", "দই")),
         )
     }
 

@@ -541,6 +541,8 @@ data class ProductDto(
     val subCategoryId: String? = null,
     /** Best live PRODUCT offer for this item (read-only; ignored on writes). */
     val offer: ProductOfferDto? = null,
+    /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
+    val translations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -581,7 +583,22 @@ data class ShopProductEdit(
     val sellingPrice: Double,
     val costPrice: Double,
     val lowStockThreshold: Double,
+    /** Null keeps the stored translations. */
+    val translations: Map<String, String>? = null,
 )
+
+/** One translated-name column: [items] product id → name in [language]; a blank name clears it. */
+@Serializable
+data class ProductTranslationsRequest(
+    val language: String,
+    val items: List<ProductTranslationItem>,
+)
+
+@Serializable
+data class ProductTranslationItem(val id: String, val name: String)
+
+@Serializable
+data class ProductTranslationsResult(val updated: Int)
 
 @Serializable
 data class ShopStockSummaryDto(
@@ -1059,6 +1076,8 @@ data class MasterProductDto(
     val weightKg: Double = 0.0,
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
+    /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
+    val translations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -1086,6 +1105,8 @@ data class MasterProductUpsert(
     val weightKg: Double = 0.0,
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
+    /** Null keeps the stored translations. */
+    val translations: Map<String, String>? = null,
 )
 
 @Serializable

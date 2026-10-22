@@ -399,6 +399,7 @@ private fun MasterSidebar(
                     is MasterDest.ShopDetail, is MasterDest.ShopEdit, is MasterDest.ShopProducts, MasterDest.ShopCreate ->
                         target == MasterDest.Shops
                     is MasterDest.ProductEdit -> target == MasterDest.Products
+                    is MasterDest.ProductTranslations -> target == if (current.shopId == null) MasterDest.Products else MasterDest.Shops
                     is MasterDest.TxnDetail -> target == MasterDest.Transactions
                     is MasterDest.UserDetail -> target == MasterDest.Users
                     is MasterDest.PartnerDetail -> target == MasterDest.Partners
@@ -444,7 +445,10 @@ private fun MasterRouter(
         MasterDest.ShopCreate -> ShopCreateScreen(token, onNavigate, onStatus)
         is MasterDest.ShopDetail -> ShopDetailScreen(token, dest.id, onNavigate, onStatus)
         is MasterDest.ShopEdit -> ShopEditScreen(token, dest.id, onNavigate, onStatus)
-        is MasterDest.ShopProducts -> ShopProductsScreen(token, dest.id, dest.name, onStatus)
+        is MasterDest.ShopProducts -> ShopProductsScreen(
+            token, dest.id, dest.name, onTranslate = { onNavigate(MasterDest.ProductTranslations(dest.id, dest.name)) }, onStatus,
+        )
+        is MasterDest.ProductTranslations -> ProductTranslationsScreen(token, dest.shopId, dest.shopName, onStatus)
         MasterDest.Products -> ProductsListScreen(token, onNavigate, onStatus)
         is MasterDest.ProductEdit -> ProductEditScreen(token, dest.id, onNavigate, onStatus)
         MasterDest.Transactions -> TransactionsScreen(token, onNavigate, onStatus)

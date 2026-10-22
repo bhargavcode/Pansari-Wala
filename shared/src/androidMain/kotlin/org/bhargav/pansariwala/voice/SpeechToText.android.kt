@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import org.koin.core.component.KoinComponent
 import org.bhargav.pansariwala.util.AppConstants
 import org.koin.core.component.inject
+import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.error_mic_permission
+import pansariwala.shared.generated.resources.error_speech_failed
+import pansariwala.shared.generated.resources.error_speech_unavailable
 
 /** RecognizerIntent.EXTRA_ADDITIONAL_LANGUAGES (API 34); older recognisers ignore it. */
 private const val EXTRA_ADDITIONAL_LANGUAGES = "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES"
@@ -50,7 +54,7 @@ private class AndroidSpeechToText(
     override fun startListening() {
         mainHandler.post {
             if (!isAvailable()) {
-                _events.tryEmit(SpeechEvent.Error("Speech recognition is not available on this device."))
+                _events.tryEmit(SpeechEvent.Error(Res.string.error_speech_unavailable))
                 return@post
             }
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
@@ -58,7 +62,7 @@ private class AndroidSpeechToText(
             ) {
                 _events.tryEmit(
                     SpeechEvent.Error(
-                        message = "Microphone permission is required for voice orders.",
+                        message = Res.string.error_mic_permission,
                         needsPermission = true,
                     ),
                 )
@@ -194,7 +198,7 @@ private class AndroidSpeechToText(
                             sessionActive = false
                             _events.tryEmit(
                                 SpeechEvent.Error(
-                                    message = "Microphone permission is required for voice orders.",
+                                    message = Res.string.error_mic_permission,
                                     needsPermission = true,
                                 ),
                             )
@@ -309,7 +313,7 @@ private class AndroidSpeechToText(
                 scheduleRestart(500)
             } else {
                 sessionActive = false
-                _events.tryEmit(SpeechEvent.Error("Failed to start listening. Tap the mic and try again."))
+                _events.tryEmit(SpeechEvent.Error(Res.string.error_speech_failed))
                 _events.tryEmit(SpeechEvent.Ended)
             }
         }

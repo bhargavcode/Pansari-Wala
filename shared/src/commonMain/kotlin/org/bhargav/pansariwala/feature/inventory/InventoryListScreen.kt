@@ -82,6 +82,7 @@ import pansariwala.shared.generated.resources.print_action_labels_all
 import pansariwala.shared.generated.resources.print_action_low_stock
 import pansariwala.shared.generated.resources.sheet_import_action
 import pansariwala.shared.generated.resources.cat_order_title
+import org.bhargav.pansariwala.i18n.localizedName
 
 @Composable
 fun InventoryListScreen(
@@ -295,7 +296,7 @@ private fun ShopProductRow(product: Product, categoryName: String, onClick: () -
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = product.name,
+                    text = product.localizedName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,

@@ -72,6 +72,7 @@ import pansariwala.shared.generated.resources.stock_req_supplier_name
 import pansariwala.shared.generated.resources.stock_req_supplier_phone
 import pansariwala.shared.generated.resources.stock_req_suppliers
 import pansariwala.shared.generated.resources.stock_req_title
+import org.bhargav.pansariwala.i18n.localizedName
 
 /** Pick or add a dealer and send them a restock request for [product] over WhatsApp or SMS. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,7 +109,7 @@ fun StockRequestSheet(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            Text(product.name, style = MaterialTheme.typography.titleMedium)
+            Text(product.localizedName, style = MaterialTheme.typography.titleMedium)
             Text(
                 stringResource(Res.string.stock_req_current, product.stockQty.asQuantity(), unit),
                 style = MaterialTheme.typography.bodyMedium,
@@ -268,7 +269,7 @@ private fun stockRequestMessage(state: StockRequestUiState, product: Product, un
     val lines = buildList {
         add(stringResource(Res.string.stock_req_msg_greeting, state.selected?.name.orEmpty()).trim())
         add(stringResource(Res.string.stock_req_msg_intro))
-        add(stringResource(Res.string.stock_req_msg_product, product.name))
+        add(stringResource(Res.string.stock_req_msg_product, product.localizedName))
         if (product.brandName.isNotBlank()) add(stringResource(Res.string.stock_req_msg_brand, product.brandName))
         product.barcode?.takeIf { it.isNotBlank() }?.let { add(stringResource(Res.string.stock_req_msg_barcode, it)) }
         state.qty?.let { add(stringResource(Res.string.stock_req_msg_qty, it.asQuantity(), unit)) }

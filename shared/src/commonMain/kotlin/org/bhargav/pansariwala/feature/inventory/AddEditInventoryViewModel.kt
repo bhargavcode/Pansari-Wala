@@ -38,6 +38,7 @@ import pansariwala.shared.generated.resources.error_product_name_required
 import pansariwala.shared.generated.resources.error_product_not_found
 import pansariwala.shared.generated.resources.msg_loaded_product
 import pansariwala.shared.generated.resources.msg_saved_product
+import org.bhargav.pansariwala.i18n.appLanguageName
 
 data class AddEditInventoryUiState(
     val loading: Boolean = false,
@@ -180,7 +181,7 @@ class AddEditInventoryViewModel(
                 fillFrom(product)
                 _uiState.update {
                     it.copy(
-                        message = UiText.res(Res.string.msg_loaded_product, product.name),
+                        message = UiText.res(Res.string.msg_loaded_product, product.appLanguageName),
                         error = null,
                     )
                 }
@@ -239,7 +240,7 @@ class AddEditInventoryViewModel(
             _uiState.update {
                 it.copy(
                     saved = true,
-                    message = UiText.res(Res.string.msg_saved_product, product.name),
+                    message = UiText.res(Res.string.msg_saved_product, product.appLanguageName),
                     error = null,
                 )
             }

@@ -35,6 +35,7 @@ import org.bhargav.pansariwala.util.generateId
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.inv_master_added_many
 import pansariwala.shared.generated.resources.inv_msg_added
+import org.bhargav.pansariwala.i18n.customAppLocale
 
 data class MasterCatalogUiState(
     val searchText: String = "",
@@ -177,7 +178,7 @@ class MasterCatalogViewModel(
                             pending = null,
                             selected = it.selected - item.id,
                             addedIds = it.addedIds + (item.id to product.id),
-                            message = UiText.res(Res.string.inv_msg_added, item.name),
+                            message = UiText.res(Res.string.inv_msg_added, item.displayName(customAppLocale)),
                         )
                     }
                 }

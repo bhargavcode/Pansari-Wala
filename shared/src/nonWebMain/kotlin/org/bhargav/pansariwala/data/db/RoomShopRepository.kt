@@ -248,6 +248,7 @@ private fun Product.toEntity() = ProductEntity(
     isActive = isActive,
     categoryId = categoryId,
     subCategoryId = subCategoryId,
+    translationsJson = if (translations.isEmpty()) "" else variantJson.encodeToString(translations),
 )
 
 private fun ShopProductFilter.activeArg(): Int = when (status) {
@@ -267,6 +268,10 @@ private fun decodeVariants(raw: String): List<ProductVariant> =
     if (raw.isBlank()) emptyList()
     else runCatching { variantJson.decodeFromString<List<ProductVariantDto>>(raw).map { it.toModel() } }
         .getOrDefault(emptyList())
+
+private fun decodeTranslations(raw: String): Map<String, String> =
+    if (raw.isBlank()) emptyMap()
+    else runCatching { variantJson.decodeFromString<Map<String, String>>(raw) }.getOrDefault(emptyMap())
 
 private fun ProductEntity.toDomain() = Product(
     id = id,
@@ -288,6 +293,7 @@ private fun ProductEntity.toDomain() = Product(
     isActive = isActive,
     categoryId = categoryId,
     subCategoryId = subCategoryId,
+    translations = decodeTranslations(translationsJson),
 )
 
 private fun UserEntity.toUser() = ShopUser(

@@ -496,6 +496,20 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             setBody(ShopProductActiveBody(active))
         }.body()
 
+    suspend fun saveMasterTranslations(token: String, body: ProductTranslationsBody): ProductTranslationsResultDto =
+        client.post(url("/admin/master/products/translations")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun saveShopTranslations(token: String, shopId: String, body: ProductTranslationsBody): ProductTranslationsResultDto =
+        client.post(url("/admin/shops/${shopId.encodeURLPathPart()}/products/translations")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
     suspend fun editShopProduct(token: String, shopId: String, productId: String, body: ShopProductEditBody): ShopProductDto =
         client.post(url("/admin/shops/${shopId.encodeURLPathPart()}/products/${productId.encodeURLPathPart()}")) {
             bearer(token)
@@ -666,6 +680,16 @@ data class ShopProductEditBody(
     val lowStockThreshold: Double,
 )
 
+/** One language column of product names; a blank [ProductTranslationItemBody.name] clears it. */
+@Serializable
+data class ProductTranslationsBody(val language: String, val items: List<ProductTranslationItemBody>)
+
+@Serializable
+data class ProductTranslationItemBody(val id: String, val name: String)
+
+@Serializable
+data class ProductTranslationsResultDto(val updated: Int = 0)
+
 @Serializable
 data class ProductPageDto(
     val items: List<ProductDto> = emptyList(),
@@ -701,6 +725,7 @@ data class ProductDto(
     val weightKg: Double = 0.0,
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
+    val translations: Map<String, String> = emptyMap(),
 )
 
 @Serializable

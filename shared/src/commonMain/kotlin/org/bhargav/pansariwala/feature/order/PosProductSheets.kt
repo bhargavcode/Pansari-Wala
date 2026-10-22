@@ -107,8 +107,10 @@ fun PosProductInfoSheet(
             )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(option.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                if (product.nameHi.isNotBlank() && product.nameHi != product.name) {
-                    Text(product.nameHi, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val secondaryName = product.name.takeIf { it != product.localizedName }
+                    ?: product.nameHi.takeIf { it.isNotBlank() && it != product.name }
+                if (secondaryName != null) {
+                    Text(secondaryName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     option.OfferPrice(priceStyle = MaterialTheme.typography.titleMedium)

@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.voice
 
 import kotlinx.coroutines.flow.SharedFlow
+import org.jetbrains.compose.resources.StringResource
 
 /**
  * Platform speech-to-text bridge. Configured for Hindi (`hi-IN`) where the OS supports it.
@@ -18,7 +19,7 @@ sealed interface SpeechEvent {
     data object Started : SpeechEvent
     data class PartialResult(val text: String) : SpeechEvent
     data class FinalResult(val text: String) : SpeechEvent
-    data class Error(val message: String, val needsPermission: Boolean = false) : SpeechEvent
+    data class Error(val message: StringResource, val needsPermission: Boolean = false) : SpeechEvent
     data object Ended : SpeechEvent
 }
 

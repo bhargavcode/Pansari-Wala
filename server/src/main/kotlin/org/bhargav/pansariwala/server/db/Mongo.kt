@@ -304,6 +304,8 @@ data class MasterProductDoc(
     val weightKg: Double = 0.0,
     val dimensions: String = "",
     val variants: List<ProductVariantDoc> = emptyList(),
+    /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
+    val translations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -334,6 +336,8 @@ data class ProductDoc(
     val active: Boolean = true,
     val categoryId: String? = null,
     val subCategoryId: String? = null,
+    /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
+    val translations: Map<String, String> = emptyMap(),
 )
 
 /** One row per product price change; [price] is the customer-facing starting price at [at]. */
@@ -1038,14 +1042,19 @@ private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
             CategoryDoc("cat_spices_std", "Standard Spices", "cat_spices"),
         ),
     )
-    data class SeedSku(val id: String, val name: String, val nameHi: String, val cat: String, val price: Double, val alias: String)
+    data class SeedSku(
+        val id: String, val name: String, val nameHi: String, val cat: String, val price: Double, val alias: String,
+        val others: List<String>,
+    ) {
+        val translations: Map<String, String> get() = mapOf("hi" to nameHi) + listOf("kn", "pa", "mr", "bn").zip(others)
+    }
     val skus = listOf(
-        SeedSku("mp_chini", "Sugar", "चीनी", "GENERAL_GROCERY", 48.0, "chini"),
-        SeedSku("mp_aata", "Wheat Flour", "आटा", "GENERAL_GROCERY", 42.0, "aata"),
-        SeedSku("mp_daal", "Toor Dal", "तूर दाल", "GENERAL_GROCERY", 140.0, "tuar daal"),
-        SeedSku("mp_oil", "Mustard Oil", "सरसों तेल", "FORTUNE_BRANDED", 160.0, "sarson tel"),
-        SeedSku("mp_haldi", "Turmeric", "हल्दी", "STANDARD_SPICES", 220.0, "haldi"),
-        SeedSku("mp_namak", "Salt", "नमक", "GENERAL_GROCERY", 22.0, "namak"),
+        SeedSku("mp_chini", "Sugar", "चीनी", "GENERAL_GROCERY", 48.0, "chini", listOf("ಸಕ್ಕರೆ", "ਖੰਡ", "साखर", "চিনি")),
+        SeedSku("mp_aata", "Wheat Flour", "आटा", "GENERAL_GROCERY", 42.0, "aata", listOf("ಗೋಧಿ ಹಿಟ್ಟು", "ਕਣਕ ਦਾ ਆਟਾ", "गव्हाचे पीठ", "গমের আটা")),
+        SeedSku("mp_daal", "Toor Dal", "तूर दाल", "GENERAL_GROCERY", 140.0, "tuar daal", listOf("ತೊಗರಿ ಬೇಳೆ", "ਅਰਹਰ ਦਾਲ", "तूर डाळ", "অড়হর ডাল")),
+        SeedSku("mp_oil", "Mustard Oil", "सरसों तेल", "FORTUNE_BRANDED", 160.0, "sarson tel", listOf("ಸಾಸಿವೆ ಎಣ್ಣೆ", "ਸਰ੍ਹੋਂ ਦਾ ਤੇਲ", "मोहरी तेल", "সরিষার তেল")),
+        SeedSku("mp_haldi", "Turmeric", "हल्दी", "STANDARD_SPICES", 220.0, "haldi", listOf("ಅರಿಶಿನ", "ਹਲਦੀ", "हळद", "হলুদ")),
+        SeedSku("mp_namak", "Salt", "नमक", "GENERAL_GROCERY", 22.0, "namak", listOf("ಉಪ್ಪು", "ਲੂਣ", "मीठ", "লবণ")),
     )
     db.getCollection<ShopTypeDoc>("master_shop_types").insertMany(defaultShopTypes())
     val now = System.currentTimeMillis()
@@ -1055,6 +1064,7 @@ private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
                 id = it.id,
                 name = it.name,
                 nameHi = it.nameHi,
+                translations = it.translations,
                 categoryId = "cat_grocery",
                 unit = "KG",
                 salePrice = it.price,
@@ -1072,6 +1082,7 @@ private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
                     shopId = sid,
                     name = sku.name,
                     nameHi = sku.nameHi,
+                    translations = sku.translations,
                     category = sku.cat,
                     unit = "KG",
                     sellingPrice = sku.price,

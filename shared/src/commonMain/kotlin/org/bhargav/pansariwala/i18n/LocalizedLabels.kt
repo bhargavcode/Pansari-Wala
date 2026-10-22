@@ -1,6 +1,8 @@
 package org.bhargav.pansariwala.i18n
 
 import androidx.compose.runtime.Composable
+import org.bhargav.pansariwala.api.MasterProductDto
+import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.jetbrains.compose.resources.StringResource
@@ -18,6 +20,17 @@ import pansariwala.shared.generated.resources.unit_ltr
 import pansariwala.shared.generated.resources.unit_packet
 import pansariwala.shared.generated.resources.unit_pcs
 import pansariwala.shared.generated.resources.walk_in
+
+/** Product name in the current app language (falls back to English). */
+val Product.localizedName: String
+    @Composable get() = displayName(LocalAppLocale.current)
+
+val MasterProductDto.localizedName: String
+    @Composable get() = displayName(LocalAppLocale.current)
+
+/** Outside composition (ViewModels): the language chosen in settings, English while following the system. */
+val Product.appLanguageName: String
+    get() = displayName(customAppLocale)
 
 val ProductCategory.labelRes: StringResource
     get() = when (this) {
