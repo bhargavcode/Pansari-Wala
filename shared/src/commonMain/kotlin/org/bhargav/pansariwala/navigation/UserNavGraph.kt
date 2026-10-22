@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -63,7 +63,10 @@ import org.bhargav.pansariwala.feature.user.PaymentStatusScreen
 import org.bhargav.pansariwala.feature.user.TransactionsScreen
 import org.bhargav.pansariwala.feature.user.UserLanguageScreen
 import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
-import org.bhargav.pansariwala.feature.user.UserSettingsHub
+import org.bhargav.pansariwala.feature.user.MoreScreen
+import org.bhargav.pansariwala.feature.user.SpendDetailsScreen
+import org.bhargav.pansariwala.feature.user.SpendDrillKind
+import org.bhargav.pansariwala.feature.user.SpendReportScreen
 import org.bhargav.pansariwala.feature.user.UserThemeScreen
 import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.notification.NotificationOpenRequests
@@ -76,7 +79,7 @@ import pansariwala.shared.generated.resources.action_show
 import pansariwala.shared.generated.resources.error_session_expired_login
 import pansariwala.shared.generated.resources.tab_home
 import pansariwala.shared.generated.resources.tab_orders
-import pansariwala.shared.generated.resources.tab_profile
+import pansariwala.shared.generated.resources.tab_more
 
 private val userNavConfig = SavedStateConfiguration {
     serializersModule = SerializersModule {
@@ -103,6 +106,8 @@ private val userNavConfig = SavedStateConfiguration {
             subclass(UserRoute.NotificationPrefs::class, UserRoute.NotificationPrefs.serializer())
             subclass(UserRoute.LanguagePrefs::class, UserRoute.LanguagePrefs.serializer())
             subclass(UserRoute.ThemePrefs::class, UserRoute.ThemePrefs.serializer())
+            subclass(UserRoute.SpendReport::class, UserRoute.SpendReport.serializer())
+            subclass(UserRoute.SpendDetails::class, UserRoute.SpendDetails.serializer())
         }
     }
 }
@@ -252,6 +257,26 @@ fun UserNavGraph() {
                             onTheme = { push(UserRoute.ThemePrefs) },
                             onLogout = { replaceAll(UserRoute.PhoneAuth) },
                             onChangeLocation = { push(UserRoute.Address) },
+                            onSpendReport = { push(UserRoute.SpendReport) },
+                        )
+                    }
+                    UserRoute.SpendReport -> NavEntry(route) {
+                        SpendReportScreen(
+                            onDrill = { from, to, kind, key, title ->
+                                push(UserRoute.SpendDetails(from, to, kind.name, key, title))
+                            },
+                            onBack = { pop() },
+                        )
+                    }
+                    is UserRoute.SpendDetails -> NavEntry(route) {
+                        SpendDetailsScreen(
+                            fromMs = route.fromMs,
+                            toMs = route.toMs,
+                            kind = SpendDrillKind.valueOf(route.kind),
+                            key = route.key,
+                            title = route.title,
+                            onOpenOrder = { push(UserRoute.OrderDetails(it)) },
+                            onBack = { pop() },
                         )
                     }
                     is UserRoute.ShopCatalog -> NavEntry(route) {
@@ -388,6 +413,7 @@ private fun UserShell(
     onTheme: () -> Unit,
     onLogout: () -> Unit,
     onChangeLocation: () -> Unit,
+    onSpendReport: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     NavigationBackHandler(
@@ -413,7 +439,14 @@ private fun UserShell(
                         onTxns = onTxns,
                         onHelp = onHelp,
                     )
-                    else -> UserSettingsHub(onLanguage, onNotifications, onTheme, onLogout)
+                    else -> MoreScreen(
+                        onAddAddress = onChangeLocation,
+                        onOpenSpendReport = onSpendReport,
+                        onLanguage = onLanguage,
+                        onNotifications = onNotifications,
+                        onTheme = onTheme,
+                        onLogout = onLogout,
+                    )
                 }
             }
             NavigationBar {
@@ -432,8 +465,8 @@ private fun UserShell(
                 NavigationBarItem(
                     selected = tab == 2,
                     onClick = { tab = 2 },
-                    icon = { Icon(Icons.Default.Person, contentDescription = stringResource(Res.string.tab_profile)) },
-                    label = { Text(stringResource(Res.string.tab_profile)) },
+                    icon = { Icon(Icons.Default.Menu, contentDescription = stringResource(Res.string.tab_more)) },
+                    label = { Text(stringResource(Res.string.tab_more)) },
                 )
             }
         }

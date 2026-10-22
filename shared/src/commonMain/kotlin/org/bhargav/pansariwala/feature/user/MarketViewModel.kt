@@ -15,6 +15,7 @@ import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.MarketplaceShop
 import org.bhargav.pansariwala.domain.model.CustomerProfile
+import org.bhargav.pansariwala.domain.model.ShopFilter
 import org.bhargav.pansariwala.domain.model.ShopSortOption
 import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.i18n.UiText
@@ -30,6 +31,7 @@ import pansariwala.shared.generated.resources.location_unavailable
 data class MarketUiState(
     val query: String = "",
     val radiusKm: Double = AppConstants.DEFAULT_SEARCH_RADIUS_KM,
+    val minRadiusKm: Double = AppConstants.MIN_SEARCH_RADIUS_KM,
     val allShops: List<MarketplaceShop> = emptyList(),
     val shops: List<MarketplaceShop> = emptyList(),
     val selectedShopTypes: Set<ShopType> = emptySet(),
@@ -65,13 +67,21 @@ class MarketViewModel(
 
     init {
         viewModelScope.launch {
+            val min = api.minSearchRadiusKm()
+            _state.update { it.copy(minRadiusKm = min) }
+        }
+        viewModelScope.launch {
             val radius = preferences.getSearchRadiusKm()
             _state.update { it.copy(radiusKm = radius) }
-            preferences.observeSearchRadiusKm().collect { km ->
-                val changed = km != _state.value.radiusKm
-                _state.update { it.copy(radiusKm = km) }
-                if (changed && _state.value.locationPermissionGranted) {
+            preferences.observeShopFilter().collect { filter ->
+                val radiusChanged = filter.radiusKm != _state.value.radiusKm
+                _state.update {
+                    it.copy(radiusKm = filter.radiusKm, selectedShopTypes = filter.shopTypes, sortOption = filter.sort)
+                }
+                if (radiusChanged && _state.value.locationPermissionGranted) {
                     refreshShops(useCachedLocation = true)
+                } else {
+                    applyFilters()
                 }
             }
         }
@@ -208,29 +218,26 @@ class MarketViewModel(
     }
 
     fun toggleShopType(type: ShopType) {
-        _state.update { state ->
-            val next = state.selectedShopTypes.toMutableSet().apply {
-                if (contains(type)) remove(type) else add(type)
-            }
-            state.copy(selectedShopTypes = next)
+        val next = _state.value.selectedShopTypes.toMutableSet().apply {
+            if (contains(type)) remove(type) else add(type)
         }
-        applyFilters()
+        saveFilter(currentFilter().copy(shopTypes = next))
     }
 
     fun selectAllShopTypes() {
         if (_state.value.selectedShopTypes.isEmpty()) return
-        _state.update { it.copy(selectedShopTypes = emptySet()) }
-        applyFilters()
+        saveFilter(currentFilter().copy(shopTypes = emptySet()))
     }
 
-    fun setSortOption(option: ShopSortOption) {
-        _state.update { it.copy(sortOption = option) }
-        applyFilters()
-    }
+    /** Saved globally: the More tab's app settings card edits the same filter. */
+    fun applyShopFilter(filter: ShopFilter) = saveFilter(filter)
 
-    fun setFilterShopTypes(types: Set<ShopType>) {
-        _state.update { it.copy(selectedShopTypes = types) }
+    private fun currentFilter() = _state.value.let { ShopFilter(it.radiusKm, it.selectedShopTypes, it.sortOption) }
+
+    private fun saveFilter(filter: ShopFilter) {
+        _state.update { it.copy(selectedShopTypes = filter.shopTypes, sortOption = filter.sort) }
         applyFilters()
+        viewModelScope.launch { preferences.setShopFilter(filter) }
     }
 
     fun showFilterSheet() { _state.update { it.copy(showFilterSheet = true) } }

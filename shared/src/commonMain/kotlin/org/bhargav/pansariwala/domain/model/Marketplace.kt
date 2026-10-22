@@ -80,6 +80,13 @@ enum class ShopSortOption {
     NAME_DESC,
 }
 
+/** App-wide shop discovery filter; empty [shopTypes] means every type. */
+data class ShopFilter(
+    val radiusKm: Double,
+    val shopTypes: Set<ShopType> = emptySet(),
+    val sort: ShopSortOption = ShopSortOption.DISTANCE_ASC,
+)
+
 data class MarketplaceShop(
     val id: String,
     val name: String,
@@ -182,6 +189,9 @@ data class CustomerProfile(
     val locality: String = "",
     val location: GeoPoint?,
     val addresses: List<SavedAddress> = emptyList(),
+    val imageUrl: String? = null,
+    /** Set while the customer's account deletion is pending. */
+    val deletionScheduledAtEpochMs: Long? = null,
 )
 
 data class CheckoutQuote(

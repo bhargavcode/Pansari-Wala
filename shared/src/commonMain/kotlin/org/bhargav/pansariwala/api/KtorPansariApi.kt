@@ -184,6 +184,24 @@ class KtorPansariApi(
     override suspend fun me(): CustomerProfile =
         client.get("me").body<CustomerDto>().toModel()
 
+    override suspend fun updateProfilePhoto(imageUrl: String): CustomerProfile =
+        client.put("me/photo") { setBody(CustomerPhotoRequest(imageUrl)) }.body<CustomerDto>().toModel()
+
+    override suspend fun changePhone(phone: String, otp: String, sessionId: String): CustomerProfile =
+        client.post("me/phone") { setBody(ChangePhoneRequest(phone, otp, sessionId)) }.body<CustomerDto>().toModel()
+
+    override suspend fun mySpend(fromMs: Long, toMs: Long): SpendReportDto =
+        client.get("me/spend") {
+            parameter("from", fromMs)
+            parameter("to", toMs)
+        }.body()
+
+    override suspend fun requestAccountDeletion(): CustomerProfile =
+        client.post("me/deletion").body<CustomerDto>().toModel()
+
+    override suspend fun cancelAccountDeletion(): CustomerProfile =
+        client.delete("me/deletion").body<CustomerDto>().toModel()
+
     override suspend fun nearbyShops(lat: Double, lng: Double, radiusKm: Double, query: String): List<MarketplaceShop> =
         client.get("shops") {
             parameter("lat", lat)

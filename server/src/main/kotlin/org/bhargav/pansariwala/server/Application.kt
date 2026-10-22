@@ -40,6 +40,7 @@ import org.bhargav.pansariwala.server.storage.AssetStorageFactory
 import org.slf4j.event.Level
 
 private const val OFFER_SWEEP_INTERVAL_MS = 30_000L
+private const val ACCOUNT_PURGE_INTERVAL_MS = 10 * 60_000L
 
 fun main() {
     val config = ServerConfig.fromEnv()
@@ -136,7 +137,14 @@ fun main() {
             apiRoutes(config, store, push, support)
         }
         launch(Dispatchers.IO) {
+            var lastAccountPurge = 0L
             while (isActive) {
+                if (System.currentTimeMillis() - lastAccountPurge >= ACCOUNT_PURGE_INTERVAL_MS) {
+                    lastAccountPurge = System.currentTimeMillis()
+                    runCatching { store.purgeDeletedCustomers() }
+                        .onSuccess { if (it > 0) println("Account deletion: purged $it customer accounts") }
+                        .onFailure { println("Account purge failed: ${it.message}") }
+                }
                 runCatching { store.expireStaleOffers() }
                     .onSuccess { if (it > 0) println("Delivery offers: expired $it unpicked offers") }
                     .onFailure { println("Delivery offer sweep failed: ${it.message}") }

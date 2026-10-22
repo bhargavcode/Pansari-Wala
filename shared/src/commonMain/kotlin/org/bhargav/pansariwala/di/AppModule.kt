@@ -58,6 +58,9 @@ import org.bhargav.pansariwala.feature.user.CategoryProductsViewModel
 import org.bhargav.pansariwala.feature.user.ProductDetailViewModel
 import org.bhargav.pansariwala.feature.user.ThankYouViewModel
 import org.bhargav.pansariwala.feature.user.UserSettingsViewModel
+import org.bhargav.pansariwala.feature.user.MoreViewModel
+import org.bhargav.pansariwala.feature.user.SpendDetailsViewModel
+import org.bhargav.pansariwala.feature.user.SpendReportViewModel
 import org.bhargav.pansariwala.feature.printer.PrinterSettingsViewModel
 import org.bhargav.pansariwala.feature.reports.ReportsViewModel
 import org.bhargav.pansariwala.platform.PartnerLocationTracker
@@ -129,6 +132,9 @@ val appModule = module {
     viewModelOf(::MarketViewModel)
     viewModelOf(::AccountViewModel)
     viewModelOf(::UserSettingsViewModel)
+    viewModelOf(::MoreViewModel)
+    viewModelOf(::SpendReportViewModel)
+    viewModelOf(::SpendDetailsViewModel)
     viewModelOf(::ShopCatalogViewModel)
     viewModelOf(::ShopOffersViewModel)
     viewModel { CategoryProductsViewModel(get()) }

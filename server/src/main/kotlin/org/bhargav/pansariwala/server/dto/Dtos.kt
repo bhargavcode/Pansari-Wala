@@ -112,7 +112,42 @@ data class CustomerDto(
     val lat: Double? = null,
     val lng: Double? = null,
     val addresses: List<SavedAddressDto> = emptyList(),
+    val imageUrl: String? = null,
+    /** Epoch ms when a pending account deletion runs; null when none is pending. */
+    val deletionScheduledAt: Long? = null,
 )
+
+@Serializable
+data class CustomerPhotoRequest(val imageUrl: String)
+
+/** New number plus the OTP sent to it through `/auth/otp/request`. */
+@Serializable
+data class ChangePhoneRequest(val phone: String, val otp: String, val sessionId: String? = null)
+
+@Serializable
+data class SpendItemDto(
+    val productName: String,
+    val categoryId: String,
+    val categoryName: String,
+    val quantity: Double,
+    val unit: String,
+    val amount: Double,
+    val variantLabel: String? = null,
+)
+
+@Serializable
+data class SpendOrderDto(
+    val orderId: String,
+    val shopId: String,
+    val shopName: String,
+    val createdAtEpochMs: Long,
+    val total: Double,
+    val items: List<SpendItemDto>,
+)
+
+/** Customer's paid orders in [fromMs, toMs), newest first. */
+@Serializable
+data class SpendReportDto(val fromMs: Long, val toMs: Long, val orders: List<SpendOrderDto>)
 
 @Serializable
 data class ShopDto(

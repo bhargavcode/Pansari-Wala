@@ -193,6 +193,8 @@ data class CustomerDoc(
     val imageUrl: String? = null,
     val active: Boolean = true,
     val joinedAt: Long = 0L,
+    /** Set while a self-service account deletion is pending; the purge sweep erases the account after it. */
+    val deletionScheduledAt: Long? = null,
 )
 
 @Serializable

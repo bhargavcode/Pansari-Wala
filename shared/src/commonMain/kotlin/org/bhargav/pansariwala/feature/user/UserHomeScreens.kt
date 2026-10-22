@@ -1,6 +1,5 @@
 package org.bhargav.pansariwala.feature.user
 
-import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import org.bhargav.pansariwala.feature.support.ReportIssueButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,22 +32,18 @@ import pansariwala.shared.generated.resources.user_onboarding_highlight_fast
 import pansariwala.shared.generated.resources.user_onboarding_highlight_nearby
 import pansariwala.shared.generated.resources.user_onboarding_highlight_offers
 import pansariwala.shared.generated.resources.user_onboarding_tagline
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.rememberModalBottomSheetState
-import org.bhargav.pansariwala.domain.model.ShopSortOption
+import org.bhargav.pansariwala.domain.model.ShopFilter
 import org.bhargav.pansariwala.domain.model.ShopType
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -94,7 +89,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.style.TextOverflow
 import pansariwala.shared.generated.resources.account_recent_three
 import pansariwala.shared.generated.resources.account_transactions
-import pansariwala.shared.generated.resources.action_logout
 import pansariwala.shared.generated.resources.action_resend_otp
 import pansariwala.shared.generated.resources.action_send_otp
 import pansariwala.shared.generated.resources.action_verify_otp
@@ -104,30 +98,14 @@ import pansariwala.shared.generated.resources.field_otp
 import pansariwala.shared.generated.resources.field_phone
 import pansariwala.shared.generated.resources.help_body
 import pansariwala.shared.generated.resources.location_confirm_address
-import pansariwala.shared.generated.resources.action_apply
-import pansariwala.shared.generated.resources.action_clear
 import pansariwala.shared.generated.resources.market_filter
-import pansariwala.shared.generated.resources.market_filter_title
 import pansariwala.shared.generated.resources.market_greeting
 import pansariwala.shared.generated.resources.market_location_unknown
-import pansariwala.shared.generated.resources.market_radius_range
 import pansariwala.shared.generated.resources.market_search_products
 import pansariwala.shared.generated.resources.market_shop_type_all
-import pansariwala.shared.generated.resources.market_shop_types
-import pansariwala.shared.generated.resources.market_sort_distance_asc
-import pansariwala.shared.generated.resources.market_sort_distance_desc
-import pansariwala.shared.generated.resources.market_sort_name_asc
-import pansariwala.shared.generated.resources.market_sort_name_desc
-import pansariwala.shared.generated.resources.market_sort_rating
 import pansariwala.shared.generated.resources.no_orders_yet
 import pansariwala.shared.generated.resources.no_shops_nearby
-import pansariwala.shared.generated.resources.profile_payment_header
 import pansariwala.shared.generated.resources.profile_setup_title
-import pansariwala.shared.generated.resources.settings_language_card
-import pansariwala.shared.generated.resources.settings_notification_card
-import pansariwala.shared.generated.resources.settings_radius
-import pansariwala.shared.generated.resources.settings_radius_value
-import pansariwala.shared.generated.resources.settings_theme_card
 import pansariwala.shared.generated.resources.user_location_access_action
 import pansariwala.shared.generated.resources.user_location_access_reason_delivery
 import pansariwala.shared.generated.resources.user_location_access_reason_offers
@@ -137,7 +115,6 @@ import pansariwala.shared.generated.resources.user_location_access_title
 import pansariwala.shared.generated.resources.user_location_permission_denied_message
 import pansariwala.shared.generated.resources.user_shop_tab_continue
 import pansariwala.shared.generated.resources.user_shop_tab_empty
-import kotlin.math.roundToInt
 
 @Composable
 fun PhoneAuthScreen(
@@ -277,10 +254,6 @@ fun MarketScreen(
             onDismiss = { showResumeSheet = false },
         )
     }
-    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var draftSort by remember(state.showFilterSheet) { mutableStateOf(state.sortOption) }
-    var draftTypes by remember(state.showFilterSheet) { mutableStateOf(state.selectedShopTypes) }
-
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(Unit) {
@@ -328,62 +301,15 @@ fun MarketScreen(
     )
 
     if (state.showFilterSheet) {
-        AppBottomSheet(
-            onDismissRequest = viewModel::hideFilterSheet,
-            sheetState = filterSheetState,
-        ) {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(stringResource(Res.string.market_filter_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                listOf(
-                    ShopSortOption.DISTANCE_ASC to Res.string.market_sort_distance_asc,
-                    ShopSortOption.DISTANCE_DESC to Res.string.market_sort_distance_desc,
-                    ShopSortOption.RATING_DESC to Res.string.market_sort_rating,
-                    ShopSortOption.NAME_ASC to Res.string.market_sort_name_asc,
-                    ShopSortOption.NAME_DESC to Res.string.market_sort_name_desc,
-                ).forEach { (option, labelRes) ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { draftSort = option },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = draftSort == option, onClick = { draftSort = option })
-                        Text(stringResource(labelRes))
-                    }
-                }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text(stringResource(Res.string.market_shop_types), fontWeight = FontWeight.SemiBold)
-                sortedShopTypes.forEach { (type, label) ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable {
-                            draftTypes = draftTypes.toMutableSet().apply {
-                                if (contains(type)) remove(type) else add(type)
-                            }
-                        },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = type in draftTypes, onCheckedChange = null)
-                        Text(label)
-                    }
-                }
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(onClick = {
-                        draftSort = ShopSortOption.DISTANCE_ASC
-                        draftTypes = emptySet()
-                    }) { Text(stringResource(Res.string.action_clear)) }
-                    UserPrimaryButton(
-                        text = stringResource(Res.string.action_apply),
-                        onClick = {
-                            viewModel.setSortOption(draftSort)
-                            viewModel.setFilterShopTypes(draftTypes)
-                            viewModel.hideFilterSheet()
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
+        ShopFilterSheet(
+            initial = ShopFilter(state.radiusKm, state.selectedShopTypes, state.sortOption),
+            minRadiusKm = state.minRadiusKm,
+            onApply = {
+                viewModel.applyShopFilter(it)
+                viewModel.hideFilterSheet()
+            },
+            onDismiss = viewModel::hideFilterSheet,
+        )
     }
 
     PansariScreen(
@@ -582,70 +508,6 @@ fun HelpScreen(onBack: () -> Unit) {
     PansariScreen(title = stringResource(Res.string.account_help), onBack = onBack) {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(Res.string.help_body))
-        }
-    }
-}
-
-@Composable
-fun UserSettingsHub(
-    onLanguage: () -> Unit,
-    onNotifications: () -> Unit,
-    onTheme: () -> Unit,
-    onLogout: () -> Unit,
-    viewModel: UserSettingsViewModel = koinViewModel(),
-) {
-    val radius by viewModel.radius.collectAsStateWithLifecycle(AppConstants.DEFAULT_SEARCH_RADIUS_KM)
-    val minRadius by viewModel.minRadius.collectAsStateWithLifecycle()
-    var draftRadius by remember(radius, minRadius) {
-        mutableStateOf(radius.coerceIn(minRadius, AppConstants.MAX_SEARCH_RADIUS_KM).toFloat())
-    }
-    val radiusSteps = remember(minRadius) {
-        ((AppConstants.MAX_SEARCH_RADIUS_KM - minRadius) / AppConstants.SEARCH_RADIUS_STEP_KM)
-            .roundToInt() - 1
-    }
-    val settings by viewModel.settings.collectAsStateWithLifecycle(org.bhargav.pansariwala.settings.AppUserSettings())
-    PansariScreen {
-        Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        Text(
-            stringResource(Res.string.profile_payment_header),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
-        SectionCard(
-            title = stringResource(Res.string.settings_radius),
-            action = {
-                Text(
-                    stringResource(Res.string.settings_radius_value, draftRadius.roundToInt().toString()),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            },
-        ) {
-            Text(stringResource(Res.string.market_radius_range, minRadius.roundToInt().toString(), AppConstants.MAX_SEARCH_RADIUS_KM.roundToInt().toString()))
-            Slider(
-                value = draftRadius,
-                onValueChange = { draftRadius = it.roundToInt().toFloat() },
-                onValueChangeFinished = { viewModel.setRadius(draftRadius.toDouble()) },
-                valueRange = minRadius.toFloat()..AppConstants.MAX_SEARCH_RADIUS_KM.toFloat(),
-                steps = radiusSteps,
-            )
-        }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        UserMenuRow(
-            title = stringResource(Res.string.settings_language_card),
-            onClick = onLanguage,
-            trailing = settings.language.displayLabel,
-        )
-        HorizontalDivider()
-        UserMenuRow(title = stringResource(Res.string.settings_notification_card), onClick = onNotifications)
-        HorizontalDivider()
-        UserMenuRow(title = stringResource(Res.string.settings_theme_card), onClick = onTheme)
-        HorizontalDivider()
-        TextButton(onClick = { viewModel.logout(onLogout) }, modifier = Modifier.padding(top = 16.dp)) {
-            Text(stringResource(Res.string.action_logout))
-        }
         }
     }
 }

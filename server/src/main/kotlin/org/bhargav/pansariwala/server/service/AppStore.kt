@@ -162,6 +162,10 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import com.mongodb.client.model.Filters.lte
+import com.mongodb.client.model.Updates.unset
+import org.bhargav.pansariwala.server.dto.SpendItemDto
+import org.bhargav.pansariwala.server.dto.SpendOrderDto
+import org.bhargav.pansariwala.server.dto.SpendReportDto
 import com.mongodb.client.model.Accumulators
 import com.mongodb.client.model.Aggregates
 
@@ -178,6 +182,12 @@ private const val CATEGORY_SORT_PRIORITY = "PRIORITY"
 private const val CATEGORY_SORT_NAME = "NAME"
 private const val EXPORT_LINK_TTL_MS = 10 * 60 * 1000L
 private const val MAX_ORDER_PAGE_SIZE = 20
+/** Self-service account deletion waits this long so the customer can change their mind. */
+private const val ACCOUNT_DELETION_GRACE_MS = 2L * 24 * 60 * 60 * 1000
+private const val DELETED_CUSTOMER_NAME = "Deleted user"
+/** A pending deletion only runs once every order of the customer is in one of these states. */
+private val ACCOUNT_PURGE_DONE_STATUSES = listOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED", "DRAFT")
+private val SPEND_EXCLUDED_STATUSES = listOf("CANCELLED", "REJECTED", "DRAFT", "PAYMENT_PENDING")
 private const val MAX_MASTER_PAGE_SIZE = 100
 private const val TOP_OFFERS_ON_CARD = 3
 /** Shops are in India; delivery cutoffs are wall-clock times there regardless of server zone. */
@@ -510,9 +520,137 @@ class AppStore(
         return TokenResponse(token, null, "CUSTOMER", id, null, name.ifBlank { phone }, complete)
     }
 
+    /** A purged account answers 401 ("Invalid credentials") so the app signs out and clears its session. */
     fun me(userId: String): CustomerDto {
-        val row = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
+        val row = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Invalid credentials: account not found")
         return row.toCustomerDto()
+    }
+
+    fun updateCustomerPhoto(userId: String, imageUrl: String): CustomerDto {
+        require(assets.isValidRef(imageUrl)) { "Invalid profile photo URL" }
+        val result = customerCol.updateOne(eq("_id", userId), set("imageUrl", assets.toKey(imageUrl).take(2_048)))
+        require(result.matchedCount > 0) { "Customer not found" }
+        return me(userId)
+    }
+
+    /** Moves the account to a new number once the OTP sent to that number checks out. */
+    fun changeCustomerPhone(userId: String, rawPhone: String, code: String, sessionId: String?): CustomerDto {
+        val current = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
+        val phone = otp.verify(rawPhone, code, sessionId)
+        if (phone == current.phone) return current.toCustomerDto()
+        require(partnerCol.countDocuments(eq("phone", phone)) == 0L) { "This number is registered as a delivery partner" }
+        require(customerCol.countDocuments(and(eq("phone", phone), ne("_id", userId))) == 0L) {
+            "This number is already linked to another account"
+        }
+        customerCol.updateOne(eq("_id", userId), set("phone", phone))
+        return me(userId)
+    }
+
+    fun requestAccountDeletion(userId: String): CustomerDto {
+        val current = customerCol.find(eq("_id", userId)).firstOrNull() ?: error("Customer not found")
+        if (current.deletionScheduledAt == null) {
+            customerCol.updateOne(
+                eq("_id", userId),
+                set("deletionScheduledAt", System.currentTimeMillis() + ACCOUNT_DELETION_GRACE_MS),
+            )
+        }
+        return me(userId)
+    }
+
+    fun cancelAccountDeletion(userId: String): CustomerDto {
+        customerCol.updateOne(eq("_id", userId), unset("deletionScheduledAt"))
+        return me(userId)
+    }
+
+    /**
+     * Erases accounts whose deletion grace period is over. Orders stay for the shops' books but lose every
+     * personal field; accounts with an order still in progress wait for the next sweep.
+     */
+    fun purgeDeletedCustomers(): Int {
+        val now = System.currentTimeMillis()
+        val due = customerCol.find(lte("deletionScheduledAt", now)).toList()
+        var purged = 0
+        due.forEach { customer ->
+            val busy = orderCol.countDocuments(
+                and(eq("customerId", customer.id), nin("status", ACCOUNT_PURGE_DONE_STATUSES)),
+            ) > 0L
+            if (busy) return@forEach
+            orderCol.updateMany(
+                eq("customerId", customer.id),
+                combine(
+                    set("customerId", null),
+                    set("customerName", DELETED_CUSTOMER_NAME),
+                    set("customerPhone", null),
+                    set("customerLat", null),
+                    set("customerLng", null),
+                    set("deliveryAddress", null),
+                    set("dropoffInstructions", null),
+                ),
+            )
+            intentCol.updateMany(
+                eq("customerId", customer.id),
+                combine(set("customerName", DELETED_CUSTOMER_NAME), set("customerPhone", "")),
+            )
+            txnCol.deleteMany(eq("customerId", customer.id))
+            customerRatingCol.deleteMany(eq("customerId", customer.id))
+            shopVisitCol.deleteMany(eq("visitorId", customer.id))
+            push.unregisterPrincipal(customer.id)
+            customerCol.deleteOne(eq("_id", customer.id))
+            purged++
+        }
+        return purged
+    }
+
+    /** Paid (not cancelled / rejected) orders in [fromMs, toMs) with each line tagged by master category. */
+    fun customerSpend(userId: String, fromMs: Long, toMs: Long): SpendReportDto {
+        require(toMs > fromMs) { "Invalid date range" }
+        val rows = orderCol.find(
+            and(
+                eq("customerId", userId),
+                gte("createdAt", fromMs),
+                lt("createdAt", toMs),
+                nin("status", SPEND_EXCLUDED_STATUSES),
+            ),
+        )
+            .projection(orderListProjection)
+            .sort(Sorts.descending("createdAt"))
+            .maxTime(QUERY_MAX_MS, TimeUnit.MILLISECONDS)
+            .toList()
+        val productIds = rows.flatMap { row -> row.items.map { it.productId } }.toSet()
+        val products: Map<String, Pair<String?, String>> = if (productIds.isEmpty()) emptyMap() else {
+            productCol.find(`in`("_id", productIds.toList())).toList()
+                .associate { it.id to (it.categoryId?.takeIf(String::isNotBlank) to it.category) }
+        }
+        val categoryNames = products.values.mapNotNull { it.first }.toSet().takeIf { it.isNotEmpty() }
+            ?.let { ids -> categoryCol.find(`in`("_id", ids.toList())).toList().associate { it.id to it.name } }
+            .orEmpty()
+        val shopNames = rows.map { it.shopId }.toSet().takeIf { it.isNotEmpty() }
+            ?.let { ids -> shopCol.find(`in`("_id", ids.toList())).toList().associate { it.id to it.name } }
+            .orEmpty()
+        val orders = rows.map { row ->
+            val items = row.items.map { item ->
+                val (categoryId, fallback) = products[item.productId] ?: (null to "")
+                val name = categoryId?.let(categoryNames::get) ?: fallback.ifBlank { DEFAULT_IMPORT_CATEGORY }
+                SpendItemDto(
+                    productName = item.productName,
+                    categoryId = categoryId ?: name.lowercase(),
+                    categoryName = name,
+                    quantity = item.quantity,
+                    unit = item.unit,
+                    amount = item.quantity * item.unitPrice,
+                    variantLabel = item.variantLabel,
+                )
+            }
+            SpendOrderDto(
+                orderId = row.id,
+                shopId = row.shopId,
+                shopName = shopNames[row.shopId].orEmpty(),
+                createdAtEpochMs = row.createdAt,
+                total = row.quote?.payable ?: items.sumOf { it.amount },
+                items = items,
+            )
+        }
+        return SpendReportDto(fromMs, toMs, orders)
     }
 
     fun updateProfile(
@@ -4412,5 +4550,7 @@ class AppStore(
         addresses = addresses.map {
             SavedAddressDto(it.id, it.line, it.locality, it.lat, it.lng, it.isDefault)
         },
+        imageUrl = assets.toUrlOrNull(imageUrl),
+        deletionScheduledAt = deletionScheduledAt,
     )
 }

@@ -36,6 +36,13 @@ interface PansariApi {
     suspend fun selectAddress(addressId: String): CustomerProfile
     suspend fun updateCustomerLocation(lat: Double, lng: Double)
     suspend fun me(): CustomerProfile
+    suspend fun updateProfilePhoto(imageUrl: String): CustomerProfile
+    /** Moves the account to [phone]; [otp] / [sessionId] come from an OTP sent to that number. */
+    suspend fun changePhone(phone: String, otp: String, sessionId: String): CustomerProfile
+    /** Paid orders in [fromMs, toMs) with category-tagged lines. */
+    suspend fun mySpend(fromMs: Long, toMs: Long): SpendReportDto
+    suspend fun requestAccountDeletion(): CustomerProfile
+    suspend fun cancelAccountDeletion(): CustomerProfile
 
     suspend fun nearbyShops(lat: Double, lng: Double, radiusKm: Double, query: String): List<MarketplaceShop>
     suspend fun shopCatalog(shopId: String): List<Product>

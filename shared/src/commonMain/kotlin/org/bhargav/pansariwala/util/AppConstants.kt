@@ -115,6 +115,8 @@ object AppConstants {
     const val DEV_ARRIVAL_UNLOCK_TAPS: Int = 3
     const val DEV_ARRIVAL_UNLOCK_WINDOW_MS: Long = 2_000L
     const val RECENT_ORDERS_CARD_LIMIT: Int = 3
+    /** More tab spend card window, ending today. */
+    const val SPEND_SUMMARY_DAYS: Int = 30
 
     const val PRINTER_SETTINGS_KEY: String = "pref_printer_settings"
     const val PRINT_SAMPLE_LABEL_LIMIT: Int = 3
@@ -251,6 +253,9 @@ object AppConstants {
         const val CACHED_PARTNER_PROFILE: String = "pref_cached_partner_profile"
         const val CACHED_CUSTOMER_PROFILE: String = "pref_cached_customer_profile"
         const val SAVED_CART: String = "pref_saved_cart"
+        /** Home shop filter shared by Market and More (comma-separated [ShopType.apiValue]s). */
+        const val SHOP_FILTER_TYPES: String = "pref_shop_filter_types"
+        const val SHOP_FILTER_SORT: String = "pref_shop_filter_sort"
         const val ROLE: String = "pref_auth_role"
         const val FCM_TOKEN: String = "pref_fcm_token"
         const val FCM_TOKEN_USER_ID: String = "pref_fcm_token_user_id"

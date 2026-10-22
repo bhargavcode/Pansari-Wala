@@ -35,6 +35,15 @@ sealed interface UserRoute : NavKey {
     @Serializable data class Cart(val shopId: String) : UserRoute
     @Serializable data object LanguagePrefs : UserRoute
     @Serializable data object ThemePrefs : UserRoute
+    @Serializable data object SpendReport : UserRoute
+    /** Bills behind one spend-report bar / slice; [kind] is a [SpendDrillKind] name. */
+    @Serializable data class SpendDetails(
+        val fromMs: Long,
+        val toMs: Long,
+        val kind: String,
+        val key: String,
+        val title: String,
+    ) : UserRoute
 }
 
 @Serializable

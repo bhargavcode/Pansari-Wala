@@ -127,7 +127,39 @@ data class CustomerDto(
     val lat: Double? = null,
     val lng: Double? = null,
     val addresses: List<SavedAddressDto> = emptyList(),
+    val imageUrl: String? = null,
+    val deletionScheduledAt: Long? = null,
 )
+
+@Serializable
+data class CustomerPhotoRequest(val imageUrl: String)
+
+@Serializable
+data class ChangePhoneRequest(val phone: String, val otp: String, val sessionId: String? = null)
+
+@Serializable
+data class SpendItemDto(
+    val productName: String,
+    val categoryId: String,
+    val categoryName: String,
+    val quantity: Double,
+    val unit: String,
+    val amount: Double,
+    val variantLabel: String? = null,
+)
+
+@Serializable
+data class SpendOrderDto(
+    val orderId: String,
+    val shopId: String,
+    val shopName: String,
+    val createdAtEpochMs: Long,
+    val total: Double,
+    val items: List<SpendItemDto> = emptyList(),
+)
+
+@Serializable
+data class SpendReportDto(val fromMs: Long, val toMs: Long, val orders: List<SpendOrderDto> = emptyList())
 
 @Serializable
 data class NearbyShopsRequest(val lat: Double, val lng: Double, val radiusKm: Double, val query: String = "")
@@ -799,6 +831,8 @@ fun CustomerDto.toModel() = CustomerProfile(
     locality = locality,
     location = if (lat != null && lng != null) GeoPoint(lat, lng) else null,
     addresses = addresses.map { it.toModel() },
+    imageUrl = imageUrl,
+    deletionScheduledAtEpochMs = deletionScheduledAt,
 )
 
 fun QuoteDto.toModel() = CheckoutQuote(

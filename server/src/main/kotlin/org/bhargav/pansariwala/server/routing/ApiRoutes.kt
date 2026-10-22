@@ -85,6 +85,8 @@ import org.bhargav.pansariwala.server.dto.ShopPartnerRequest
 import org.bhargav.pansariwala.server.dto.AssignShopPartnerRequest
 import org.bhargav.pansariwala.server.service.ShopPerm
 import org.bhargav.pansariwala.server.dto.SaveAddressRequest
+import org.bhargav.pansariwala.server.dto.ChangePhoneRequest
+import org.bhargav.pansariwala.server.dto.CustomerPhotoRequest
 import org.bhargav.pansariwala.server.dto.ShopActionRequest
 import org.bhargav.pansariwala.server.dto.ShopLoginRequest
 import org.bhargav.pansariwala.server.dto.StatusPatch
@@ -305,6 +307,25 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
         }
         get("/me/transactions") {
             call.respond(withContext(Dispatchers.IO) { store.transactions(call.userId()) })
+        }
+        put("/me/photo") {
+            val body = call.receive<CustomerPhotoRequest>()
+            call.respond(store.updateCustomerPhoto(call.userId(), body.imageUrl))
+        }
+        post("/me/phone") {
+            val body = call.receive<ChangePhoneRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.changeCustomerPhone(call.userId(), body.phone, body.otp, body.sessionId) })
+        }
+        get("/me/spend") {
+            val from = call.parameters["from"]?.toLongOrNull() ?: error("from required")
+            val to = call.parameters["to"]?.toLongOrNull() ?: error("to required")
+            call.respond(withContext(Dispatchers.IO) { store.customerSpend(call.userId(), from, to) })
+        }
+        post("/me/deletion") {
+            call.respond(store.requestAccountDeletion(call.userId()))
+        }
+        delete("/me/deletion") {
+            call.respond(store.cancelAccountDeletion(call.userId()))
         }
         get("/shops") {
             val lat = call.parameters["lat"]?.toDoubleOrNull() ?: error("lat required")

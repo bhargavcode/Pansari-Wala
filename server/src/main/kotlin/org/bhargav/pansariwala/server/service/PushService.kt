@@ -156,6 +156,10 @@ class PushService(
         tokenCol.deleteOne(eq("_id", token))
     }
 
+    fun unregisterPrincipal(principalId: String) {
+        tokenCol.deleteMany(eq("principalId", principalId))
+    }
+
     /**
      * Every order status change is pushed to the shop and the customer so open screens update without
      * polling. Only meaningful transitions carry a tray alert; the rest are silent data pushes.

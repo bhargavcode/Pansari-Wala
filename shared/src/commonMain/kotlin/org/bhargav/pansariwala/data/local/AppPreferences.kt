@@ -12,6 +12,9 @@ import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.CustomerProfile
 import org.bhargav.pansariwala.domain.model.PartnerProfile
+import org.bhargav.pansariwala.domain.model.ShopFilter
+import org.bhargav.pansariwala.domain.model.ShopSortOption
+import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.domain.model.SupplierBook
 import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.platform.stopPartnerLocationTracking
@@ -87,6 +90,30 @@ class AppPreferences(
 
     fun observeSearchRadiusKm(): Flow<Double> = store.observeString(Keys.searchRadiusKm).map { raw ->
         raw?.toDoubleOrNull() ?: AppConstants.DEFAULT_SEARCH_RADIUS_KM
+    }
+
+    fun observeShopFilter(): Flow<ShopFilter> = combine(
+        observeSearchRadiusKm(),
+        store.observeString(AppConstants.Prefs.SHOP_FILTER_TYPES),
+        store.observeString(AppConstants.Prefs.SHOP_FILTER_SORT),
+    ) { radius, types, sort ->
+        ShopFilter(
+            radiusKm = radius,
+            shopTypes = types.orEmpty().split(',')
+                .mapNotNull { raw -> ShopType.entries.firstOrNull { it.apiValue == raw.trim() } }
+                .toSet(),
+            sort = ShopSortOption.entries.firstOrNull { it.name == sort } ?: ShopSortOption.DISTANCE_ASC,
+        )
+    }
+
+    suspend fun setShopFilter(filter: ShopFilter) {
+        store.putStrings(
+            mapOf(
+                Keys.searchRadiusKm to filter.radiusKm.toString(),
+                AppConstants.Prefs.SHOP_FILTER_TYPES to filter.shopTypes.joinToString(",") { it.apiValue },
+                AppConstants.Prefs.SHOP_FILTER_SORT to filter.sort.name,
+            ),
+        )
     }
 
     suspend fun saveToken(token: org.bhargav.pansariwala.api.TokenResponse) {
