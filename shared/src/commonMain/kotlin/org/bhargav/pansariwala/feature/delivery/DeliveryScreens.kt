@@ -76,6 +76,15 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.partner_onboarding
+import pansariwala.shared.generated.resources.partner_verified
+import pansariwala.shared.generated.resources.partner_row_status
+import pansariwala.shared.generated.resources.partner_row_vehicle
+import pansariwala.shared.generated.resources.partner_percent_value
+import pansariwala.shared.generated.resources.partner_row_acceptance
+import pansariwala.shared.generated.resources.partner_row_deliveries
+import pansariwala.shared.generated.resources.partner_row_total
+import pansariwala.shared.generated.resources.partner_today
 import pansariwala.shared.generated.resources.return_partner_action
 import pansariwala.shared.generated.resources.action_accept
 import pansariwala.shared.generated.resources.partner_job_load_failed
@@ -989,9 +998,9 @@ fun PartnerEarningsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(Res.string.partner_earnings_profile), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     HorizontalDivider()
-                    EarningRow("Today", earnings.todayEarnings.asMoney())
-                    EarningRow("Total", earnings.totalEarnings.asMoney())
-                    EarningRow("Deliveries", earnings.deliveredCount.toString())
+                    EarningRow(stringResource(Res.string.partner_today), earnings.todayEarnings.asMoney())
+                    EarningRow(stringResource(Res.string.partner_row_total), earnings.totalEarnings.asMoney())
+                    EarningRow(stringResource(Res.string.partner_row_deliveries), earnings.deliveredCount.toString())
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -1002,7 +1011,7 @@ fun PartnerEarningsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(Res.string.partner_performance), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     HorizontalDivider()
-                    EarningRow("Acceptance Rate", "${earnings.acceptanceRatePercent}%")
+                    EarningRow(stringResource(Res.string.partner_row_acceptance), stringResource(Res.string.partner_percent_value, earnings.acceptanceRatePercent))
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -1016,10 +1025,10 @@ fun PartnerEarningsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(Res.string.partner_profile_details), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     HorizontalDivider()
-                    EarningRow("Name", profile.name)
-                    EarningRow("Address", profile.address)
-                    EarningRow("Vehicle", profile.vehicleReg)
-                    EarningRow("Status", if (profile.verified) "Verified" else "Onboarding")
+                    EarningRow(stringResource(Res.string.field_name), profile.name)
+                    EarningRow(stringResource(Res.string.partner_section_address), profile.address)
+                    EarningRow(stringResource(Res.string.partner_row_vehicle), profile.vehicleReg)
+                    EarningRow(stringResource(Res.string.partner_row_status), stringResource(if (profile.verified) Res.string.partner_verified else Res.string.partner_onboarding))
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -1060,6 +1069,11 @@ fun PartnerEarningsScreen(
             stringResource(Res.string.settings_notification_card),
             modifier = Modifier.fillMaxWidth().clickable(onClick = onNotifications).padding(16.dp),
             fontWeight = FontWeight.Medium,
+        )
+        HorizontalDivider()
+        org.bhargav.pansariwala.feature.account.AccountClosureSection(
+            org.bhargav.pansariwala.feature.account.ClosableAccount.PARTNER,
+            Modifier.padding(16.dp),
         )
         Spacer(Modifier.height(16.dp))
         }

@@ -125,6 +125,7 @@ fun DashboardScreen(
     onOpenBorrowers: () -> Unit = {},
     onOpenMasterCatalog: () -> Unit = {},
     onOpenProduct: (String) -> Unit = {},
+    onOpenPosSettings: () -> Unit = {},
     viewModel: DashboardViewModel = koinViewModel(),
     authRepository: AuthRepository = koinInject(),
     analytics: Analytics = koinInject(),
@@ -185,6 +186,7 @@ fun DashboardScreen(
                         onOpenOnlineOrders = onOpenOnlineOrders,
                         onOpenPrinter = onOpenPrinter,
                         onOpenSettings = onOpenSettings,
+                        onOpenPosSettings = onOpenPosSettings,
                         onOpenSubscription = onOpenSubscription,
                         onLogout = logout,
                     )
@@ -302,7 +304,7 @@ fun DashboardHeader(
             }
             Text(
                 text = stringResource(Res.string.dashboard_greeting, userName),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
             )
             Text(

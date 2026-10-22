@@ -1,5 +1,21 @@
 package org.bhargav.pansariwala.feature.order
 
+import pansariwala.shared.generated.resources.stock_left
+import pansariwala.shared.generated.resources.pos_no_products_match
+import pansariwala.shared.generated.resources.pos_out_of_stock
+import pansariwala.shared.generated.resources.pos_category_all
+import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.domain.model.ProductCategory
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.BorderStroke
 import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -125,13 +141,35 @@ import pansariwala.shared.generated.resources.cart_empty_hint
 import pansariwala.shared.generated.resources.create_order
 import pansariwala.shared.generated.resources.customer_name
 import pansariwala.shared.generated.resources.edit_order
-import pansariwala.shared.generated.resources.in_stock
 import pansariwala.shared.generated.resources.pos_payment_title
 import pansariwala.shared.generated.resources.pos_udhaar_confirm
 import pansariwala.shared.generated.resources.pos_udhaar_hint
 import pansariwala.shared.generated.resources.pos_udhaar_name
 import pansariwala.shared.generated.resources.pos_udhaar_phone
 import pansariwala.shared.generated.resources.pos_udhaar_title
+import pansariwala.shared.generated.resources.pos_udhaar_pick_hint
+import pansariwala.shared.generated.resources.pos_udhaar_search
+import pansariwala.shared.generated.resources.pos_udhaar_not_found
+import pansariwala.shared.generated.resources.pos_udhaar_add_new
+import pansariwala.shared.generated.resources.pos_udhaar_current_due
+import pansariwala.shared.generated.resources.pos_udhaar_this_bill
+import pansariwala.shared.generated.resources.pos_udhaar_new_due
+import pansariwala.shared.generated.resources.pos_udhaar_confirm_question
+import pansariwala.shared.generated.resources.pos_udhaar_photo
+import pansariwala.shared.generated.resources.pos_udhaar_take_photo
+import pansariwala.shared.generated.resources.pos_udhaar_retake_photo
+import pansariwala.shared.generated.resources.pos_udhaar_address
+import pansariwala.shared.generated.resources.udhaar_due
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PhotoCamera
+import org.bhargav.pansariwala.api.BorrowerDto
+import org.bhargav.pansariwala.feature.delivery.PartnerProfileCircle
+import org.bhargav.pansariwala.feature.udhaar.BorrowerAvatar
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import pansariwala.shared.generated.resources.save_order
 import pansariwala.shared.generated.resources.search_products
@@ -146,11 +184,12 @@ fun OrderEditorScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
     onOpenSubscription: () -> Unit = {},
+    reorderFromId: String? = null,
     viewModel: OrderEditorViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(orderId) { viewModel.load(orderId) }
+    LaunchedEffect(orderId, reorderFromId) { viewModel.load(orderId, reorderFromId) }
     LaunchedEffect(Unit) { viewModel.refreshEntitlements() }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     if (state.showPaymentPicker) {
@@ -290,6 +329,14 @@ private fun PortraitOrderLayout(
     onOpenSubscription: () -> Unit,
 ) {
     val linesByProduct = remember(state.cart) { state.cart.groupBy { it.product.id } }
+    var category by rememberSaveable { mutableStateOf<ProductCategory?>(null) }
+    val categories = remember(state.filteredCatalog) {
+        state.filteredCatalog.map { it.category }.distinct().sortedBy { it.ordinal }
+    }
+    LaunchedEffect(categories) { if (category != null && category !in categories) category = null }
+    val visible = remember(state.filteredCatalog, category) {
+        category?.let { c -> state.filteredCatalog.filter { it.category == c } } ?: state.filteredCatalog
+    }
     Column(Modifier.fillMaxSize()) {
         PansariSearchTopBar(
             title = stringResource(if (state.isEditing) Res.string.edit_order else Res.string.create_order),
@@ -308,20 +355,71 @@ private fun PortraitOrderLayout(
             ScanMessageStrip(state)
             VoiceArea(state, viewModel)
         }
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp)) {
-            items(state.filteredCatalog, key = { it.id }, contentType = { "product" }) { product ->
+        if (categories.size > 1) {
+            PosCategoryChips(
+                categories = categories,
+                selected = category,
+                total = state.filteredCatalog.size,
+                onSelect = { category = it },
+            )
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (visible.isEmpty() && !state.loading) {
+                item(key = "empty") {
+                    Text(
+                        stringResource(Res.string.pos_no_products_match),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            items(visible, key = { it.id }, contentType = { "product" }) { product ->
                 PosCatalogRow(product, linesByProduct[product.id].orEmpty(), viewModel)
-                HorizontalDivider()
             }
         }
         PosCartBar(state, onOpen = { viewModel.setCartSheetVisible(true) })
     }
 }
 
+@Composable
+private fun PosCategoryChips(
+    categories: List<ProductCategory>,
+    selected: ProductCategory?,
+    total: Int,
+    onSelect: (ProductCategory?) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+    ) {
+        item(key = "all") {
+            FilterChip(
+                selected = selected == null,
+                onClick = { onSelect(null) },
+                label = { Text(stringResource(Res.string.pos_category_all, total)) },
+            )
+        }
+        items(categories, key = { it.name }) { c ->
+            FilterChip(
+                selected = selected == c,
+                onClick = { onSelect(if (selected == c) null else c) },
+                label = { Text(c.localizedName()) },
+            )
+        }
+    }
+}
+
 /** Every variant of [product] is its own card; long-press a card to add another variant. */
 @Composable
 private fun PosCatalogRow(product: Product, productLines: List<CartLine>, viewModel: OrderEditorViewModel) {
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         product.options().forEach { option ->
             PosOptionRow(option, productLines.firstOrNull { it.key == option.key }, viewModel)
         }
@@ -331,41 +429,59 @@ private fun PosCatalogRow(product: Product, productLines: List<CartLine>, viewMo
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PosOptionRow(option: PurchaseOption, line: CartLine?, viewModel: OrderEditorViewModel) {
-    Row(
-        modifier = Modifier.fillMaxWidth()
-            .combinedClickable(
-                onClick = { if (line == null) viewModel.addVariant(option) },
-                onLongClick = { viewModel.startAddVariant(option.product) },
-            )
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        shape = shape,
+        color = if (line != null) colors.primaryContainer.copy(alpha = 0.35f) else colors.surfaceContainerLow,
+        border = if (line != null) BorderStroke(1.dp, colors.primary.copy(alpha = 0.4f)) else null,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        NetworkImage(
-            url = option.imageUrl,
-            contentDescription = option.displayName,
-            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)).clickable { viewModel.openProductInfo(option) },
-        )
-        Column(Modifier.weight(1f)) {
-            Text(option.displayName, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            OptionStockSummary(option)
-        }
-        when {
-            option.needsPicker && line != null -> OutlinedButton(onClick = { viewModel.openPicker(option.product, line.key) }) {
-                Text(option.quantityLabel(line.quantity), maxLines = 1)
-            }
-            option.needsPicker -> OutlinedButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
-                Text(stringResource(Res.string.pos_choose_option), maxLines = 1)
-            }
-            line != null -> PackCountStepper(
-                option = option,
-                quantity = line.quantity,
-                onSet = { viewModel.setQuantity(line.key, it) },
-                onIncrement = { viewModel.changeQuantity(line.key, 1) },
-                onDecrement = { viewModel.changeQuantity(line.key, -1) },
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .clip(shape)
+                .combinedClickable(
+                    onClick = { if (line == null) viewModel.addVariant(option) },
+                    onLongClick = { viewModel.startAddVariant(option.product) },
+                )
+                .padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NetworkImage(
+                url = option.imageUrl,
+                contentDescription = option.displayName,
+                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)).clickable { viewModel.openProductInfo(option) },
             )
-            else -> OutlinedButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
-                Text(stringResource(Res.string.action_add))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    option.displayName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                OptionStockSummary(option)
+            }
+            when {
+                option.needsPicker && line != null -> OutlinedButton(onClick = { viewModel.openPicker(option.product, line.key) }) {
+                    Text(option.quantityLabel(line.quantity), maxLines = 1)
+                }
+                option.needsPicker -> OutlinedButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
+                    Text(stringResource(Res.string.pos_choose_option), maxLines = 1)
+                }
+                line != null -> PackCountStepper(
+                    option = option,
+                    quantity = line.quantity,
+                    onSet = { viewModel.setQuantity(line.key, it) },
+                    onIncrement = { viewModel.changeQuantity(line.key, 1) },
+                    onDecrement = { viewModel.changeQuantity(line.key, -1) },
+                )
+                else -> FilledTonalButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(Res.string.action_add))
+                }
             }
         }
     }
@@ -374,40 +490,69 @@ private fun PosOptionRow(option: PurchaseOption, line: CartLine?, viewModel: Ord
 @Composable
 private fun OptionStockSummary(option: PurchaseOption) {
     OptionPriceSummary(option)
-    Text(
-        text = stringResource(
-            Res.string.in_stock,
-            option.unitPrice.asMoney(),
+    val colors = MaterialTheme.colorScheme
+    val (label, tint) = when {
+        !option.inStock -> stringResource(Res.string.pos_out_of_stock) to colors.error
+        option.stock <= option.product.lowStockThreshold -> stringResource(
+            Res.string.stock_left,
             option.stock.asQuantity(),
             option.quantityUnit.localizedLabel(),
-        ),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+        ) to colors.tertiary
+        else -> stringResource(
+            Res.string.stock_left,
+            option.stock.asQuantity(),
+            option.quantityUnit.localizedLabel(),
+        ) to colors.onSurfaceVariant
+    }
+    Surface(shape = RoundedCornerShape(6.dp), color = tint.copy(alpha = 0.12f)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
 }
 
 @Composable
 private fun PosCartBar(state: OrderEditorUiState, onOpen: () -> Unit) {
     if (state.cart.isEmpty()) return
-    Surface(shadowElevation = 8.dp, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        shadowElevation = 8.dp,
+        color = colors.primary,
+        modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(colors.onPrimary.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.ShoppingCart, null, tint = colors.onPrimary) }
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     stringResource(Res.string.pos_cart_bar_items, state.itemCount),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.onPrimary.copy(alpha = 0.85f),
                 )
                 Text(
                     state.total.asMoney(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = colors.onPrimary,
                 )
             }
-            Button(onClick = onOpen) { Text(stringResource(Res.string.pos_view_cart)) }
+            Text(
+                stringResource(Res.string.pos_view_cart),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onPrimary,
+            )
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = colors.onPrimary)
         }
     }
 }
@@ -750,6 +895,7 @@ private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorVie
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -811,28 +957,12 @@ private fun ColumnScope.UdhaarContent(state: OrderEditorUiState, viewModel: Orde
         fontWeight = FontWeight.Bold,
         modifier = Modifier.fillMaxWidth(),
     )
-    Text(
-        stringResource(Res.string.pos_udhaar_hint),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    OutlinedTextField(
-        value = state.udhaarPhone,
-        onValueChange = viewModel::onUdhaarPhoneChange,
-        label = { Text(stringResource(Res.string.pos_udhaar_phone)) },
-        prefix = { Text("+91 ") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-        modifier = Modifier.fillMaxWidth(),
-    )
-    OutlinedTextField(
-        value = state.customerName,
-        onValueChange = viewModel::onCustomerNameChange,
-        label = { Text(stringResource(Res.string.pos_udhaar_name)) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    val selected = state.udhaarSelected
+    when {
+        selected != null -> UdhaarConfirmStep(selected, state)
+        state.udhaarAddingNew -> UdhaarNewBorrowerStep(state, viewModel)
+        else -> UdhaarSearchStep(state, viewModel)
+    }
     state.error?.let { error ->
         Text(error.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth())
     }
@@ -840,13 +970,197 @@ private fun ColumnScope.UdhaarContent(state: OrderEditorUiState, viewModel: Orde
         OutlinedButton(onClick = viewModel::backFromUdhaar, modifier = Modifier.weight(1f)) {
             Text(stringResource(Res.string.action_back))
         }
-        Button(
-            onClick = viewModel::confirmUdhaar,
-            enabled = state.udhaarPhone.length == AppConstants.PHONE_LOCAL_DIGITS,
-            modifier = Modifier.weight(1f),
-        ) {
-            Text(stringResource(Res.string.pos_udhaar_confirm, state.total.asMoney()))
+        if (selected != null || state.udhaarAddingNew) {
+            Button(
+                onClick = viewModel::confirmUdhaar,
+                enabled = state.udhaarPhone.length == AppConstants.PHONE_LOCAL_DIGITS,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(Res.string.pos_udhaar_confirm, state.total.asMoney()))
+            }
         }
+    }
+}
+
+@Composable
+private fun UdhaarSearchStep(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(Res.string.pos_udhaar_pick_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val query = state.udhaarQuery.trim()
+        when {
+            state.udhaarResults.isNotEmpty() -> LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items(state.udhaarResults, key = { it.phone }) { borrower ->
+                    UdhaarBorrowerRow(borrower, onClick = { viewModel.selectBorrower(borrower) })
+                }
+            }
+            state.udhaarSearching -> Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            }
+            query.isNotEmpty() -> Text(
+                stringResource(Res.string.pos_udhaar_not_found, query),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        OutlinedTextField(
+            value = state.udhaarQuery,
+            onValueChange = viewModel::onUdhaarQueryChange,
+            label = { Text(stringResource(Res.string.pos_udhaar_search)) },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = if (state.udhaarSearching && state.udhaarResults.isNotEmpty()) {
+                { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) }
+            } else null,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedButton(onClick = viewModel::startNewBorrower, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(Res.string.pos_udhaar_add_new))
+        }
+    }
+}
+
+@Composable
+private fun UdhaarBorrowerRow(borrower: BorrowerDto, onClick: () -> Unit) {
+    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            BorrowerAvatar(borrower.name.ifBlank { borrower.phone }, borrower.photoUrl, size = 40)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    borrower.name.ifBlank { borrower.phone },
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOf(borrower.phone, borrower.address).filter(String::isNotBlank).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (borrower.outstanding > 0) {
+                Text(
+                    stringResource(Res.string.udhaar_due, borrower.outstanding.asMoney()),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UdhaarConfirmStep(borrower: BorrowerDto, state: OrderEditorUiState) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BorrowerAvatar(borrower.name.ifBlank { borrower.phone }, borrower.photoUrl, size = 56)
+                Column(Modifier.weight(1f)) {
+                    Text(borrower.name.ifBlank { borrower.phone }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("+91 ${borrower.phone}", style = MaterialTheme.typography.bodyMedium)
+                    if (borrower.address.isNotBlank()) {
+                        Text(borrower.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            HorizontalDivider()
+            UdhaarAmountRow(stringResource(Res.string.pos_udhaar_current_due), borrower.outstanding.asMoney())
+            UdhaarAmountRow(stringResource(Res.string.pos_udhaar_this_bill), state.total.asMoney())
+            UdhaarAmountRow(
+                stringResource(Res.string.pos_udhaar_new_due),
+                (borrower.outstanding + state.total).asMoney(),
+                emphasize = true,
+            )
+        }
+    }
+    Text(
+        stringResource(Res.string.pos_udhaar_confirm_question, borrower.name.ifBlank { borrower.phone }),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun UdhaarAmountRow(label: String, value: String, emphasize: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = if (emphasize) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium)
+        Text(
+            value,
+            style = if (emphasize) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+            fontWeight = if (emphasize) FontWeight.Bold else null,
+        )
+    }
+}
+
+@Composable
+private fun UdhaarNewBorrowerStep(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(Res.string.pos_udhaar_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            PartnerProfileCircle(
+                imageUrl = "",
+                onClick = viewModel::takeBorrowerPhoto,
+                showEditBadge = true,
+                localPreviewBytes = state.udhaarPhotoPreview,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(Res.string.pos_udhaar_photo), style = MaterialTheme.typography.titleSmall)
+                Row {
+                    TextButton(onClick = viewModel::takeBorrowerPhoto) {
+                        Icon(Icons.Filled.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(
+                                if (state.udhaarPhotoPreview == null) Res.string.pos_udhaar_take_photo else Res.string.pos_udhaar_retake_photo,
+                            ),
+                        )
+                    }
+                    if (state.udhaarPhotoPreview != null) {
+                        TextButton(onClick = viewModel::removeBorrowerPhoto) { Text(stringResource(Res.string.action_remove)) }
+                    }
+                }
+            }
+        }
+        OutlinedTextField(
+            value = state.udhaarPhone,
+            onValueChange = viewModel::onUdhaarPhoneChange,
+            label = { Text(stringResource(Res.string.pos_udhaar_phone)) },
+            prefix = { Text("+91 ") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = state.customerName,
+            onValueChange = viewModel::onCustomerNameChange,
+            label = { Text(stringResource(Res.string.pos_udhaar_name)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = state.udhaarAddress,
+            onValueChange = viewModel::onUdhaarAddressChange,
+            label = { Text(stringResource(Res.string.pos_udhaar_address)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

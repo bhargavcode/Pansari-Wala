@@ -375,6 +375,7 @@ fun UserNavGraph() {
                         OrderDetailsScreen(
                             route.orderId,
                             onBack = { popOr(UserRoute.Shell) },
+                            onReorder = { shopId -> push(UserRoute.Cart(shopId)) },
                         )
                     }
                     UserRoute.OrdersList -> NavEntry(route) {

@@ -139,6 +139,8 @@ data class ShopDoc(
     val deliveryUntil: String = "",
     /** False = the shop never delivers; customers can only order for pickup. */
     val homeDeliveryEnabled: Boolean = true,
+    /** Set while the shop admin's account closure is pending; the sweep deactivates the shop after it. */
+    val deletionScheduledAt: Long? = null,
     /** Customer catalog category order: PRIORITY (shop-set numbers, then name) or NAME. */
     val categorySort: String = "PRIORITY",
     val categoryPriorities: List<CategoryPriorityDoc> = emptyList(),
@@ -232,6 +234,10 @@ data class PartnerDoc(
     val vehicleColor: String = "",
     val vehicleType: String = "SCOOTY",
     val active: Boolean = true,
+    /** Set while the partner's account closure is pending; the sweep deactivates the partner after it. */
+    val deletionScheduledAt: Long? = null,
+    /** Set once the partner closed their account; login is refused from then on. */
+    val closedAt: Long? = null,
 )
 
 @Serializable

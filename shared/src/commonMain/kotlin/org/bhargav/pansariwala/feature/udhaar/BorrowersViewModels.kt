@@ -194,8 +194,22 @@ data class BorrowerEditForm(
     val busy: Boolean = false,
 )
 
+enum class BorrowerDetailTab { ORDERS, TRANSACTIONS }
+
+/** One paged list on the borrower screen; [page] is the last loaded page (-1 = none yet). */
+data class CreditTxnPage(
+    val items: List<CreditTxnDto> = emptyList(),
+    val page: Int = -1,
+    val hasMore: Boolean = true,
+    val loading: Boolean = false,
+    val totalCount: Int = 0,
+)
+
 data class BorrowerDetailUiState(
     val detail: BorrowerDetailDto? = null,
+    val tab: BorrowerDetailTab = BorrowerDetailTab.ORDERS,
+    val orders: CreditTxnPage = CreditTxnPage(),
+    val txns: CreditTxnPage = CreditTxnPage(),
     val loading: Boolean = true,
     val error: UiText? = null,
     val filter: UdhaarTxnFilter = UdhaarTxnFilter.ALL,
@@ -222,15 +236,69 @@ class BorrowerDetailViewModel(
         loadStaff()
     }
 
+    private var ordersJob: Job? = null
+    private var txnsJob: Job? = null
+
     fun refresh() {
-        viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-            runCatching { api.borrowerDetail(phone) }
-                .onSuccess { detail -> _state.update { it.copy(detail = detail, loading = false) } }
+        _state.update { it.copy(loading = true, error = null, orders = CreditTxnPage(), txns = CreditTxnPage()) }
+        loadPage(BorrowerDetailTab.ORDERS, reset = true)
+        loadPage(BorrowerDetailTab.TRANSACTIONS, reset = true)
+    }
+
+    fun selectTab(tab: BorrowerDetailTab) = _state.update { it.copy(tab = tab) }
+
+    fun loadMore(tab: BorrowerDetailTab) {
+        val page = _state.value.page(tab)
+        if (!page.hasMore || page.loading) return
+        loadPage(tab, reset = false)
+    }
+
+    private fun BorrowerDetailUiState.page(tab: BorrowerDetailTab) =
+        if (tab == BorrowerDetailTab.ORDERS) orders else txns
+
+    private fun BorrowerDetailUiState.withPage(tab: BorrowerDetailTab, page: CreditTxnPage) =
+        if (tab == BorrowerDetailTab.ORDERS) copy(orders = page) else copy(txns = page)
+
+    private fun loadPage(tab: BorrowerDetailTab, reset: Boolean) {
+        val type = when (tab) {
+            BorrowerDetailTab.ORDERS -> AppConstants.Udhaar.TYPE_CREDIT
+            BorrowerDetailTab.TRANSACTIONS -> when (_state.value.filter) {
+                UdhaarTxnFilter.ALL -> null
+                UdhaarTxnFilter.PURCHASES -> AppConstants.Udhaar.TYPE_CREDIT
+                UdhaarTxnFilter.PAYMENTS -> AppConstants.Udhaar.TYPE_REPAYMENT
+            }
+        }
+        val current = if (reset) CreditTxnPage() else _state.value.page(tab)
+        val nextPage = current.page + 1
+        _state.update { it.withPage(tab, current.copy(loading = true)) }
+        val job = viewModelScope.launch {
+            runCatching { api.borrowerDetail(phone, type, nextPage, AppConstants.Udhaar.PAGE_SIZE) }
+                .onSuccess { detail ->
+                    _state.update { s ->
+                        val base = s.page(tab)
+                        s.withPage(
+                            tab,
+                            CreditTxnPage(
+                                items = if (nextPage == 0) detail.transactions else base.items + detail.transactions,
+                                page = nextPage,
+                                hasMore = detail.hasMore,
+                                loading = false,
+                                totalCount = detail.totalCount,
+                            ),
+                        ).copy(detail = detail, loading = false)
+                    }
+                }
                 .onFailure { err ->
                     err.rethrowIfStructuredCancellation()
-                    _state.update { it.copy(loading = false, error = err.toApiUiText()) }
+                    _state.update { s ->
+                        s.withPage(tab, s.page(tab).copy(loading = false)).copy(loading = false, error = err.toApiUiText())
+                    }
                 }
+        }
+        if (tab == BorrowerDetailTab.ORDERS) {
+            ordersJob?.cancel(); ordersJob = job
+        } else {
+            txnsJob?.cancel(); txnsJob = job
         }
     }
 
@@ -246,7 +314,11 @@ class BorrowerDetailViewModel(
         }
     }
 
-    fun setFilter(filter: UdhaarTxnFilter) = _state.update { it.copy(filter = filter) }
+    fun setFilter(filter: UdhaarTxnFilter) {
+        if (filter == _state.value.filter) return
+        _state.update { it.copy(filter = filter) }
+        loadPage(BorrowerDetailTab.TRANSACTIONS, reset = true)
+    }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 

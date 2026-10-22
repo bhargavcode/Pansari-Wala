@@ -34,7 +34,7 @@ sealed interface AppRoute : NavKey {
     data object MasterCatalog : AppRoute
 
     @Serializable
-    data class OrderEditor(val orderId: String? = null) : AppRoute
+    data class OrderEditor(val orderId: String? = null, val reorderFromId: String? = null) : AppRoute
 
     @Serializable
     data class OrdersWorkspace(val orderId: String? = null) : AppRoute
@@ -61,6 +61,9 @@ sealed interface AppRoute : NavKey {
     data object ShopProfile : AppRoute
 
     @Serializable
+    data object PosSettings : AppRoute
+
+    @Serializable
     data object Subscription : AppRoute
 
     /** [day] is `yyyy-MM-dd` in shop time. */
@@ -72,6 +75,10 @@ sealed interface AppRoute : NavKey {
 
     @Serializable
     data object Borrowers : AppRoute
+
+    /** Read-only bill view; [online] picks the server copy instead of the local POS DB. */
+    @Serializable
+    data class ShopOrderDetail(val orderId: String, val online: Boolean) : AppRoute
 
     @Serializable
     data class BorrowerDetail(val phone: String) : AppRoute
@@ -95,9 +102,11 @@ fun AppRoute.screenName(): String = when (this) {
     is AppRoute.CategorySales -> "category_sales"
     is AppRoute.ProductSales -> "product_sales"
     AppRoute.ShopProfile -> "shop_profile"
+    AppRoute.PosSettings -> "pos_settings"
     AppRoute.Subscription -> "subscription"
     is AppRoute.CommissionDay -> "commission_day"
     is AppRoute.CommissionOrder -> "commission_order"
     AppRoute.Borrowers -> "borrowers"
+    is AppRoute.ShopOrderDetail -> "shop_order_detail"
     is AppRoute.BorrowerDetail -> "borrower_detail"
 }

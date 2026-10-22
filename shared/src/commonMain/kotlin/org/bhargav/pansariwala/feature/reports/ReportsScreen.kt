@@ -100,6 +100,7 @@ import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 fun ReportsScreen(
     onBack: () -> Unit,
     onOpenCategory: (category: String, window: SalesWindow) -> Unit = { _, _ -> },
+    onOpenOrder: (orderId: String, online: Boolean) -> Unit = { _, _ -> },
     viewModel: ReportsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -202,7 +203,7 @@ fun ReportsScreen(
                     }
                 }
                 items(state.pageRows, key = { "${it.channel}_${it.id}" }, contentType = { "row" }) { row ->
-                    ReportOrderRow(row)
+                    ReportOrderRow(row, onClick = { onOpenOrder(row.id, row.channel == OrderChannel.ONLINE) })
                 }
                 if (state.pageCount > 1) {
                     item(key = "pager", contentType = "pager") {
@@ -319,9 +320,10 @@ private fun KpiRow(summary: ReportSummary, channel: ReportChannel) {
 }
 
 @Composable
-private fun ReportOrderRow(row: ReportOrder) {
+private fun ReportOrderRow(row: ReportOrder, onClick: () -> Unit) {
     val accent = if (row.channel == OrderChannel.ONLINE) OnlineColor else OfflineColor
     Surface(
+        onClick = onClick,
         shape = MaterialTheme.shapes.medium,
         tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth(),

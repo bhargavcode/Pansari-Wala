@@ -337,7 +337,7 @@ fun MarketScreen(
                             Res.string.market_greeting,
                             state.userName.ifBlank { stringResource(Res.string.market_greeting_guest) },
                         ),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

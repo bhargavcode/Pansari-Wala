@@ -25,6 +25,7 @@ import org.bhargav.pansariwala.feature.inventory.MasterCatalogViewModel
 import org.bhargav.pansariwala.feature.inventory.ShopSheetImportViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryProductDetailViewModel
 import org.bhargav.pansariwala.feature.udhaar.BorrowerDetailViewModel
+import org.bhargav.pansariwala.feature.udhaar.BorrowerProfileUploader
 import org.bhargav.pansariwala.feature.udhaar.BorrowersViewModel
 import org.bhargav.pansariwala.feature.udhaar.MyCreditShopViewModel
 import org.bhargav.pansariwala.feature.udhaar.MyCreditViewModel
@@ -110,6 +111,7 @@ val appModule = module {
     single { CartStore(get()) }
     single<PrinterSettingsStore> { SessionPrinterSettingsStore(get()) }
     singleOf(::PosPrintService)
+    singleOf(::BorrowerProfileUploader)
     single<PansariApi> { KtorPansariApi(createPlatformHttpClient(), ApiRuntime.baseUrl, get()) }
 
     singleOf(::LocalAuthRepository) bind AuthRepository::class
@@ -164,5 +166,11 @@ val appModule = module {
     viewModelOf(::BorrowersViewModel)
     viewModel { (phone: String) -> BorrowerDetailViewModel(phone, get(), get(), get()) }
     viewModelOf(::MyCreditViewModel)
+    viewModel { (orderId: String, online: Boolean) ->
+        org.bhargav.pansariwala.feature.reports.ShopOrderDetailViewModel(orderId, online, get(), get())
+    }
+    viewModel { (account: org.bhargav.pansariwala.feature.account.ClosableAccount) ->
+        org.bhargav.pansariwala.feature.account.AccountClosureViewModel(account, get())
+    }
     viewModel { (shopId: String) -> MyCreditShopViewModel(shopId, get()) }
 }

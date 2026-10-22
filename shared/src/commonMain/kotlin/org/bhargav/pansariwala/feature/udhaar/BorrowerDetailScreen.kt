@@ -3,6 +3,13 @@ package org.bhargav.pansariwala.feature.udhaar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import pansariwala.shared.generated.resources.udhaar_tab_orders
+import androidx.compose.material3.Tab
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +81,9 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.udhaar_txn_ref
+import pansariwala.shared.generated.resources.udhaar_txn_gateway_upi
+import pansariwala.shared.generated.resources.udhaar_txn_gateway_cashfree
 import pansariwala.shared.generated.resources.action_cancel
 import pansariwala.shared.generated.resources.action_save
 import pansariwala.shared.generated.resources.udhaar_address
@@ -107,6 +117,7 @@ import pansariwala.shared.generated.resources.udhaar_txn_via_app
 import pansariwala.shared.generated.resources.udhaar_txns_empty
 import pansariwala.shared.generated.resources.udhaar_txns_title
 
+private const val LOAD_MORE_THRESHOLD = 3
 private const val MESSAGE_VISIBLE_MS = 2_500L
 private val repaymentModes = listOf(
     AppConstants.PosPayment.CASH,
@@ -138,106 +149,150 @@ fun BorrowerDetailScreen(
     ) {
         val detail = state.detail ?: return@PansariScreen
         val b = detail.borrower
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Card(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.raisedCard),
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)))
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            item(key = "header") {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.raisedCard),
                 ) {
-                    PartnerProfileCircle(
-                        imageUrl = b.photoUrl.orEmpty(),
-                        onClick = pickPhoto,
-                        showEditBadge = true,
-                        uploading = state.photoUploading,
-                        localPreviewBytes = state.photoPreview,
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            b.name.ifBlank { b.phone },
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)))
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        PartnerProfileCircle(
+                            imageUrl = b.photoUrl.orEmpty(),
+                            onClick = pickPhoto,
+                            showEditBadge = true,
+                            uploading = state.photoUploading,
+                            localPreviewBytes = state.photoPreview,
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Phone, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(end = 6.dp))
-                            Text(b.phone, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.9f))
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                b.name.ifBlank { b.phone },
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Phone, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(end = 6.dp))
+                                Text(b.phone, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.9f))
+                            }
+                            if (b.address.isNotBlank()) {
+                                Text(b.address, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f))
+                            }
+                            if (b.notes.isNotBlank()) {
+                                Text(b.notes, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
+                            }
+                            OutlinedButton(
+                                onClick = viewModel::openEdit,
+                                modifier = Modifier.padding(top = 6.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            ) {
+                                Icon(Icons.Default.Edit, null, Modifier.padding(end = 6.dp))
+                                Text(stringResource(Res.string.udhaar_edit_info))
+                            }
                         }
-                        if (b.address.isNotBlank()) {
-                            Text(b.address, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f))
-                        }
-                        if (b.notes.isNotBlank()) {
-                            Text(b.notes, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
-                        }
-                        OutlinedButton(
-                            onClick = viewModel::openEdit,
-                            modifier = Modifier.padding(top = 6.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        ) {
-                            Icon(Icons.Default.Edit, null, Modifier.padding(end = 6.dp))
-                            Text(stringResource(Res.string.udhaar_edit_info))
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile(
+                        label = stringResource(Res.string.udhaar_outstanding),
+                        value = b.outstanding.asMoney(),
+                        modifier = Modifier.weight(1f),
+                        container = MaterialTheme.colorScheme.errorContainer,
+                        onContainer = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    StatTile(
+                        label = stringResource(Res.string.udhaar_total_credit),
+                        value = b.totalCredit.asMoney(),
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatTile(
+                        label = stringResource(Res.string.udhaar_total_repaid),
+                        value = b.totalRepaid.asMoney(),
+                        modifier = Modifier.weight(1f),
+                        container = MaterialTheme.colorScheme.tertiaryContainer,
+                        onContainer = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+                Button(
+                    onClick = viewModel::openRepay,
+                    enabled = b.outstanding > 0.0,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Icon(Icons.Default.Payments, null, Modifier.padding(end = 8.dp))
+                    Text(stringResource(Res.string.udhaar_repayment), style = MaterialTheme.typography.titleMedium)
+                }
+            }
+            item(key = "tabs") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {
+                        Tab(
+                            selected = state.tab == BorrowerDetailTab.ORDERS,
+                            onClick = { viewModel.selectTab(BorrowerDetailTab.ORDERS) },
+                            text = { Text(stringResource(Res.string.udhaar_tab_orders, state.orders.totalCount)) },
+                        )
+                        Tab(
+                            selected = state.tab == BorrowerDetailTab.TRANSACTIONS,
+                            onClick = { viewModel.selectTab(BorrowerDetailTab.TRANSACTIONS) },
+                            text = { Text(stringResource(Res.string.udhaar_txns_title)) },
+                        )
+                    }
+                    if (state.tab == BorrowerDetailTab.TRANSACTIONS) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(
+                                UdhaarTxnFilter.ALL to Res.string.udhaar_filter_all,
+                                UdhaarTxnFilter.PURCHASES to Res.string.udhaar_filter_purchases,
+                                UdhaarTxnFilter.PAYMENTS to Res.string.udhaar_filter_payments,
+                            ).forEach { (f, label) ->
+                                FilterChip(
+                                    selected = state.filter == f,
+                                    onClick = { viewModel.setFilter(f) },
+                                    label = { Text(stringResource(label)) },
+                                )
+                            }
                         }
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile(
-                    label = stringResource(Res.string.udhaar_outstanding),
-                    value = b.outstanding.asMoney(),
-                    modifier = Modifier.weight(1f),
-                    container = MaterialTheme.colorScheme.errorContainer,
-                    onContainer = MaterialTheme.colorScheme.onErrorContainer,
-                )
-                StatTile(
-                    label = stringResource(Res.string.udhaar_total_credit),
-                    value = b.totalCredit.asMoney(),
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    label = stringResource(Res.string.udhaar_total_repaid),
-                    value = b.totalRepaid.asMoney(),
-                    modifier = Modifier.weight(1f),
-                    container = MaterialTheme.colorScheme.tertiaryContainer,
-                    onContainer = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
+            val tab = state.tab
+            val page = if (tab == BorrowerDetailTab.ORDERS) state.orders else state.txns
+            if (page.items.isEmpty() && !page.loading) {
+                item(key = "empty_$tab") {
+                    EmptyLine(
+                        stringResource(
+                            if (tab == BorrowerDetailTab.ORDERS) Res.string.udhaar_orders_empty else Res.string.udhaar_txns_empty,
+                        ),
+                    )
+                }
             }
-            Button(
-                onClick = viewModel::openRepay,
-                enabled = b.outstanding > 0.0,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) {
-                Icon(Icons.Default.Payments, null, Modifier.padding(end = 8.dp))
-                Text(stringResource(Res.string.udhaar_repayment), style = MaterialTheme.typography.titleMedium)
-            }
-            val orders = detail.transactions.filter { it.type == AppConstants.Udhaar.TYPE_CREDIT }
-            SectionCard(title = stringResource(Res.string.udhaar_orders_title), modifier = Modifier.fillMaxWidth()) {
-                if (orders.isEmpty()) {
-                    EmptyLine(stringResource(Res.string.udhaar_orders_empty))
-                } else {
-                    Column {
-                        orders.forEachIndexed { i, txn ->
-                            CreditOrderBlock(txn)
-                            if (i < orders.lastIndex) HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                        }
+            itemsIndexed(page.items, key = { _, txn -> "${tab}_${txn.id}" }) { index, txn ->
+                if (index >= page.items.lastIndex - LOAD_MORE_THRESHOLD) {
+                    LaunchedEffect(tab, page.page) { viewModel.loadMore(tab) }
+                }
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Box(Modifier.padding(14.dp)) {
+                        if (tab == BorrowerDetailTab.ORDERS) CreditOrderBlock(txn) else CreditTxnRow(txn, showItems = false)
                     }
                 }
             }
-            CreditTxnsCard(
-                transactions = detail.transactions,
-                filter = state.filter,
-                onFilter = viewModel::setFilter,
-            )
-            Spacer(Modifier.height(16.dp))
+            if (page.loading) {
+                item(key = "loading_$tab") {
+                    Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+                    }
+                }
+            }
+            item(key = "bottom_space") { Spacer(Modifier.height(16.dp)) }
         }
         state.message?.let { msg ->
             Surface(
@@ -497,6 +552,12 @@ private fun CreditTxnRow(txn: CreditTxnDto, showItems: Boolean) {
             if (txn.receivedBy.isNotBlank()) add(stringResource(Res.string.udhaar_txn_received_by, txn.receivedBy))
             if (isCredit && txn.processedBy.isNotBlank()) add(stringResource(Res.string.udhaar_txn_processed_by, txn.processedBy))
             if (txn.source == AppConstants.Udhaar.SOURCE_USER_APP) add(stringResource(Res.string.udhaar_txn_via_app))
+            when (txn.gateway) {
+                AppConstants.Udhaar.GATEWAY_CASHFREE -> add(stringResource(Res.string.udhaar_txn_gateway_cashfree))
+                AppConstants.Udhaar.GATEWAY_UPI_DIRECT -> add(stringResource(Res.string.udhaar_txn_gateway_upi))
+            }
+            txn.paymentRef?.takeIf { it.isNotBlank() }?.let { add(stringResource(Res.string.udhaar_txn_ref, it)) }
+            if (failed && txn.failureReason.isNotBlank()) add(txn.failureReason)
             if (txn.note.isNotBlank()) add(txn.note)
         }
         if (meta.isNotEmpty()) {

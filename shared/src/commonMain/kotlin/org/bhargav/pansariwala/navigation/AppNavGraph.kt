@@ -78,10 +78,12 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.CategorySales::class, AppRoute.CategorySales.serializer())
             subclass(AppRoute.ProductSales::class, AppRoute.ProductSales.serializer())
             subclass(AppRoute.ShopProfile::class, AppRoute.ShopProfile.serializer())
+            subclass(AppRoute.PosSettings::class, AppRoute.PosSettings.serializer())
             subclass(AppRoute.Subscription::class, AppRoute.Subscription.serializer())
             subclass(AppRoute.CommissionDay::class, AppRoute.CommissionDay.serializer())
             subclass(AppRoute.CommissionOrder::class, AppRoute.CommissionOrder.serializer())
             subclass(AppRoute.Borrowers::class, AppRoute.Borrowers.serializer())
+            subclass(AppRoute.ShopOrderDetail::class, AppRoute.ShopOrderDetail.serializer())
             subclass(AppRoute.BorrowerDetail::class, AppRoute.BorrowerDetail.serializer())
         }
     }
@@ -230,6 +232,7 @@ fun AppNavGraph(
                             onOpenBorrowers = { push(AppRoute.Borrowers) },
                             onOpenMasterCatalog = { push(AppRoute.MasterCatalog) },
                             onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
+                            onOpenPosSettings = { push(AppRoute.PosSettings) },
                             onLogout = { replaceAll(AppRoute.Login) },
                         )
                     }
@@ -278,6 +281,7 @@ fun AppNavGraph(
                     is AppRoute.OrderEditor -> NavEntry(route) {
                         OrderEditorScreen(
                             orderId = route.orderId,
+                            reorderFromId = route.reorderFromId,
                             onBack = { pop() },
                             onSaved = { pop() },
                             onOpenSubscription = { push(AppRoute.Subscription) },
@@ -310,6 +314,17 @@ fun AppNavGraph(
                         org.bhargav.pansariwala.feature.reports.ReportsScreen(
                             onBack = { pop() },
                             onOpenCategory = { category, window -> push(AppRoute.CategorySales(category, window)) },
+                            onOpenOrder = { orderId, online -> push(AppRoute.ShopOrderDetail(orderId, online)) },
+                        )
+                    }
+
+                    is AppRoute.ShopOrderDetail -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.reports.ShopOrderDetailScreen(
+                            orderId = route.orderId,
+                            online = route.online,
+                            onBack = { pop() },
+                            onEditOrder = { orderId -> push(AppRoute.OrdersWorkspace(orderId)) },
+                            onReorder = { orderId -> push(AppRoute.OrderEditor(reorderFromId = orderId)) },
                         )
                     }
 
@@ -335,6 +350,14 @@ fun AppNavGraph(
                         org.bhargav.pansariwala.feature.profile.ShopProfileScreen(
                             onBack = { pop() },
                             onOpenSubscription = { push(AppRoute.Subscription) },
+                        )
+                    }
+
+                    AppRoute.PosSettings -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.profile.ShopProfileScreen(
+                            onBack = { pop() },
+                            onOpenSubscription = { push(AppRoute.Subscription) },
+                            settingsMode = true,
                         )
                     }
 

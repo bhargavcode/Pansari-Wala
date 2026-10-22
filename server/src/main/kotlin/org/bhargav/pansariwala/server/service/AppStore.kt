@@ -31,6 +31,8 @@ import org.bhargav.pansariwala.server.db.CategoryPriorityDoc
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderDto
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderItemDto
 import org.bhargav.pansariwala.server.dto.OtpConfigResponse
+import org.bhargav.pansariwala.server.dto.UsernameAvailabilityDto
+import org.bhargav.pansariwala.server.dto.AccountDeletionDto
 import org.bhargav.pansariwala.server.dto.PAYMENT_FLOW_INTENT
 import org.bhargav.pansariwala.server.security.OtpAppProof
 import org.bhargav.pansariwala.server.db.CustomerAddressDoc
@@ -252,6 +254,15 @@ class AppStore(
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val cashfree = CashfreeGateway(config)
+    /** Receives Cashfree webhooks for udhaar repayment orders ([REPAY_GATEWAY_PREFIX]). */
+    var onRepaymentWebhook: (suspend (String) -> Unit)? = null
+
+    fun repayGateway() = RepayGateway(
+        cashfree = cashfree,
+        paymentMode = { platform().paymentMode },
+        windowMs = { platform().paymentWindowMinutes.coerceIn(1, MAX_PAYMENT_WINDOW_MIN) * 60_000L },
+        defaultShopUpi = config.defaultShopUpi,
+    )
     private val sockets = ConcurrentHashMap<String, WebSocketSession>()
     private val acceptLocks = ConcurrentHashMap<String, Any>()
     private val shopCol = mongo.db.getCollection<ShopDoc>("shops")
@@ -485,6 +496,7 @@ class AppStore(
         val phone = security.verifyFirebaseOrDev(idToken)
         val partner = partnerCol.find(eq("phone", phone)).projection(partnerLiteProjection).firstOrNull()
         if (partner != null) {
+            require(partner.closedAt == null) { "This delivery partner account was closed." }
             partnerCol.updateOne(eq("_id", partner.id), set("verified", true))
             val token = security.issueJwt(partner.id, "PARTNER", displayName = partner.name)
             return TokenResponse(token, null, "PARTNER", partner.id, null, partner.name, true)
@@ -501,6 +513,7 @@ class AppStore(
         val normalized = otp.verify(phone, code, sessionId)
         val partner = partnerCol.find(eq("phone", normalized)).firstOrNull()
         if (partner != null) {
+            require(partner.closedAt == null) { "This delivery partner account was closed." }
             partnerCol.updateOne(eq("_id", partner.id), set("verified", true))
             val token = security.issueJwt(partner.id, "PARTNER", displayName = partner.name)
             return TokenResponse(token, null, "PARTNER", partner.id, null, partner.name, true)
@@ -562,6 +575,80 @@ class AppStore(
     fun cancelAccountDeletion(userId: String): CustomerDto {
         customerCol.updateOne(eq("_id", userId), unset("deletionScheduledAt"))
         return me(userId)
+    }
+
+    private fun requireShopAdmin(userId: String): ShopUserDoc {
+        val user = shopUser(userId)
+        require(user.active && user.role == "SHOP") { "Only the shop admin can close this account" }
+        return user
+    }
+
+    fun shopDeletionStatus(userId: String): AccountDeletionDto {
+        val shopId = shopUser(userId).shopId
+        return AccountDeletionDto(shopCol.find(eq("_id", shopId)).firstOrNull()?.deletionScheduledAt)
+    }
+
+    fun requestShopDeletion(userId: String): AccountDeletionDto {
+        val shopId = requireShopAdmin(userId).shopId
+        val shop = shopCol.find(eq("_id", shopId)).firstOrNull() ?: error("Shop not found")
+        if (shop.deletionScheduledAt == null) {
+            shopCol.updateOne(eq("_id", shopId), set("deletionScheduledAt", System.currentTimeMillis() + ACCOUNT_DELETION_GRACE_MS))
+        }
+        return shopDeletionStatus(userId)
+    }
+
+    fun cancelShopDeletion(userId: String): AccountDeletionDto {
+        shopCol.updateOne(eq("_id", requireShopAdmin(userId).shopId), unset("deletionScheduledAt"))
+        return shopDeletionStatus(userId)
+    }
+
+    fun partnerDeletionStatus(partnerId: String): AccountDeletionDto =
+        AccountDeletionDto(partnerCol.find(eq("_id", partnerId)).firstOrNull()?.deletionScheduledAt)
+
+    fun requestPartnerDeletion(partnerId: String): AccountDeletionDto {
+        val partner = partnerCol.find(eq("_id", partnerId)).firstOrNull() ?: error("Partner not found")
+        if (partner.deletionScheduledAt == null) {
+            partnerCol.updateOne(eq("_id", partnerId), set("deletionScheduledAt", System.currentTimeMillis() + ACCOUNT_DELETION_GRACE_MS))
+        }
+        return partnerDeletionStatus(partnerId)
+    }
+
+    fun cancelPartnerDeletion(partnerId: String): AccountDeletionDto {
+        partnerCol.updateOne(eq("_id", partnerId), unset("deletionScheduledAt"))
+        return partnerDeletionStatus(partnerId)
+    }
+
+    /**
+     * Closes shop and partner accounts whose grace period is over: the shop is hidden with its logins
+     * disabled, the partner is taken offline and disabled. Accounts with an order in progress wait.
+     */
+    fun closeDeletedBusinessAccounts(): Int {
+        val now = System.currentTimeMillis()
+        var closed = 0
+        shopCol.find(lte("deletionScheduledAt", now)).toList().forEach { shop ->
+            val busy = orderCol.countDocuments(
+                and(eq("shopId", shop.id), nin("status", ACCOUNT_PURGE_DONE_STATUSES)),
+            ) > 0L
+            if (busy) return@forEach
+            shopCol.updateOne(
+                eq("_id", shop.id),
+                combine(set("active", false), set("isOpen", false), set("paymentsEnabled", false), unset("deletionScheduledAt")),
+            )
+            shopUserCol.updateMany(eq("shopId", shop.id), set("active", false))
+            closed++
+        }
+        partnerCol.find(lte("deletionScheduledAt", now)).toList().forEach { partner ->
+            val busy = orderCol.countDocuments(
+                and(eq("partnerId", partner.id), nin("status", ACCOUNT_PURGE_DONE_STATUSES)),
+            ) > 0L
+            if (busy) return@forEach
+            partnerCol.updateOne(
+                eq("_id", partner.id),
+                combine(set("active", false), set("online", false), set("closedAt", now), unset("deletionScheduledAt")),
+            )
+            closed++
+        }
+        return closed
     }
 
     /**
@@ -1239,6 +1326,7 @@ class AppStore(
         require(customer.name.isNotBlank() && customer.address.isNotBlank()) { "Complete your profile" }
         val shop = shopById(request.shopId)
         require(shop.openNow()) { "${shop.name} is closed and not taking orders right now." }
+        require(shop.paymentsEnabled) { "${shop.name} is not accepting online payments right now." }
         when (settings.paymentMode) {
             PaymentMode.DIRECT_UPI -> require(shop.directUpi() != null) { "${shop.name} has not set up UPI payments yet." }
             PaymentMode.CASHFREE -> require(cashfree.enabled || shop.directUpi() != null) {
@@ -1611,6 +1699,10 @@ class AppStore(
     suspend fun handleCashfreeWebhook(timestamp: String, rawBody: String, signature: String): Boolean {
         if (!cashfree.verifyWebhook(timestamp, rawBody, signature)) return false
         val gatewayOrderId = cashfree.webhookOrderId(rawBody) ?: return true
+        if (gatewayOrderId.startsWith(REPAY_GATEWAY_PREFIX)) {
+            onRepaymentWebhook?.invoke(gatewayOrderId)
+            return true
+        }
         val intentId = gatewayOrderId.substringBeforeLast('_')
         val attemptNo = gatewayOrderId.substringAfterLast('_').toIntOrNull() ?: return true
         if (cashfree.orderStatus(gatewayOrderId) == CashfreeGateway.ORDER_PAID) {
@@ -3784,6 +3876,13 @@ class AppStore(
         return shopUserCol.find(eq("shopId", shopId)).toList()
             .sortedWith(compareBy({ it.role != ShopRole.ADMIN }, { it.displayName.lowercase() }))
             .map { it.toStaffDto() }
+    }
+
+    fun staffUsernameAvailability(userId: String, rawUsername: String): UsernameAvailabilityDto {
+        requireShopPermission(userId, ShopPerm.MANAGE_STAFF)
+        val username = normalizeLoginUsername(rawUsername)
+        if (username.isEmpty()) return UsernameAvailabilityDto(username, available = false)
+        return UsernameAvailabilityDto(username, shopUserCol.find(eq("username", username)).firstOrNull() == null)
     }
 
     /** Creates an EXECUTIVE login when [staffId] is null; admin (`SHOP`) logins are managed by master. */

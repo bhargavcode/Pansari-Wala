@@ -1,6 +1,16 @@
 package org.bhargav.pansariwala.feature.order
 
 import androidx.compose.foundation.layout.Arrangement
+import pansariwala.shared.generated.resources.order_items_show_less
+import pansariwala.shared.generated.resources.order_items_show_all
+import org.bhargav.pansariwala.i18n.localizedLabel
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -145,15 +155,76 @@ private fun ItemLine(
     showPrice: Boolean = true,
     struck: Boolean = false,
 ) {
-    val text = buildString {
-        append(item.productName).append(" × ").append(item.quantity.asQuantity())
-        if (showPrice) append(" · ").append(item.lineTotal.asMoney())
+    OrderItemRow(item, modifier, showPrice = showPrice, struck = struck)
+}
+
+/** One order line: name (+ option) over "qty unit × price", line total right-aligned. */
+@Composable
+fun OrderItemRow(
+    item: OrderItem,
+    modifier: Modifier = Modifier,
+    showPrice: Boolean = true,
+    struck: Boolean = false,
+) {
+    val decoration = if (struck) TextDecoration.LineThrough else null
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = buildString {
+                    append(item.productName)
+                    item.variantLabel?.takeIf(String::isNotBlank)?.let { append(" (").append(it).append(")") }
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textDecoration = decoration,
+                color = if (struck) muted else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = buildString {
+                    append(item.quantity.asQuantity()).append(' ').append(item.unit.localizedLabel())
+                    if (showPrice) append(" × ").append(item.unitPrice.asMoney())
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+                textDecoration = decoration,
+            )
+        }
+        if (showPrice) {
+            Text(
+                item.lineTotal.asMoney(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                textDecoration = decoration,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
     }
-    Text(
-        text = text,
-        modifier = modifier,
-        style = MaterialTheme.typography.bodyMedium,
-        textDecoration = if (struck) TextDecoration.LineThrough else null,
-        color = if (struck) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-    )
+}
+
+/** Readable item list; long orders collapse to [collapsedCount] rows with a show-all toggle. */
+@Composable
+fun OrderItemsTable(
+    items: List<OrderItem>,
+    modifier: Modifier = Modifier,
+    collapsedCount: Int = Int.MAX_VALUE,
+) {
+    var expanded by remember(items) { mutableStateOf(false) }
+    val visible = if (expanded || items.size <= collapsedCount) items else items.take(collapsedCount)
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        visible.forEachIndexed { index, item ->
+            OrderItemRow(item)
+            if (index < visible.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        }
+        if (items.size > collapsedCount) {
+            TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                Text(
+                    if (expanded) stringResource(Res.string.order_items_show_less)
+                    else stringResource(Res.string.order_items_show_all, items.size),
+                )
+            }
+        }
+    }
 }

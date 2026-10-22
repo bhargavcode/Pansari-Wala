@@ -44,4 +44,12 @@ data class CreditTxnDoc(
     val note: String = "",
     val createdAt: Long,
     val updatedAt: Long,
+    /** App repayments: CASHFREE (confirmed by the gateway) or UPI_DIRECT (straight to the shop's UPI). */
+    val gateway: String = "",
+    val gatewayOrderId: String? = null,
+    /** Gateway / UPI reference once paid. */
+    val paymentRef: String? = null,
+    /** A PENDING app repayment fails after this (0 = never). */
+    val expiresAt: Long = 0L,
+    val failureReason: String = "",
 )

@@ -205,9 +205,17 @@ fun PartnerHomeTopBar(
     modifier: Modifier = Modifier,
 ) {
     PansariTopBar(
-        title = title,
         onBack = null,
         modifier = modifier,
+        titleContent = {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        },
         actions = {
             ReportIssueButton()
             Text(

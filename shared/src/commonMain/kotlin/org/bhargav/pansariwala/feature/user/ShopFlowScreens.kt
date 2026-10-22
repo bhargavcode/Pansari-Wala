@@ -1,5 +1,8 @@
 package org.bhargav.pansariwala.feature.user
 
+import pansariwala.shared.generated.resources.order_detail_reorder
+import org.bhargav.pansariwala.feature.order.OrderItemsTable
+import androidx.compose.material.icons.filled.Replay
 import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -584,6 +587,7 @@ private fun OrderPaymentCard(order: Order) {
 fun OrderDetailsScreen(
     orderId: String,
     onBack: () -> Unit,
+    onReorder: (shopId: String) -> Unit = {},
     viewModel: OrderDetailsViewModel = koinViewModel(),
 ) {
     LaunchedEffect(orderId) { viewModel.load(orderId) }
@@ -661,16 +665,24 @@ fun OrderDetailsScreen(
                             )
                         }
                     }
-                    SectionCard(title = stringResource(Res.string.order_items_title)) {
+                    SectionCard(
+                        title = stringResource(Res.string.order_items_title),
+                        action = {
+                            OutlinedButton(onClick = { viewModel.reorder(onReorder) }, enabled = !state.reordering) {
+                                if (state.reordering) {
+                                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(Res.string.order_detail_reorder))
+                            }
+                        },
+                    ) {
                         if (order.isPackedForDelivery) {
                             DeliveringItemsList(order)
-                        } else order.items.forEach { item ->
-                            Text(item.productName, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "${item.quantity.asQuantity()} · ${item.unitPrice.asMoney()} · ${item.lineTotal.asMoney()}",
-                                modifier = Modifier.padding(bottom = 8.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                        } else {
+                            OrderItemsTable(order.items, Modifier.padding(top = 4.dp))
                         }
                         order.quote?.let { q ->
                             Spacer(Modifier.height(8.dp))

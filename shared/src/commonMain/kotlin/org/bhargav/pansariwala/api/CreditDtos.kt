@@ -74,12 +74,19 @@ data class CreditTxnDto(
     val items: List<CreditTxnItemDto> = emptyList(),
     val note: String = "",
     val createdAt: Long = 0L,
+    /** App repayments: CASHFREE or UPI_DIRECT. */
+    val gateway: String = "",
+    val paymentRef: String? = null,
+    val failureReason: String = "",
 )
 
 @Serializable
 data class BorrowerDetailDto(
     val borrower: BorrowerDto,
     val transactions: List<CreditTxnDto> = emptyList(),
+    /** Set when the request was paged (`page` query param); otherwise every row is returned. */
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
 )
 
 @Serializable
@@ -130,6 +137,9 @@ data class MyRepayResponse(
     val txn: CreditTxnDto,
     val upiId: String = "",
     val payeeName: String = "",
+    /** Ready `upi://pay` link from the active gateway; when blank the app builds one from [upiId]. */
+    val payUri: String = "",
+    val gateway: String = "",
 )
 
 @Serializable

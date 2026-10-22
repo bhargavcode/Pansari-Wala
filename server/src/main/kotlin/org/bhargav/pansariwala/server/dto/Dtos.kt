@@ -471,6 +471,9 @@ data class ShopStaffUpsert(
 )
 
 @Serializable
+data class UsernameAvailabilityDto(val username: String = "", val available: Boolean = false)
+
+@Serializable
 data class ShopProfileDto(
     val shop: AdminShopDto,
     val me: ShopStaffDto,
@@ -1287,3 +1290,7 @@ data class AppUsageReportDto(
     val paymentMethods: List<PaymentMethodUsageDto>,
     val users: List<AppUserRowDto>,
 )
+
+/** Pending self-service account closure; [scheduledAt] null = none requested. */
+@Serializable
+data class AccountDeletionDto(val scheduledAt: Long? = null)

@@ -397,6 +397,8 @@ object AppConstants {
         const val STATUS_PENDING: String = "PENDING"
         const val STATUS_FAILED: String = "FAILED"
         const val SOURCE_USER_APP: String = "USER_APP"
+        const val GATEWAY_CASHFREE: String = "CASHFREE"
+        const val GATEWAY_UPI_DIRECT: String = "UPI_DIRECT"
         const val PAGE_SIZE: Int = 20
     }
 

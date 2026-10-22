@@ -3,6 +3,10 @@ package org.bhargav.pansariwala.server.service
 import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.`in`
+import com.mongodb.client.model.Filters.lte
+import com.mongodb.client.model.Filters.ne
+import com.mongodb.client.model.Updates.combine
+import com.mongodb.client.model.Updates.set
 import com.mongodb.client.model.Indexes
 import com.mongodb.client.model.ReplaceOptions
 import com.mongodb.client.model.Sorts
@@ -27,6 +31,9 @@ import org.bhargav.pansariwala.server.dto.MyCreditSummaryDto
 import org.bhargav.pansariwala.server.dto.MyRepayResponse
 import org.bhargav.pansariwala.server.dto.OrderDto
 import org.bhargav.pansariwala.server.dto.RepaymentRequest
+import org.bhargav.pansariwala.server.payment.CashfreeGateway
+import org.bhargav.pansariwala.server.payment.PaymentMethod
+import org.bhargav.pansariwala.server.payment.PaymentMode
 import org.bhargav.pansariwala.server.storage.AssetRefs
 import java.util.UUID
 import kotlin.math.floor
@@ -48,9 +55,22 @@ private const val DAY_MS = 24 * 60 * 60 * 1000L
 private const val DEFAULT_RANGE_DAYS = 30
 private const val MAX_RANGE_DAYS = 366
 private const val MAX_PAGE_SIZE = 100
+private const val DEFAULT_TXN_PAGE_SIZE = 20
 private const val SHARE_SLICES = 6
 private const val MONEY_EPSILON = 0.005
 private val REPAYMENT_MODES = setOf("CASH", "UPI", "CARD")
+/** Gateway order ids of app repayments start with this (payment intents use `PTX`). */
+const val REPAY_GATEWAY_PREFIX = "RPY"
+private const val REPAY_FAIL_CANCELLED = "Payment cancelled or failed in the UPI app"
+private const val REPAY_FAIL_EXPIRED = "Payment not received in time"
+
+/** Platform checkout setup that app repayments follow; supplied by `AppStore`. */
+class RepayGateway(
+    val cashfree: CashfreeGateway,
+    val paymentMode: () -> String,
+    val windowMs: () -> Long,
+    val defaultShopUpi: String,
+)
 
 /**
  * Udhaar ledger: POS bills paid with UDHAAR become CREDIT rows, repayments (shop counter or the
@@ -59,6 +79,7 @@ private val REPAYMENT_MODES = setOf("CASH", "UPI", "CARD")
 class CreditService(
     mongo: MongoApp,
     private val assets: AssetRefs,
+    private val gateway: RepayGateway,
 ) {
     private val borrowerCol = mongo.db.getCollection<BorrowerDoc>("borrowers")
     private val txnCol = mongo.db.getCollection<CreditTxnDoc>("credit_txns")
@@ -129,7 +150,9 @@ class CreditService(
         val rangeFrom = (from ?: (rangeTo - DEFAULT_RANGE_DAYS * DAY_MS)).coerceAtLeast(rangeTo - MAX_RANGE_DAYS * DAY_MS)
         val txns = txnCol.find(eq("shopId", shopId)).toList()
         val borrowers = borrowerCol.find(eq("shopId", shopId)).toList().associateBy { it.phone }
-        val summaries = summarize(txns, borrowers)
+        val txnPhones = txns.mapTo(HashSet()) { it.phone }
+        val summaries = summarize(txns, borrowers) +
+            borrowers.values.filter { it.phone !in txnPhones }.map { it.toDto(emptyList()) }
 
         val inRange = txns.filter { it.status == STATUS_SUCCESS && it.createdAt in rangeFrom until rangeTo }
         val offsetMs = tzOffsetMin * 60_000L
@@ -150,7 +173,7 @@ class CreditService(
 
         val q = query.trim().lowercase()
         val filtered = summaries.filter {
-            q.isEmpty() || it.phone.contains(q) || it.name.lowercase().contains(q)
+            q.isEmpty() || it.phone.contains(q) || it.name.lowercase().contains(q) || it.address.lowercase().contains(q)
         }
         val sorted = when (sort.uppercase()) {
             "NAME" -> filtered.sortedBy { it.name.ifBlank { it.phone }.lowercase() }
@@ -178,14 +201,35 @@ class CreditService(
         )
     }
 
-    fun borrowerDetail(shopId: String, rawPhone: String): BorrowerDetailDto {
+    /** [type] = CREDIT / REPAYMENT narrows the rows; [page] (0-based) turns on paging. */
+    fun borrowerDetail(
+        shopId: String,
+        rawPhone: String,
+        type: String? = null,
+        page: Int? = null,
+        size: Int? = null,
+    ): BorrowerDetailDto {
         val phone = requirePhone(rawPhone)
         val txns = txnCol.find(and(eq("shopId", shopId), eq("phone", phone))).sort(Sorts.descending("createdAt")).toList()
         val doc = borrowerCol.find(eq("_id", borrowerId(shopId, phone))).firstOrNull()
         val summary = summarize(txns, doc?.let { mapOf(phone to it) }.orEmpty()).firstOrNull()
             ?: doc?.toDto(emptyList()) ?: error("Borrower not found")
         val shopName = shopName(shopId)
-        return BorrowerDetailDto(summary, txns.map { it.toDto(shopName) })
+        val rows = when (type?.uppercase()) {
+            TYPE_CREDIT -> txns.filter { it.type == TYPE_CREDIT }
+            TYPE_REPAYMENT -> txns.filter { it.type == TYPE_REPAYMENT }
+            else -> txns
+        }
+        if (page == null) return BorrowerDetailDto(summary, rows.map { it.toDto(shopName) }, rows.size, hasMore = false)
+        val pageSize = (size ?: DEFAULT_TXN_PAGE_SIZE).coerceIn(1, MAX_PAGE_SIZE)
+        val start = (page.coerceAtLeast(0) * pageSize).coerceAtMost(rows.size)
+        val end = (start + pageSize).coerceAtMost(rows.size)
+        return BorrowerDetailDto(
+            borrower = summary,
+            transactions = rows.subList(start, end).map { it.toDto(shopName) },
+            totalCount = rows.size,
+            hasMore = end < rows.size,
+        )
     }
 
     fun updateBorrower(shopId: String, rawPhone: String, body: BorrowerUpdateRequest): BorrowerDto {
@@ -258,8 +302,11 @@ class CreditService(
         return MyCreditShopDetailDto(shop.toMyCreditShop(txns), txns.map { it.toDto(shop.name) })
     }
 
-    /** Starts a UPI repayment to the shop; the app reports the outcome via [myRepayStatus]. */
-    fun myRepay(customerId: String, shopId: String, rawAmount: Double): MyRepayResponse {
+    /**
+     * Starts a repayment on the platform's active gateway: Cashfree (confirmed by the gateway) when it is on,
+     * otherwise the shop's own UPI ID. Every attempt is kept as a REPAYMENT row with its gateway and status.
+     */
+    suspend fun myRepay(customerId: String, shopId: String, rawAmount: Double): MyRepayResponse {
         val phone = customerPhone(customerId) ?: error("Add a mobile number to your profile")
         val shop = shopCol.find(eq("_id", shopId)).firstOrNull() ?: error("Shop not found")
         val amount = roundMoney(rawAmount)
@@ -268,8 +315,30 @@ class CreditService(
         require(outstanding > MONEY_EPSILON) { "Nothing is due at this shop" }
         require(amount <= outstanding + MONEY_EPSILON) { "Amount is more than the due ₹$outstanding" }
         val now = System.currentTimeMillis()
+        val id = REPAY_GATEWAY_PREFIX + UUID.randomUUID().toString().replace("-", "").uppercase()
+        val expiresAt = now + gateway.windowMs()
+        val customer = customerCol.find(eq("_id", customerId)).firstOrNull()
+        val gatewayOrderId = "${id}_1"
+        val cashfreeUri = if (gateway.paymentMode() == PaymentMode.CASHFREE && gateway.cashfree.enabled) {
+            runCatching {
+                gateway.cashfree.createUpiIntent(
+                    gatewayOrderId = gatewayOrderId,
+                    amountInr = amount,
+                    customerId = customerId,
+                    customerName = customer?.name.orEmpty(),
+                    customerPhone = phone,
+                    note = "Pansari udhaar ${shop.name} $id",
+                    expiresAtMs = expiresAt,
+                )
+            }.onFailure { println("Cashfree repayment intent failed for $gatewayOrderId: ${it.message}") }.getOrNull()
+        } else {
+            null
+        }
+        val directUpi = shop.upiId.trim().takeIf { it.contains('@') && it != gateway.defaultShopUpi }
+        val payUri = cashfreeUri ?: directUpi?.let { upiPayUri(it, shop.name, amount, id) }
+            ?: error("${shop.name} has not set up UPI payments yet.")
         val doc = CreditTxnDoc(
-            id = "repay:${UUID.randomUUID()}",
+            id = id,
             shopId = shopId,
             phone = phone,
             type = TYPE_REPAYMENT,
@@ -280,19 +349,75 @@ class CreditService(
             source = SOURCE_USER_APP,
             createdAt = now,
             updatedAt = now,
+            gateway = if (cashfreeUri != null) PaymentMethod.CASHFREE else PaymentMethod.UPI_DIRECT,
+            gatewayOrderId = gatewayOrderId.takeIf { cashfreeUri != null },
+            expiresAt = expiresAt,
         )
         txnCol.insertOne(doc)
-        return MyRepayResponse(doc.toDto(shop.name), shop.upiId, shop.name)
+        return MyRepayResponse(doc.toDto(shop.name), directUpi.orEmpty(), shop.name, payUri, doc.gateway)
     }
 
-    fun myRepayStatus(customerId: String, shopId: String, txnId: String, success: Boolean): CreditTxnDto {
+    /** Cashfree webhook for a repayment order (signature already checked); status is re-read from Cashfree. */
+    suspend fun onGatewayWebhook(gatewayOrderId: String) {
+        val txn = txnCol.find(eq("gatewayOrderId", gatewayOrderId)).firstOrNull() ?: return
+        syncCashfree(txn)
+    }
+
+    /** Sweeper: closes app repayments whose window passed (after a last gateway check). */
+    suspend fun expireRepayments() {
+        val now = System.currentTimeMillis()
+        txnCol.find(
+            and(eq("status", STATUS_PENDING), eq("source", SOURCE_USER_APP), ne("expiresAt", 0L), lte("expiresAt", now)),
+        ).toList().forEach { txn ->
+            runCatching {
+                val fresh = syncCashfree(txn)
+                if (fresh.status == STATUS_PENDING) markRepay(fresh, STATUS_FAILED, failure = REPAY_FAIL_EXPIRED)
+            }.onFailure { println("Repayment sweep failed for ${txn.id}: ${it.message}") }
+        }
+    }
+
+    /** Paid on Cashfree → SUCCESS (even after it was marked failed: the money did arrive). */
+    private suspend fun syncCashfree(txn: CreditTxnDoc): CreditTxnDoc {
+        val orderId = txn.gatewayOrderId ?: return txn
+        if (txn.status == STATUS_SUCCESS) return txn
+        if (gateway.cashfree.orderStatus(orderId) != CashfreeGateway.ORDER_PAID) return txn
+        return markRepay(txn, STATUS_SUCCESS, ref = "cf_$orderId")
+    }
+
+    private fun markRepay(txn: CreditTxnDoc, status: String, ref: String? = null, failure: String = ""): CreditTxnDoc {
+        val now = System.currentTimeMillis()
+        txnCol.updateOne(
+            and(eq("_id", txn.id), ne("status", STATUS_SUCCESS)),
+            combine(
+                set("status", status),
+                set("updatedAt", now),
+                set("paymentRef", ref ?: txn.paymentRef),
+                set("failureReason", if (status == STATUS_SUCCESS) "" else failure),
+            ),
+        )
+        return txnCol.find(eq("_id", txn.id)).firstOrNull() ?: txn
+    }
+
+    private fun upiPayUri(payee: String, payeeName: String, amountInr: Double, ref: String): String {
+        fun enc(v: String) = java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")
+        val amount = String.format(java.util.Locale.US, "%.2f", amountInr)
+        return "upi://pay?pa=${enc(payee)}&pn=${enc(payeeName.take(40))}&am=$amount&cu=INR&tr=${enc(ref)}&tn=${enc("Pansari udhaar $ref")}"
+    }
+
+    /** App's report after the UPI app returns; Cashfree repayments trust only the gateway for success. */
+    suspend fun myRepayStatus(customerId: String, shopId: String, txnId: String, success: Boolean): CreditTxnDto {
         val phone = customerPhone(customerId) ?: error("Add a mobile number to your profile")
         val txn = txnCol.find(and(eq("_id", txnId), eq("shopId", shopId), eq("phone", phone))).firstOrNull()
             ?: error("Payment not found")
         require(txn.type == TYPE_REPAYMENT && txn.source == SOURCE_USER_APP) { "Not an app repayment" }
         if (txn.status != STATUS_PENDING) return txn.toDto(shopName(shopId))
-        val updated = txn.copy(status = if (success) STATUS_SUCCESS else STATUS_FAILED, updatedAt = System.currentTimeMillis())
-        txnCol.replaceOne(eq("_id", txn.id), updated)
+        val updated = when {
+            txn.gatewayOrderId != null -> syncCashfree(txn).let { fresh ->
+                if (fresh.status == STATUS_PENDING && !success) markRepay(fresh, STATUS_FAILED, failure = REPAY_FAIL_CANCELLED) else fresh
+            }
+            success -> markRepay(txn, STATUS_SUCCESS)
+            else -> markRepay(txn, STATUS_FAILED, failure = REPAY_FAIL_CANCELLED)
+        }
         return updated.toDto(shopName(shopId))
     }
 
@@ -361,6 +486,9 @@ class CreditService(
         items = items.map { CreditTxnItemDto(it.name, it.variantLabel, it.quantity, it.unit, it.lineTotal) },
         note = note,
         createdAt = createdAt,
+        gateway = gateway,
+        paymentRef = paymentRef,
+        failureReason = failureReason,
     )
 
     private fun List<CreditTxnDoc>.signedSum(): Double =

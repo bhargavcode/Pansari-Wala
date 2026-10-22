@@ -1,5 +1,10 @@
 package org.bhargav.pansariwala.feature.dashboard
 
+import pansariwala.shared.generated.resources.app_settings_subtitle
+import pansariwala.shared.generated.resources.app_settings_title
+import pansariwala.shared.generated.resources.pos_settings_subtitle
+import pansariwala.shared.generated.resources.pos_settings_title
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -399,6 +404,7 @@ fun PosMoreTab(
     onOpenOnlineOrders: () -> Unit,
     onOpenPrinter: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPosSettings: () -> Unit,
     onOpenSubscription: () -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -459,6 +465,22 @@ fun PosMoreTab(
                 onClick = onOpenBorrowers,
             )
         }
+        if (access.can(ShopPermission.SHOP_PROFILE) || access.can(ShopPermission.SETTINGS)) {
+            SettingsEntryCard(
+                icon = Icons.Default.Tune,
+                accent = Color(0xFF00838F),
+                title = stringResource(Res.string.pos_settings_title),
+                subtitle = stringResource(Res.string.pos_settings_subtitle),
+                onClick = onOpenPosSettings,
+            )
+        }
+        SettingsEntryCard(
+            icon = Icons.Default.Settings,
+            accent = Color(0xFF5E35B1),
+            title = stringResource(Res.string.app_settings_title),
+            subtitle = stringResource(Res.string.app_settings_subtitle),
+            onClick = onOpenSettings,
+        )
         Text(
             stringResource(Res.string.pos_more_shortcuts),
             style = MaterialTheme.typography.titleMedium,
@@ -481,9 +503,6 @@ fun PosMoreTab(
                 add { m -> ShortcutTile(Icons.Default.Print, stringResource(Res.string.printer_title), Color(0xFF6A1B9A), onOpenPrinter, m) }
             }
             add { m -> ShortcutTile(Icons.Default.WorkspacePremium, stringResource(Res.string.sub_title), Color(0xFFEF6C00), onOpenSubscription, m) }
-            if (access.can(ShopPermission.SETTINGS)) {
-                add { m -> ShortcutTile(Icons.Default.Settings, stringResource(Res.string.action_settings), Color(0xFF00838F), onOpenSettings, m) }
-            }
             add { m -> ShortcutTile(Icons.AutoMirrored.Filled.Logout, stringResource(Res.string.action_logout), Color(0xFFC62828), onLogout, m) }
         }
         tiles.chunked(2).forEach { row ->
@@ -491,6 +510,39 @@ fun PosMoreTab(
                 row.forEach { tile -> tile(Modifier.weight(1f)) }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsEntryCard(
+    icon: ImageVector,
+    accent: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = accent.copy(alpha = 0.1f),
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(accent),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, tint = Color.White) }
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = accent)
         }
     }
 }

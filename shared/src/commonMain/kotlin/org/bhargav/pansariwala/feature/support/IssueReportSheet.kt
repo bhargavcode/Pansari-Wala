@@ -78,6 +78,7 @@ import pansariwala.shared.generated.resources.issue_remove_attachment
 import pansariwala.shared.generated.resources.issue_reported_on
 import pansariwala.shared.generated.resources.issue_resolution_note
 import pansariwala.shared.generated.resources.issue_sheet_title
+import pansariwala.shared.generated.resources.issue_icon_label
 import pansariwala.shared.generated.resources.issue_status_open
 import pansariwala.shared.generated.resources.issue_status_resolved
 import pansariwala.shared.generated.resources.issue_submit
@@ -88,8 +89,19 @@ import pansariwala.shared.generated.resources.issue_tab_open
 @Composable
 fun ReportIssueButton(modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
-    IconButton(onClick = { open = true }, modifier = modifier) {
-        Icon(Icons.Outlined.ReportProblem, contentDescription = stringResource(Res.string.issue_action_report))
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(role = Role.Button, onClick = { open = true })
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            Icons.Outlined.ReportProblem,
+            contentDescription = stringResource(Res.string.issue_action_report),
+            modifier = Modifier.size(22.dp),
+        )
+        Text(stringResource(Res.string.issue_icon_label), style = MaterialTheme.typography.labelSmall)
     }
     if (open) IssueReportSheet(onDismiss = { open = false })
 }

@@ -102,6 +102,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.Surface
+import pansariwala.shared.generated.resources.order_card_total
+import pansariwala.shared.generated.resources.order_card_items_count
+import pansariwala.shared.generated.resources.walk_in
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.HorizontalDivider
 import pansariwala.shared.generated.resources.customer_rating_badge_cd
 import pansariwala.shared.generated.resources.order_action_mark_collected
 import pansariwala.shared.generated.resources.order_pickup_badge
@@ -290,41 +296,74 @@ fun OnlineOrdersScreen(
                             )
                         },
                 ) {
-                SectionCard(
-                    title = "${order.id} · ${order.customerName.orEmpty().ifBlank { order.id }} · ${onlineOrderStatusLabel(order.status)}",
-                    action = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (order.selfPickup) {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.padding(end = 6.dp),
-                                ) {
-                                    Text(
-                                        stringResource(Res.string.order_pickup_badge),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                            }
-                            val customerId = order.customerId
-                            val avg = order.customerRatingAvg
-                            if (customerId != null && avg != null) {
-                                CustomerRatingBadge(
-                                    average = avg,
-                                    onClick = { onOpenCustomerRatings(customerId, order.customerName.orEmpty()) },
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "#${order.displayNumber}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                formatPrintDateTime(order.createdAtEpochMs),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Surface(color = lineColor.copy(alpha = 0.15f), shape = RoundedCornerShape(50)) {
+                            Text(
+                                onlineOrderStatusLabel(order.status),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = lineColor,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
+                        PrintMenuButton(actions = remember(order) { orderPrintActions(order) })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            order.customerName.orEmpty().ifBlank { stringResource(Res.string.walk_in) },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        val customerId = order.customerId
+                        val avg = order.customerRatingAvg
+                        if (customerId != null && avg != null) {
+                            CustomerRatingBadge(
+                                average = avg,
+                                onClick = { onOpenCustomerRatings(customerId, order.customerName.orEmpty()) },
+                            )
+                        }
+                        if (order.selfPickup) {
+                            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp)) {
+                                Text(
+                                    stringResource(Res.string.order_pickup_badge),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
                                 )
                             }
-                            PrintMenuButton(actions = remember(order) { orderPrintActions(order) })
                         }
-                    },
-                ) {
-                    Text(
-                        formatPrintDateTime(order.createdAtEpochMs),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    }
+                    HorizontalDivider()
                     when {
                         order.status == OrderStatus.PACKING -> PackingChecklist(
                             order = order,
@@ -334,9 +373,22 @@ fun OnlineOrdersScreen(
                             onSetAll = { viewModel.setAllPacked(order.id, it) },
                         )
                         order.isPackedForDelivery -> DeliveringItemsList(order)
-                        else -> order.items.forEach { item ->
-                            Text("${item.productName} × ${item.quantity.asQuantity()} · ${item.lineTotal.asMoney()}")
-                        }
+                        else -> OrderItemsTable(order.items, collapsedCount = ONLINE_CARD_VISIBLE_ITEMS)
+                    }
+                    HorizontalDivider()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${stringResource(Res.string.order_card_items_count, order.itemCount)} · " +
+                                stringResource(paymentMethodLabelRes(order.paymentMethod)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "${stringResource(Res.string.order_card_total)} ${order.totalValue.asMoney()}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                     OnlineOrderStatusNote(order)
                     val isReturn = order.status == OrderStatus.RETURNING_TO_SHOP || order.status == OrderStatus.RETURNED_TO_SHOP
@@ -363,6 +415,7 @@ fun OnlineOrdersScreen(
                         onMarkCollected = { viewModel.markCollected(order.id) },
                         onAcceptReturn = { viewModel.openAcceptReturn(order.id) },
                     )
+                }
                 }
                 }
             }
@@ -484,6 +537,8 @@ private fun CustomerRatingBadge(average: Double, onClick: () -> Unit) {
         )
     }
 }
+
+private const val ONLINE_CARD_VISIBLE_ITEMS = 4
 
 internal fun formatRating(value: Double): String = ((value * 10).roundToInt() / 10.0).toString()
 

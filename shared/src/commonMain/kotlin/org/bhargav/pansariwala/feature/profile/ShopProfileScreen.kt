@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.feature.profile
 
 import org.bhargav.pansariwala.designsystem.AppAlertDialog
+import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
@@ -14,6 +15,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -185,6 +189,16 @@ import pansariwala.shared.generated.resources.profile_payments_enabled
 import pansariwala.shared.generated.resources.profile_rating_value
 import pansariwala.shared.generated.resources.profile_role_admin
 import pansariwala.shared.generated.resources.profile_role_executive
+import pansariwala.shared.generated.resources.pos_settings_payments_hint
+import pansariwala.shared.generated.resources.pos_settings_payments
+import pansariwala.shared.generated.resources.pos_settings_visibility_hint
+import pansariwala.shared.generated.resources.pos_settings_visibility
+import pansariwala.shared.generated.resources.pos_settings_delivery
+import pansariwala.shared.generated.resources.pos_settings_title
+import pansariwala.shared.generated.resources.staff_username_checking
+import pansariwala.shared.generated.resources.staff_username_available
+import pansariwala.shared.generated.resources.staff_username_taken
+import pansariwala.shared.generated.resources.staff_username_check_failed
 import pansariwala.shared.generated.resources.profile_shop_active
 import pansariwala.shared.generated.resources.profile_shop_details
 import pansariwala.shared.generated.resources.profile_tab_offers
@@ -227,6 +241,8 @@ import pansariwala.shared.generated.resources.visitors_visits
 fun ShopProfileScreen(
     onBack: () -> Unit,
     onOpenSubscription: () -> Unit = {},
+    /** True = "POS settings": only the shop-level settings cards; false = profile with staff/offers/ratings. */
+    settingsMode: Boolean = false,
     viewModel: ShopProfileViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -239,8 +255,13 @@ fun ShopProfileScreen(
         }
     }
 
+    val tabs = if (settingsMode) emptyList() else state.tabs - ProfileTab.SHOP
+    val activeTab = if (settingsMode) ProfileTab.SHOP else state.tab.takeIf { it in tabs } ?: tabs.firstOrNull()
+    LaunchedEffect(activeTab, state.profile != null) {
+        if (activeTab != null && activeTab != state.tab && state.profile != null) viewModel.selectTab(activeTab)
+    }
     PansariScreen(
-        title = stringResource(Res.string.profile_title),
+        title = stringResource(if (settingsMode) Res.string.pos_settings_title else Res.string.profile_title),
         onBack = onBack,
         error = state.error.toErrorBanner(retryable = state.profile == null),
         onErrorAction = { viewModel.dismissError(); if (state.profile == null) viewModel.refresh() },
@@ -250,18 +271,19 @@ fun ShopProfileScreen(
         val profile = state.profile ?: return@PansariScreen
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = if (settingsMode) 16.dp else 0.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { MeCard(profile.me, state.access, Modifier.padding(top = 16.dp)) }
-            if (state.tabs.size > 1) {
+            if (!settingsMode) item { MeCard(profile.me, state.access, Modifier.padding(top = 16.dp)) }
+            if (tabs.size > 1) {
                 item {
                     Row(
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        state.tabs.forEach { tab ->
+                        tabs.forEach { tab ->
                             FilterChip(
-                                selected = state.tab == tab,
+                                selected = activeTab == tab,
                                 onClick = { viewModel.selectTab(tab) },
                                 label = { Text(stringResource(tab.label())) },
                             )
@@ -269,13 +291,22 @@ fun ShopProfileScreen(
                     }
                 }
             }
-            when (state.tab) {
+            when (activeTab) {
+                null -> Unit
                 ProfileTab.SHOP -> {
-                    item { ShopDetailsCard(profile.shop, state, viewModel) }
+                    posSettingsItems(profile.shop, state, viewModel)
                     item { SubscriptionEntryCard(onOpenSubscription) }
                     item {
                         val voiceAutoAdd by viewModel.voiceAutoAdd.collectAsStateWithLifecycle()
                         FeaturesCard(profile.shop.features, voiceAutoAdd, viewModel::setVoiceAutoAdd)
+                    }
+                    if (settingsMode && state.access.isAdmin) {
+                        item(key = "pos_account_closure") {
+                            org.bhargav.pansariwala.feature.account.AccountClosureSection(
+                                org.bhargav.pansariwala.feature.account.ClosableAccount.SHOP,
+                                Modifier.padding(bottom = 16.dp),
+                            )
+                        }
                     }
                 }
                 ProfileTab.STAFF -> staffItems(state.staff, state.access, viewModel)
@@ -397,9 +428,113 @@ private fun MeCard(me: ShopStaffDto, access: ShopAccess, modifier: Modifier = Mo
     }
 }
 
-@Composable
-private fun ShopDetailsCard(shop: ShopDetailsDto, state: ShopProfileUiState, viewModel: ShopProfileViewModel) {
+private fun androidx.compose.foundation.lazy.LazyListScope.posSettingsItems(
+    shop: ShopDetailsDto,
+    state: ShopProfileUiState,
+    viewModel: ShopProfileViewModel,
+) {
     val canEdit = state.access.can(ShopPermission.SHOP_PROFILE)
+    item(key = "pos_shop_details") { ShopDetailsCard(shop, state, viewModel, canEdit) }
+    item(key = "pos_delivery") {
+        SectionCard(
+            title = stringResource(Res.string.pos_settings_delivery),
+            modifier = Modifier.fillMaxWidth(),
+            action = editAction(canEdit, viewModel::startEditDetails),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                DetailRow(Res.string.profile_field_radius, shop.deliveryRadiusKm.formatOne())
+                DetailRow(
+                    Res.string.shop_delivery_until_label,
+                    formatClockTime(shop.deliveryUntil) ?: stringResource(Res.string.shop_delivery_until_none),
+                )
+                DetailRow(Res.string.profile_field_discount, shop.discountPercent.formatOne())
+                HorizontalDivider()
+                ToggleRow(stringResource(Res.string.shop_home_delivery_label), shop.homeDeliveryEnabled, canEdit, viewModel::setHomeDeliveryEnabled)
+                SettingHint(stringResource(Res.string.shop_home_delivery_hint))
+            }
+        }
+    }
+    item(key = "pos_visibility") {
+        SectionCard(title = stringResource(Res.string.pos_settings_visibility), modifier = Modifier.fillMaxWidth()) {
+            ToggleRow(stringResource(Res.string.profile_shop_active), shop.active, canEdit, viewModel::setShopActive)
+            SettingHint(stringResource(Res.string.pos_settings_visibility_hint))
+        }
+    }
+    item(key = "pos_payments") {
+        SectionCard(title = stringResource(Res.string.pos_settings_payments), modifier = Modifier.fillMaxWidth()) {
+            ToggleRow(stringResource(Res.string.profile_payments_enabled), shop.paymentsEnabled, canEdit, viewModel::setPaymentsEnabled)
+            SettingHint(stringResource(Res.string.pos_settings_payments_hint))
+            DetailRow(Res.string.profile_field_upi, shop.upiId)
+        }
+    }
+    item(key = "pos_order_rules") {
+        SectionCard(
+            title = stringResource(Res.string.shop_order_rules_title),
+            modifier = Modifier.fillMaxWidth(),
+            action = editAction(canEdit, viewModel::startEditOrderRules),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                DetailRow(
+                    Res.string.shop_min_order_label,
+                    if (shop.minOrderValueInr > 0.0) shop.minOrderValueInr.asMoney() else stringResource(Res.string.shop_min_order_none),
+                )
+                DetailRow(
+                    Res.string.shop_free_delivery_label,
+                    if (shop.freeDeliveryEnabled) {
+                        stringResource(Res.string.shop_free_delivery_above, shop.freeDeliveryAboveInr.asMoney())
+                    } else {
+                        stringResource(Res.string.shop_free_delivery_off)
+                    },
+                )
+            }
+        }
+    }
+    item(key = "pos_hours") {
+        SectionCard(
+            title = stringResource(Res.string.shop_hours_title),
+            modifier = Modifier.fillMaxWidth(),
+            action = editAction(canEdit, viewModel::startEditHours),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (shop.operatingHours.isEmpty()) SettingHint(stringResource(Res.string.shop_hours_not_set))
+                shop.operatingHours.forEach { day ->
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(day.day, Modifier.weight(0.4f), style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (day.closed) {
+                                stringResource(Res.string.shop_closed)
+                            } else {
+                                stringResource(
+                                    Res.string.shop_hours_range,
+                                    formatClockTime(day.start) ?: day.start,
+                                    formatClockTime(day.end) ?: day.end,
+                                )
+                            },
+                            Modifier.weight(0.6f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun editAction(canEdit: Boolean, onEdit: () -> Unit): (@Composable () -> Unit)? =
+    if (canEdit) {
+        { TextButton(onClick = onEdit) { Text(stringResource(Res.string.action_edit)) } }
+    } else {
+        null
+    }
+
+@Composable
+private fun SettingHint(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun ShopDetailsCard(shop: ShopDetailsDto, state: ShopProfileUiState, viewModel: ShopProfileViewModel, canEdit: Boolean) {
     val changePhoto = rememberImageSourceLauncher(ImageUploadFeature.SHOP_PHOTO, viewModel::changeShopPhoto)
     SectionCard(
         title = stringResource(Res.string.profile_shop_details),
@@ -453,76 +588,8 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, state: ShopProfileUiState, vie
             DetailRow(Res.string.profile_field_owner_name, shop.ownerName)
             DetailRow(Res.string.profile_field_owner_phone, shop.ownerPhone)
             DetailRow(Res.string.profile_field_owner_email, shop.ownerEmail)
-            DetailRow(Res.string.profile_field_upi, shop.upiId)
-            DetailRow(Res.string.profile_field_radius, shop.deliveryRadiusKm.formatOne())
-            DetailRow(
-                Res.string.shop_delivery_until_label,
-                formatClockTime(shop.deliveryUntil) ?: stringResource(Res.string.shop_delivery_until_none),
-            )
-            DetailRow(Res.string.profile_field_discount, shop.discountPercent.formatOne())
             DetailRow(Res.string.profile_field_registration, shop.registrationNumber)
             DetailRow(Res.string.profile_field_tax, shop.taxId)
-            HorizontalDivider()
-            ToggleRow(stringResource(Res.string.profile_shop_active), shop.active, canEdit, viewModel::setShopActive)
-            ToggleRow(stringResource(Res.string.profile_payments_enabled), shop.paymentsEnabled, canEdit, viewModel::setPaymentsEnabled)
-            ToggleRow(stringResource(Res.string.shop_home_delivery_label), shop.homeDeliveryEnabled, canEdit, viewModel::setHomeDeliveryEnabled)
-            Text(
-                stringResource(Res.string.shop_home_delivery_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            HorizontalDivider()
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(Res.string.shop_order_rules_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                if (canEdit) {
-                    TextButton(onClick = viewModel::startEditOrderRules) { Text(stringResource(Res.string.action_edit)) }
-                }
-            }
-            DetailRow(
-                Res.string.shop_min_order_label,
-                if (shop.minOrderValueInr > 0.0) shop.minOrderValueInr.asMoney() else stringResource(Res.string.shop_min_order_none),
-            )
-            DetailRow(
-                Res.string.shop_free_delivery_label,
-                if (shop.freeDeliveryEnabled) {
-                    stringResource(Res.string.shop_free_delivery_above, shop.freeDeliveryAboveInr.asMoney())
-                } else {
-                    stringResource(Res.string.shop_free_delivery_off)
-                },
-            )
-            HorizontalDivider()
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(Res.string.shop_hours_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                if (canEdit) {
-                    TextButton(onClick = viewModel::startEditHours) { Text(stringResource(Res.string.shop_hours_edit)) }
-                }
-            }
-            if (shop.operatingHours.isEmpty()) {
-                Text(
-                    stringResource(Res.string.shop_hours_not_set),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            shop.operatingHours.forEach { day ->
-                Row(Modifier.fillMaxWidth()) {
-                    Text(day.day, Modifier.weight(0.4f), style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        if (day.closed) {
-                            stringResource(Res.string.shop_closed)
-                        } else {
-                            stringResource(
-                                Res.string.shop_hours_range,
-                                formatClockTime(day.start) ?: day.start,
-                                formatClockTime(day.end) ?: day.end,
-                            )
-                        },
-                        Modifier.weight(0.6f),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            }
         }
     }
 }
@@ -855,6 +922,7 @@ private fun ShopDetailsDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StaffDialog(
     draft: StaffDraft,
@@ -864,40 +932,91 @@ private fun StaffDialog(
     onDismiss: () -> Unit,
 ) {
     val isNew = draft.id == null
-    FormDialog(stringResource(if (isNew) Res.string.staff_add else Res.string.staff_edit), onSave, onDismiss) {
-        Field(Res.string.staff_field_name, draft.displayName) { v -> onChange { it.copy(displayName = v) } }
-        OutlinedTextField(
-            value = draft.username,
-            onValueChange = { v -> onChange { it.copy(username = v.trim().lowercase()) } },
-            label = { Text(stringResource(Res.string.staff_field_username)) },
-            enabled = isNew,
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = draft.password,
-            onValueChange = { v -> onChange { it.copy(password = v) } },
-            label = { Text(stringResource(if (isNew) Res.string.staff_field_password else Res.string.staff_field_password_keep)) },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        ToggleRow(stringResource(Res.string.staff_active), draft.active, true) { v -> onChange { it.copy(active = v) } }
-        HorizontalDivider()
-        Text(stringResource(Res.string.staff_access_title), style = MaterialTheme.typography.labelLarge)
-        val fullAdmin = ShopPermission.ADMIN in draft.permissions
-        CheckRow(stringResource(ShopPermission.ADMIN.label()), fullAdmin, enabled = access.isAdmin) { checked ->
-            onChange { it.copy(permissions = if (checked) setOf(ShopPermission.ADMIN) else setOf(ShopPermission.BILLING)) }
-        }
-        ShopPermission.grantable.forEach { perm ->
-            CheckRow(
-                stringResource(perm.label()),
-                fullAdmin || perm in draft.permissions,
-                enabled = !fullAdmin && access.can(perm),
-            ) { checked ->
-                onChange { it.copy(permissions = if (checked) it.permissions + perm else it.permissions - perm) }
+    val canSave = !isNew || draft.usernameStatus !in setOf(UsernameStatus.TAKEN, UsernameStatus.CHECKING)
+    AppBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                stringResource(if (isNew) Res.string.staff_add else Res.string.staff_edit),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            StaffForm(draft, access, isNew, onChange)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+            ) {
+                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
+                Button(onClick = onSave, enabled = canSave) { Text(stringResource(Res.string.action_save)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun StaffForm(
+    draft: StaffDraft,
+    access: ShopAccess,
+    isNew: Boolean,
+    onChange: ((StaffDraft) -> StaffDraft) -> Unit,
+) {
+    Field(Res.string.staff_field_name, draft.displayName) { v -> onChange { it.copy(displayName = v) } }
+    val usernameHint = when (draft.usernameStatus) {
+        UsernameStatus.CHECKING -> Res.string.staff_username_checking
+        UsernameStatus.AVAILABLE -> Res.string.staff_username_available
+        UsernameStatus.TAKEN -> Res.string.staff_username_taken
+        UsernameStatus.ERROR -> Res.string.staff_username_check_failed
+        UsernameStatus.IDLE -> null
+    }
+    OutlinedTextField(
+        value = draft.username,
+        onValueChange = { v -> onChange { it.copy(username = v.trim().lowercase()) } },
+        label = { Text(stringResource(Res.string.staff_field_username)) },
+        enabled = isNew,
+        singleLine = true,
+        isError = isNew && draft.usernameStatus == UsernameStatus.TAKEN,
+        supportingText = if (isNew && usernameHint != null) {
+            {
+                Text(
+                    stringResource(usernameHint),
+                    color = if (draft.usernameStatus == UsernameStatus.AVAILABLE) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        Color.Unspecified
+                    },
+                )
+            }
+        } else null,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = draft.password,
+        onValueChange = { v -> onChange { it.copy(password = v) } },
+        label = { Text(stringResource(if (isNew) Res.string.staff_field_password else Res.string.staff_field_password_keep)) },
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    ToggleRow(stringResource(Res.string.staff_active), draft.active, true) { v -> onChange { it.copy(active = v) } }
+    HorizontalDivider()
+    Text(stringResource(Res.string.staff_access_title), style = MaterialTheme.typography.labelLarge)
+    val fullAdmin = ShopPermission.ADMIN in draft.permissions
+    CheckRow(stringResource(ShopPermission.ADMIN.label()), fullAdmin, enabled = access.isAdmin) { checked ->
+        onChange { it.copy(permissions = if (checked) setOf(ShopPermission.ADMIN) else setOf(ShopPermission.BILLING)) }
+    }
+    ShopPermission.grantable.forEach { perm ->
+        CheckRow(
+            stringResource(perm.label()),
+            fullAdmin || perm in draft.permissions,
+            enabled = !fullAdmin && access.can(perm),
+        ) { checked ->
+            onChange { it.copy(permissions = if (checked) it.permissions + perm else it.permissions - perm) }
         }
     }
 }

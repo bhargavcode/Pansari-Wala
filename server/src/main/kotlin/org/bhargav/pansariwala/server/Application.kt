@@ -56,7 +56,8 @@ fun main() {
     println(if (push.enabled) "Push: FCM HTTP v1 enabled" else "Push: disabled (set FCM_SERVICE_ACCOUNT_FILE or FCM_SERVICE_ACCOUNT_JSON)")
     val store = AppStore(config, security, mongo, storage, assetRefs, push)
     val support = SupportService(mongo, assetRefs, push)
-    val credit = org.bhargav.pansariwala.server.service.CreditService(mongo, assetRefs)
+    val credit = org.bhargav.pansariwala.server.service.CreditService(mongo, assetRefs, store.repayGateway())
+    store.onRepaymentWebhook = credit::onGatewayWebhook
 
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
         // CORS first so preflight + error responses always include ACAO (web localhost → API).
@@ -145,12 +146,17 @@ fun main() {
                     runCatching { store.purgeDeletedCustomers() }
                         .onSuccess { if (it > 0) println("Account deletion: purged $it customer accounts") }
                         .onFailure { println("Account purge failed: ${it.message}") }
+                    runCatching { store.closeDeletedBusinessAccounts() }
+                        .onSuccess { if (it > 0) println("Account deletion: closed $it shop/partner accounts") }
+                        .onFailure { println("Business account close failed: ${it.message}") }
                 }
                 runCatching { store.expireStaleOffers() }
                     .onSuccess { if (it > 0) println("Delivery offers: expired $it unpicked offers") }
                     .onFailure { println("Delivery offer sweep failed: ${it.message}") }
                 runCatching { store.expirePaymentIntents() }
                     .onFailure { println("Payment sweep failed: ${it.message}") }
+                runCatching { credit.expireRepayments() }
+                    .onFailure { println("Repayment sweep failed: ${it.message}") }
                 delay(OFFER_SWEEP_INTERVAL_MS)
             }
         }

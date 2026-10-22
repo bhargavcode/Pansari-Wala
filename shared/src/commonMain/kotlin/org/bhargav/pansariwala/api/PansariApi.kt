@@ -136,11 +136,17 @@ interface PansariApi {
         page: Int,
         size: Int,
     ): BorrowerReportDto
-    suspend fun borrowerDetail(phone: String): BorrowerDetailDto
+    /** [type] = CREDIT / REPAYMENT filters rows; a non-null [page] returns one page of [size] rows. */
+    suspend fun borrowerDetail(phone: String, type: String? = null, page: Int? = null, size: Int? = null): BorrowerDetailDto
     suspend fun updateBorrower(phone: String, body: BorrowerUpdateRequest): BorrowerDto
     suspend fun recordRepayment(phone: String, body: RepaymentRequest): CreditTxnDto
     suspend fun shopStaff(): List<ShopStaffDto>
     suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto
+    suspend fun staffUsernameAvailability(username: String): UsernameAvailabilityDto
+    /** [partner] = delivery partner account; otherwise the signed-in admin's shop. */
+    suspend fun accountClosureStatus(partner: Boolean): AccountDeletionDto
+    suspend fun requestAccountClosure(partner: Boolean): AccountDeletionDto
+    suspend fun cancelAccountClosure(partner: Boolean): AccountDeletionDto
     suspend fun deleteShopStaff(staffId: String)
     /** [all] includes inactive/expired offers (needs OFFERS permission); otherwise live offers for billing. */
     suspend fun shopManagedOffers(all: Boolean): List<ShopOfferDto>

@@ -14,9 +14,11 @@ import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.feature.order.buildUpiUri
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.borrowed_repay_failed
 import pansariwala.shared.generated.resources.borrowed_repay_no_upi
+import pansariwala.shared.generated.resources.borrowed_repay_processing
 import pansariwala.shared.generated.resources.borrowed_repay_success
 import pansariwala.shared.generated.resources.error_udhaar_amount
 
@@ -46,7 +48,8 @@ class MyCreditViewModel(private val api: PansariApi) : ViewModel() {
     fun dismissError() = _state.update { it.copy(error = null) }
 }
 
-data class PendingRepay(val txnId: String, val upiUri: String)
+/** [gatewayVerified]: the server confirms the payment with the gateway, so the customer is not asked. */
+data class PendingRepay(val txnId: String, val upiUri: String, val gatewayVerified: Boolean = false)
 
 data class MyCreditShopUiState(
     val detail: MyCreditShopDetailDto? = null,
@@ -115,17 +118,17 @@ class MyCreditShopViewModel(
         viewModelScope.launch {
             runCatching { api.startCreditRepayment(shopId, amount) }
                 .onSuccess { res ->
-                    if (res.upiId.isBlank()) {
+                    if (res.payUri.isBlank() && res.upiId.isBlank()) {
                         reportOutcome(res.txn.id, success = false, failure = UiText.res(Res.string.borrowed_repay_no_upi))
                         _state.update { it.copy(repayBusy = false, showRepay = false) }
                         return@onSuccess
                     }
-                    val uri = buildUpiUri(res.upiId, res.payeeName, amount)
+                    val uri = res.payUri.ifBlank { buildUpiUri(res.upiId, res.payeeName, amount) }
                     _state.update {
                         it.copy(
                             repayBusy = false,
                             showRepay = false,
-                            pending = PendingRepay(res.txn.id, uri),
+                            pending = PendingRepay(res.txn.id, uri, res.gateway == AppConstants.Udhaar.GATEWAY_CASHFREE),
                             launchUpi = uri,
                         )
                     }
@@ -148,7 +151,12 @@ class MyCreditShopViewModel(
 
     /** Returning from the UPI app: ask whether the payment went through. */
     fun onResumed() {
-        if (_state.value.pending != null && _state.value.launchUpi == null) {
+        val pending = _state.value.pending ?: return
+        if (_state.value.launchUpi != null) return
+        if (pending.gatewayVerified) {
+            _state.update { it.copy(pending = null) }
+            reportOutcome(pending.txnId, success = true)
+        } else {
             _state.update { it.copy(askOutcome = true) }
         }
     }
@@ -162,13 +170,13 @@ class MyCreditShopViewModel(
     private fun reportOutcome(txnId: String, success: Boolean, failure: UiText? = null) {
         viewModelScope.launch {
             runCatching { api.reportCreditRepayment(shopId, txnId, success) }
-                .onSuccess {
+                .onSuccess { txn ->
                     _state.update {
                         it.copy(
-                            message = if (success) {
-                                UiText.res(Res.string.borrowed_repay_success)
-                            } else {
-                                failure ?: UiText.res(Res.string.borrowed_repay_failed)
+                            message = when (txn.status) {
+                                AppConstants.Udhaar.STATUS_SUCCESS -> UiText.res(Res.string.borrowed_repay_success)
+                                AppConstants.Udhaar.STATUS_PENDING -> UiText.res(Res.string.borrowed_repay_processing)
+                                else -> failure ?: UiText.res(Res.string.borrowed_repay_failed)
                             },
                         )
                     }

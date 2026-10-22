@@ -2,6 +2,8 @@ package org.bhargav.pansariwala.feature.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +55,9 @@ import pansariwala.shared.generated.resources.profile_location_unavailable
 import pansariwala.shared.generated.resources.error_invalid_number
 import pansariwala.shared.generated.resources.error_required_fields
 import pansariwala.shared.generated.resources.profile_saved
+import pansariwala.shared.generated.resources.staff_username_taken
+
+private const val USERNAME_CHECK_DEBOUNCE_MS = 400L
 
 enum class ProfileTab(val permission: ShopPermission?) {
     SHOP(null),
@@ -94,7 +99,10 @@ data class StaffDraft(
     val password: String = "",
     val active: Boolean = true,
     val permissions: Set<ShopPermission> = setOf(ShopPermission.BILLING),
+    val usernameStatus: UsernameStatus = UsernameStatus.IDLE,
 )
+
+enum class UsernameStatus { IDLE, CHECKING, AVAILABLE, TAKEN, ERROR }
 
 data class OfferDraft(
     val id: String? = null,
@@ -159,6 +167,7 @@ class ShopProfileViewModel(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ShopProfileUiState())
+    private var usernameCheckJob: Job? = null
     val uiState: StateFlow<ShopProfileUiState> = _uiState.asStateFlow()
 
     /** Device-level voice setting shown under the voice search feature. */
@@ -409,10 +418,40 @@ class ShopProfileViewModel(
         )
     }
 
-    fun updateStaffDraft(transform: (StaffDraft) -> StaffDraft) =
+    fun updateStaffDraft(transform: (StaffDraft) -> StaffDraft) {
+        val before = _uiState.value.staffDraft
         _uiState.update { state -> state.copy(staffDraft = state.staffDraft?.let(transform)) }
+        val after = _uiState.value.staffDraft ?: return
+        if (after.id == null && after.username != before?.username) checkUsername(after.username)
+    }
 
-    fun cancelStaffDraft() = _uiState.update { it.copy(staffDraft = null) }
+    private fun checkUsername(username: String) {
+        usernameCheckJob?.cancel()
+        if (username.isBlank()) {
+            _uiState.update { it.copy(staffDraft = it.staffDraft?.copy(usernameStatus = UsernameStatus.IDLE)) }
+            return
+        }
+        _uiState.update { it.copy(staffDraft = it.staffDraft?.copy(usernameStatus = UsernameStatus.CHECKING)) }
+        usernameCheckJob = viewModelScope.launch {
+            delay(USERNAME_CHECK_DEBOUNCE_MS)
+            val status = try {
+                if (api.staffUsernameAvailability(username).available) UsernameStatus.AVAILABLE else UsernameStatus.TAKEN
+            } catch (e: Exception) {
+                e.rethrowIfStructuredCancellation()
+                UsernameStatus.ERROR
+            }
+            _uiState.update { state ->
+                val draft = state.staffDraft
+                if (draft == null || draft.username != username) state
+                else state.copy(staffDraft = draft.copy(usernameStatus = status))
+            }
+        }
+    }
+
+    fun cancelStaffDraft() {
+        usernameCheckJob?.cancel()
+        _uiState.update { it.copy(staffDraft = null) }
+    }
 
     fun saveStaff() {
         val draft = _uiState.value.staffDraft ?: return
@@ -420,6 +459,10 @@ class ShopProfileViewModel(
         if (draft.displayName.isBlank() || (isNew && (draft.username.isBlank() || draft.password.isBlank()))) {
             return showError(UiText.res(Res.string.error_required_fields))
         }
+        if (isNew && draft.usernameStatus == UsernameStatus.TAKEN) {
+            return showError(UiText.res(Res.string.staff_username_taken))
+        }
+        if (isNew && draft.usernameStatus == UsernameStatus.CHECKING) return
         save {
             api.saveShopStaff(
                 draft.id,

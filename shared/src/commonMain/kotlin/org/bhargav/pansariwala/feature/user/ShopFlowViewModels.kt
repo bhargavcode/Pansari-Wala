@@ -38,6 +38,7 @@ import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.notification.NotificationGateway
 import org.bhargav.pansariwala.notification.OrderUpdates
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.reorder_nothing_available
 import pansariwala.shared.generated.resources.error_checkout_address_required
 import pansariwala.shared.generated.resources.error_checkout_empty_cart
 import pansariwala.shared.generated.resources.error_checkout_out_of_range
@@ -49,6 +50,9 @@ import pansariwala.shared.generated.resources.error_razorpay_failed
 import pansariwala.shared.generated.resources.error_razorpay_unavailable
 import pansariwala.shared.generated.resources.order_pay_still_pending
 import pansariwala.shared.generated.resources.order_pay_upi_open_failed
+import org.jetbrains.compose.resources.getString
+import pansariwala.shared.generated.resources.checkout_payment_description
+import pansariwala.shared.generated.resources.error_payment_not_verified
 
 data class CatalogData(
     val shop: MarketplaceShop? = null,
@@ -442,12 +446,12 @@ class CheckoutViewModel(
                     amountPaise = rzp.amountPaise,
                     customerName = profile.name,
                     customerPhone = profile.phone,
-                    description = "Pansari order",
+                    description = getString(Res.string.checkout_payment_description),
                 ).getOrThrow()
                 val verified = api.verifyPayment(
                     VerifyPaymentRequest(paid.orderId, paid.paymentId, paid.signature),
                 )
-                require(verified) { "Payment could not be verified" }
+                require(verified) { getString(Res.string.error_payment_not_verified) }
                 val order = api.placeOrder(
                     request.copy(
                         razorpayPaymentId = paid.paymentId,
@@ -519,6 +523,7 @@ data class OrderDetailsUiState(
     val comment: String = "",
     val editingRating: Boolean = false,
     val error: UiText? = null,
+    val reordering: Boolean = false,
 )
 
 /**
@@ -528,6 +533,7 @@ data class OrderDetailsUiState(
 class OrderDetailsViewModel(
     private val api: PansariApi,
     private val notifications: NotificationGateway,
+    private val cart: CartStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(OrderDetailsUiState())
     val state: StateFlow<OrderDetailsUiState> = _state.asStateFlow()
@@ -559,6 +565,34 @@ class OrderDetailsViewModel(
         if (!isVisible) return
         notifications.clearOrder(id)
         if (_state.value.order != null) fetch(id)
+    }
+
+    /** Re-adds this order's items (today's prices, still-listed products only) to the cart, then [onReady]. */
+    fun reorder(onReady: (shopId: String) -> Unit) {
+        val order = _state.value.order ?: return
+        if (_state.value.reordering) return
+        _state.update { it.copy(reordering = true) }
+        viewModelScope.launch {
+            runCatching { api.shopCatalog(order.shopId) }
+                .onSuccess { catalog ->
+                    val byId = catalog.associateBy { it.id }
+                    val lines = order.items.mapNotNull { item ->
+                        val product = byId[item.productId] ?: return@mapNotNull null
+                        CartStore.Line(product, item.variantId?.let { product.variant(it) }, item.quantity)
+                    }
+                    _state.update { it.copy(reordering = false) }
+                    if (lines.isEmpty()) {
+                        _state.update { it.copy(error = UiText.res(Res.string.reorder_nothing_available)) }
+                    } else {
+                        cart.restoreForRetry(order.shopId, order.shopName, lines, intentId = null)
+                        onReady(order.shopId)
+                    }
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { it.copy(reordering = false, error = err.toApiUiText()) }
+                }
+        }
     }
 
     fun load(orderId: String) {

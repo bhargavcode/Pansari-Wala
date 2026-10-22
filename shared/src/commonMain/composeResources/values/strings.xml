@@ -397,6 +397,18 @@
     <string name="pos_udhaar_phone">Customer mobile number</string>
     <string name="pos_udhaar_name">Customer name</string>
     <string name="pos_udhaar_confirm">Add %1$s to Udhaar</string>
+    <string name="pos_udhaar_pick_hint">Pick an existing borrower or add a new one.</string>
+    <string name="pos_udhaar_search">Search by name, mobile or address</string>
+    <string name="pos_udhaar_not_found">No borrower found for \"%1$s\". Add them as a new borrower.</string>
+    <string name="pos_udhaar_add_new">Add new borrower</string>
+    <string name="pos_udhaar_current_due">Current due</string>
+    <string name="pos_udhaar_this_bill">This bill</string>
+    <string name="pos_udhaar_new_due">New due</string>
+    <string name="pos_udhaar_confirm_question">Add this bill to %1$s\'s udhaar?</string>
+    <string name="pos_udhaar_photo">Borrower photo</string>
+    <string name="pos_udhaar_take_photo">Take photo</string>
+    <string name="pos_udhaar_retake_photo">Retake</string>
+    <string name="pos_udhaar_address">Address (optional)</string>
     <string name="error_udhaar_phone">Enter the customer\'s 10-digit mobile number for Udhaar.</string>
     <string name="order_payment_label">Payment: %1$s</string>
     <string name="pos_upi_scan_title">Scan to pay %1$s</string>
@@ -412,6 +424,7 @@
     <string name="voice_hint_example">Say into the mic: "1 kilo chini, 2 kilo tuar daal"</string>
     <string name="in_stock">%1$s · %2$s %3$s in stock</string>
     <string name="error_speech_unavailable">Speech recognition is not available on this device.</string>
+    <string name="error_speech_failed">Speech recognition failed. Tap the mic and try again.</string>
     <string name="error_mic_permission">Microphone permission is required for voice orders.</string>
     <string name="error_order_empty">Add at least one item to the order.</string>
     <string name="voice_not_understood">Couldn\'t understand: "%1$s"</string>
@@ -549,6 +562,7 @@
     <string name="notif_low_stock_body">%1$s is low or out of stock</string>
     <string name="notif_order_received_title">Order received</string>
     <string name="notif_order_received_body">New order %1$s · %2$s</string>
+    <string name="notif_channel_description">Orders, sync, and shop alerts</string>
     <string name="notif_order_cancelled_title">Order cancelled</string>
     <string name="notif_order_cancelled_body">Order %1$s was cancelled</string>
 
@@ -681,6 +695,8 @@
     <string name="profile_payment_header">Profile &amp; payment methods</string>
     <string name="cart_title">Your cart</string>
     <string name="action_proceed_payment">Proceed to payment (%1$s)</string>
+    <string name="checkout_payment_description">Pansari order</string>
+    <string name="error_payment_not_verified">Payment could not be verified</string>
     <string name="checkout_razorpay_hint">Pay with Razorpay (secured)</string>
     <string name="checkout_direct_upi_hint">Pay the shop by UPI. Your order is placed once the payment is confirmed.</string>
     <string name="checkout_cashfree_hint">Pay by UPI app. Your order is placed as soon as the payment is received.</string>
@@ -945,6 +961,12 @@
     <string name="partner_doc_vehicle_plate">Vehicle Plate</string>
     <string name="partner_doc_id">ID</string>
     <string name="partner_verification_status">Verification status</string>
+    <string name="partner_row_total">Total</string>
+    <string name="partner_row_deliveries">Deliveries</string>
+    <string name="partner_row_acceptance">Acceptance rate</string>
+    <string name="partner_percent_value">%1$d%%</string>
+    <string name="partner_row_vehicle">Vehicle</string>
+    <string name="partner_row_status">Status</string>
     <string name="partner_verified">Verified</string>
     <string name="partner_pending_verification">Pending verification</string>
     <string name="error_name_required">Name is required</string>
@@ -1276,6 +1298,20 @@
     <string name="action_clear_all">Clear all</string>
     <string name="action_request_delivery_partial">Request delivery (%1$d of %2$d items)</string>
     <string name="delivering_items_title">Delivering items (%1$d)</string>
+    <string name="order_items_show_all">Show all %1$d items</string>
+    <string name="order_items_show_less">Show fewer items</string>
+    <string name="order_card_items_count">%1$d items</string>
+    <string name="order_card_total">Total</string>
+    <string name="error_order_not_found">Order not found</string>
+    <string name="order_detail_title">Order #%1$s</string>
+    <string name="order_detail_items">Items (%1$d)</string>
+    <string name="order_detail_payment">Payment</string>
+    <string name="order_detail_subtotal">Subtotal</string>
+    <string name="order_detail_discount">Discount</string>
+    <string name="order_detail_customer">Customer: %1$s</string>
+    <string name="order_detail_open_editor">Edit order</string>
+    <string name="order_detail_reorder">Reorder</string>
+    <string name="reorder_nothing_available">None of these items are available at the shop right now.</string>
     <string name="item_not_included">Not included in this delivery</string>
 
     <!-- Marketplace shop filters -->
@@ -1384,6 +1420,15 @@
     <string name="profile_rating_value">%1$s ★ (%2$d)</string>
     <string name="profile_shop_active">Shop visible to customers</string>
     <string name="profile_payments_enabled">Online payments</string>
+    <string name="pos_settings_title">POS settings</string>
+    <string name="pos_settings_subtitle">Shop details, delivery, payments, order rules, hours</string>
+    <string name="pos_settings_delivery">Delivery</string>
+    <string name="pos_settings_visibility">Visibility</string>
+    <string name="pos_settings_visibility_hint">When off, customers cannot find your shop or place online orders.</string>
+    <string name="pos_settings_payments">Online payments</string>
+    <string name="pos_settings_payments_hint">When off, customers cannot pay online, so online orders cannot be placed.</string>
+    <string name="app_settings_title">App settings</string>
+    <string name="app_settings_subtitle">Notifications, language, theme, account</string>
     <string name="profile_features_title">Subscription features</string>
     <string name="profile_features_subtitle">Turn features on or off for this shop</string>
     <string name="feature_voice_search">Voice search</string>
@@ -1398,6 +1443,10 @@
     <string name="staff_empty">No executives yet</string>
     <string name="staff_field_name">Name</string>
     <string name="staff_field_username">Login username</string>
+    <string name="staff_username_checking">Checking availability…</string>
+    <string name="staff_username_available">Username is available</string>
+    <string name="staff_username_taken">This username is already taken</string>
+    <string name="staff_username_check_failed">Couldn\'t check username. It will be verified on save.</string>
     <string name="staff_field_password">Password</string>
     <string name="staff_field_password_keep">New password (leave blank to keep)</string>
     <string name="staff_active">Login enabled</string>
@@ -1682,6 +1731,9 @@
     <!-- POS portrait cart -->
     <string name="pos_cart_bar_items">%1$d items</string>
     <string name="pos_view_cart">View cart</string>
+    <string name="pos_category_all">All (%1$d)</string>
+    <string name="pos_out_of_stock">Out of stock</string>
+    <string name="pos_no_products_match">No products match your search</string>
     <string name="pos_choose_option">Choose</string>
 
     <!-- Subscription -->
@@ -1804,6 +1856,7 @@
     <string name="cart_free_delivery_unlocked">You get free delivery on this order</string>
 
     <string name="issue_action_report">Report an issue</string>
+    <string name="issue_icon_label">Issue</string>
     <string name="issue_sheet_title">Report an issue</string>
     <string name="issue_my_issues">My issues</string>
     <string name="issue_pick_feature">Where are you facing the issue?</string>
@@ -1959,6 +2012,23 @@
     <string name="more_delete_pending_title">Account deletion scheduled</string>
     <string name="more_delete_pending_body">Your account will be deleted on %1$s. You can still stop it.</string>
     <string name="more_delete_cancel">Don\'t delete my account</string>
+    <string name="closure_shop_title">Delete shop account</string>
+    <string name="closure_shop_subtitle">Close this shop and disable every staff login</string>
+    <string name="closure_partner_title">Delete delivery account</string>
+    <string name="closure_partner_subtitle">Close your delivery partner account</string>
+    <string name="closure_sheet_title">Close this account?</string>
+    <string name="closure_sheet_intro">The account closes 2 days after you confirm. Here is what happens:</string>
+    <string name="closure_shop_point_hidden">Your shop is hidden from customers and stops taking online orders and payments.</string>
+    <string name="closure_shop_point_logins">The admin and every executive login are disabled.</string>
+    <string name="closure_partner_point_offline">You go offline and stop receiving delivery requests.</string>
+    <string name="closure_partner_point_login">You can no longer sign in to the delivery app.</string>
+    <string name="closure_point_active">Orders still in progress are completed first; the closure runs right after.</string>
+    <string name="closure_point_undo">Changed your mind? Come back within 2 days and tap “Don\'t close my account”.</string>
+    <string name="closure_confirm">Yes, close my account</string>
+    <string name="closure_keep">Keep my account</string>
+    <string name="closure_pending_title">Account closure scheduled</string>
+    <string name="closure_pending_body">This account will be closed on %1$s. You can still stop it.</string>
+    <string name="closure_cancel">Don\'t close my account</string>
     <string name="more_welcome_title">Welcome back!</string>
     <string name="more_welcome_body">Thank you for staying with Pansari Wala. Your account is safe and everything is just as you left it.</string>
     <string name="more_welcome_loyal">We are lucky to have a loyal customer like you.</string>
@@ -2145,6 +2215,7 @@
     <string name="udhaar_orders_title">Udhaar orders</string>
     <string name="udhaar_orders_empty">No Udhaar orders yet.</string>
     <string name="udhaar_txns_title">Transactions</string>
+    <string name="udhaar_tab_orders">Udhaar orders (%1$d)</string>
     <string name="udhaar_txns_empty">No transactions for this filter.</string>
     <string name="udhaar_filter_all">All</string>
     <string name="udhaar_filter_purchases">Purchases</string>
@@ -2179,8 +2250,19 @@
     <string name="borrowed_repay_pay">Pay with UPI</string>
     <string name="borrowed_repay_success">Payment successful</string>
     <string name="borrowed_repay_failed">Payment failed. Nothing was deducted from your due.</string>
+    <string name="udhaar_txn_gateway_cashfree">Paid via Cashfree</string>
+    <string name="udhaar_txn_gateway_upi">Direct UPI to shop</string>
+    <string name="udhaar_txn_ref">Ref %1$s</string>
+    <string name="borrowed_repay_processing">Payment is being confirmed. Your due updates as soon as it is received.</string>
     <string name="borrowed_repay_confirm_title">Did the payment go through?</string>
     <string name="borrowed_repay_yes">Yes, paid</string>
     <string name="borrowed_repay_no">No, it failed</string>
     <string name="borrowed_repay_no_upi">This shop has not set up UPI yet.</string>
+    <string name="shop_type_supermarket">Supermarket</string>
+    <string name="shop_type_grocery">Grocery</string>
+    <string name="shop_type_boutique">Boutique</string>
+    <string name="shop_type_general_store">General Store</string>
+    <string name="shop_type_medical_store">Medical Store</string>
+    <string name="shop_type_hardware">Hardware</string>
+    <string name="shop_type_sweet_shop">Sweet Shop</string>
 </resources>

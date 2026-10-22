@@ -549,6 +549,23 @@ fun Route.apiRoutes(
             call.requireShopId()
             call.respond(withContext(Dispatchers.IO) { store.listStaff(call.userId()) })
         }
+        get("/shop/deletion") {
+            call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.shopDeletionStatus(call.userId()) })
+        }
+        post("/shop/deletion") {
+            call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.requestShopDeletion(call.userId()) })
+        }
+        delete("/shop/deletion") {
+            call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { store.cancelShopDeletion(call.userId()) })
+        }
+        get("/shop/staff/username-available") {
+            call.requireShopId()
+            val username = call.parameters["username"].orEmpty()
+            call.respond(withContext(Dispatchers.IO) { store.staffUsernameAvailability(call.userId(), username) })
+        }
         post("/shop/staff") {
             call.requireShopId()
             val body = call.receive<ShopStaffUpsert>()
@@ -668,7 +685,10 @@ fun Route.apiRoutes(
         }
         get("/shop/borrowers/{phone}") {
             val shopId = call.requireShopId()
-            call.respond(withContext(Dispatchers.IO) { credit.borrowerDetail(shopId, call.parameters["phone"]!!) })
+            val type = call.parameters["type"]
+            val page = call.parameters["page"]?.toIntOrNull()
+            val size = call.parameters["size"]?.toIntOrNull()
+            call.respond(withContext(Dispatchers.IO) { credit.borrowerDetail(shopId, call.parameters["phone"]!!, type, page, size) })
         }
         put("/shop/borrowers/{phone}") {
             val shopId = call.requireShopId()
@@ -693,6 +713,15 @@ fun Route.apiRoutes(
             val from = call.parameters["from"]?.toLongOrNull() ?: startOfToday()
             val to = call.parameters["to"]?.toLongOrNull() ?: (from + 86_400_000)
             call.respond(store.partnerDashboard(call.userId(), from, to))
+        }
+        get("/partners/deletion") {
+            call.respond(withContext(Dispatchers.IO) { store.partnerDeletionStatus(call.userId()) })
+        }
+        post("/partners/deletion") {
+            call.respond(withContext(Dispatchers.IO) { store.requestPartnerDeletion(call.userId()) })
+        }
+        delete("/partners/deletion") {
+            call.respond(withContext(Dispatchers.IO) { store.cancelPartnerDeletion(call.userId()) })
         }
         get("/partners/profile") {
             call.respond(withContext(Dispatchers.IO) { store.partnerProfile(call.userId()) })

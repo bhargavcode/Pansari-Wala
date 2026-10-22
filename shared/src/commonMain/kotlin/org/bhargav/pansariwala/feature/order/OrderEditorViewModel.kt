@@ -12,7 +12,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.api.BorrowerDto
 import org.bhargav.pansariwala.api.PansariApi
+import org.bhargav.pansariwala.feature.udhaar.BorrowerProfileUploader
+import org.bhargav.pansariwala.feature.udhaar.localDayStartMs
+import org.bhargav.pansariwala.feature.udhaar.localUtcOffsetMinutes
+import org.bhargav.pansariwala.media.CompressedImage
+import org.bhargav.pansariwala.media.ImageSource
+import org.bhargav.pansariwala.media.prepareImageForUpload
+import org.bhargav.pansariwala.platform.ImagePicker
+import org.bhargav.pansariwala.platform.pickImageCatching
+import org.bhargav.pansariwala.platform.toImagePickErrorText
 import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.data.db.ShopRepository
@@ -62,6 +72,7 @@ import pansariwala.shared.generated.resources.error_mic_permission
 import pansariwala.shared.generated.resources.error_order_empty
 import pansariwala.shared.generated.resources.error_shop_upi_missing
 import pansariwala.shared.generated.resources.error_udhaar_phone
+import pansariwala.shared.generated.resources.error_photo_pick_failed
 import pansariwala.shared.generated.resources.error_speech_unavailable
 import pansariwala.shared.generated.resources.voice_confirm_product
 import pansariwala.shared.generated.resources.voice_confirm_quantity
@@ -114,6 +125,16 @@ data class OrderEditorUiState(
     val showUpiQr: Boolean = false,
     val showUdhaarForm: Boolean = false,
     val udhaarPhone: String = "",
+    /** Udhaar step: search text over existing borrowers (name / phone / address). */
+    val udhaarQuery: String = "",
+    val udhaarResults: List<BorrowerDto> = emptyList(),
+    val udhaarSearching: Boolean = false,
+    /** Existing borrower picked from search; the sheet shows a confirm step for them. */
+    val udhaarSelected: BorrowerDto? = null,
+    /** New-borrower form (phone, name, address, camera photo). */
+    val udhaarAddingNew: Boolean = false,
+    val udhaarAddress: String = "",
+    val udhaarPhotoPreview: ByteArray? = null,
     val pendingPrint: Boolean = false,
     val shopUpiId: String = "",
     val shopName: String = "",
@@ -174,9 +195,13 @@ class OrderEditorViewModel(
     private val shopNotifier: ShopNotifier,
     private val printService: PosPrintService,
     private val api: PansariApi,
+    private val imagePicker: ImagePicker,
+    private val borrowerUploader: BorrowerProfileUploader,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrderEditorUiState())
+    private var udhaarSearchJob: Job? = null
+    private var udhaarPhoto: CompressedImage? = null
     val uiState: StateFlow<OrderEditorUiState> = _uiState.asStateFlow()
 
     fun dismissError() { _uiState.update { it.copy(error = null) } }
@@ -251,10 +276,7 @@ class OrderEditorViewModel(
                             // Soft failures are recovered by continuous restart.
                             if (!_uiState.value.isListening) {
                                 _uiState.update {
-                                    it.copy(
-                                        error = event.message.takeIf { msg -> msg.isNotBlank() }
-                                            ?.let { UiText.Plain(it) },
-                                    )
+                                    it.copy(error = UiText.res(event.message))
                                 }
                             }
                         }
@@ -342,7 +364,8 @@ class OrderEditorViewModel(
             .trim()
     }
 
-    fun load(orderId: String?) {
+    /** [reorderFromId] starts a new bill pre-filled (at today's prices) with that order's items. */
+    fun load(orderId: String?, reorderFromId: String? = null) {
         viewModelScope.launch {
             shopRepository.ensureSeeded()
             shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID
@@ -373,7 +396,18 @@ class OrderEditorViewModel(
                     )
                 }
             } else {
-                _uiState.update { it.copy(loading = false, catalog = catalog) }
+                val source = reorderFromId?.let { shopRepository.getOrder(it) }
+                val cart = source?.items.orEmpty().mapNotNull { item ->
+                    byId[item.productId]?.takeIf { it.isActive }?.let { CartLine(it, item.quantity, item.variantId?.let(it::variant)) }
+                }
+                _uiState.update {
+                    it.copy(
+                        loading = false,
+                        catalog = catalog,
+                        cart = cart,
+                        customerName = source?.customerName?.takeUnless { n -> n == WALK_IN_CUSTOMER_KEY }.orEmpty(),
+                    )
+                }
                 loadOffers()
             }
         }
@@ -763,12 +797,114 @@ class OrderEditorViewModel(
         it.copy(udhaarPhone = value.filter(Char::isDigit).take(AppConstants.PHONE_LOCAL_DIGITS), error = null)
     }
 
-    fun backFromUdhaar() = _uiState.update { it.copy(showUdhaarForm = false, error = null) }
+    fun backFromUdhaar() = _uiState.update {
+        when {
+            it.udhaarSelected != null -> it.copy(udhaarSelected = null, error = null)
+            it.udhaarAddingNew -> it.copy(udhaarAddingNew = false, error = null)
+            else -> it.copy(showUdhaarForm = false, error = null)
+        }
+    }
+
+    private fun openUdhaar() {
+        udhaarPhoto = null
+        _uiState.update {
+            it.copy(
+                showUdhaarForm = true,
+                udhaarQuery = "",
+                udhaarSelected = null,
+                udhaarAddingNew = false,
+                udhaarAddress = "",
+                udhaarPhotoPreview = null,
+                error = null,
+            )
+        }
+        searchBorrowers(debounce = false)
+    }
+
+    fun onUdhaarQueryChange(value: String) {
+        _uiState.update { it.copy(udhaarQuery = value, error = null) }
+        searchBorrowers(debounce = true)
+    }
+
+    private fun searchBorrowers(debounce: Boolean) {
+        udhaarSearchJob?.cancel()
+        udhaarSearchJob = viewModelScope.launch {
+            if (debounce) delay(UDHAAR_SEARCH_DEBOUNCE_MS)
+            _uiState.update { it.copy(udhaarSearching = true) }
+            val query = _uiState.value.udhaarQuery.trim()
+            val results = runCatching {
+                api.borrowerReport(
+                    fromMs = localDayStartMs(0),
+                    toMs = AppClock.nowMillis(),
+                    tzOffsetMin = localUtcOffsetMinutes(),
+                    query = query,
+                    sort = AppConstants.Udhaar.SORT_RECENT,
+                    page = 0,
+                    size = UDHAAR_SEARCH_LIMIT,
+                ).borrowers
+            }.onFailure { it.rethrowIfStructuredCancellation() }.getOrDefault(emptyList())
+            _uiState.update { it.copy(udhaarResults = results, udhaarSearching = false) }
+        }
+    }
+
+    fun selectBorrower(borrower: BorrowerDto) = _uiState.update {
+        it.copy(
+            udhaarSelected = borrower,
+            udhaarPhone = borrower.phone,
+            customerName = borrower.name.ifBlank { it.customerName },
+            error = null,
+        )
+    }
+
+    fun startNewBorrower() {
+        udhaarPhoto = null
+        _uiState.update {
+            val q = it.udhaarQuery.trim()
+            val digits = q.filter(Char::isDigit)
+            val isPhone = digits.isNotEmpty() && digits.length == q.count { c -> !c.isWhitespace() }
+            it.copy(
+                udhaarAddingNew = true,
+                udhaarSelected = null,
+                udhaarPhone = if (isPhone) digits.take(AppConstants.PHONE_LOCAL_DIGITS) else "",
+                customerName = if (isPhone || q.isEmpty()) it.customerName else q,
+                udhaarAddress = "",
+                udhaarPhotoPreview = null,
+                error = null,
+            )
+        }
+    }
+
+    fun onUdhaarAddressChange(value: String) = _uiState.update { it.copy(udhaarAddress = value) }
+
+    fun takeBorrowerPhoto() {
+        viewModelScope.launch {
+            val picked = imagePicker.pickImageCatching(ImageSource.CAMERA).getOrElse { err ->
+                _uiState.update { it.copy(error = err.toImagePickErrorText()) }
+                return@launch
+            } ?: return@launch
+            val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {
+                _uiState.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
+                return@launch
+            }
+            udhaarPhoto = compressed
+            _uiState.update { it.copy(udhaarPhotoPreview = compressed.previewBytes) }
+        }
+    }
+
+    fun removeBorrowerPhoto() {
+        udhaarPhoto = null
+        _uiState.update { it.copy(udhaarPhotoPreview = null) }
+    }
 
     fun confirmUdhaar() {
-        if (_uiState.value.udhaarPhone.length != AppConstants.PHONE_LOCAL_DIGITS) {
+        val state = _uiState.value
+        if (state.udhaarPhone.length != AppConstants.PHONE_LOCAL_DIGITS) {
             _uiState.update { it.copy(error = UiText.res(Res.string.error_udhaar_phone)) }
             return
+        }
+        if (state.udhaarAddingNew) {
+            borrowerUploader.submit(state.udhaarPhone, state.customerName, state.udhaarAddress, udhaarPhoto)
+            udhaarPhoto = null
         }
         completePayment(AppConstants.PosPayment.UDHAAR)
     }
@@ -783,7 +919,7 @@ class OrderEditorViewModel(
                 }
             }
             AppConstants.PosPayment.CASH, AppConstants.PosPayment.CARD -> completePayment(method)
-            AppConstants.PosPayment.UDHAAR -> _uiState.update { it.copy(showUdhaarForm = true, error = null) }
+            AppConstants.PosPayment.UDHAAR -> openUdhaar()
         }
     }
 
@@ -1096,6 +1232,8 @@ class OrderEditorViewModel(
         /** Best + runner-up, enough to detect an ambiguous match. */
         private const val VOICE_MATCH_CANDIDATES = 2
         private const val SCAN_MESSAGE_MS = 2_000L
+        private const val UDHAAR_SEARCH_DEBOUNCE_MS = 300L
+        private const val UDHAAR_SEARCH_LIMIT = 20
     }
 }
 

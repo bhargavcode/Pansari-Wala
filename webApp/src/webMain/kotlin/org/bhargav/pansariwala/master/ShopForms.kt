@@ -89,6 +89,7 @@ import pansariwala.shared.generated.resources.profile_payments_enabled
 import pansariwala.shared.generated.resources.shop_closed
 import pansariwala.shared.generated.resources.shop_delivery_until_label
 import pansariwala.shared.generated.resources.master_feature_reports
+import pansariwala.shared.generated.resources.master_feature_scanner
 import pansariwala.shared.generated.resources.master_feature_voice
 import pansariwala.shared.generated.resources.master_features
 import pansariwala.shared.generated.resources.master_general_info
@@ -142,6 +143,13 @@ import pansariwala.shared.generated.resources.master_choose_from_device
 import pansariwala.shared.generated.resources.master_remove_image
 import pansariwala.shared.generated.resources.master_upload_failed
 import pansariwala.shared.generated.resources.master_upload_unsupported_image
+import pansariwala.shared.generated.resources.shop_type_sweet_shop
+import pansariwala.shared.generated.resources.shop_type_hardware
+import pansariwala.shared.generated.resources.shop_type_medical_store
+import pansariwala.shared.generated.resources.shop_type_general_store
+import pansariwala.shared.generated.resources.shop_type_boutique
+import pansariwala.shared.generated.resources.shop_type_grocery
+import pansariwala.shared.generated.resources.shop_type_supermarket
 
 /** Offline fallback; the live list comes from `/master/shop-types`. */
 private val DefaultShopTypeChoices = ShopType.entries.map {
@@ -188,6 +196,7 @@ internal fun ShopEditorScreen(
     var online by rememberSaveable { mutableStateOf(true) }
     var inventory by rememberSaveable { mutableStateOf(true) }
     var reports by rememberSaveable { mutableStateOf(true) }
+    var scanner by rememberSaveable { mutableStateOf(false) }
     var paymentsEnabled by rememberSaveable { mutableStateOf(true) }
     var upiId by rememberSaveable { mutableStateOf("") }
     var vendorId by rememberSaveable { mutableStateOf("") }
@@ -231,6 +240,7 @@ internal fun ShopEditorScreen(
                 voice = s.features.voiceSearch
                 barcode = s.features.barcodeSearch
                 reports = s.features.reportGeneration
+                scanner = s.features.barcodeScanner
                 online = s.features.onlineOrders
                 inventory = s.features.inventoryAlerts
                 paymentsEnabled = s.paymentsEnabled
@@ -258,6 +268,7 @@ internal fun ShopEditorScreen(
         reportGeneration = reports,
         onlineOrders = online,
         inventoryAlerts = inventory,
+        barcodeScanner = scanner,
     )
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -426,6 +437,7 @@ internal fun ShopEditorScreen(
                         FeatureToggleRow(stringResource(Res.string.master_feature_online), online) { online = !online }
                         FeatureToggleRow(stringResource(Res.string.master_feature_inventory), inventory) { inventory = !inventory }
                         FeatureToggleRow(stringResource(Res.string.master_feature_reports), reports) { reports = !reports }
+                        FeatureToggleRow(stringResource(Res.string.master_feature_scanner), scanner) { scanner = !scanner }
                     }
                 }
             }
@@ -738,16 +750,21 @@ fun FeatureToggleRow(label: String, checked: Boolean, onToggle: () -> Unit) {
     }
 }
 
+@Composable
 fun shopTypeDisplayName(shopType: String, types: List<ShopTypeDto> = emptyList()): String {
     types.firstOrNull { it.id == shopType }?.name?.let { return it }
-    return when (shopType) {
-        "SUPERMARKET" -> "Supermarket"
-        "GROCERY" -> "Grocery"
-        "BOUTIQUE" -> "Boutique"
-        "GENERAL_STORE" -> "General Store"
-        "MEDICAL_STORE" -> "Medical Store"
-        "HARDWARE" -> "Hardware"
-        "SWEET_SHOP" -> "Sweet Shop"
+    val known = when (shopType) {
+        "SUPERMARKET" -> Res.string.shop_type_supermarket
+        "GROCERY" -> Res.string.shop_type_grocery
+        "BOUTIQUE" -> Res.string.shop_type_boutique
+        "GENERAL_STORE" -> Res.string.shop_type_general_store
+        "MEDICAL_STORE" -> Res.string.shop_type_medical_store
+        "HARDWARE" -> Res.string.shop_type_hardware
+        "SWEET_SHOP" -> Res.string.shop_type_sweet_shop
+        else -> null
+    }
+    return when {
+        known != null -> stringResource(known)
         else -> shopType.replace('_', ' ')
     }
 }

@@ -483,8 +483,12 @@ class KtorPansariApi(
         parameter("size", size)
     }.body()
 
-    override suspend fun borrowerDetail(phone: String): BorrowerDetailDto =
-        client.get("shop/borrowers/$phone").body()
+    override suspend fun borrowerDetail(phone: String, type: String?, page: Int?, size: Int?): BorrowerDetailDto =
+        client.get("shop/borrowers/$phone") {
+            type?.let { parameter("type", it) }
+            page?.let { parameter("page", it) }
+            size?.let { parameter("size", it) }
+        }.body()
 
     override suspend fun updateBorrower(phone: String, body: BorrowerUpdateRequest): BorrowerDto =
         client.put("shop/borrowers/$phone") { setBody(body) }.body()
@@ -510,6 +514,20 @@ class KtorPansariApi(
         } else {
             client.put("shop/staff/$staffId") { setBody(body) }.body()
         }
+
+    override suspend fun staffUsernameAvailability(username: String): UsernameAvailabilityDto =
+        client.get("shop/staff/username-available") { parameter("username", username) }.body()
+
+    private fun closurePath(partner: Boolean) = if (partner) "partners/deletion" else "shop/deletion"
+
+    override suspend fun accountClosureStatus(partner: Boolean): AccountDeletionDto =
+        client.get(closurePath(partner)).body()
+
+    override suspend fun requestAccountClosure(partner: Boolean): AccountDeletionDto =
+        client.post(closurePath(partner)).body()
+
+    override suspend fun cancelAccountClosure(partner: Boolean): AccountDeletionDto =
+        client.delete(closurePath(partner)).body()
 
     override suspend fun deleteShopStaff(staffId: String) {
         client.delete("shop/staff/$staffId").body<OkResponse>()
