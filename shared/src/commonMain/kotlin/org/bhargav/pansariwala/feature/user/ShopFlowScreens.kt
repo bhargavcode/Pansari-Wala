@@ -75,6 +75,7 @@ import org.bhargav.pansariwala.ui.ErrorBannerState
 import org.bhargav.pansariwala.ui.errorBannerOrNull
 import org.bhargav.pansariwala.ui.isBlockingLoad
 import org.bhargav.pansariwala.ui.isRefreshing
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
@@ -204,11 +205,15 @@ fun ShopCatalogScreen(
             handleErrorBannerAction(it, onRetry = viewModel::refresh, onDismiss = viewModel::dismissError)
         },
         isLoading = state.isBlockingLoad(),
-        isRefreshing = state.isRefreshing(),
     ) {
         Column(Modifier.fillMaxSize()) {
+          PullToRefreshBox(
+            isRefreshing = state.isRefreshing(),
+            onRefresh = viewModel::refresh,
+            modifier = Modifier.weight(1f),
+          ) {
             LazyColumn(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
                 data?.shop?.let { shop ->
@@ -281,6 +286,7 @@ fun ShopCatalogScreen(
                     }
                 }
             }
+          }
             CatalogCartBar(cartCount = data?.cartCount ?: 0, onOpenCart = onOpenCart)
         }
     }

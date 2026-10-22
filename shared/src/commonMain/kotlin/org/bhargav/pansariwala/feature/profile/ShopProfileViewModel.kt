@@ -41,6 +41,7 @@ import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.ImagePicker
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
 import org.bhargav.pansariwala.platform.pickImageCatching
+import org.bhargav.pansariwala.platform.toImagePickErrorText
 import org.bhargav.pansariwala.util.AppClock
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.shop_free_delivery_invalid
@@ -319,7 +320,7 @@ class ShopProfileViewModel(
         if (_uiState.value.uploadingPhoto) return
         viewModelScope.launch {
             val picked = imagePicker.pickImageCatching(source).getOrElse { err ->
-                showError(UiText.res(if (err is CameraPermissionDeniedException) Res.string.error_camera_permission_denied else Res.string.error_photo_pick_failed))
+                showError(err.toImagePickErrorText())
                 return@launch
             } ?: return@launch
             _uiState.update { it.copy(uploadingPhoto = true, error = null) }

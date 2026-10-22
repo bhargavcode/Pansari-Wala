@@ -971,6 +971,7 @@ fun Order.toSyncDto() = OrderDto(
     customerName = customerName,
     channel = OrderChannel.POS.name,
     paymentMethod = paymentMethod,
+    customerPhone = customerPhone,
     cancelReason = cancelReason,
     discount = discount,
     items = items.map { line ->

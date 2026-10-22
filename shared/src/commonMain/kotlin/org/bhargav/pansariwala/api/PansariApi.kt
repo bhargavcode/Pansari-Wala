@@ -41,6 +41,11 @@ interface PansariApi {
     suspend fun changePhone(phone: String, otp: String, sessionId: String): CustomerProfile
     /** Paid orders in [fromMs, toMs) with category-tagged lines. */
     suspend fun mySpend(fromMs: Long, toMs: Long): SpendReportDto
+    /** Udhaar owed across shops, matched by the account's mobile number. */
+    suspend fun myCredit(): MyCreditSummaryDto
+    suspend fun myCreditShop(shopId: String): MyCreditShopDetailDto
+    suspend fun startCreditRepayment(shopId: String, amount: Double): MyRepayResponse
+    suspend fun reportCreditRepayment(shopId: String, txnId: String, success: Boolean): CreditTxnDto
     suspend fun requestAccountDeletion(): CustomerProfile
     suspend fun cancelAccountDeletion(): CustomerProfile
 
@@ -121,6 +126,19 @@ interface PansariApi {
     /** Root categories the shop sells with its customer-catalog order (priority numbers or by name). */
     suspend fun shopCategoryOrder(): ShopCategoryOrderDto
     suspend fun updateShopCategoryOrder(body: ShopCategoryOrderDto): ShopCategoryOrderDto
+    /** Udhaar report for [fromMs, toMs); [tzOffsetMin] buckets the day chart in local time. */
+    suspend fun borrowerReport(
+        fromMs: Long,
+        toMs: Long,
+        tzOffsetMin: Int,
+        query: String,
+        sort: String,
+        page: Int,
+        size: Int,
+    ): BorrowerReportDto
+    suspend fun borrowerDetail(phone: String): BorrowerDetailDto
+    suspend fun updateBorrower(phone: String, body: BorrowerUpdateRequest): BorrowerDto
+    suspend fun recordRepayment(phone: String, body: RepaymentRequest): CreditTxnDto
     suspend fun shopStaff(): List<ShopStaffDto>
     suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto
     suspend fun deleteShopStaff(staffId: String)

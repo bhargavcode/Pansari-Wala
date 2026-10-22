@@ -56,6 +56,7 @@ fun main() {
     println(if (push.enabled) "Push: FCM HTTP v1 enabled" else "Push: disabled (set FCM_SERVICE_ACCOUNT_FILE or FCM_SERVICE_ACCOUNT_JSON)")
     val store = AppStore(config, security, mongo, storage, assetRefs, push)
     val support = SupportService(mongo, assetRefs, push)
+    val credit = org.bhargav.pansariwala.server.service.CreditService(mongo, assetRefs)
 
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
         // CORS first so preflight + error responses always include ACAO (web localhost → API).
@@ -134,7 +135,7 @@ fun main() {
             }
         }
         routing {
-            apiRoutes(config, store, push, support)
+            apiRoutes(config, store, push, support, credit)
         }
         launch(Dispatchers.IO) {
             var lastAccountPurge = 0L

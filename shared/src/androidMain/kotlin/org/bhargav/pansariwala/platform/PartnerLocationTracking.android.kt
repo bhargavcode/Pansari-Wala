@@ -67,7 +67,14 @@ class PartnerLocationService : Service(), KoinComponent {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        promoteToForeground()
+        // Android 12+/14 reject location FGS started from the background (sticky restart, push wake-up)
+        // with an exception that would otherwise crash the partner app.
+        val promoted = runCatching { promoteToForeground() }.isSuccess
+        if (!promoted) {
+            stopSelf()
+            startFallbackLoop()
+            return START_NOT_STICKY
+        }
         if (loopJob?.isActive != true) {
             loopJob = scope.launch {
                 partnerLocationUpdateLoop(location, api)

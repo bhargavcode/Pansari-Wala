@@ -3,7 +3,10 @@ package org.bhargav.pansariwala.platform
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
@@ -76,12 +79,18 @@ class AndroidImagePicker : ImagePicker {
             dir.listFiles()?.forEach { it.delete() }
             File(dir, "capture_${UUID.randomUUID()}.jpg")
         }
-        val uri = FileProvider.getUriForFile(context, context.packageName + FILE_PROVIDER_SUFFIX, file)
         try {
+            val uri = try {
+                FileProvider.getUriForFile(context, context.packageName + FILE_PROVIDER_SUFFIX, file)
+            } catch (e: IllegalArgumentException) {
+                throw CameraUnavailableException(e)
+            }
             try {
                 ActivityResultBridge.launch(KEY_CAMERA, ActivityResultContracts.TakePicture(), uri)
             } catch (e: ActivityNotFoundException) {
-                throw ImagePickException("No camera app available", e)
+                throw CameraUnavailableException(e)
+            } catch (e: SecurityException) {
+                throw CameraPermissionDeniedException()
             }
             return withContext(Dispatchers.IO) {
                 // Trust the file, not the result code: some OEM camera apps report cancel after saving.
@@ -97,11 +106,24 @@ class AndroidImagePicker : ImagePicker {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) return true
-        return ActivityResultBridge.launch(
+        val allowed = ActivityResultBridge.launch(
             KEY_CAMERA_PERMISSION,
             ActivityResultContracts.RequestPermission(),
             Manifest.permission.CAMERA,
         ) == true
+        if (!allowed) openAppSettingsIfPermanentlyDenied(context)
+        return allowed
+    }
+
+    /** After "Don't ask again" the system dialog no longer appears, so send the user to Settings. */
+    private suspend fun openAppSettingsIfPermanentlyDenied(context: Context) = withContext(Dispatchers.Main.immediate) {
+        val activity = AndroidActivityHolder.activity ?: return@withContext
+        if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.CAMERA)) return@withContext
+        runCatching {
+            activity.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+            )
+        }
     }
 }
 

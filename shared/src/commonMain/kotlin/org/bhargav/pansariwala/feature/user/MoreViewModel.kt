@@ -32,6 +32,7 @@ import org.bhargav.pansariwala.platform.mapPhoneAuthError
 import org.bhargav.pansariwala.platform.otpCountdown
 import org.bhargav.pansariwala.platform.otpRetryAfterSec
 import org.bhargav.pansariwala.platform.pickImageCatching
+import org.bhargav.pansariwala.platform.toImagePickErrorText
 import org.bhargav.pansariwala.platform.sanitizeOtpInput
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
@@ -145,8 +146,8 @@ class MoreViewModel(
     fun changePhoto(source: ImageSource) {
         photoJob?.cancel()
         photoJob = viewModelScope.launch {
-            val picked = imagePicker.pickImageCatching(source).getOrElse {
-                _state.update { it.copy(error = UiText.res(Res.string.error_photo_pick_failed)) }
+            val picked = imagePicker.pickImageCatching(source).getOrElse { err ->
+                _state.update { it.copy(error = err.toImagePickErrorText()) }
                 return@launch
             } ?: return@launch
             val compressed = runCatching { prepareImageForUpload(picked) }.getOrElse {

@@ -22,6 +22,7 @@ actual val platformModule: Module = module {
     single<OtpAppVerifier> { IosOtpAppVerifier() }
     single<PhoneAuthGateway> { ServerPhoneAuthGateway(get(), get()) }
     single<ImagePicker> { IosImagePicker() }
+    single<org.bhargav.pansariwala.platform.PhoneAutofill> { org.bhargav.pansariwala.platform.NoPhoneAutofill() }
     single<org.bhargav.pansariwala.platform.DocumentPicker> { org.bhargav.pansariwala.platform.IosDocumentPicker() }
     single<RazorpayCheckout> { IosRazorpayCheckout() }
     single {

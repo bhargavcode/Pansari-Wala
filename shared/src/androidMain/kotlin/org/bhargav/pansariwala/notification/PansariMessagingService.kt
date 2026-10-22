@@ -20,6 +20,7 @@ class PansariMessagingService : FirebaseMessagingService(), KoinComponent {
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
         if (data.isEmpty()) return
-        runBlocking { handler.handle(data) }
+        // An uncaught exception here kills the whole app process, including the open partner/POS UI.
+        runCatching { runBlocking { handler.handle(data) } }
     }
 }

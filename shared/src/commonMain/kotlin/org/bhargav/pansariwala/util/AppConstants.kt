@@ -176,6 +176,7 @@ object AppConstants {
         const val SHOPS_DELIVERY_PACKETS: String = "shops/delivery-packets/"
         const val SHOPS_SHOP: String = "shops/shop/"
         const val SHOPS_PRODUCT_IMAGES: String = "shops/product-images/"
+        const val SHOPS_BORROWERS: String = "shops/borrowers/"
     }
     /** Allowed S3 key prefixes for authenticated multipart uploads. */
     val ALLOWED_UPLOAD_PREFIXES: Set<String> = setOf(
@@ -191,6 +192,7 @@ object AppConstants {
         S3Prefix.SHOPS_DELIVERY_PACKETS,
         S3Prefix.SHOPS_SHOP,
         S3Prefix.SHOPS_PRODUCT_IMAGES,
+        S3Prefix.SHOPS_BORROWERS,
     )
     const val HTTP_CONNECT_TIMEOUT_MS: Long = 10_000L
     const val HTTP_REQUEST_TIMEOUT_MS: Long = 12_000L
@@ -378,7 +380,24 @@ object AppConstants {
         const val CASH: String = "CASH"
         const val UPI: String = "UPI"
         const val CARD: String = "CARD"
+        /** Goods on credit; the bill needs the borrower's mobile number. */
+        const val UDHAAR: String = "UDHAAR"
         const val UPI_CURRENCY: String = "INR"
+    }
+
+    /** Mirrors the server's `CreditService` ledger values. */
+    object Udhaar {
+        const val SORT_OUTSTANDING: String = "OUTSTANDING"
+        const val SORT_NAME: String = "NAME"
+        const val SORT_RECENT: String = "RECENT"
+        const val SORT_CREDIT: String = "CREDIT"
+        const val TYPE_CREDIT: String = "CREDIT"
+        const val TYPE_REPAYMENT: String = "REPAYMENT"
+        const val STATUS_SUCCESS: String = "SUCCESS"
+        const val STATUS_PENDING: String = "PENDING"
+        const val STATUS_FAILED: String = "FAILED"
+        const val SOURCE_USER_APP: String = "USER_APP"
+        const val PAGE_SIZE: Int = 20
     }
 
     /** Mirrors the server's `PaymentMode` / `PaymentMethod`. */

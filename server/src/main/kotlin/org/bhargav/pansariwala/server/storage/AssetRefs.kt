@@ -49,6 +49,7 @@ class AssetRefs(
     companion object {
         val ALLOWED_PREFIXES: Set<String> = setOf(
             "master/product-images/",
+            "shops/borrowers/",
             "master/shop-images/",
             "master/shop-verification/",
             "users/user-image/",

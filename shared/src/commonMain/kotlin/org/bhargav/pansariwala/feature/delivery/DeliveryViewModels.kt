@@ -34,6 +34,7 @@ import org.bhargav.pansariwala.platform.FormatPlateOcr
 import org.bhargav.pansariwala.platform.ImagePicker
 import org.bhargav.pansariwala.platform.CameraPermissionDeniedException
 import org.bhargav.pansariwala.platform.pickImageCatching
+import org.bhargav.pansariwala.platform.toImagePickErrorText
 import org.bhargav.pansariwala.media.ImageSource
 import org.bhargav.pansariwala.media.ImageUploadFeature
 import org.bhargav.pansariwala.media.PhotoUploadUi
@@ -1493,10 +1494,4 @@ class PartnerEarningsViewModel(
     }
 }
 
-private fun Throwable.toPickErrorText(): UiText = UiText.res(
-    if (this is CameraPermissionDeniedException) {
-        Res.string.error_camera_permission_denied
-    } else {
-        Res.string.error_photo_pick_failed
-    },
-)
+private fun Throwable.toPickErrorText(): UiText = toImagePickErrorText()

@@ -61,6 +61,7 @@ import pansariwala.shared.generated.resources.variant_saved
 import pansariwala.shared.generated.resources.error_mic_permission
 import pansariwala.shared.generated.resources.error_order_empty
 import pansariwala.shared.generated.resources.error_shop_upi_missing
+import pansariwala.shared.generated.resources.error_udhaar_phone
 import pansariwala.shared.generated.resources.error_speech_unavailable
 import pansariwala.shared.generated.resources.voice_confirm_product
 import pansariwala.shared.generated.resources.voice_confirm_quantity
@@ -111,6 +112,8 @@ data class OrderEditorUiState(
     val saved: Boolean = false,
     val showPaymentPicker: Boolean = false,
     val showUpiQr: Boolean = false,
+    val showUdhaarForm: Boolean = false,
+    val udhaarPhone: String = "",
     val pendingPrint: Boolean = false,
     val shopUpiId: String = "",
     val shopName: String = "",
@@ -363,6 +366,7 @@ class OrderEditorViewModel(
                         isEditing = true,
                         createdAtEpochMs = existing.createdAtEpochMs,
                         customerName = existing.customerName.orEmpty(),
+                        udhaarPhone = existing.customerPhone.orEmpty(),
                         catalog = catalog,
                         cart = cart,
                         manualDiscountInput = if (existing.discount > 0.0) existing.discount.asMoneyInput() else "",
@@ -752,7 +756,21 @@ class OrderEditorViewModel(
     }
 
     fun dismissPaymentPicker() {
-        _uiState.update { it.copy(showPaymentPicker = false, showUpiQr = false) }
+        _uiState.update { it.copy(showPaymentPicker = false, showUpiQr = false, showUdhaarForm = false) }
+    }
+
+    fun onUdhaarPhoneChange(value: String) = _uiState.update {
+        it.copy(udhaarPhone = value.filter(Char::isDigit).take(AppConstants.PHONE_LOCAL_DIGITS), error = null)
+    }
+
+    fun backFromUdhaar() = _uiState.update { it.copy(showUdhaarForm = false, error = null) }
+
+    fun confirmUdhaar() {
+        if (_uiState.value.udhaarPhone.length != AppConstants.PHONE_LOCAL_DIGITS) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_udhaar_phone)) }
+            return
+        }
+        completePayment(AppConstants.PosPayment.UDHAAR)
     }
 
     fun selectPayment(method: String) {
@@ -765,6 +783,7 @@ class OrderEditorViewModel(
                 }
             }
             AppConstants.PosPayment.CASH, AppConstants.PosPayment.CARD -> completePayment(method)
+            AppConstants.PosPayment.UDHAAR -> _uiState.update { it.copy(showUdhaarForm = true, error = null) }
         }
     }
 
@@ -776,7 +795,7 @@ class OrderEditorViewModel(
 
     private fun completePayment(method: String) {
         val print = _uiState.value.pendingPrint
-        _uiState.update { it.copy(showPaymentPicker = false, showUpiQr = false) }
+        _uiState.update { it.copy(showPaymentPicker = false, showUpiQr = false, showUdhaarForm = false) }
         commitSale(print, method)
     }
 
@@ -800,6 +819,7 @@ class OrderEditorViewModel(
             customerName = state.customerName.trim().ifBlank { WALK_IN_CUSTOMER_KEY },
             channel = OrderChannel.POS,
             paymentMethod = paymentMethod,
+            customerPhone = state.udhaarPhone.takeIf { paymentMethod == AppConstants.PosPayment.UDHAAR },
             discount = state.bill.discount,
             items = state.cart.map { line ->
                 OrderItem(

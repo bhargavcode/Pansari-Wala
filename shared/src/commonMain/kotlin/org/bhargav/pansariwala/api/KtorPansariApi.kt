@@ -465,6 +465,43 @@ class KtorPansariApi(
     override suspend fun updateShopCategoryOrder(body: ShopCategoryOrderDto): ShopCategoryOrderDto =
         client.put("shop/category-order") { setBody(body) }.body()
 
+    override suspend fun borrowerReport(
+        fromMs: Long,
+        toMs: Long,
+        tzOffsetMin: Int,
+        query: String,
+        sort: String,
+        page: Int,
+        size: Int,
+    ): BorrowerReportDto = client.get("shop/borrowers") {
+        parameter("from", fromMs)
+        parameter("to", toMs)
+        parameter("tz", tzOffsetMin)
+        parameter("q", query)
+        parameter("sort", sort)
+        parameter("page", page)
+        parameter("size", size)
+    }.body()
+
+    override suspend fun borrowerDetail(phone: String): BorrowerDetailDto =
+        client.get("shop/borrowers/$phone").body()
+
+    override suspend fun updateBorrower(phone: String, body: BorrowerUpdateRequest): BorrowerDto =
+        client.put("shop/borrowers/$phone") { setBody(body) }.body()
+
+    override suspend fun recordRepayment(phone: String, body: RepaymentRequest): CreditTxnDto =
+        client.post("shop/borrowers/$phone/repayments") { setBody(body) }.body()
+
+    override suspend fun myCredit(): MyCreditSummaryDto = client.get("me/credit").body()
+
+    override suspend fun myCreditShop(shopId: String): MyCreditShopDetailDto = client.get("me/credit/$shopId").body()
+
+    override suspend fun startCreditRepayment(shopId: String, amount: Double): MyRepayResponse =
+        client.post("me/credit/$shopId/repay") { setBody(MyRepayRequest(amount)) }.body()
+
+    override suspend fun reportCreditRepayment(shopId: String, txnId: String, success: Boolean): CreditTxnDto =
+        client.post("me/credit/$shopId/repay/$txnId/status") { setBody(MyRepayStatusRequest(success)) }.body()
+
     override suspend fun shopStaff(): List<ShopStaffDto> = client.get("shop/staff").body()
 
     override suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto =

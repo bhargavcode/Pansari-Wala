@@ -68,6 +68,8 @@ import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedDialog
+import org.bhargav.pansariwala.platform.OtpAutofillEffect
+import org.bhargav.pansariwala.platform.PhoneNumberHintEffect
 import org.bhargav.pansariwala.platform.RequestLocationPermission
 import org.bhargav.pansariwala.platform.openAppLocationSettings
 import org.bhargav.pansariwala.ui.AsyncUiState
@@ -157,6 +159,7 @@ fun PhoneAuthScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        PhoneNumberHintEffect(state.phone, viewModel::setPhone)
         OutlinedTextField(
             value = state.phone,
             onValueChange = viewModel::setPhone,
@@ -183,6 +186,10 @@ fun PhoneOtpScreen(
     viewModel: PhoneAuthViewModel,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    OtpAutofillEffect(key = state.hint) { code ->
+        viewModel.setOtp(code)
+        viewModel.verify { onVerified(it.profileComplete) }
+    }
     PansariScreen(
         title = stringResource(Res.string.onboarding_otp_heading),
         onBack = onBack,

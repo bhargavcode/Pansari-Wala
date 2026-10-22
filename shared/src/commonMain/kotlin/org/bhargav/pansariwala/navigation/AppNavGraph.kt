@@ -81,6 +81,8 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.Subscription::class, AppRoute.Subscription.serializer())
             subclass(AppRoute.CommissionDay::class, AppRoute.CommissionDay.serializer())
             subclass(AppRoute.CommissionOrder::class, AppRoute.CommissionOrder.serializer())
+            subclass(AppRoute.Borrowers::class, AppRoute.Borrowers.serializer())
+            subclass(AppRoute.BorrowerDetail::class, AppRoute.BorrowerDetail.serializer())
         }
     }
 }
@@ -225,6 +227,9 @@ fun AppNavGraph(
                             onOpenReports = { push(AppRoute.Reports) },
                             onOpenProfile = { push(AppRoute.ShopProfile) },
                             onOpenSubscription = { push(AppRoute.Subscription) },
+                            onOpenBorrowers = { push(AppRoute.Borrowers) },
+                            onOpenMasterCatalog = { push(AppRoute.MasterCatalog) },
+                            onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
                             onLogout = { replaceAll(AppRoute.Login) },
                         )
                     }
@@ -352,6 +357,20 @@ fun AppNavGraph(
                         org.bhargav.pansariwala.feature.subscription.CommissionOrderScreen(
                             day = route.day,
                             orderId = route.orderId,
+                            onBack = { pop() },
+                        )
+                    }
+
+                    AppRoute.Borrowers -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.udhaar.BorrowersReportScreen(
+                            onBack = { pop() },
+                            onOpenBorrower = { phone -> push(AppRoute.BorrowerDetail(phone)) },
+                        )
+                    }
+
+                    is AppRoute.BorrowerDetail -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.udhaar.BorrowerDetailScreen(
+                            phone = route.phone,
                             onBack = { pop() },
                         )
                     }

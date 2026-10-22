@@ -24,6 +24,9 @@ import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.notification.OrderUpdates
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.SalesSnapshot
+import org.bhargav.pansariwala.domain.model.StockLevel
+import org.bhargav.pansariwala.feature.udhaar.localUtcOffsetMinutes
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.ui.AsyncUiState
 import org.bhargav.pansariwala.util.AppClock
 
@@ -36,6 +39,8 @@ data class DashboardData(
     val lowStockTotalCount: Int = 0,
     val totalInventoryValue: Double = 0.0,
     val totalProducts: Int = 0,
+    val stockHealth: Map<StockLevel, Int> = emptyMap(),
+    val topValueProducts: List<Product> = emptyList(),
 )
 
 typealias DashboardUiState = AsyncUiState<DashboardData>
@@ -55,6 +60,28 @@ class DashboardViewModel(
     private val onlineToday = MutableStateFlow(SalesSnapshot(0, 0.0))
     private val _billing = MutableStateFlow<ShopBillingDto?>(null)
     val billing: StateFlow<ShopBillingDto?> = _billing.asStateFlow()
+
+    private val _udhaarDue = MutableStateFlow<Double?>(null)
+    val udhaarDue: StateFlow<Double?> = _udhaarDue.asStateFlow()
+
+    fun refreshUdhaarDue() {
+        viewModelScope.launch {
+            val now = AppClock.nowMillis()
+            runCatching {
+                api.borrowerReport(
+                    fromMs = AppClock.startOfTodayMillis(),
+                    toMs = now,
+                    tzOffsetMin = localUtcOffsetMinutes(),
+                    query = "",
+                    sort = AppConstants.Udhaar.SORT_OUTSTANDING,
+                    page = 0,
+                    size = 1,
+                )
+            }
+                .onSuccess { _udhaarDue.value = it.totalOutstanding }
+                .onFailure { it.rethrowIfStructuredCancellation() }
+        }
+    }
 
     /** Today's online orders that are not cancelled/rejected; zero when offline or not permitted. */
     private fun refreshOnlineToday() {
@@ -126,6 +153,11 @@ class DashboardViewModel(
                         lowStockTotalCount = lowStock.size,
                         totalInventoryValue = payload.products.sumOf { p -> p.stockValue },
                         totalProducts = payload.products.size,
+                        stockHealth = payload.products.groupingBy { it.stockLevel }.eachCount(),
+                        topValueProducts = payload.products
+                            .filter { it.stockValue > 0.0 }
+                            .sortedByDescending { it.stockValue }
+                            .take(TOP_VALUE_LIMIT),
                     ),
                 )
             }
@@ -141,5 +173,6 @@ class DashboardViewModel(
     companion object {
         const val RECENT_ORDERS_LIMIT = 10
         const val LOW_STOCK_LIMIT = 15
+        const val TOP_VALUE_LIMIT = 5
     }
 }

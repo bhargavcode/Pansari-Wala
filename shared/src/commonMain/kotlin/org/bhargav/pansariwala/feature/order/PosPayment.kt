@@ -8,6 +8,7 @@ import pansariwala.shared.generated.resources.payment_method_cod
 import pansariwala.shared.generated.resources.payment_method_online
 import pansariwala.shared.generated.resources.pos_payment_card
 import pansariwala.shared.generated.resources.pos_payment_cash
+import pansariwala.shared.generated.resources.pos_payment_udhaar
 import pansariwala.shared.generated.resources.pos_payment_upi
 
 /** NPCI UPI deep link (`upi://pay`) with the bill amount locked in. */
@@ -37,6 +38,7 @@ fun paymentMethodLabelRes(method: String): StringResource = when (method) {
     AppConstants.PosPayment.CASH -> Res.string.pos_payment_cash
     AppConstants.PosPayment.UPI -> Res.string.pos_payment_upi
     AppConstants.PosPayment.CARD -> Res.string.pos_payment_card
+    AppConstants.PosPayment.UDHAAR -> Res.string.pos_payment_udhaar
     "COD" -> Res.string.payment_method_cod
     else -> Res.string.payment_method_online
 }

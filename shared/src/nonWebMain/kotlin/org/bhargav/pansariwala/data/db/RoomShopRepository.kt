@@ -310,6 +310,7 @@ private fun Order.toEntity(syncRevision: Long = 1L) = OrderEntity(
     discount = discount,
     pendingSync = 1,
     syncRevision = syncRevision,
+    customerPhone = customerPhone,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -343,6 +344,7 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
     cancelReason = cancelReason,
     channel = OrderChannel.POS,
     paymentMethod = paymentMethod,
+    customerPhone = customerPhone,
     discount = discount,
     items = items.map {
         OrderItem(

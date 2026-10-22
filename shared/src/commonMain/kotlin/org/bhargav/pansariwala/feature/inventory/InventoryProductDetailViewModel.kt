@@ -24,9 +24,13 @@ data class InventoryProductDetailUiState(
     val product: Product? = null,
     val missing: Boolean = false,
     val qtyInput: String = "",
+    /** Variant whose stock the update card edits; null for products without options. */
+    val selectedVariantId: String? = null,
     val message: UiText? = null,
     val error: UiText? = null,
-)
+) {
+    val editedStock: Double get() = product?.stockOf(selectedVariantId) ?: 0.0
+}
 
 class InventoryProductDetailViewModel(
     private val shopRepository: ShopRepository,
@@ -46,10 +50,16 @@ class InventoryProductDetailViewModel(
             shopRepository.observeProduct(id)
                 .catch { error -> _uiState.update { it.copy(loading = false, error = error.toApiUiText()) } }
                 .collect { product ->
-                    _uiState.update { it.copy(loading = false, product = product, missing = product == null) }
+                    _uiState.update { state ->
+                        val stockIds = product?.stockVariants.orEmpty().map { it.id }
+                        val selected = state.selectedVariantId?.takeIf { it in stockIds } ?: stockIds.firstOrNull()
+                        state.copy(loading = false, product = product, missing = product == null, selectedVariantId = selected)
+                    }
                 }
         }
     }
+
+    fun selectVariant(id: String) = _uiState.update { it.copy(selectedVariantId = id, error = null) }
 
     fun onQtyChange(value: String) = _uiState.update { it.copy(qtyInput = value, error = null) }
     fun dismissMessage() = _uiState.update { it.copy(message = null) }
@@ -57,23 +67,21 @@ class InventoryProductDetailViewModel(
 
     fun stockIn(step: Double? = null) {
         val qty = step ?: parsedQty() ?: return
-        applyStock(qty) { shopRepository.adjustProductStock(it.id, qty) }
+        applyStock(qty)
     }
 
     fun stockOut(step: Double? = null) {
         val qty = step ?: parsedQty() ?: return
-        val product = _uiState.value.product ?: return
-        if (qty > product.stockQty) {
+        if (qty > _uiState.value.editedStock) {
             _uiState.update { it.copy(error = UiText.res(Res.string.inv_error_stock_negative)) }
             return
         }
-        applyStock(-qty) { shopRepository.adjustProductStock(it.id, -qty) }
+        applyStock(-qty)
     }
 
     fun setStock() {
         val qty = parsedQty(allowZero = true) ?: return
-        val product = _uiState.value.product ?: return
-        applyStock(qty - product.stockQty) { shopRepository.setProductStock(it.id, qty) }
+        applyStock(qty - _uiState.value.editedStock)
     }
 
     fun setActive(active: Boolean) {
@@ -81,11 +89,20 @@ class InventoryProductDetailViewModel(
         viewModelScope.launch { shopRepository.setProductActive(product.id, active) }
     }
 
-    private fun applyStock(delta: Double, write: suspend (Product) -> Unit) {
-        val product = _uiState.value.product ?: return
-        val newQty = product.stockQty + delta
+    /** Variant products keep stock per option: customers only see options whose own stock is above zero. */
+    private fun applyStock(delta: Double) {
+        val state = _uiState.value
+        val product = state.product ?: return
+        val variantId = state.selectedVariantId?.takeIf { product.variant(it) != null }
+        val newQty = product.stockOf(variantId) + delta
         viewModelScope.launch {
-            runCatching { write(product) }
+            runCatching {
+                if (variantId != null) {
+                    shopRepository.upsertProduct(product.withStock(variantId, newQty))
+                } else {
+                    shopRepository.adjustProductStock(product.id, delta)
+                }
+            }
                 .onSuccess {
                     _uiState.update {
                         it.copy(

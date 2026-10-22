@@ -322,14 +322,14 @@ private fun ShopProductRow(product: Product, categoryName: String, onClick: () -
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             StockGauge(
-                stockQty = product.stockQty,
+                stockQty = product.totalStock,
                 lowStockThreshold = product.lowStockThreshold,
                 modifier = Modifier.padding(top = 6.dp).fillMaxWidth(0.7f),
             )
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "${product.stockQty.asQuantity()} ${product.unit.localizedLabel()}",
+                text = "${product.totalStock.asQuantity()} ${product.unit.localizedLabel()}",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = level.color(),

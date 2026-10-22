@@ -213,7 +213,15 @@ class MasterCatalogViewModel(
         }
     }
 
-    private fun MasterProductDto.toShopProduct(draft: ProductDetailsDraft, categories: List<MasterCategoryDto>) = Product(
+    /** Opening stock goes on the first option for variant products, otherwise customers see them out of stock. */
+    private fun MasterProductDto.toShopProduct(draft: ProductDetailsDraft, categories: List<MasterCategoryDto>): Product {
+        val product = toShopProductBase(draft, categories)
+        val firstStockVariant = product.stockVariants.firstOrNull() ?: return product
+        if (product.totalStock > 0.0 || draft.stockQtyValue <= 0.0) return product
+        return product.withStock(firstStockVariant.id, draft.stockQtyValue)
+    }
+
+    private fun MasterProductDto.toShopProductBase(draft: ProductDetailsDraft, categories: List<MasterCategoryDto>) = Product(
         id = generateId("prod"),
         shopId = shopId,
         name = name,

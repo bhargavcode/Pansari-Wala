@@ -19,6 +19,7 @@ actual val platformModule: Module = module {
     single<OtpAppVerifier> { WebOtpAppVerifier() }
     single<PhoneAuthGateway> { ServerPhoneAuthGateway(get(), get()) }
     single<ImagePicker> { JsImagePicker() }
+    single<org.bhargav.pansariwala.platform.PhoneAutofill> { org.bhargav.pansariwala.platform.NoPhoneAutofill() }
     single<org.bhargav.pansariwala.platform.DocumentPicker> { org.bhargav.pansariwala.platform.JsDocumentPicker() }
     single<RazorpayCheckout> { NoOpRazorpayCheckout() }
     single { PrinterManager(emptyList(), get()) }

@@ -31,6 +31,8 @@ data class OrderEntity(
     val pendingSync: Int = 1,
     @ColumnInfo(defaultValue = "1")
     val syncRevision: Long = 1,
+    /** Required for UDHAAR bills: the borrower is identified by this number. */
+    val customerPhone: String? = null,
 )
 
 @Entity(

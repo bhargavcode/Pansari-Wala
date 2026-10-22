@@ -127,6 +127,12 @@ import pansariwala.shared.generated.resources.customer_name
 import pansariwala.shared.generated.resources.edit_order
 import pansariwala.shared.generated.resources.in_stock
 import pansariwala.shared.generated.resources.pos_payment_title
+import pansariwala.shared.generated.resources.pos_udhaar_confirm
+import pansariwala.shared.generated.resources.pos_udhaar_hint
+import pansariwala.shared.generated.resources.pos_udhaar_name
+import pansariwala.shared.generated.resources.pos_udhaar_phone
+import pansariwala.shared.generated.resources.pos_udhaar_title
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import pansariwala.shared.generated.resources.save_order
 import pansariwala.shared.generated.resources.search_products
 import pansariwala.shared.generated.resources.total_label
@@ -751,6 +757,8 @@ private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorVie
         ) {
             if (state.showUpiQr) {
                 UpiQrContent(state, viewModel)
+            } else if (state.showUdhaarForm) {
+                UdhaarContent(state, viewModel)
             } else {
                 Text(
                     stringResource(Res.string.pos_payment_title),
@@ -776,6 +784,12 @@ private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorVie
                         )
                     }
                 }
+                PaymentOptionCard(
+                    label = stringResource(paymentMethodLabelRes(AppConstants.PosPayment.UDHAAR)),
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                    onClick = { viewModel.selectPayment(AppConstants.PosPayment.UDHAAR) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 state.error?.let { error ->
                     Text(
                         error.asString(),
@@ -785,6 +799,53 @@ private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorVie
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.UdhaarContent(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    Text(
+        stringResource(Res.string.pos_udhaar_title),
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+        stringResource(Res.string.pos_udhaar_hint),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = state.udhaarPhone,
+        onValueChange = viewModel::onUdhaarPhoneChange,
+        label = { Text(stringResource(Res.string.pos_udhaar_phone)) },
+        prefix = { Text("+91 ") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = state.customerName,
+        onValueChange = viewModel::onCustomerNameChange,
+        label = { Text(stringResource(Res.string.pos_udhaar_name)) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    state.error?.let { error ->
+        Text(error.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth())
+    }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = viewModel::backFromUdhaar, modifier = Modifier.weight(1f)) {
+            Text(stringResource(Res.string.action_back))
+        }
+        Button(
+            onClick = viewModel::confirmUdhaar,
+            enabled = state.udhaarPhone.length == AppConstants.PHONE_LOCAL_DIGITS,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text(stringResource(Res.string.pos_udhaar_confirm, state.total.asMoney()))
         }
     }
 }

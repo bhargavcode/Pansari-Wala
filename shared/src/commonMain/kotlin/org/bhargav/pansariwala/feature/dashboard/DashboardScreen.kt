@@ -54,7 +54,27 @@ import org.bhargav.pansariwala.ui.isRefreshing
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.printing.formatPrintDateTime
 import org.bhargav.pansariwala.util.asQuantity
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.PointOfSale
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
+import org.bhargav.pansariwala.api.ShopBillingDto
+import pansariwala.shared.generated.resources.pos_tab_pos
+import pansariwala.shared.generated.resources.tab_more
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
@@ -102,6 +122,9 @@ fun DashboardScreen(
     onOpenProfile: () -> Unit,
     onLogout: () -> Unit,
     onOpenSubscription: () -> Unit = {},
+    onOpenBorrowers: () -> Unit = {},
+    onOpenMasterCatalog: () -> Unit = {},
+    onOpenProduct: (String) -> Unit = {},
     viewModel: DashboardViewModel = koinViewModel(),
     authRepository: AuthRepository = koinInject(),
     analytics: Analytics = koinInject(),
@@ -109,16 +132,118 @@ fun DashboardScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val access by viewModel.access.collectAsStateWithLifecycle()
     val billing by viewModel.billing.collectAsStateWithLifecycle()
+    val udhaarDue by viewModel.udhaarDue.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val success = state as? AsyncUiState.Success
+    var tab by rememberSaveable { mutableStateOf(PosTab.POS) }
+    val tabs = remember(access) {
+        PosTab.entries.filter { it != PosTab.INVENTORY || access.can(ShopPermission.INVENTORY) }
+    }
+    LaunchedEffect(tab) {
+        analytics.log(AnalyticsEvent.ButtonClicked("tab_${tab.name.lowercase()}", "dashboard"))
+        if (tab == PosTab.MORE) viewModel.refreshUdhaarDue()
+    }
+    NavigationBackHandler(
+        state = rememberNavigationEventState(currentInfo = NavigationEventInfo.None),
+        isBackEnabled = tab != PosTab.POS,
+        onBackCompleted = { tab = PosTab.POS },
+    )
+    val logout: () -> Unit = {
+        analytics.log(AnalyticsEvent.ButtonClicked("logout", "dashboard"))
+        scope.launch {
+            authRepository.logout()
+            onLogout()
+        }
+    }
 
-    PansariScreen(
-        error = state.errorBannerOrNull(),
-        isLoading = state.isBlockingLoad(),
-        isRefreshing = state.isRefreshing(),
-        onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = {}) },
-    ) {
-        val data = success?.data ?: return@PansariScreen
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
+            PansariScreen(
+                error = state.errorBannerOrNull(),
+                isLoading = state.isBlockingLoad(),
+                isRefreshing = state.isRefreshing(),
+                onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = {}) },
+            ) {
+                val data = success?.data ?: return@PansariScreen
+                when (tab) {
+                    PosTab.INVENTORY -> PosInventoryTab(
+                        data = data,
+                        onAddOrUpdateInventory = onAddOrUpdateInventory,
+                        onOpenMasterCatalog = onOpenMasterCatalog,
+                        onShowLowStockList = onShowLowStockList,
+                        onShowFullInventory = onShowFullInventory,
+                        onOpenProduct = onOpenProduct,
+                    )
+                    PosTab.MORE -> PosMoreTab(
+                        data = data,
+                        access = access,
+                        udhaarDue = udhaarDue,
+                        onOpenProfile = onOpenProfile,
+                        onOpenReports = onOpenReports,
+                        onOpenBorrowers = onOpenBorrowers,
+                        onOpenOrdersWorkspace = onOpenOrdersWorkspace,
+                        onOpenOnlineOrders = onOpenOnlineOrders,
+                        onOpenPrinter = onOpenPrinter,
+                        onOpenSettings = onOpenSettings,
+                        onOpenSubscription = onOpenSubscription,
+                        onLogout = logout,
+                    )
+                    PosTab.POS -> PosHomeTab(
+                        data = data,
+                        access = access,
+                        billing = billing,
+                        onCreateOrder = onCreateOrder,
+                        onEditOrder = onEditOrder,
+                        onOpenOrdersWorkspace = onOpenOrdersWorkspace,
+                        onOpenOnlineOrders = onOpenOnlineOrders,
+                        onOpenReports = onOpenReports,
+                        onOpenPrinter = onOpenPrinter,
+                        onOpenSubscription = onOpenSubscription,
+                    )
+                }
+            }
+        }
+        NavigationBar {
+            tabs.forEach { item ->
+                val label = stringResource(item.labelRes)
+                NavigationBarItem(
+                    selected = tab == item,
+                    onClick = { tab = item },
+                    icon = { Icon(item.icon, contentDescription = label) },
+                    label = { Text(label) },
+                )
+            }
+        }
+    }
+}
+
+private val PosTab.labelRes: StringResource
+    get() = when (this) {
+        PosTab.POS -> Res.string.pos_tab_pos
+        PosTab.INVENTORY -> Res.string.inventory_title
+        PosTab.MORE -> Res.string.tab_more
+    }
+
+private val PosTab.icon: ImageVector
+    get() = when (this) {
+        PosTab.POS -> Icons.Default.PointOfSale
+        PosTab.INVENTORY -> Icons.Default.Inventory2
+        PosTab.MORE -> Icons.Default.GridView
+    }
+
+@Composable
+private fun PosHomeTab(
+    data: DashboardData,
+    access: ShopAccess,
+    billing: ShopBillingDto?,
+    onCreateOrder: () -> Unit,
+    onEditOrder: (String) -> Unit,
+    onOpenOrdersWorkspace: () -> Unit,
+    onOpenOnlineOrders: () -> Unit,
+    onOpenReports: () -> Unit,
+    onOpenPrinter: () -> Unit,
+    onOpenSubscription: () -> Unit,
+) {
         AdaptivePane(Modifier.fillMaxSize()) { widthClass ->
             LazyColumn(
                 modifier = Modifier
@@ -128,19 +253,7 @@ fun DashboardScreen(
             ) {
                 stickyHeader {
                     Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
-                        DashboardHeader(data, analytics, onOpenSettings = {
-                            analytics.log(AnalyticsEvent.ButtonClicked("settings", "dashboard"))
-                            onOpenSettings.invoke()
-                        }, scope, authRepository, onLogout = {
-                            analytics.log(AnalyticsEvent.ButtonClicked("logout", "dashboard"))
-                            onLogout.invoke()
-                        }, onOpenPrinter = {
-                            analytics.log(AnalyticsEvent.ButtonClicked("printer", "dashboard"))
-                            onOpenPrinter.invoke()
-                        }, onOpenProfile = {
-                            analytics.log(AnalyticsEvent.ButtonClicked("profile", "dashboard"))
-                            onOpenProfile.invoke()
-                        }, access = access, compact = widthClass == WindowWidthClass.Compact)
+                        DashboardHeader(data, onOpenPrinter = onOpenPrinter, access = access)
                         if (widthClass != WindowWidthClass.Compact && access.can(ShopPermission.VIEW_REPORTS)) {
                             SalesCard(data)
                         }
@@ -155,109 +268,33 @@ fun DashboardScreen(
                 val showOrders = access.can(ShopPermission.BILLING) ||
                     access.can(ShopPermission.ONLINE_ORDERS) ||
                     access.can(ShopPermission.VIEW_REPORTS)
-                val showInventory = access.can(ShopPermission.INVENTORY)
-                if (widthClass == WindowWidthClass.Expanded) {
+                if (showOrders) {
                     item {
-                        Row(
+                        OrdersCard(
+                            orders = data.recentOrders,
+                            access = access,
+                            onCreateOrder = onCreateOrder,
+                            onEditOrder = onEditOrder,
+                            onOpenOrdersWorkspace = onOpenOrdersWorkspace,
+                            onOpenOnlineOrders = onOpenOnlineOrders,
+                            onOpenReports = onOpenReports,
+                            compact = widthClass == WindowWidthClass.Compact,
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            if (showOrders) {
-                                OrdersCard(
-                                    orders = data.recentOrders,
-                                    access = access,
-                                    onCreateOrder = onCreateOrder,
-                                    onEditOrder = onEditOrder,
-                                    onOpenOrdersWorkspace = onOpenOrdersWorkspace,
-                                    onOpenOnlineOrders = onOpenOnlineOrders,
-                                    onOpenReports = onOpenReports,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                            if (showInventory) {
-                                InventoryCard(
-                                    state = data,
-                                    onAddOrUpdateInventory = onAddOrUpdateInventory,
-                                    onShowLowStockList = onShowLowStockList,
-                                    onShowFullInventory = onShowFullInventory,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    if (showOrders) {
-                        item {
-                            OrdersCard(
-                                orders = data.recentOrders,
-                                access = access,
-                                onCreateOrder = onCreateOrder,
-                                onEditOrder = onEditOrder,
-                                onOpenOrdersWorkspace = onOpenOrdersWorkspace,
-                                onOpenOnlineOrders = onOpenOnlineOrders,
-                                onOpenReports = onOpenReports,
-                                compact = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                    if (showInventory) {
-                        item {
-                            InventoryCard(
-                                state = data,
-                                onAddOrUpdateInventory = onAddOrUpdateInventory,
-                                onShowLowStockList = onShowLowStockList,
-                                onShowFullInventory = onShowFullInventory,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
+                        )
                     }
                 }
             }
         }
-    }
 }
 
 @Composable
 fun DashboardHeader(
     state: DashboardData,
-    analytics: Analytics,
-    onOpenSettings: () -> Unit,
-    scope: CoroutineScope,
-    authRepository: AuthRepository,
-    onLogout: () -> Unit,
     onOpenPrinter: () -> Unit,
-    onOpenProfile: () -> Unit,
     access: ShopAccess,
-    compact: Boolean = false,
 ) {
     val showPrinter = access.can(ShopPermission.BILLING) || access.can(ShopPermission.PRINT_REPORTS) ||
         access.can(ShopPermission.SETTINGS)
-    val actions = @Composable {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ReportIssueButton()
-            TextButton(onClick = onOpenProfile) {
-                Text(stringResource(Res.string.profile_title), style = MaterialTheme.typography.titleMedium)
-            }
-            if (access.can(ShopPermission.SETTINGS)) {
-                TextButton(onClick = {
-                    onOpenSettings.invoke()
-                }) {
-                    Text("⚙ ${stringResource(Res.string.action_settings)}",
-                        style = MaterialTheme.typography.titleMedium,)
-                }
-            }
-            TextButton(onClick = {
-                analytics.log(AnalyticsEvent.ButtonClicked("logout", "dashboard"))
-                scope.launch {
-                    authRepository.logout()
-                    onLogout.invoke()
-                }
-            }) { Text(stringResource(Res.string.action_logout),
-                style = MaterialTheme.typography.titleMedium) }
-            if (!compact && showPrinter) PrinterStatusButton(onClick = onOpenPrinter)
-        }
-    }
     val greeting = @Composable { modifier: Modifier ->
         Column(modifier = modifier) {
             val userName = state.userName.ifBlank {
@@ -275,26 +312,10 @@ fun DashboardHeader(
             )
         }
     }
-    if (compact) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                greeting(Modifier.weight(1f))
-                if (showPrinter) PrinterStatusButton(onClick = onOpenPrinter)
-            }
-            actions()
-        }
-    } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            greeting(Modifier.weight(1f))
-            actions()
-        }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        greeting(Modifier.weight(1f))
+        ReportIssueButton()
+        if (showPrinter) PrinterStatusButton(onClick = onOpenPrinter)
     }
 }
 @Composable
@@ -420,110 +441,5 @@ private fun OrdersCard(
                 if (index < orders.lastIndex) HorizontalDivider()
             }
         }
-    }
-}
-
-@Composable
-private fun InventoryCard(
-    state: DashboardData,
-    onAddOrUpdateInventory: () -> Unit,
-    onShowLowStockList: () -> Unit,
-    onShowFullInventory: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    SectionCard(
-        title = stringResource(Res.string.inventory_title),
-        subtitle = stringResource(
-            Res.string.inventory_subtitle,
-            state.totalProducts,
-            state.totalInventoryValue.asMoney(),
-        ),
-        modifier = modifier,
-        action = {
-            OutlinedButton(onClick = onAddOrUpdateInventory) {
-                Text(stringResource(Res.string.add_update_inventory))
-            }
-        },
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = stringResource(Res.string.stock_by_category),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            CategoryBarChart(data = state.categoryBreakdown, modifier = Modifier.fillMaxWidth())
-
-            HorizontalDivider()
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(Res.string.low_stock_count, state.lowStockTotalCount),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                TextButton(onClick = onShowFullInventory) {
-                    Text(stringResource(Res.string.all_inventory))
-                }
-            }
-
-            if (state.lowStockItems.isEmpty()) {
-                Text(
-                    text = stringResource(Res.string.all_well_stocked),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Column {
-                    state.lowStockItems.forEach { product ->
-                        LowStockRow(product)
-                    }
-                    Box(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                        TextButton(
-                            onClick = onShowLowStockList,
-                            modifier = Modifier.widthIn(min = 0.dp).align(Alignment.Center),
-                        ) {
-                            Text(stringResource(Res.string.show_full_low_stock))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LowStockRow(product: Product) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = product.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = product.category.localizedName(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            text = stringResource(
-                Res.string.stock_left,
-                product.stockQty.asQuantity(),
-                product.unit.localizedLabel(),
-            ),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.error,
-            fontWeight = FontWeight.SemiBold,
-        )
     }
 }

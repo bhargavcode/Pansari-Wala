@@ -24,6 +24,10 @@ import org.bhargav.pansariwala.feature.inventory.CategoryOrderViewModel
 import org.bhargav.pansariwala.feature.inventory.MasterCatalogViewModel
 import org.bhargav.pansariwala.feature.inventory.ShopSheetImportViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryProductDetailViewModel
+import org.bhargav.pansariwala.feature.udhaar.BorrowerDetailViewModel
+import org.bhargav.pansariwala.feature.udhaar.BorrowersViewModel
+import org.bhargav.pansariwala.feature.udhaar.MyCreditShopViewModel
+import org.bhargav.pansariwala.feature.udhaar.MyCreditViewModel
 import org.bhargav.pansariwala.feature.inventory.StockRequestViewModel
 import org.bhargav.pansariwala.feature.login.LoginViewModel
 import org.bhargav.pansariwala.feature.order.OrderEditorViewModel
@@ -157,4 +161,8 @@ val appModule = module {
     viewModelOf(::SalesDrillViewModel)
     viewModelOf(::ShopProfileViewModel)
     viewModelOf(::IssueReportViewModel)
+    viewModelOf(::BorrowersViewModel)
+    viewModel { (phone: String) -> BorrowerDetailViewModel(phone, get(), get(), get()) }
+    viewModelOf(::MyCreditViewModel)
+    viewModel { (shopId: String) -> MyCreditShopViewModel(shopId, get()) }
 }

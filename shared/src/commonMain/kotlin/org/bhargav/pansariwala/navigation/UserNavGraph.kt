@@ -108,6 +108,8 @@ private val userNavConfig = SavedStateConfiguration {
             subclass(UserRoute.ThemePrefs::class, UserRoute.ThemePrefs.serializer())
             subclass(UserRoute.SpendReport::class, UserRoute.SpendReport.serializer())
             subclass(UserRoute.SpendDetails::class, UserRoute.SpendDetails.serializer())
+            subclass(UserRoute.Borrowed::class, UserRoute.Borrowed.serializer())
+            subclass(UserRoute.BorrowedShop::class, UserRoute.BorrowedShop.serializer())
         }
     }
 }
@@ -258,7 +260,17 @@ fun UserNavGraph() {
                             onLogout = { replaceAll(UserRoute.PhoneAuth) },
                             onChangeLocation = { push(UserRoute.Address) },
                             onSpendReport = { push(UserRoute.SpendReport) },
+                            onBorrowed = { push(UserRoute.Borrowed) },
                         )
+                    }
+                    UserRoute.Borrowed -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.udhaar.MyCreditScreen(
+                            onBack = { pop() },
+                            onOpenShop = { push(UserRoute.BorrowedShop(it)) },
+                        )
+                    }
+                    is UserRoute.BorrowedShop -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.udhaar.MyCreditShopScreen(shopId = route.shopId, onBack = { pop() })
                     }
                     UserRoute.SpendReport -> NavEntry(route) {
                         SpendReportScreen(
@@ -414,6 +426,7 @@ private fun UserShell(
     onLogout: () -> Unit,
     onChangeLocation: () -> Unit,
     onSpendReport: () -> Unit,
+    onBorrowed: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     NavigationBackHandler(
@@ -442,6 +455,7 @@ private fun UserShell(
                     else -> MoreScreen(
                         onAddAddress = onChangeLocation,
                         onOpenSpendReport = onSpendReport,
+                        onOpenBorrowed = onBorrowed,
                         onLanguage = onLanguage,
                         onNotifications = onNotifications,
                         onTheme = onTheme,

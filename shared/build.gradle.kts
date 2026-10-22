@@ -136,6 +136,8 @@ kotlin {
             implementation(libs.maps.compose)
             implementation(libs.play.services.maps)
             implementation(libs.play.services.location)
+            implementation(libs.play.services.auth)
+            implementation(libs.play.services.auth.api.phone)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

@@ -59,6 +59,8 @@ import org.bhargav.pansariwala.ui.AsyncUiState
 import org.bhargav.pansariwala.ui.errorBannerOrNull
 import org.bhargav.pansariwala.ui.isBlockingLoad
 import org.bhargav.pansariwala.ui.isRefreshing
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
@@ -273,6 +275,7 @@ internal fun CatalogCartBar(cartCount: Int, onOpenCart: () -> Unit) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShopCategoryScreen(
     shopId: String,
@@ -335,9 +338,14 @@ fun ShopCategoryScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
+          PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = viewModel::pullRefresh,
+            modifier = Modifier.weight(1f),
+          ) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
                 items(state.items, key = { it.id }, contentType = { "product" }) { product ->
@@ -374,6 +382,7 @@ fun ShopCategoryScreen(
                     }
                 }
             }
+          }
             CatalogCartBar(cartCount = cartCount, onOpenCart = onOpenCart)
         }
     }

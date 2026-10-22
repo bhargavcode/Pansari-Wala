@@ -119,7 +119,13 @@ private fun paymentReturnHtml(intentId: String): String {
 <script>window.location.replace("$link");</script></body></html>"""
 }
 
-fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, support: SupportService) {
+fun Route.apiRoutes(
+    config: ServerConfig,
+    store: AppStore,
+    push: PushService,
+    support: SupportService,
+    credit: org.bhargav.pansariwala.server.service.CreditService,
+) {
     get("/health") { call.respond(OkResponse(true)) }
     imageProxyRoutes()
     get("/config/public") {
@@ -316,6 +322,24 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
         post("/me/phone") {
             val body = call.receive<ChangePhoneRequest>()
             call.respond(withContext(Dispatchers.IO) { store.changeCustomerPhone(call.userId(), body.phone, body.otp, body.sessionId) })
+        }
+        get("/me/credit") {
+            call.respond(withContext(Dispatchers.IO) { credit.mySummary(call.userId()) })
+        }
+        get("/me/credit/{shopId}") {
+            call.respond(withContext(Dispatchers.IO) { credit.myShopDetail(call.userId(), call.parameters["shopId"]!!) })
+        }
+        post("/me/credit/{shopId}/repay") {
+            val body = call.receive<org.bhargav.pansariwala.server.dto.MyRepayRequest>()
+            call.respond(withContext(Dispatchers.IO) { credit.myRepay(call.userId(), call.parameters["shopId"]!!, body.amount) })
+        }
+        post("/me/credit/{shopId}/repay/{txnId}/status") {
+            val body = call.receive<org.bhargav.pansariwala.server.dto.MyRepayStatusRequest>()
+            call.respond(
+                withContext(Dispatchers.IO) {
+                    credit.myRepayStatus(call.userId(), call.parameters["shopId"]!!, call.parameters["txnId"]!!, body.success)
+                },
+            )
         }
         get("/me/spend") {
             val from = call.parameters["from"]?.toLongOrNull() ?: error("from required")
@@ -614,7 +638,48 @@ fun Route.apiRoutes(config: ServerConfig, store: AppStore, push: PushService, su
         post("/sync/push") {
             val shopId = call.requireShopId()
             val body = call.receive<SyncPushRequest>()
-            call.respond(withContext(Dispatchers.IO) { store.pushSync(shopId, body) })
+            val userId = call.userId()
+            call.respond(
+                withContext(Dispatchers.IO) {
+                    store.pushSync(shopId, body).also { response ->
+                        val accepted = response.accepted.mapTo(HashSet()) { it.id }
+                        credit.syncPosOrders(shopId, userId, body.offlineOrders.map { it.order }.filter { it.id in accepted })
+                    }
+                },
+            )
+        }
+        get("/shop/borrowers") {
+            val shopId = call.requireShopId()
+            val p = call.parameters
+            call.respond(
+                withContext(Dispatchers.IO) {
+                    credit.report(
+                        shopId = shopId,
+                        from = p["from"]?.toLongOrNull(),
+                        to = p["to"]?.toLongOrNull(),
+                        tzOffsetMin = p["tz"]?.toIntOrNull() ?: 0,
+                        query = p["q"].orEmpty(),
+                        sort = p["sort"].orEmpty(),
+                        page = p["page"]?.toIntOrNull() ?: 0,
+                        size = p["size"]?.toIntOrNull() ?: 20,
+                    )
+                },
+            )
+        }
+        get("/shop/borrowers/{phone}") {
+            val shopId = call.requireShopId()
+            call.respond(withContext(Dispatchers.IO) { credit.borrowerDetail(shopId, call.parameters["phone"]!!) })
+        }
+        put("/shop/borrowers/{phone}") {
+            val shopId = call.requireShopId()
+            val body = call.receive<org.bhargav.pansariwala.server.dto.BorrowerUpdateRequest>()
+            call.respond(withContext(Dispatchers.IO) { credit.updateBorrower(shopId, call.parameters["phone"]!!, body) })
+        }
+        post("/shop/borrowers/{phone}/repayments") {
+            val shopId = call.requireShopId()
+            val body = call.receive<org.bhargav.pansariwala.server.dto.RepaymentRequest>()
+            val userId = call.userId()
+            call.respond(withContext(Dispatchers.IO) { credit.repayAtShop(shopId, userId, call.parameters["phone"]!!, body) })
         }
         get("/sync/orders") {
             val shopId = call.requireShopId()

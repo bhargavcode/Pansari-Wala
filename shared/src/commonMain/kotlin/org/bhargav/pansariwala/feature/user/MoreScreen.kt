@@ -167,6 +167,7 @@ import kotlin.random.Random
 fun MoreScreen(
     onAddAddress: () -> Unit,
     onOpenSpendReport: () -> Unit,
+    onOpenBorrowed: () -> Unit,
     onLanguage: () -> Unit,
     onNotifications: () -> Unit,
     onTheme: () -> Unit,
@@ -207,6 +208,7 @@ fun MoreScreen(
                 onAddNew = onAddAddress,
             )
             SpendCard(spend = state.spend, onClick = onOpenSpendReport)
+            org.bhargav.pansariwala.feature.udhaar.BorrowedCard(onClick = onOpenBorrowed)
             AppSettingsCard(filter = state.filter, onClick = { showFilter = true })
             SectionCard(title = stringResource(Res.string.more_preferences_title)) {
                 UserMenuRow(

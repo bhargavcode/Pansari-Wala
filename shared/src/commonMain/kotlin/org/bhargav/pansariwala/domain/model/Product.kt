@@ -86,6 +86,8 @@ data class ProductVariant(
 ) {
     val isLoose: Boolean get() = sellMode == SellMode.LOOSE
     val hasPackSize: Boolean get() = !isLoose && packSize > 0.0
+    /** Draws stock from [baseVariantId], so it has no stock of its own to edit. */
+    val isLinkedBundle: Boolean get() = sellMode == SellMode.BUNDLE && bundleCount > 0 && baseVariantId.isNotBlank()
     val primaryImageUrl: String? get() = imageUrls.firstOrNull { it.isNotBlank() }
 }
 
@@ -120,9 +122,26 @@ data class Product(
     fun salePrice(base: Double = sellingPrice): Double = offer?.unitPriceOn(base) ?: base
     val hasOffer: Boolean get() = offer != null && salePrice() < sellingPrice
 
-    val isLowStock: Boolean get() = stockQty <= lowStockThreshold
-    val stockLevel: StockLevel get() = StockLevel.of(stockQty, lowStockThreshold)
-    val stockValue: Double get() = stockQty * costPrice
+    /** Variants that hold their own stock; customers see a variant product as available only through these. */
+    val stockVariants: List<ProductVariant> get() = activeVariants.filterNot { it.isLinkedBundle }
+
+    /** Sellable stock: the variants' stock when the product has options, else [stockQty]. */
+    val totalStock: Double get() = stockVariants.takeIf { it.isNotEmpty() }?.sumOf { it.stockQty } ?: stockQty
+
+    val isLowStock: Boolean get() = totalStock <= lowStockThreshold
+    val stockLevel: StockLevel get() = StockLevel.of(totalStock, lowStockThreshold)
+    val stockValue: Double get() = totalStock * costPrice
+
+    /** Sets one variant's stock (or [stockQty] when [variantId] is null) and keeps [stockQty] as the total. */
+    fun withStock(variantId: String?, qty: Double): Product {
+        if (variant(variantId) == null) return copy(stockQty = qty.coerceAtLeast(0.0))
+        val updated = copy(
+            variants = variants.map { if (it.id == variantId) it.copy(stockQty = qty.coerceAtLeast(0.0)) else it },
+        )
+        return updated.copy(stockQty = updated.totalStock)
+    }
+
+    fun stockOf(variantId: String?): Double = variant(variantId)?.stockQty ?: stockQty
     val primaryImageUrl: String? get() =
         imageUrls.firstOrNull { it.isNotBlank() } ?: variants.firstNotNullOfOrNull { it.primaryImageUrl }
     /** Options a customer or cashier can buy; inactive variants are hidden. */
@@ -143,8 +162,7 @@ data class Product(
      */
     fun stockChanged(variantId: String?, delta: Double): Product {
         val sold = variant(variantId) ?: return copy(stockQty = stockQty + delta)
-        val base = sold.takeIf { it.sellMode == SellMode.BUNDLE && it.bundleCount > 0 && it.baseVariantId.isNotBlank() }
-            ?.let { variant(it.baseVariantId) }
+        val base = sold.takeIf { it.isLinkedBundle }?.let { variant(it.baseVariantId) }
         val target = base ?: sold
         val units = if (base != null) delta * sold.bundleCount else delta
         return copy(

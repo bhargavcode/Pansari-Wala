@@ -29,6 +29,7 @@ data class CategoryProductsUiState(
     val hasMore: Boolean = true,
     val loadingInitial: Boolean = false,
     val loadingMore: Boolean = false,
+    val refreshing: Boolean = false,
     val error: UiText? = null,
 )
 
@@ -92,6 +93,37 @@ class CategoryProductsViewModel(
 
     fun retry() {
         if (_state.value.items.isEmpty()) reset() else loadNextPage()
+    }
+
+    /** Swipe-to-refresh: reloads from the first page so new stock and products appear. */
+    fun pullRefresh() {
+        val id = shopId ?: return
+        if (_state.value.refreshing) return
+        pageJob?.cancel()
+        val gen = ++generation
+        val snapshot = _state.value
+        _state.update { it.copy(refreshing = true, error = null) }
+        pageJob = viewModelScope.launch {
+            runCatching { api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), 0, pageSize) }
+                .onSuccess { result ->
+                    if (gen != generation) return@onSuccess
+                    _state.update {
+                        it.copy(
+                            items = result.items,
+                            totalCount = result.totalCount,
+                            nextPage = 1,
+                            hasMore = result.hasMore,
+                            refreshing = false,
+                            loadingInitial = false,
+                            loadingMore = false,
+                        )
+                    }
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { it.copy(refreshing = false, error = err.toApiUiText()) }
+                }
+        }
     }
 
     fun dismissError() {

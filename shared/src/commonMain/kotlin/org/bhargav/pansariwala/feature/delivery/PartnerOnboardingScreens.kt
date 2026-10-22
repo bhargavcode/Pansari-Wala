@@ -40,6 +40,8 @@ import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.media.PhotoUploadUi
 import org.bhargav.pansariwala.media.rememberImageSourceLauncher
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedDialog
+import org.bhargav.pansariwala.platform.OtpAutofillEffect
+import org.bhargav.pansariwala.platform.PhoneNumberHintEffect
 import org.bhargav.pansariwala.platform.RequestLocationPermission
 import org.bhargav.pansariwala.platform.openAppLocationSettings
 import org.bhargav.pansariwala.ui.toErrorBanner
@@ -125,6 +127,7 @@ fun PartnerLoginScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                PhoneNumberHintEffect(state.phone, viewModel::setPhone)
                 OutlinedTextField(
                     value = state.phone,
                     onValueChange = viewModel::setPhone,
@@ -152,6 +155,10 @@ fun PartnerLoginOtpScreen(
     viewModel: PartnerLoginViewModel,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    OtpAutofillEffect(key = state.hint) { code ->
+        viewModel.setOtp(code)
+        viewModel.verify(onVerified)
+    }
     PartnerOtpContent(
         hint = state.hint,
         otp = state.otp,
@@ -202,6 +209,7 @@ fun PartnerRegisterDetailsScreen(
         )
         OutlinedTextField(state.name, viewModel::setName, label = { Text(stringResource(Res.string.field_name)) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(state.email, viewModel::setEmail, label = { Text(stringResource(Res.string.field_email)) }, modifier = Modifier.fillMaxWidth())
+        PhoneNumberHintEffect(state.phone, viewModel::setPhone)
         OutlinedTextField(state.phone, viewModel::setPhone, label = { Text(stringResource(Res.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
         PartnerPrimaryButton(
             text = stringResource(Res.string.action_continue),
@@ -351,6 +359,10 @@ fun PartnerRegisterOtpScreen(
     viewModel: PartnerRegisterViewModel,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    OtpAutofillEffect(key = state.hint) { code ->
+        viewModel.setOtp(code)
+        viewModel.verify(onVerified)
+    }
     PartnerOtpContent(
         hint = state.hint,
         otp = state.otp,

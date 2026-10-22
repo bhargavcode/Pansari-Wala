@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,6 +83,8 @@ import pansariwala.shared.generated.resources.inv_section_info
 import pansariwala.shared.generated.resources.inv_section_stock
 import pansariwala.shared.generated.resources.inv_section_update
 import pansariwala.shared.generated.resources.inv_section_variants
+import pansariwala.shared.generated.resources.inv_stock_variant_pick
+import pansariwala.shared.generated.resources.inv_variant_stock
 import pansariwala.shared.generated.resources.inv_stock_threshold
 import pansariwala.shared.generated.resources.inv_stock_value
 import pansariwala.shared.generated.resources.inv_value_none
@@ -139,6 +142,9 @@ fun InventoryProductDetailScreen(
                     StockCard(product, onRequestStock = { showStockRequest = true })
                     UpdateInventoryCard(
                         product = product,
+                        selectedVariantId = state.selectedVariantId,
+                        editedStock = state.editedStock,
+                        onSelectVariant = viewModel::selectVariant,
                         qtyInput = state.qtyInput,
                         onQtyChange = viewModel::onQtyChange,
                         onStockIn = viewModel::stockIn,
@@ -204,7 +210,7 @@ private fun StockCard(product: Product, onRequestStock: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = product.stockQty.asQuantity(),
+                    text = product.totalStock.asQuantity(),
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                     color = level.color(),
@@ -217,7 +223,7 @@ private fun StockCard(product: Product, onRequestStock: () -> Unit) {
                 )
             }
             StockGauge(
-                stockQty = product.stockQty,
+                stockQty = product.totalStock,
                 lowStockThreshold = product.lowStockThreshold,
                 modifier = Modifier.fillMaxWidth().height(10.dp),
             )
@@ -252,6 +258,9 @@ private fun StockCard(product: Product, onRequestStock: () -> Unit) {
 @Composable
 private fun UpdateInventoryCard(
     product: Product,
+    selectedVariantId: String?,
+    editedStock: Double,
+    onSelectVariant: (String) -> Unit,
     qtyInput: String,
     onQtyChange: (String) -> Unit,
     onStockIn: (Double?) -> Unit,
@@ -263,6 +272,23 @@ private fun UpdateInventoryCard(
     val outColors = ButtonDefaults.outlinedButtonColors(contentColor = stockOutColor)
     SectionCard(title = stringResource(Res.string.inv_section_update), modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val stockVariants = product.stockVariants
+            if (stockVariants.isNotEmpty()) {
+                Text(
+                    stringResource(Res.string.inv_stock_variant_pick),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    stockVariants.forEach { variant ->
+                        FilterChip(
+                            selected = variant.id == selectedVariantId,
+                            onClick = { onSelectVariant(variant.id) },
+                            label = { Text("${variant.label} · ${variant.stockQty.asQuantity()}") },
+                        )
+                    }
+                }
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AppConstants.INVENTORY_QUICK_STEPS.forEach { step ->
                     Button(onClick = { onStockIn(step) }, colors = inColors) { Text("+${step.asQuantity()}") }
@@ -272,7 +298,7 @@ private fun UpdateInventoryCard(
                 AppConstants.INVENTORY_QUICK_STEPS.forEach { step ->
                     OutlinedButton(
                         onClick = { onStockOut(step) },
-                        enabled = product.stockQty >= step,
+                        enabled = editedStock >= step,
                         colors = outColors,
                     ) { Text("−${step.asQuantity()}") }
                 }
@@ -340,7 +366,8 @@ private fun VariantsCard(product: Product) {
     SectionCard(title = stringResource(Res.string.inv_section_variants), modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             product.variants.forEach { variant ->
-                InfoRow(variant.label, variant.price.asMoney())
+                val stock = if (variant.isLinkedBundle) "" else " · ${stringResource(Res.string.inv_variant_stock, variant.stockQty.asQuantity())}"
+                InfoRow(variant.label, variant.price.asMoney() + stock)
             }
         }
     }

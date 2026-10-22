@@ -69,6 +69,12 @@ sealed interface AppRoute : NavKey {
 
     @Serializable
     data class CommissionOrder(val day: String, val orderId: String) : AppRoute
+
+    @Serializable
+    data object Borrowers : AppRoute
+
+    @Serializable
+    data class BorrowerDetail(val phone: String) : AppRoute
 }
 
 fun AppRoute.screenName(): String = when (this) {
@@ -92,4 +98,6 @@ fun AppRoute.screenName(): String = when (this) {
     AppRoute.Subscription -> "subscription"
     is AppRoute.CommissionDay -> "commission_day"
     is AppRoute.CommissionOrder -> "commission_order"
+    AppRoute.Borrowers -> "borrowers"
+    is AppRoute.BorrowerDetail -> "borrower_detail"
 }
