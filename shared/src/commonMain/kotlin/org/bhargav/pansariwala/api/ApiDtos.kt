@@ -23,6 +23,7 @@ import org.bhargav.pansariwala.domain.model.PartnerProfile
 import org.bhargav.pansariwala.domain.model.DiscountType
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.localizedProductName
+import org.bhargav.pansariwala.domain.model.localizedText
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.bhargav.pansariwala.domain.model.ProductOffer
 import org.bhargav.pansariwala.domain.model.ProductUnit
@@ -343,6 +344,7 @@ data class ProductDto(
     /** Best live PRODUCT offer, attached by the server on catalog reads. */
     val offer: ProductOfferDto? = null,
     val translations: Map<String, String> = emptyMap(),
+    val brandTranslations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -703,8 +705,10 @@ data class MasterProductDto(
     val active: Boolean = true,
     val lowStockThreshold: Double = 0.0,
     val translations: Map<String, String> = emptyMap(),
+    val brandTranslations: Map<String, String> = emptyMap(),
 ) {
     fun displayName(languageCode: String?): String = localizedProductName(name, nameHi, translations, languageCode)
+    fun displayBrand(languageCode: String?): String = localizedText(brandName, brandTranslations, languageCode)
 }
 
 @Serializable
@@ -892,6 +896,7 @@ fun ProductDto.toModel() = Product(
     categoryId = categoryId,
     subCategoryId = subCategoryId,
     translations = translations,
+    brandTranslations = brandTranslations,
 )
 
 fun ProductOfferDto.toModel() = ProductOffer(
@@ -968,6 +973,7 @@ fun Product.toDto() = ProductDto(
     categoryId = categoryId,
     subCategoryId = subCategoryId,
     translations = translations,
+    brandTranslations = brandTranslations,
 )
 
 fun Order.toSyncDto() = OrderDto(

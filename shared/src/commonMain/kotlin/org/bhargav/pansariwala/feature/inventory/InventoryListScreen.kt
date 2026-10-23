@@ -54,6 +54,7 @@ import org.bhargav.pansariwala.feature.catalog.ProductSheetImportDialog
 import org.bhargav.pansariwala.feature.printer.PrintAction
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.i18n.localizedLabel
+import org.bhargav.pansariwala.i18n.localizedBrand
 import org.bhargav.pansariwala.media.ProductImageCarousel
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
@@ -307,7 +308,7 @@ private fun ShopProductRow(product: Product, categoryName: String, onClick: () -
             }
             if (product.brandName.isNotBlank()) {
                 Text(
-                    text = product.brandName,
+                    text = product.localizedBrand,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,

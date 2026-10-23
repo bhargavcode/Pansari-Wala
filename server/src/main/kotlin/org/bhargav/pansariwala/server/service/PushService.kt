@@ -35,6 +35,8 @@ import kotlinx.serialization.json.putJsonObject
 import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.db.DeviceTokenDoc
 import org.bhargav.pansariwala.server.db.MongoApp
+import org.bhargav.pansariwala.server.i18n.MessageCatalog
+import org.bhargav.pansariwala.server.i18n.RequestLanguage
 import java.security.KeyFactory
 import java.security.interfaces.RSAPrivateKey
 import java.security.spec.PKCS8EncodedKeySpec
@@ -89,9 +91,13 @@ private class Alert(
     val kind: String,
     /** Same key replaces an earlier notification for this order/alert instead of stacking. */
     val key: String,
-    /** APNs alert text (iOS shows it when the app is closed); Android builds localized text itself. */
+    /**
+     * APNs alert text (iOS shows it when the app is closed); Android builds localized text itself.
+     * English [MessageCatalog] templates, translated per device language with [bodyArgs] filled in.
+     */
     val title: String,
     val body: String,
+    val bodyArgs: List<Any> = emptyList(),
 )
 
 private class PushMessage(
@@ -108,6 +114,7 @@ private class PushMessage(
 class PushService(
     config: ServerConfig,
     mongo: MongoApp,
+    private val messages: MessageCatalog,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val tokenCol = mongo.db.getCollection<DeviceTokenDoc>("device_tokens")
@@ -149,6 +156,7 @@ class PushService(
                 platform = platform.take(16),
                 updatedAt = System.currentTimeMillis(),
                 deviceId = device,
+                language = RequestLanguage.current(),
             ),
             ReplaceOptions().upsert(true),
         )
@@ -209,7 +217,8 @@ class PushService(
             kind = PushContract.ALERT_DELIVERY_OFFER,
             key = "${PushContract.ALERT_DELIVERY_OFFER}:$offerId",
             title = "New delivery job",
-            body = "$shopName · ₹$payout",
+            body = "{0} · ₹{1}",
+            bodyArgs = listOf(shopName, payout),
         )
         send(
             and(eq("role", "PARTNER"), `in`("principalId", partnerIds)),
@@ -240,13 +249,13 @@ class PushService(
             "amount" to amount,
         )
         val text = when (status) {
-            "SUCCESS" -> "Payment successful" to "$amount paid to $shopName. Order $orderId is placed."
-            "FAILED" -> "Payment failed" to "$amount to $shopName was not received. Tap to retry."
-            "REFUNDED" -> "Payment refunded" to "Order $orderId could not be placed; $amount is being refunded."
+            "SUCCESS" -> Triple("Payment successful", "{0} paid to {1}. Order {2} is placed.", listOf(amount, shopName, orderId))
+            "FAILED" -> Triple("Payment failed", "{0} to {1} was not received. Tap to retry.", listOf(amount, shopName))
+            "REFUNDED" -> Triple("Payment refunded", "Order {0} could not be placed; {1} is being refunded.", listOf(orderId, amount))
             else -> null
         }
-        val alert = text?.let { (title, body) ->
-            Alert(PushContract.ALERT_PAYMENT_PREFIX + status, "${PushContract.EVENT_PAYMENT_UPDATE}:$intentId", title, body)
+        val alert = text?.let { (title, body, args) ->
+            Alert(PushContract.ALERT_PAYMENT_PREFIX + status, "${PushContract.EVENT_PAYMENT_UPDATE}:$intentId", title, body, args)
         }
         send(and(`in`("role", CUSTOMER_ROLES), eq("principalId", customerId)), PushMessage(intentId, data, alert))
     }
@@ -262,16 +271,17 @@ class PushService(
             "amount" to amount,
             "customerName" to customerName,
         )
-        val body = buildString {
-            append("$amount from ${customerName.ifBlank { "a customer" }} ($intentId).")
-            if (!utr.isNullOrBlank()) append(" UTR $utr.")
-            append(" Confirm once it reaches your bank.")
-        }
+        val payer = customerName.ifBlank { "a customer" }
         val alert = Alert(
             PushContract.ALERT_PAYMENT_CONFIRM,
             "${PushContract.ALERT_PAYMENT_CONFIRM}:$intentId",
             "Check UPI payment",
-            body,
+            if (utr.isNullOrBlank()) {
+                "{0} from {1} ({2}). Confirm once it reaches your bank."
+            } else {
+                "{0} from {1} ({2}). UTR {3}. Confirm once it reaches your bank."
+            },
+            listOfNotNull(amount, payer, intentId, utr?.takeIf { it.isNotBlank() }),
         )
         send(and(eq("role", "SHOP"), eq("shopId", shopId)), PushMessage(intentId, data, alert))
     }
@@ -286,15 +296,16 @@ class PushService(
             "fixedIn" to fixedInVersion,
         )
         val body = if (fixedInVersion.isBlank()) {
-            "Your reported issue ($featureLabel) is fixed."
+            "Your reported issue ({0}) is fixed."
         } else {
-            "Your reported issue ($featureLabel) is fixed in version $fixedInVersion. Please update the app."
+            "Your reported issue ({0}) is fixed in version {1}. Please update the app."
         }
         val alert = Alert(
             kind = PushContract.ALERT_ISSUE_RESOLVED,
             key = "${PushContract.ALERT_ISSUE_RESOLVED}:$issueId",
             title = "Issue resolved",
             body = body,
+            bodyArgs = listOf(featureLabel, fixedInVersion),
         )
         send(eq("principalId", reporterId), PushMessage(issueId, data, alert))
     }
@@ -306,19 +317,22 @@ class PushService(
                 kind = PushContract.ALERT_PARTNER_TIMEOUT,
                 key = "${PushContract.ALERT_PARTNER_TIMEOUT}:${u.orderId}",
                 title = "No delivery partner found",
-                body = "No partner accepted order $short in 5 minutes. Request a delivery partner again.",
+                body = "No partner accepted order {0} in 5 minutes. Request a delivery partner again.",
+                bodyArgs = listOf(short),
             )
             u.status == "RECEIVED" && u.previousStatus == null -> Alert(
                 kind = PushContract.ALERT_ORDER_NEW,
                 key = "${PushContract.ALERT_ORDER_NEW}:${u.orderId}",
                 title = "New online order",
-                body = "Order $short from ${u.customerName.ifBlank { u.orderId }}",
+                body = "Order {0} from {1}",
+                bodyArgs = listOf(short, u.customerName.ifBlank { u.orderId }),
             )
             u.status == "RETURNING_TO_SHOP" && u.previousStatus != u.status -> Alert(
                 kind = PushContract.ALERT_RETURN_VERIFY,
                 key = "${PushContract.ALERT_RETURN_VERIFY}:${u.orderId}",
                 title = "Order coming back",
-                body = "Order $short could not be delivered. Verify the parcel and accept the return.",
+                body = "Order {0} could not be delivered. Verify the parcel and accept the return.",
+                bodyArgs = listOf(short),
             )
             else -> null
         }
@@ -329,35 +343,46 @@ class PushService(
         val shop = u.shopName
         val (kind, text) = when (u.status) {
             "ACCEPTED" -> if (u.previousStatus == "RECEIVED") {
-                PushContract.ALERT_ACCEPTED to ("Order accepted" to "$shop is preparing your order.")
+                PushContract.ALERT_ACCEPTED to ("Order accepted" to "{0} is preparing your order.")
             } else {
                 return null
             }
-            "ON_THE_WAY" -> PushContract.ALERT_ON_THE_WAY to ("On the way" to "Your order from $shop is on the way.")
-            "DELIVERED" -> PushContract.ALERT_DELIVERED to ("Delivered" to "Order from $shop was delivered.")
+            "ON_THE_WAY" -> PushContract.ALERT_ON_THE_WAY to ("On the way" to "Your order from {0} is on the way.")
+            "DELIVERED" -> PushContract.ALERT_DELIVERED to ("Delivered" to "Order from {0} was delivered.")
             "CANCELLED", "REJECTED" ->
-                PushContract.ALERT_CANCELLED to ("Order cancelled" to "Your order from $shop was cancelled.")
+                PushContract.ALERT_CANCELLED to ("Order cancelled" to "Your order from {0} was cancelled.")
             "RETURNING_TO_SHOP" -> PushContract.ALERT_RETURNING to
-                ("Delivery unsuccessful" to "We couldn't reach you, so your order is going back to $shop.")
+                ("Delivery unsuccessful" to "We couldn't reach you, so your order is going back to {0}.")
             "RETURNED_TO_SHOP" -> PushContract.ALERT_RETURNED to
-                ("Order returned to shop" to "Your order has been returned to $shop. Please collect it from there.")
+                ("Order returned to shop" to "Your order has been returned to {0}. Please collect it from there.")
             else -> return null
         }
-        return Alert(kind, "${PushContract.KEY_PREFIX_STATUS}:${u.orderId}:$kind", text.first, text.second)
+        return Alert(kind, "${PushContract.KEY_PREFIX_STATUS}:${u.orderId}:$kind", text.first, text.second, listOf(shop))
     }
 
     private fun send(filter: org.bson.conversions.Bson, message: PushMessage) {
         if (!enabled) return
         scope.launch {
-            val tokens = runCatching { tokenCol.find(filter).toList().map { it.token } }.getOrDefault(emptyList())
+            val tokens = runCatching { tokenCol.find(filter).toList() }.getOrDefault(emptyList())
             if (tokens.isEmpty()) return@launch
             val bearer = runCatching { oauthToken() }.getOrElse {
                 println("FCM auth failed: ${it.message}")
                 return@launch
             }
-            val dead = tokens.filter { token -> sendOne(bearer, token, message) == SendResult.DEAD_TOKEN }
-            if (dead.isNotEmpty()) runCatching { tokenCol.deleteMany(`in`("_id", dead)) }
+            val dead = tokens.filter { doc -> sendOne(bearer, doc.token, message.localized(doc.language)) == SendResult.DEAD_TOKEN }
+            if (dead.isNotEmpty()) runCatching { tokenCol.deleteMany(`in`("_id", dead.map { it.token })) }
         }
+    }
+
+    private fun PushMessage.localized(language: String): PushMessage {
+        val lang = RequestLanguage.normalize(language)
+        val alert = alert ?: return this
+        val args = alert.bodyArgs.map { messages.localize(it.toString(), lang) }.toTypedArray()
+        return PushMessage(
+            orderId,
+            data,
+            Alert(alert.kind, alert.key, messages.format(alert.title, lang), messages.format(alert.body, lang, *args)),
+        )
     }
 
     private enum class SendResult { OK, DEAD_TOKEN, FAILED }

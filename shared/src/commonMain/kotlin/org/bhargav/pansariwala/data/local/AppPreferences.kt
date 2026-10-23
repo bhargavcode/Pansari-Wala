@@ -229,6 +229,8 @@ class AppPreferences(
         notifyDelivery = store.getString(Keys.notifyDelivery).toBooleanPref(default = true),
     )
 
+    suspend fun getLanguageCode(): String = AppLanguage.fromCode(store.getString(Keys.language) ?: AppLanguage.ENGLISH.code).code
+
     suspend fun setLanguage(language: AppLanguage) {
         store.putStrings(mapOf(Keys.language to language.code))
     }

@@ -2189,6 +2189,16 @@
     <string name="master_translations_hint">ಪ್ರತಿ ಇಂಗ್ಲಿಷ್ ಹೆಸರಿನ ಪಕ್ಕದಲ್ಲಿ %1$s ಹೆಸರು ಟೈಪ್ ಮಾಡಿ. ಇಂಗ್ಲಿಷ್ ಹೆಸರು ತೋರಿಸಲು ಖಾಲಿ ಬಿಡಿ.</string>
     <string name="master_translations_save">%1$d ಬದಲಾವಣೆಗಳನ್ನು ಉಳಿಸಿ</string>
     <string name="master_translations_saved">%1$d ಅನುವಾದಗಳನ್ನು ಉಳಿಸಲಾಗಿದೆ</string>
+    <string name="master_translate_action">ಅನುವಾದಿಸಿ</string>
+    <string name="master_translate_title">ಅನುವಾದ ಸೇರಿಸಿ · %1$s</string>
+    <string name="master_translate_english">ಡೀಫಾಲ್ಟ್ ಇಂಗ್ಲಿಷ್</string>
+    <string name="master_translate_language">ಅನುವಾದದ ಭಾಷೆ: %1$s</string>
+    <string name="master_translate_hint">ಆ ಭಾಷೆಯಲ್ಲಿ ಇಂಗ್ಲಿಷ್ ಪಠ್ಯ ತೋರಿಸಲು ಕ್ಷೇತ್ರವನ್ನು ಖಾಲಿ ಬಿಡಿ.</string>
+    <string name="master_translate_saved">%1$s ಅನುವಾದ ಉಳಿಸಲಾಗಿದೆ</string>
+    <string name="master_nav_messages">ಸರ್ವರ್ ಸಂದೇಶಗಳು</string>
+    <string name="master_messages_title">ಸರ್ವರ್ ಸಂದೇಶ ಅನುವಾದಗಳು</string>
+    <string name="master_messages_hint">ಸರ್ವರ್ ಆ್ಯಪ್‌ಗಳಿಗೆ ಕಳುಹಿಸುವ ಸಂದೇಶಗಳನ್ನು %1$s ಗೆ ಅನುವಾದಿಸಿ. {0} ಮತ್ತು {1} ನಂತಹ ಪ್ಲೇಸ್‌ಹೋಲ್ಡರ್‌ಗಳನ್ನು ಬದಲಾಯಿಸಬೇಡಿ.</string>
+    <string name="master_messages_column">ಇಂಗ್ಲಿಷ್ ಸಂದೇಶ</string>
     <string-array name="report_month_short">
         <item>ಜನ</item>
         <item>ಫೆಬ್ರ</item>

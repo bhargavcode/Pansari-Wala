@@ -12,6 +12,7 @@ import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.timeout
@@ -113,6 +114,13 @@ class KtorPansariApi(
             url(baseUrl.trimEnd('/') + "/")
             contentType(ContentType.Application.Json)
         }
+        install(
+            createClientPlugin("AppLanguageHeader") {
+                onRequest { request, _ ->
+                    request.headers[AppConstants.APP_LANGUAGE_HEADER] = preferences.getLanguageCode()
+                }
+            },
+        )
     }.also { http ->
         JwtAuthCache.onInvalidate = {
             http.authProviders

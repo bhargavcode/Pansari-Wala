@@ -233,6 +233,7 @@ import pansariwala.shared.generated.resources.master_platform_controls
 import pansariwala.shared.generated.resources.master_platform_subtitle
 import pansariwala.shared.generated.resources.pay_detail_refund
 import pansariwala.shared.generated.resources.master_translations_action
+import pansariwala.shared.generated.resources.master_translate_action
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -593,8 +594,26 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
     var reload by remember { mutableStateOf(0) }
     var sheet by remember { mutableStateOf<SheetImportUiState?>(null) }
     var sheetFile by remember { mutableStateOf<WebPickedFile?>(null) }
+    var translating by remember { mutableStateOf<ProductDto?>(null) }
     val products = pageData.items
     fun refresh() { reload++ }
+    translating?.let { p ->
+        TranslationDialog(
+            title = p.name,
+            fields = listOf(
+                TranslatableField(Res.string.master_product_name, p.name, p.translations),
+                TranslatableField(Res.string.master_brand, p.brandName, p.brandTranslations),
+                TranslatableField(Res.string.master_company, p.companyName, p.companyTranslations),
+                TranslatableField(Res.string.master_description, p.description, p.descriptionTranslations),
+            ),
+            onSave = { lang, v ->
+                api.saveProductTranslation(token, p.id, ProductFieldsTranslationBody(lang, v[0], v[1], v[2], v[3]))
+                refresh()
+            },
+            onStatus = onStatus,
+            onDismiss = { translating = null },
+        )
+    }
     LaunchedEffect(token, query, page, reload) {
         if (query.isNotBlank()) delay(MASTER_SEARCH_DEBOUNCE_MS)
         runCatching { pageData = api.productPage(token, query.trim(), null, page, MASTER_PAGE_SIZE) }
@@ -730,6 +749,9 @@ internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit,
                             FlowRow(Modifier.weight(1f)) {
                                 TextButton(onClick = { onNavigate(MasterDest.ProductEdit(p.id)) }) {
                                     Text(stringResource(Res.string.action_edit))
+                                }
+                                TextButton(onClick = { translating = p }) {
+                                    Text(stringResource(Res.string.master_translate_action))
                                 }
                                 TextButton(onClick = {
                                     scope.launch {
@@ -1405,6 +1427,7 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
     var catName by rememberSaveable { mutableStateOf("") }
     var parentId by rememberSaveable { mutableStateOf("") }
     var typeName by rememberSaveable { mutableStateOf("") }
+    var translatingCategory by remember { mutableStateOf<CategoryDto?>(null) }
     fun refresh() {
         scope.launch {
             runCatching {
@@ -1412,6 +1435,18 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
                 shopTypes = api.shopTypes(token)
             }.onFailure { onStatus(it.message.orEmpty()) }
         }
+    }
+    translatingCategory?.let { c ->
+        TranslationDialog(
+            title = c.name,
+            fields = listOf(TranslatableField(Res.string.field_name, c.name, c.translations)),
+            onSave = { lang, v ->
+                api.saveCategoryTranslation(token, c.id, CategoryTranslationBody(lang, v[0]))
+                refresh()
+            },
+            onStatus = onStatus,
+            onDismiss = { translatingCategory = null },
+        )
     }
     LaunchedEffect(token) { refresh() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -1442,7 +1477,10 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
                 }) { Text(stringResource(Res.string.master_save)) }
                 categories.forEach { c ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${c.name} [${c.id}] parent=${c.parentId.orEmpty()}")
+                        Text("${c.name} [${c.id}] parent=${c.parentId.orEmpty()}", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { translatingCategory = c }) {
+                            Text(stringResource(Res.string.master_translate_action))
+                        }
                         TextButton(onClick = {
                             scope.launch {
                                 runCatching { api.deleteCategory(token, c.id) }

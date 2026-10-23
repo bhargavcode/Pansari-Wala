@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.ReportProblem
 import pansariwala.shared.generated.resources.master_nav_subscriptions
 import pansariwala.shared.generated.resources.master_nav_app_usage
 import pansariwala.shared.generated.resources.master_nav_issues
+import pansariwala.shared.generated.resources.master_nav_messages
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.Button
@@ -383,6 +385,7 @@ private fun MasterSidebar(
         Triple(MasterDest.Subscriptions, Icons.Default.WorkspacePremium, Res.string.master_nav_subscriptions),
         Triple(MasterDest.AppUsage, Icons.Default.PhoneAndroid, Res.string.master_nav_app_usage),
         Triple(MasterDest.Issues, Icons.Default.ReportProblem, Res.string.master_nav_issues),
+        Triple(MasterDest.ServerMessages, Icons.Default.Translate, Res.string.master_nav_messages),
         Triple(MasterDest.Settings, Icons.Default.Settings, Res.string.master_nav_settings),
     )
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLowest) {
@@ -461,6 +464,7 @@ private fun MasterRouter(
         MasterDest.Subscriptions -> SubscriptionsScreen(token, onStatus)
         MasterDest.AppUsage -> AppUsageScreen(token, onStatus)
         MasterDest.Issues -> IssuesScreen(token, onStatus)
+        MasterDest.ServerMessages -> ServerMessagesScreen(token, onStatus)
         MasterDest.Settings -> SettingsScreen(token, onStatus)
     }
 }

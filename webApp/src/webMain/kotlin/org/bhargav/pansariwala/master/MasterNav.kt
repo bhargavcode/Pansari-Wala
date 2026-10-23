@@ -26,6 +26,7 @@ sealed class MasterDest {
     data object Subscriptions : MasterDest()
     data object AppUsage : MasterDest()
     data object Issues : MasterDest()
+    data object ServerMessages : MasterDest()
     data object Settings : MasterDest()
 }
 

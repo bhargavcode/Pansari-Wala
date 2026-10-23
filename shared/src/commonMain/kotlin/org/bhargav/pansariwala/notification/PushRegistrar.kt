@@ -12,7 +12,7 @@ import org.bhargav.pansariwala.util.AppConstants
 
 /**
  * Keeps the server's device-token mapping in sync with the session: registers on login / token
- * rotation / account switch, unregisters on logout or session expiry (all paths clear the JWT).
+ * rotation / account switch / language change, unregisters on logout or session expiry (all paths clear the JWT).
  */
 class PushRegistrar(
     private val api: PansariApi,
@@ -24,7 +24,9 @@ class PushRegistrar(
         val session = preferences.accessToken
             .map { jwt -> jwt?.takeIf { it.startsWith(AppConstants.JWT_PREFIX) } }
             .distinctUntilChanged()
-        combine(session, PushSignals.token) { jwt, token -> jwt to token }
+        // Re-registers on language change: the server sends iOS tray alert text in the registered language.
+        val language = preferences.userSettings.map { it.language }.distinctUntilChanged()
+        combine(session, PushSignals.token, language) { jwt, token, _ -> jwt to token }
             .collectLatest { (jwt, token) ->
                 when {
                     jwt == null -> unregister()

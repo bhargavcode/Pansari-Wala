@@ -8,6 +8,9 @@ import io.ktor.http.content.PartData
 import io.ktor.server.response.header
 import io.ktor.server.response.respondBytes
 import org.bhargav.pansariwala.server.service.ProductSheet
+import org.bhargav.pansariwala.server.dto.CategoryTranslationRequest
+import org.bhargav.pansariwala.server.dto.ProductFieldsTranslationRequest
+import org.bhargav.pansariwala.server.i18n.MessageCatalog
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -126,6 +129,7 @@ fun Route.apiRoutes(
     push: PushService,
     support: SupportService,
     credit: org.bhargav.pansariwala.server.service.CreditService,
+    messages: MessageCatalog,
 ) {
     get("/health") { call.respond(OkResponse(true)) }
     imageProxyRoutes()
@@ -1113,9 +1117,27 @@ fun Route.apiRoutes(
             store.deleteMasterCategory(call.parameters["id"]!!)
             call.respond(OkResponse())
         }
+        post("/admin/master/categories/{id}/translation") {
+            call.requireRole("ADMIN")
+            call.respond(store.saveMasterCategoryTranslation(call.parameters["id"]!!, call.receive<CategoryTranslationRequest>()))
+        }
         post("/admin/master/products/translations") {
             call.requireRole("ADMIN")
             call.respond(store.saveMasterProductTranslations(call.receive<ProductTranslationsRequest>()))
+        }
+        post("/admin/master/products/{id}/translation") {
+            call.requireRole("ADMIN")
+            call.respond(
+                store.saveMasterProductFieldsTranslation(call.parameters["id"]!!, call.receive<ProductFieldsTranslationRequest>()),
+            )
+        }
+        get("/admin/messages") {
+            call.requireRole("ADMIN")
+            call.respond(messages.list())
+        }
+        post("/admin/messages/translations") {
+            call.requireRole("ADMIN")
+            call.respond(messages.saveTranslations(call.receive<ProductTranslationsRequest>()))
         }
         post("/admin/master/products") {
             call.requireRole("ADMIN")

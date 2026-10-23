@@ -2189,6 +2189,16 @@
     <string name="master_translations_hint">ਹਰ ਅੰਗਰੇਜ਼ੀ ਨਾਮ ਦੇ ਅੱਗੇ %1$s ਨਾਮ ਲਿਖੋ। ਅੰਗਰੇਜ਼ੀ ਨਾਮ ਦਿਖਾਉਣ ਲਈ ਖਾਲੀ ਛੱਡੋ।</string>
     <string name="master_translations_save">%1$d ਬਦਲਾਅ ਸੰਭਾਲੋ</string>
     <string name="master_translations_saved">%1$d ਅਨੁਵਾਦ ਸੰਭਾਲੇ ਗਏ</string>
+    <string name="master_translate_action">ਅਨੁਵਾਦ ਕਰੋ</string>
+    <string name="master_translate_title">ਅਨੁਵਾਦ ਸ਼ਾਮਲ ਕਰੋ · %1$s</string>
+    <string name="master_translate_english">ਡਿਫ਼ਾਲਟ ਅੰਗਰੇਜ਼ੀ</string>
+    <string name="master_translate_language">ਅਨੁਵਾਦ ਦੀ ਭਾਸ਼ਾ: %1$s</string>
+    <string name="master_translate_hint">ਉਸ ਭਾਸ਼ਾ ਵਿੱਚ ਅੰਗਰੇਜ਼ੀ ਟੈਕਸਟ ਦਿਖਾਉਣ ਲਈ ਖੇਤਰ ਖਾਲੀ ਛੱਡੋ।</string>
+    <string name="master_translate_saved">%1$s ਅਨੁਵਾਦ ਸੰਭਾਲਿਆ ਗਿਆ</string>
+    <string name="master_nav_messages">ਸਰਵਰ ਸੁਨੇਹੇ</string>
+    <string name="master_messages_title">ਸਰਵਰ ਸੁਨੇਹਿਆਂ ਦੇ ਅਨੁਵਾਦ</string>
+    <string name="master_messages_hint">ਸਰਵਰ ਵੱਲੋਂ ਐਪਾਂ ਨੂੰ ਭੇਜੇ ਜਾਣ ਵਾਲੇ ਸੁਨੇਹਿਆਂ ਦਾ %1$s ਵਿੱਚ ਅਨੁਵਾਦ ਕਰੋ। {0} ਅਤੇ {1} ਵਰਗੇ ਪਲੇਸਹੋਲਡਰ ਨਾ ਬਦਲੋ।</string>
+    <string name="master_messages_column">ਅੰਗਰੇਜ਼ੀ ਸੁਨੇਹਾ</string>
     <string-array name="report_month_short">
         <item>ਜਨ</item>
         <item>ਫ਼ਰ</item>

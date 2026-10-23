@@ -43,7 +43,8 @@ fun WithScriptFallbackFonts(content: @Composable () -> Unit) {
     var ready by remember { mutableStateOf(false) }
     LaunchedEffect(fonts) {
         if (fonts.all { it != null }) {
-            resolver.preload(FontFamily(fonts.filterNotNull()))
+            // preload() only registers the first font per weight/style of a family, so each script needs its own.
+            fonts.filterNotNull().forEach { resolver.preload(FontFamily(it)) }
             ready = true
         }
     }

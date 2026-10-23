@@ -2189,6 +2189,16 @@
     <string name="master_translations_hint">প্রতিটি ইংরেজি নামের পাশে %1$s নাম লিখুন। ইংরেজি নাম দেখাতে ফাঁকা রাখুন।</string>
     <string name="master_translations_save">%1$dটি পরিবর্তন সেভ করুন</string>
     <string name="master_translations_saved">%1$dটি অনুবাদ সেভ হয়েছে</string>
+    <string name="master_translate_action">অনুবাদ করুন</string>
+    <string name="master_translate_title">অনুবাদ যোগ করুন · %1$s</string>
+    <string name="master_translate_english">ডিফল্ট ইংরেজি</string>
+    <string name="master_translate_language">অনুবাদের ভাষা: %1$s</string>
+    <string name="master_translate_hint">ওই ভাষায় ইংরেজি লেখা দেখাতে ঘরটি খালি রাখুন।</string>
+    <string name="master_translate_saved">%1$s অনুবাদ সেভ হয়েছে</string>
+    <string name="master_nav_messages">সার্ভার বার্তা</string>
+    <string name="master_messages_title">সার্ভার বার্তার অনুবাদ</string>
+    <string name="master_messages_hint">সার্ভার অ্যাপগুলিতে যে বার্তা পাঠায় সেগুলি %1$s-এ অনুবাদ করুন। {0} ও {1}-এর মতো প্লেসহোল্ডার বদলাবেন না।</string>
+    <string name="master_messages_column">ইংরেজি বার্তা</string>
     <string-array name="report_month_short">
         <item>জানু</item>
         <item>ফেব্রু</item>

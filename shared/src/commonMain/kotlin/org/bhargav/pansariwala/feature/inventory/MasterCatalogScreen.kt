@@ -69,6 +69,7 @@ import pansariwala.shared.generated.resources.inv_master_empty
 import pansariwala.shared.generated.resources.inv_master_search_hint
 import pansariwala.shared.generated.resources.inv_master_selected
 import pansariwala.shared.generated.resources.inv_master_title
+import org.bhargav.pansariwala.i18n.localizedBrand
 import org.bhargav.pansariwala.i18n.localizedName
 
 @Composable
@@ -195,7 +196,7 @@ fun MasterCatalogScreen(
     state.pending?.let { item ->
         ProductDetailsSheet(
             title = stringResource(Res.string.inv_master_add_title, item.localizedName),
-            subtitle = item.brandName.takeIf { it.isNotBlank() },
+            subtitle = item.localizedBrand.takeIf { it.isNotBlank() },
             draft = state.draft,
             categories = state.allCategories,
             confirmLabel = stringResource(Res.string.action_add),
@@ -268,7 +269,7 @@ private fun MasterRow(
                 overflow = TextOverflow.Ellipsis,
             )
             if (item.brandName.isNotBlank()) {
-                Text(item.brandName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(item.localizedBrand, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
             if (item.salePrice > 0.0) {
                 Text(

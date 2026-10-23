@@ -249,6 +249,7 @@ private fun Product.toEntity() = ProductEntity(
     categoryId = categoryId,
     subCategoryId = subCategoryId,
     translationsJson = if (translations.isEmpty()) "" else variantJson.encodeToString(translations),
+    brandTranslationsJson = if (brandTranslations.isEmpty()) "" else variantJson.encodeToString(brandTranslations),
 )
 
 private fun ShopProductFilter.activeArg(): Int = when (status) {
@@ -294,6 +295,7 @@ private fun ProductEntity.toDomain() = Product(
     categoryId = categoryId,
     subCategoryId = subCategoryId,
     translations = decodeTranslations(translationsJson),
+    brandTranslations = decodeTranslations(brandTranslationsJson),
 )
 
 private fun UserEntity.toUser() = ShopUser(

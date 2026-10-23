@@ -28,8 +28,12 @@ import org.bhargav.pansariwala.server.ServerConfig
 import org.bhargav.pansariwala.server.db.AdminUserDoc
 import org.bhargav.pansariwala.server.db.CategoryDoc
 import org.bhargav.pansariwala.server.db.CategoryPriorityDoc
+import org.bhargav.pansariwala.server.dto.CategoryTranslationRequest
+import org.bhargav.pansariwala.server.dto.ProductFieldsTranslationRequest
 import org.bhargav.pansariwala.server.dto.ProductTranslationsRequest
 import org.bhargav.pansariwala.server.dto.ProductTranslationsResult
+import org.bhargav.pansariwala.server.i18n.RequestLanguage
+import org.bhargav.pansariwala.server.i18n.localized
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderDto
 import org.bhargav.pansariwala.server.dto.ShopCategoryOrderItemDto
 import org.bhargav.pansariwala.server.dto.OtpConfigResponse
@@ -193,9 +197,9 @@ private const val DELETED_CUSTOMER_NAME = "Deleted user"
 private val ACCOUNT_PURGE_DONE_STATUSES = listOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED", "DRAFT", "RETURNED_TO_SHOP")
 private val SPEND_EXCLUDED_STATUSES = listOf("CANCELLED", "REJECTED", "DRAFT", "PAYMENT_PENDING")
 private const val MAX_MASTER_PAGE_SIZE = 100
-private const val HINDI = "hi"
+private const val HINDI = RequestLanguage.HINDI
 /** Product name languages besides English; mirrors the app's `AppLanguage` codes. */
-private val PRODUCT_LANGUAGES = setOf(HINDI, "kn", "pa", "mr", "bn")
+private val PRODUCT_LANGUAGES = RequestLanguage.TRANSLATED
 private const val TOP_OFFERS_ON_CARD = 3
 /** Shops are in India; delivery cutoffs are wall-clock times there regardless of server zone. */
 private val SHOP_ZONE: java.time.ZoneId = java.time.ZoneId.of("Asia/Kolkata")
@@ -716,7 +720,7 @@ class AppStore(
                 .associate { it.id to (it.categoryId?.takeIf(String::isNotBlank) to it.category) }
         }
         val categoryNames = products.values.mapNotNull { it.first }.toSet().takeIf { it.isNotEmpty() }
-            ?.let { ids -> categoryCol.find(`in`("_id", ids.toList())).toList().associate { it.id to it.name } }
+            ?.let(::categoryNames)
             .orEmpty()
         val shopNames = rows.map { it.shopId }.toSet().takeIf { it.isNotEmpty() }
             ?.let { ids -> shopCol.find(`in`("_id", ids.toList())).toList().associate { it.id to it.name } }
@@ -997,8 +1001,9 @@ class AppStore(
             .groupBy { row -> row.getString("_id")?.takeIf { it.isNotBlank() } ?: UNCATEGORIZED_CATEGORY_ID }
             .mapValues { (_, rows) -> rows.sumOf { it.getInteger("n") ?: 0 } }
 
+    /** Category names in the calling app's language. */
     private fun categoryNames(ids: Collection<String>): Map<String, String> =
-        categoryCol.find(`in`("_id", ids.toList())).toList().associate { it.id to it.name }
+        categoryCol.find(`in`("_id", ids.toList())).toList().associate { it.id to it.translations.localized(it.name) }
 
     /**
      * Uncategorized always last. PRIORITY: ranked categories by number, then the rest by name; NAME: by name.
@@ -1135,6 +1140,7 @@ class AppStore(
             name = master.name,
             nameHi = master.nameHi,
             translations = master.translations,
+            brandTranslations = master.brandTranslations,
             category = body.category?.takeIf { it.isNotBlank() } ?: DEFAULT_SHOP_CATEGORY,
             unit = master.unit,
             barcode = master.barcode?.takeIf { it.isNotBlank() },
@@ -1223,9 +1229,9 @@ class AppStore(
         }
         return ProductDetailDto(
             product = dto.copy(imageUrls = images),
-            brandName = master?.brandName.orEmpty(),
-            companyName = master?.companyName.orEmpty(),
-            description = master?.description.orEmpty(),
+            brandName = master?.let { it.brandTranslations.localized(it.brandName) }.orEmpty(),
+            companyName = master?.let { it.companyTranslations.localized(it.companyName) }.orEmpty(),
+            description = master?.let { it.descriptionTranslations.localized(it.description) }.orEmpty(),
             sku = master?.sku.orEmpty(),
             tags = master?.tags.orEmpty(),
             weightKg = master?.weightKg ?: 0.0,
@@ -1233,7 +1239,7 @@ class AppStore(
             variants = dto.variants,
             priceHistory = priceHistory(product),
             categoryName = (product.categoryId?.takeIf { it.isNotBlank() } ?: master?.categoryId?.takeIf { it.isNotBlank() })
-                ?.let { id -> categoryCol.find(eq("_id", id)).firstOrNull()?.name }
+                ?.let { id -> categoryCol.find(eq("_id", id)).firstOrNull()?.let { it.translations.localized(it.name) } }
                 .orEmpty(),
         )
     }
@@ -3231,8 +3237,9 @@ class AppStore(
         syncedAt = syncedAt,
     )
 
+    /** [MasterCategoryDto.name] is in the calling app's language; the master console gets English. */
     fun masterCategories(): List<MasterCategoryDto> =
-        categoryCol.find().toList().map { MasterCategoryDto(it.id, it.name, it.parentId) }
+        categoryCol.find().toList().map { MasterCategoryDto(it.id, it.translations.localized(it.name), it.parentId, it.translations) }
 
     fun masterProducts(): List<MasterProductDto> =
         masterProductCol.find().toList().map { it.toDto() }
@@ -3270,9 +3277,21 @@ class AppStore(
 
     fun upsertMasterCategory(body: MasterCategoryUpsert): MasterCategoryDto {
         val id = body.id?.takeIf { it.isNotBlank() } ?: "cat_${UUID.randomUUID().toString().take(8)}"
-        val doc = CategoryDoc(id, body.name.trim(), body.parentId?.takeIf { it.isNotBlank() })
+        val existing = categoryCol.find(eq("_id", id)).firstOrNull()
+        val doc = CategoryDoc(id, body.name.trim(), body.parentId?.takeIf { it.isNotBlank() }, existing?.translations.orEmpty())
         categoryCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
-        return MasterCategoryDto(doc.id, doc.name, doc.parentId)
+        return MasterCategoryDto(doc.id, doc.name, doc.parentId, doc.translations)
+    }
+
+    fun saveMasterCategoryTranslation(id: String, body: CategoryTranslationRequest): MasterCategoryDto {
+        val lang = translationLanguage(body.language)
+        val field = "translations.$lang"
+        val value = body.name.trim()
+        if (categoryCol.updateOne(eq("_id", id), if (value.isEmpty()) unset(field) else set(field, value)).matchedCount == 0L) {
+            error("Category not found")
+        }
+        val doc = categoryCol.find(eq("_id", id)).first()
+        return MasterCategoryDto(doc.id, doc.name, doc.parentId, doc.translations)
     }
 
     fun deleteMasterCategory(id: String) {
@@ -3317,9 +3336,36 @@ class AppStore(
             translations = body.translations?.let { cleanTranslations(it, body.nameHi) }
                 ?: existing?.translations?.let { cleanTranslations(it, body.nameHi) }
                 ?: cleanTranslations(emptyMap(), body.nameHi),
+            brandTranslations = existing?.brandTranslations.orEmpty(),
+            companyTranslations = existing?.companyTranslations.orEmpty(),
+            descriptionTranslations = existing?.descriptionTranslations.orEmpty(),
         )
         masterProductCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
         return doc.toDto()
+    }
+
+    /**
+     * Saves every translatable field of one master product in one language. Linked shop products that
+     * still use the master's English name / brand get the same name / brand translation.
+     */
+    fun saveMasterProductFieldsTranslation(id: String, body: ProductFieldsTranslationRequest): MasterProductDto {
+        val lang = translationLanguage(body.language)
+        val master = masterProductCol.find(eq("_id", id)).firstOrNull() ?: error("Product not found")
+        fun field(name: String, value: String): Bson =
+            value.trim().let { if (it.isEmpty()) unset("$name.$lang") else set("$name.$lang", it) }
+        masterProductCol.updateOne(
+            eq("_id", id),
+            combine(
+                translationUpdate(lang, body.name),
+                field("brandTranslations", body.brandName),
+                field("companyTranslations", body.companyName),
+                field("descriptionTranslations", body.description),
+            ),
+        )
+        val linked = eq("masterProductId", master.id)
+        productCol.updateMany(and(linked, eq("name", master.name)), translationUpdate(lang, body.name))
+        productCol.updateMany(and(linked, eq("brandName", master.brandName)), field("brandTranslations", body.brandName))
+        return masterProductCol.find(eq("_id", id)).first().toDto()
     }
 
     fun deleteMasterProduct(id: String) {
@@ -3376,7 +3422,14 @@ class AppStore(
 
     /** Device pushes carry stale or no translations; translations are edited on the server only. */
     private fun ProductDoc.keepTranslations(previous: ProductDoc?): ProductDoc =
-        if (previous == null) this else copy(translations = previous.translations)
+        if (previous == null) {
+            this
+        } else {
+            copy(
+                translations = previous.translations,
+                brandTranslations = previous.brandTranslations.takeIf { previous.brandName == brandName }.orEmpty(),
+            )
+        }
 
     private fun translationRegexes(pattern: String): Array<Bson> =
         PRODUCT_LANGUAGES.map { regex("translations.$it", pattern, "i") }.toTypedArray()
@@ -4339,6 +4392,9 @@ class AppStore(
         dimensions = dimensions,
         variants = variants.map { it.toDto() },
         translations = translations,
+        brandTranslations = brandTranslations,
+        companyTranslations = companyTranslations,
+        descriptionTranslations = descriptionTranslations,
     )
 
     private fun ShopDoc.toAdminDto(loginUsername: String = "") = AdminShopDto(
@@ -4561,6 +4617,7 @@ class AppStore(
         categoryId = categoryId,
         subCategoryId = subCategoryId,
         translations = translations,
+        brandTranslations = brandTranslations,
     )
 
     private fun ProductDto.toDoc() = ProductDoc(

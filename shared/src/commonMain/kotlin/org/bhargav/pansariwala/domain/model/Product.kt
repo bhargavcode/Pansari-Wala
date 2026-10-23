@@ -119,9 +119,13 @@ data class Product(
     val subCategoryId: String? = null,
     /** Name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
     val translations: Map<String, String> = emptyMap(),
+    /** [brandName] per language code; edited from the master console only. */
+    val brandTranslations: Map<String, String> = emptyMap(),
 ) {
     /** Name in [languageCode], falling back to Hindi [nameHi] and then English [name]. */
     fun displayName(languageCode: String?): String = localizedProductName(name, nameHi, translations, languageCode)
+
+    fun displayBrand(languageCode: String?): String = localizedText(brandName, brandTranslations, languageCode)
 
     /** Price after [offer] for one unit priced [base] (a variant price or [sellingPrice]). */
     fun salePrice(base: Double = sellingPrice): Double = offer?.unitPriceOn(base) ?: base
@@ -182,6 +186,12 @@ fun localizedProductName(name: String, nameHi: String, translations: Map<String,
     translations[lang]?.takeIf { it.isNotBlank() }?.let { return it }
     if (lang == HINDI_CODE && nameHi.isNotBlank()) return nameHi
     return name
+}
+
+/** [translations] entry for [languageCode], or English [text] when missing or blank. */
+fun localizedText(text: String, translations: Map<String, String>, languageCode: String?): String {
+    val lang = languageCode?.lowercase()?.substringBefore('-')?.substringBefore('_') ?: return text
+    return translations[lang]?.takeIf { it.isNotBlank() } ?: text
 }
 
 private const val HINDI_CODE = "hi"

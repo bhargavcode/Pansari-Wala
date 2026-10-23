@@ -245,6 +245,8 @@ data class CategoryDoc(
     @SerialName("_id") val id: String,
     val name: String,
     val parentId: String? = null,
+    /** [name] per language code (hi, kn, pa, mr, bn). */
+    val translations: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -306,6 +308,10 @@ data class MasterProductDoc(
     val variants: List<ProductVariantDoc> = emptyList(),
     /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
     val translations: Map<String, String> = emptyMap(),
+    /** Same per-language maps for [brandName], [companyName] and [description]. */
+    val brandTranslations: Map<String, String> = emptyMap(),
+    val companyTranslations: Map<String, String> = emptyMap(),
+    val descriptionTranslations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -338,6 +344,8 @@ data class ProductDoc(
     val subCategoryId: String? = null,
     /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
     val translations: Map<String, String> = emptyMap(),
+    /** [brandName] per language code. */
+    val brandTranslations: Map<String, String> = emptyMap(),
 )
 
 /** One row per product price change; [price] is the customer-facing starting price at [at]. */
@@ -553,6 +561,8 @@ data class DeviceTokenDoc(
     val updatedAt: Long,
     /** Per-install id from the app; one live token per device. */
     val deviceId: String? = null,
+    /** App language at registration; tray alert text is sent in it. */
+    val language: String = "en",
 )
 
 @Serializable

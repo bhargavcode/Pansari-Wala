@@ -2189,6 +2189,16 @@
     <string name="master_translations_hint">हर अंग्रेज़ी नाम के आगे %1$s नाम लिखें। अंग्रेज़ी नाम दिखाने के लिए खाली छोड़ दें।</string>
     <string name="master_translations_save">%1$d बदलाव सहेजें</string>
     <string name="master_translations_saved">%1$d अनुवाद सहेजे गए</string>
+    <string name="master_translate_action">अनुवाद करें</string>
+    <string name="master_translate_title">अनुवाद जोड़ें · %1$s</string>
+    <string name="master_translate_english">डिफ़ॉल्ट अंग्रेज़ी</string>
+    <string name="master_translate_language">अनुवाद की भाषा: %1$s</string>
+    <string name="master_translate_hint">उस भाषा में अंग्रेज़ी टेक्स्ट दिखाने के लिए फ़ील्ड खाली छोड़ें।</string>
+    <string name="master_translate_saved">%1$s अनुवाद सहेजा गया</string>
+    <string name="master_nav_messages">सर्वर संदेश</string>
+    <string name="master_messages_title">सर्वर संदेशों के अनुवाद</string>
+    <string name="master_messages_hint">सर्वर द्वारा ऐप्स को भेजे जाने वाले संदेशों का %1$s में अनुवाद करें। {0} और {1} जैसे प्लेसहोल्डर न बदलें।</string>
+    <string name="master_messages_column">अंग्रेज़ी संदेश</string>
     <string-array name="report_month_short">
         <item>जन</item>
         <item>फ़र</item>

@@ -503,6 +503,30 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             setBody(body)
         }.body()
 
+    suspend fun saveProductTranslation(token: String, productId: String, body: ProductFieldsTranslationBody): ProductDto =
+        client.post(url("/admin/master/products/${productId.encodeURLPathPart()}/translation")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun saveCategoryTranslation(token: String, categoryId: String, body: CategoryTranslationBody): CategoryDto =
+        client.post(url("/admin/master/categories/${categoryId.encodeURLPathPart()}/translation")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun serverMessages(token: String): List<ServerMessageDto> =
+        client.get(url("/admin/messages")) { bearer(token) }.body()
+
+    suspend fun saveServerMessageTranslations(token: String, body: ProductTranslationsBody): ProductTranslationsResultDto =
+        client.post(url("/admin/messages/translations")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
     suspend fun saveShopTranslations(token: String, shopId: String, body: ProductTranslationsBody): ProductTranslationsResultDto =
         client.post(url("/admin/shops/${shopId.encodeURLPathPart()}/products/translations")) {
             bearer(token)
@@ -726,7 +750,27 @@ data class ProductDto(
     val dimensions: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
     val translations: Map<String, String> = emptyMap(),
+    val brandTranslations: Map<String, String> = emptyMap(),
+    val companyTranslations: Map<String, String> = emptyMap(),
+    val descriptionTranslations: Map<String, String> = emptyMap(),
 )
+
+/** Every translatable field of one product in [language]; blank clears that field's translation. */
+@Serializable
+data class ProductFieldsTranslationBody(
+    val language: String,
+    val name: String,
+    val brandName: String,
+    val companyName: String,
+    val description: String,
+)
+
+@Serializable
+data class CategoryTranslationBody(val language: String, val name: String)
+
+/** [id] is the English text; `{0}`, `{1}` are runtime values the server fills in. */
+@Serializable
+data class ServerMessageDto(val id: String, val translations: Map<String, String> = emptyMap())
 
 @Serializable
 data class ProductUpsert(
@@ -761,7 +805,13 @@ data class UploadResultDto(
     val thumbnailUrl: String,
 )
 
-@Serializable data class CategoryDto(val id: String, val name: String, val parentId: String? = null)
+@Serializable
+data class CategoryDto(
+    val id: String,
+    val name: String,
+    val parentId: String? = null,
+    val translations: Map<String, String> = emptyMap(),
+)
 @Serializable data class CategoryUpsert(val id: String? = null, val name: String, val parentId: String? = null)
 @Serializable data class ShopTypeDto(val id: String, val name: String, val active: Boolean = true)
 @Serializable data class ShopTypeUpsert(val id: String? = null, val name: String, val active: Boolean = true)

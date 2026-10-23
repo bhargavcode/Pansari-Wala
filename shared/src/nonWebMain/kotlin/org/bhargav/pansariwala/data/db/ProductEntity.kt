@@ -47,6 +47,9 @@ data class ProductEntity(
     /** JSON object language code → product name. */
     @ColumnInfo(defaultValue = "")
     val translationsJson: String = "",
+    /** JSON object language code → brand name. */
+    @ColumnInfo(defaultValue = "")
+    val brandTranslationsJson: String = "",
 )
 
 /** Pull cursors and other small sync bookmarks. */

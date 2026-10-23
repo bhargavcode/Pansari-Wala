@@ -154,6 +154,9 @@ object AppConstants {
     /** Retired EC2 hosts; any base URL pointing here is replaced by [API_BASE_URL]. */
     val LEGACY_API_HOSTS: List<String> = listOf("35.172.232.196", "52.1.25.27")
     const val API_HEALTH_PATH: String = "health"
+
+    /** App language sent on every API call; the server answers names and messages in it. */
+    const val APP_LANGUAGE_HEADER: String = "X-App-Language"
     const val BRAND_TAGLINE: String = "Apka apna market"
     const val PLAY_STORE_USER_URL: String =
         "https://play.google.com/store/apps/details?id=org.bhargav.pansariwala.user"

@@ -2267,4 +2267,14 @@
     <string name="master_translations_hint">Type the %1$s name next to each English name. Leave it blank to show the English name.</string>
     <string name="master_translations_save">Save %1$d changes</string>
     <string name="master_translations_saved">Saved %1$d translations</string>
+    <string name="master_translate_action">Translate</string>
+    <string name="master_translate_title">Add translation · %1$s</string>
+    <string name="master_translate_english">Default English</string>
+    <string name="master_translate_language">Translating language: %1$s</string>
+    <string name="master_translate_hint">Leave a field empty to show the English text in that language.</string>
+    <string name="master_translate_saved">%1$s translation saved</string>
+    <string name="master_nav_messages">Server messages</string>
+    <string name="master_messages_title">Server message translations</string>
+    <string name="master_messages_hint">Translate messages the server sends to the apps in %1$s. Keep placeholders like {0} and {1} unchanged.</string>
+    <string name="master_messages_column">English message</string>
 </resources>

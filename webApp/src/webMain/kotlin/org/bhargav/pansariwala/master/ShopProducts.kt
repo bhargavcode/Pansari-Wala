@@ -339,7 +339,7 @@ private fun SummaryTile(label: String, value: Int, accent: Color, onClick: () ->
 }
 
 @Composable
-private fun WideDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+internal fun WideDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = appDialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             shape = MaterialTheme.shapes.large,

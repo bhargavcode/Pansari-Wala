@@ -543,6 +543,8 @@ data class ProductDto(
     val offer: ProductOfferDto? = null,
     /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
     val translations: Map<String, String> = emptyMap(),
+    /** [brandName] per language code; read-only (edited from the master console). */
+    val brandTranslations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -599,6 +601,24 @@ data class ProductTranslationItem(val id: String, val name: String)
 
 @Serializable
 data class ProductTranslationsResult(val updated: Int)
+
+/** Every translatable field of one product in [language]; blank fields clear that translation. */
+@Serializable
+data class ProductFieldsTranslationRequest(
+    val language: String,
+    val name: String = "",
+    val brandName: String = "",
+    val companyName: String = "",
+    val description: String = "",
+)
+
+/** One category name in [language]; blank clears it. */
+@Serializable
+data class CategoryTranslationRequest(val language: String, val name: String = "")
+
+/** [id] is the English text (with `{0}` placeholders); [translations] lang code → text. */
+@Serializable
+data class ServerMessageDto(val id: String, val translations: Map<String, String> = emptyMap())
 
 @Serializable
 data class ShopStockSummaryDto(
@@ -1048,7 +1068,12 @@ data class TxnDto(
 )
 
 @Serializable
-data class MasterCategoryDto(val id: String, val name: String, val parentId: String? = null)
+data class MasterCategoryDto(
+    val id: String,
+    val name: String,
+    val parentId: String? = null,
+    val translations: Map<String, String> = emptyMap(),
+)
 
 @Serializable
 data class MasterProductDto(
@@ -1078,6 +1103,9 @@ data class MasterProductDto(
     val variants: List<ProductVariantDto> = emptyList(),
     /** Product name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
     val translations: Map<String, String> = emptyMap(),
+    val brandTranslations: Map<String, String> = emptyMap(),
+    val companyTranslations: Map<String, String> = emptyMap(),
+    val descriptionTranslations: Map<String, String> = emptyMap(),
 )
 
 @Serializable

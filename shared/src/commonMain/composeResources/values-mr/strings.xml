@@ -2189,6 +2189,16 @@
     <string name="master_translations_hint">प्रत्येक इंग्रजी नावापुढे %1$s नाव लिहा. इंग्रजी नाव दाखवण्यासाठी रिकामे ठेवा.</string>
     <string name="master_translations_save">%1$d बदल जतन करा</string>
     <string name="master_translations_saved">%1$d भाषांतरे जतन केली</string>
+    <string name="master_translate_action">भाषांतर करा</string>
+    <string name="master_translate_title">भाषांतर जोडा · %1$s</string>
+    <string name="master_translate_english">डीफॉल्ट इंग्रजी</string>
+    <string name="master_translate_language">भाषांतराची भाषा: %1$s</string>
+    <string name="master_translate_hint">त्या भाषेत इंग्रजी मजकूर दाखवण्यासाठी फील्ड रिकामे ठेवा.</string>
+    <string name="master_translate_saved">%1$s भाषांतर जतन केले</string>
+    <string name="master_nav_messages">सर्व्हर संदेश</string>
+    <string name="master_messages_title">सर्व्हर संदेशांची भाषांतरे</string>
+    <string name="master_messages_hint">सर्व्हर ॲप्सना पाठवत असलेल्या संदेशांचे %1$s मध्ये भाषांतर करा. {0} आणि {1} सारखे प्लेसहोल्डर बदलू नका.</string>
+    <string name="master_messages_column">इंग्रजी संदेश</string>
     <string-array name="report_month_short">
         <item>जाने</item>
         <item>फेब्रु</item>

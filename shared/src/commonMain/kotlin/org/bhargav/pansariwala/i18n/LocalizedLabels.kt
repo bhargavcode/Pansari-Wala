@@ -28,6 +28,13 @@ val Product.localizedName: String
 val MasterProductDto.localizedName: String
     @Composable get() = displayName(LocalAppLocale.current)
 
+/** Brand in the current app language (falls back to English). */
+val Product.localizedBrand: String
+    @Composable get() = displayBrand(LocalAppLocale.current)
+
+val MasterProductDto.localizedBrand: String
+    @Composable get() = displayBrand(LocalAppLocale.current)
+
 /** Outside composition (ViewModels): the language chosen in settings, English while following the system. */
 val Product.appLanguageName: String
     get() = displayName(customAppLocale)

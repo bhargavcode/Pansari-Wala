@@ -29,6 +29,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.server.db.connectMongo
 import org.bhargav.pansariwala.server.dto.ApiErrorBody
+import org.bhargav.pansariwala.server.i18n.MessageCatalog
+import org.bhargav.pansariwala.server.i18n.RequestLanguage
 import org.bhargav.pansariwala.server.routing.apiRoutes
 import org.bhargav.pansariwala.server.security.Security
 import org.bhargav.pansariwala.server.service.AppStore
@@ -52,7 +54,8 @@ fun main() {
     Runtime.getRuntime().addShutdownHook(Thread { mongo.client.close() })
     val migrated = AssetKeyMigration(mongo.db, assetRefs).run()
     if (migrated > 0) println("Asset refs: normalized $migrated documents to storage keys")
-    val push = PushService(config, mongo)
+    val messages = MessageCatalog(mongo)
+    val push = PushService(config, mongo, messages)
     println(if (push.enabled) "Push: FCM HTTP v1 enabled" else "Push: disabled (set FCM_SERVICE_ACCOUNT_FILE or FCM_SERVICE_ACCOUNT_JSON)")
     val store = AppStore(config, security, mongo, storage, assetRefs, push)
     val support = SupportService(mongo, assetRefs, push)
@@ -71,13 +74,14 @@ fun main() {
             allowHeader(HttpHeaders.Authorization)
             allowHeader(HttpHeaders.ContentType)
             allowHeader(HttpHeaders.Accept)
+            allowHeader(RequestLanguage.HEADER)
             allowNonSimpleContentTypes = true
             anyHost()
             maxAgeInSeconds = 86_400
         }
         // Store uses the blocking Mongo driver; keep Netty's small call group free for I/O.
         intercept(ApplicationCallPipeline.Setup) {
-            withContext(Dispatchers.IO) { proceed() }
+            withContext(Dispatchers.IO + RequestLanguage.element(context.request.headers[RequestLanguage.HEADER])) { proceed() }
         }
         install(Compression) {
             gzip { priority = 1.0; minimumSize(1024) }
@@ -93,11 +97,11 @@ fun main() {
                 cause.retryAfterSec?.let { call.response.headers.append("Retry-After", it.toString()) }
                 call.respond(
                     HttpStatusCode.fromValue(cause.status),
-                    ApiErrorBody(cause.message ?: "OTP error", cause.code),
+                    ApiErrorBody(messages.localize(cause.message ?: "OTP error"), cause.code),
                 )
             }
             exception<io.ktor.server.plugins.BadRequestException> { call, cause ->
-                call.respond(HttpStatusCode.BadRequest, ApiErrorBody(cause.message ?: "Invalid request body"))
+                call.respond(HttpStatusCode.BadRequest, ApiErrorBody(messages.localize(cause.message ?: "Invalid request body")))
             }
             exception<IllegalStateException> { call, cause ->
                 val message = cause.message ?: "Bad request"
@@ -106,10 +110,10 @@ fun main() {
                     message.startsWith("Forbidden") -> HttpStatusCode.Forbidden
                     else -> HttpStatusCode.BadRequest
                 }
-                call.respond(status, ApiErrorBody(message))
+                call.respond(status, ApiErrorBody(messages.localize(message)))
             }
             exception<IllegalArgumentException> { call, cause ->
-                call.respond(HttpStatusCode.BadRequest, ApiErrorBody(cause.message ?: "Bad request"))
+                call.respond(HttpStatusCode.BadRequest, ApiErrorBody(messages.localize(cause.message ?: "Bad request")))
             }
             exception<Throwable> { call, cause ->
                 val message = cause.message ?: "Server error"
@@ -120,7 +124,7 @@ fun main() {
                     message.contains("Invalid credentials") -> HttpStatusCode.Unauthorized
                     else -> HttpStatusCode.InternalServerError
                 }
-                call.respond(status, ApiErrorBody(message))
+                call.respond(status, ApiErrorBody(messages.localize(message)))
             }
         }
         install(Authentication) {
@@ -131,12 +135,12 @@ fun main() {
                     else io.ktor.server.auth.jwt.JWTPrincipal(credential.payload)
                 }
                 challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, ApiErrorBody("Token missing or invalid"))
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorBody(messages.localize("Token missing or invalid")))
                 }
             }
         }
         routing {
-            apiRoutes(config, store, push, support, credit)
+            apiRoutes(config, store, push, support, credit, messages)
         }
         launch(Dispatchers.IO) {
             var lastAccountPurge = 0L

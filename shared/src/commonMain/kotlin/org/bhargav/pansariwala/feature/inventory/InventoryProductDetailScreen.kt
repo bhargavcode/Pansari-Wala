@@ -49,6 +49,7 @@ import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.i18n.localizedBrand
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.media.ProductImageCarousel
@@ -190,7 +191,7 @@ private fun ProductHeader(product: Product) {
             Text(product.nameHi, style = MaterialTheme.typography.titleMedium)
         }
         Text(
-            text = listOf(product.brandName, product.category.localizedName()).filter { it.isNotBlank() }
+            text = listOf(product.localizedBrand, product.category.localizedName()).filter { it.isNotBlank() }
                 .joinToString(" · "),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
@@ -349,7 +350,7 @@ private fun InfoCard(product: Product) {
             InfoRow(stringResource(Res.string.inv_label_product_id), product.id)
             InfoRow(stringResource(Res.string.inv_label_master_id), product.masterProductId ?: none)
             InfoRow(stringResource(Res.string.field_barcode), product.barcode ?: none)
-            InfoRow(stringResource(Res.string.inv_label_brand), product.brandName.ifBlank { none })
+            InfoRow(stringResource(Res.string.inv_label_brand), product.localizedBrand.ifBlank { none })
             InfoRow(stringResource(Res.string.field_category), product.category.localizedName())
             InfoRow(stringResource(Res.string.field_selling_price), product.sellingPrice.asMoney())
             InfoRow(stringResource(Res.string.field_cost_price), product.costPrice.asMoney())
