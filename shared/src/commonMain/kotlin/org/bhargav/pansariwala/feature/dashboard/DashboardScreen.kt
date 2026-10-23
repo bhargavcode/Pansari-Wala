@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.dashboard
 
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -123,6 +124,7 @@ import pansariwala.shared.generated.resources.stock_left
 fun DashboardScreen(
     onCreateOrder: () -> Unit,
     onEditOrder: (String) -> Unit,
+    onOpenOrder: (String) -> Unit = {},
     onAddOrUpdateInventory: () -> Unit,
     onShowLowStockList: () -> Unit,
     onShowFullInventory: () -> Unit,
@@ -211,6 +213,7 @@ fun DashboardScreen(
                         billing = billing,
                         onCreateOrder = onCreateOrder,
                         onEditOrder = onEditOrder,
+                        onOpenOrder = onOpenOrder,
                         onOpenOrdersWorkspace = onOpenOrdersWorkspace,
                         onOpenOnlineOrders = onOpenOnlineOrders,
                         onOpenReports = onOpenReports,
@@ -285,6 +288,7 @@ private fun PosHomeTab(
     billing: ShopBillingDto?,
     onCreateOrder: () -> Unit,
     onEditOrder: (String) -> Unit,
+    onOpenOrder: (String) -> Unit = {},
     onOpenOrdersWorkspace: () -> Unit,
     onOpenOnlineOrders: () -> Unit,
     onOpenReports: () -> Unit,
@@ -319,6 +323,7 @@ private fun PosHomeTab(
                             access = access,
                             onCreateOrder = onCreateOrder,
                             onEditOrder = onEditOrder,
+                            onOpenOrder = onOpenOrder,
                             onOpenOrdersWorkspace = onOpenOrdersWorkspace,
                             onOpenOnlineOrders = onOpenOnlineOrders,
                             onOpenReports = onOpenReports,
@@ -452,6 +457,7 @@ private fun OrdersCard(
     access: ShopAccess,
     onCreateOrder: () -> Unit,
     onEditOrder: (String) -> Unit,
+    onOpenOrder: (String) -> Unit = {},
     onOpenOrdersWorkspace: () -> Unit,
     onOpenOnlineOrders: () -> Unit,
     onOpenReports: () -> Unit,
@@ -514,6 +520,7 @@ private fun OrdersCard(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .clickable { onOpenOrder(order.id) }
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),

@@ -219,6 +219,7 @@ fun AppNavGraph(
                         DashboardScreen(
                             onCreateOrder = { push(AppRoute.OrderEditor()) },
                             onEditOrder = { orderId -> push(AppRoute.OrderEditor(orderId = orderId)) },
+                            onOpenOrder = { orderId -> push(AppRoute.OrdersWorkspace(orderId)) },
                             onAddOrUpdateInventory = { push(AppRoute.AddEditInventory()) },
                             onShowLowStockList = { push(AppRoute.InventoryList(lowStockOnly = true)) },
                             onShowFullInventory = { push(AppRoute.InventoryList(lowStockOnly = false)) },
