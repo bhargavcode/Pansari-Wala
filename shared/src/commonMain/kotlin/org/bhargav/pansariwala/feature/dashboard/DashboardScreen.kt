@@ -301,15 +301,12 @@ private fun PosHomeTab(
                 stickyHeader {
                     Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
                         DashboardHeader(data, onOpenPrinter = onOpenPrinter, access = access)
-                        if (widthClass != WindowWidthClass.Compact && access.can(ShopPermission.VIEW_REPORTS)) {
-                            SalesCard(data)
-                        }
                     }
                 }
                 item(key = "subscription_warning") { SubscriptionRenewBanner(billing, onOpenSubscription) }
 
-                if (widthClass == WindowWidthClass.Compact && access.can(ShopPermission.VIEW_REPORTS)) {
-                    item { SalesCard(data) }
+                if (access.can(ShopPermission.VIEW_REPORTS)) {
+                    item(key = "sales_card") { SalesCard(data) }
                 }
 
                 val showOrders = access.can(ShopPermission.BILLING) ||
