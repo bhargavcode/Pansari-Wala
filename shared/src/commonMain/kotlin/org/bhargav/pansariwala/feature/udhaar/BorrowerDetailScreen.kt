@@ -28,6 +28,10 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.ui.platform.LocalUriHandler
+import pansariwala.shared.generated.resources.udhaar_remind_action
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -109,6 +113,7 @@ import pansariwala.shared.generated.resources.udhaar_total_repaid
 import pansariwala.shared.generated.resources.udhaar_txn_mode
 import pansariwala.shared.generated.resources.udhaar_txn_payment
 import pansariwala.shared.generated.resources.udhaar_txn_processed_by
+import pansariwala.shared.generated.resources.udhaar_txn_partial
 import pansariwala.shared.generated.resources.udhaar_txn_purchase
 import pansariwala.shared.generated.resources.udhaar_txn_received_by
 import pansariwala.shared.generated.resources.udhaar_txn_status_failed
@@ -224,13 +229,25 @@ fun BorrowerDetailScreen(
                         onContainer = MaterialTheme.colorScheme.onTertiaryContainer,
                     )
                 }
-                Button(
-                    onClick = viewModel::openRepay,
-                    enabled = b.outstanding > 0.0,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                ) {
-                    Icon(Icons.Default.Payments, null, Modifier.padding(end = 8.dp))
-                    Text(stringResource(Res.string.udhaar_repayment), style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FilledTonalButton(
+                        onClick = viewModel::openPayRequest,
+                        enabled = b.outstanding > 0.0,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) {
+                        Icon(Icons.Default.NotificationsActive, null, Modifier.padding(end = 8.dp))
+                        Text(stringResource(Res.string.udhaar_remind_action), style = MaterialTheme.typography.titleSmall)
+                    }
+                    Button(
+                        onClick = viewModel::openRepay,
+                        enabled = b.outstanding > 0.0,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) {
+                        Icon(Icons.Default.Payments, null, Modifier.padding(end = 8.dp))
+                        Text(stringResource(Res.string.udhaar_repayment), style = MaterialTheme.typography.titleSmall)
+                    }
                 }
             }
             item(key = "tabs") {
@@ -309,6 +326,22 @@ fun BorrowerDetailScreen(
         }
     }
 
+    val uriHandler = LocalUriHandler.current
+    LaunchedEffect(state.shareUri) {
+        val uri = state.shareUri ?: return@LaunchedEffect
+        runCatching { uriHandler.openUri(uri) }
+        viewModel.consumeShareUri()
+    }
+    state.payRequest?.let { form ->
+        PayRequestSheet(
+            form = form,
+            borrowerName = borrower?.name?.ifBlank { null } ?: borrower?.phone.orEmpty(),
+            due = borrower?.outstanding ?: 0.0,
+            onChange = viewModel::updatePayRequest,
+            onSend = viewModel::sendPayRequest,
+            onDismiss = viewModel::closePayRequest,
+        )
+    }
     state.repay?.let { form ->
         RepayDialog(
             form = form,
@@ -470,7 +503,22 @@ fun CreditOrderBlock(txn: CreditTxnDto) {
                 Text(item.lineTotal.asMoney(), style = MaterialTheme.typography.bodySmall)
             }
         }
+        creditSplitLabel(txn)?.let {
+            Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        }
     }
+}
+
+/** "Bill ₹500 · Paid ₹300 (Cash)" for udhaar bills partly paid at the counter. */
+@Composable
+private fun creditSplitLabel(txn: CreditTxnDto): String? {
+    if (txn.type != AppConstants.Udhaar.TYPE_CREDIT || txn.paidNow <= 0.0) return null
+    return stringResource(
+        Res.string.udhaar_txn_partial,
+        txn.billTotal.asMoney(),
+        txn.paidNow.asMoney(),
+        stringResource(paymentMethodLabelRes(txn.paidNowMethod ?: AppConstants.PosPayment.CASH)),
+    )
 }
 
 @Composable
@@ -546,6 +594,7 @@ private fun CreditTxnRow(txn: CreditTxnDto, showItems: Boolean) {
             }
         }
         val meta = buildList {
+            creditSplitLabel(txn)?.let(::add)
             if (!isCredit && txn.paymentMode.isNotBlank()) {
                 add(stringResource(Res.string.udhaar_txn_mode, stringResource(paymentMethodLabelRes(txn.paymentMode))))
             }

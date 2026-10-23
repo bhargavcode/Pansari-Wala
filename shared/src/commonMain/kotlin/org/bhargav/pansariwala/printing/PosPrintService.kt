@@ -40,6 +40,8 @@ import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.getString
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.pos_payment_split
+import org.bhargav.pansariwala.util.asMoney
 import pansariwala.shared.generated.resources.anonymous_customer
 import pansariwala.shared.generated.resources.print_address
 import pansariwala.shared.generated.resources.print_amount
@@ -166,7 +168,7 @@ class PosPrintService(
                     billToName = customerName(order.customerName),
                     billToAddress = order.deliveryAddress,
                     billToPhone = order.customerPhone,
-                    paymentMode = paymentLabel(order.paymentMethod),
+                    paymentMode = paymentLabel(order),
                 ),
                 settings,
                 labels(),
@@ -265,7 +267,7 @@ class PosPrintService(
             total = totalValue,
             subtotal = subtotal,
             discount = (subtotal - totalValue).coerceAtLeast(0.0),
-            paymentMode = paymentLabel(paymentMethod),
+            paymentMode = paymentLabel(this),
             customerName = customerName(customerName),
         )
     }
@@ -287,8 +289,18 @@ class PosPrintService(
         }
     }
 
-    private suspend fun paymentLabel(method: String): String? =
-        method.takeIf { it.isNotBlank() }?.let { getString(paymentMethodLabelRes(it)) }
+    private suspend fun paymentLabel(order: Order): String? {
+        val method = order.paymentMethod.takeIf { it.isNotBlank() } ?: return null
+        val label = getString(paymentMethodLabelRes(method))
+        if (!order.isPartialUdhaar) return label
+        return getString(
+            Res.string.pos_payment_split,
+            getString(paymentMethodLabelRes(order.paidNowMethod ?: AppConstants.PosPayment.CASH)),
+            order.paidNow.asMoney(),
+            label,
+            order.udhaarAmount.asMoney(),
+        )
+    }
 
     private suspend fun channelName(channel: OrderChannel): String = when (channel) {
         OrderChannel.POS -> getString(Res.string.print_channel_pos)

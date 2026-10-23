@@ -912,6 +912,9 @@ data class OrderDto(
     val paymentIntentId: String? = null,
     val paymentUtr: String? = null,
     val gatewayOrderId: String? = null,
+    /** UDHAAR bills: amount paid at the counter (CASH/UPI); only the rest is credit. */
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
 )
 
 @Serializable
@@ -1073,6 +1076,8 @@ data class MasterCategoryDto(
     val name: String,
     val parentId: String? = null,
     val translations: Map<String, String> = emptyMap(),
+    /** Root category's shop types; empty = every shop type. */
+    val shopTypeIds: List<String> = emptyList(),
 )
 
 @Serializable
@@ -1142,6 +1147,8 @@ data class MasterCategoryUpsert(
     val id: String? = null,
     val name: String,
     val parentId: String? = null,
+    /** Null keeps the stored shop types. */
+    val shopTypeIds: List<String>? = null,
 )
 
 @Serializable

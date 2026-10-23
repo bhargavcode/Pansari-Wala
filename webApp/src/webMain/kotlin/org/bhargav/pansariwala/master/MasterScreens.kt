@@ -159,6 +159,16 @@ import pansariwala.shared.generated.resources.master_shop_location
 import pansariwala.shared.generated.resources.master_shop_name
 import pansariwala.shared.generated.resources.master_shop_rating
 import pansariwala.shared.generated.resources.master_shop_type
+import pansariwala.shared.generated.resources.master_all
+import pansariwala.shared.generated.resources.master_none
+import pansariwala.shared.generated.resources.master_category_shop_types
+import pansariwala.shared.generated.resources.master_category_all_shop_types
+import pansariwala.shared.generated.resources.master_parent_category_label
+import pansariwala.shared.generated.resources.master_top_level
+import org.bhargav.pansariwala.designsystem.SearchableDropdown
+import org.bhargav.pansariwala.designsystem.DropdownOption
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import pansariwala.shared.generated.resources.master_shops_list
 import pansariwala.shared.generated.resources.master_sku
 import pansariwala.shared.generated.resources.master_status
@@ -546,10 +556,10 @@ private fun FeatureToggle(label: String, checked: Boolean, onToggle: () -> Unit)
     FeatureToggleRow(label, checked, onToggle)
 }
 
-private const val MASTER_PAGE_SIZE = 25
-private const val MASTER_SEARCH_DEBOUNCE_MS = 350L
+internal const val MASTER_PAGE_SIZE = 25
+internal const val MASTER_SEARCH_DEBOUNCE_MS = 350L
 
-private suspend fun uploadMasterProductImage(api: MasterApi, token: String): String =
+internal suspend fun uploadMasterProductImage(api: MasterApi, token: String): String =
     uploadMasterImage(api, token, AppConstants.S3Prefix.MASTER_PRODUCT_IMAGES)
 
 /** Returns null when the user dismisses the picker. */
@@ -585,200 +595,6 @@ private suspend fun uploadPicked(api: MasterApi, token: String, prefix: String, 
 }
 
 @Composable
-internal fun ProductsListScreen(token: String, onNavigate: (MasterDest) -> Unit, onStatus: (String) -> Unit) {
-    val api = remember { MasterApi() }
-    val scope = rememberCoroutineScope()
-    var pageData by remember { mutableStateOf(ProductPageDto()) }
-    var page by rememberSaveable { mutableStateOf(0) }
-    var query by rememberSaveable { mutableStateOf("") }
-    var reload by remember { mutableStateOf(0) }
-    var sheet by remember { mutableStateOf<SheetImportUiState?>(null) }
-    var sheetFile by remember { mutableStateOf<WebPickedFile?>(null) }
-    var translating by remember { mutableStateOf<ProductDto?>(null) }
-    val products = pageData.items
-    fun refresh() { reload++ }
-    translating?.let { p ->
-        TranslationDialog(
-            title = p.name,
-            fields = listOf(
-                TranslatableField(Res.string.master_product_name, p.name, p.translations),
-                TranslatableField(Res.string.master_brand, p.brandName, p.brandTranslations),
-                TranslatableField(Res.string.master_company, p.companyName, p.companyTranslations),
-                TranslatableField(Res.string.master_description, p.description, p.descriptionTranslations),
-            ),
-            onSave = { lang, v ->
-                api.saveProductTranslation(token, p.id, ProductFieldsTranslationBody(lang, v[0], v[1], v[2], v[3]))
-                refresh()
-            },
-            onStatus = onStatus,
-            onDismiss = { translating = null },
-        )
-    }
-    LaunchedEffect(token, query, page, reload) {
-        if (query.isNotBlank()) delay(MASTER_SEARCH_DEBOUNCE_MS)
-        runCatching { pageData = api.productPage(token, query.trim(), null, page, MASTER_PAGE_SIZE) }
-            .onFailure { onStatus(it.message.orEmpty()) }
-    }
-    val pageCount = ((pageData.totalCount + MASTER_PAGE_SIZE - 1) / MASTER_PAGE_SIZE).coerceAtLeast(1)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        MasterTopBar(stringResource(Res.string.master_products_title))
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MasterStatCard(title = stringResource(Res.string.master_card_products), value = "${pageData.totalCount}")
-                AddProductPromoCard(onClick = { onNavigate(MasterDest.ProductEdit(null)) })
-                OutlinedButton(onClick = { sheet = SheetImportUiState() }) {
-                    Text(stringResource(Res.string.sheet_import_action))
-                }
-                OutlinedButton(onClick = { onNavigate(MasterDest.ProductTranslations()) }) {
-                    Text(stringResource(Res.string.master_translations_action))
-                }
-            }
-            sheet?.let { current ->
-                val uriHandler = LocalUriHandler.current
-                fun busy(block: suspend () -> Unit) {
-                    scope.launch {
-                        sheet = sheet?.copy(busy = true, error = null)
-                        runCatching { block() }
-                            .onSuccess { sheet = sheet?.copy(busy = false) }
-                            .onFailure { e -> sheet = sheet?.copy(busy = false, error = UiText.Plain(e.message.orEmpty())) }
-                    }
-                }
-                fun upload(dryRun: Boolean) {
-                    val file = sheetFile ?: return
-                    sheet = sheet?.copy(fileName = file.name)
-                    busy {
-                        val report = api.importProducts(token, file.name, file.bytes, dryRun)
-                        sheet = sheet?.copy(report = report)
-                        if (!report.dryRun) refresh()
-                    }
-                }
-                ProductSheetImportDialog(
-                    state = current,
-                    onDownloadSample = { uriHandler.openUri(api.productTemplateUrl) },
-                    onExport = { busy { uriHandler.openUri(api.productsExportUrl(token)) } },
-                    onPickFile = {
-                        scope.launch {
-                            sheetFile = pickWebFile(AppConstants.ProductSheet.PICKER_EXTENSIONS, AppConstants.ProductSheet.MIME_XLSX)
-                                ?: return@launch
-                            upload(dryRun = true)
-                        }
-                    },
-                    onApply = { upload(dryRun = false) },
-                    onDismiss = {
-                        sheet = null
-                        sheetFile = null
-                    },
-                )
-            }
-            OutlinedTextField(
-                query,
-                {
-                    query = it
-                    page = 0
-                },
-                label = { Text(stringResource(Res.string.master_search)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MasterSectionCard {
-                ResponsiveTable(columns = 12) {
-                    TableHeader(
-                        stringResource(Res.string.master_image_column),
-                        stringResource(Res.string.master_product_id),
-                        stringResource(Res.string.master_product_name),
-                        stringResource(Res.string.master_variants_count),
-                        stringResource(Res.string.master_brand),
-                        stringResource(Res.string.master_company),
-                        stringResource(Res.string.master_sale_price),
-                        stringResource(Res.string.master_cost),
-                        stringResource(Res.string.master_category),
-                        stringResource(Res.string.master_status),
-                        stringResource(Res.string.master_added_date),
-                        stringResource(Res.string.master_actions),
-                    )
-                    products.forEach { p ->
-                        TableRow(onClick = { onNavigate(MasterDest.ProductEdit(p.id)) }) {
-                            Cell {
-                                ImageThumb(
-                                    p.imageUrls.firstOrNull() ?: p.imageUrl ?: p.variants.firstNotNullOfOrNull { it.imageUrls.firstOrNull() },
-                                    Modifier.size(48.dp),
-                                )
-                            }
-                            CellText(p.id)
-                            CellText(p.name)
-                            CellText(if (p.variants.isEmpty()) "—" else "${p.variants.size}")
-                            CellText(p.brandName.ifBlank { "—" })
-                            CellText(p.companyName.ifBlank { "—" })
-                            CellText(formatInr(p.salePrice))
-                            CellText(formatInr(p.cost))
-                            CellText(p.categoryId)
-                            Cell { OnOffToggle(p.active) {
-                                scope.launch {
-                                    runCatching {
-                                        api.saveProduct(
-                                            token,
-                                            ProductUpsert(
-                                                id = p.id,
-                                                name = p.name,
-                                                nameHi = p.nameHi,
-                                                categoryId = p.categoryId,
-                                                unit = p.unit,
-                                                barcode = p.barcode,
-                                                imageUrl = p.imageUrl,
-                                                thumbnailUrl = p.thumbnailUrl,
-                                                imageUrls = p.imageUrls,
-                                                brandName = p.brandName,
-                                                companyName = p.companyName,
-                                                subcategoryId = p.subcategoryId,
-                                                salePrice = p.salePrice,
-                                                cost = p.cost,
-                                                active = !p.active,
-                                                description = p.description,
-                                                sku = p.sku,
-                                                stockQty = p.stockQty,
-                                                lowStockThreshold = p.lowStockThreshold,
-                                                tags = p.tags,
-                                                weightKg = p.weightKg,
-                                                dimensions = p.dimensions,
-                                                variants = p.variants,
-                                            ),
-                                        )
-                                    }.onSuccess { refresh() }.onFailure { onStatus(it.message.orEmpty()) }
-                                }
-                            } }
-                            CellText(formatEpochDate(p.addedAtEpochMs))
-                            FlowRow(Modifier.weight(1f)) {
-                                TextButton(onClick = { onNavigate(MasterDest.ProductEdit(p.id)) }) {
-                                    Text(stringResource(Res.string.action_edit))
-                                }
-                                TextButton(onClick = { translating = p }) {
-                                    Text(stringResource(Res.string.master_translate_action))
-                                }
-                                TextButton(onClick = {
-                                    scope.launch {
-                                        runCatching { api.deleteProduct(token, p.id) }
-                                            .onSuccess { refresh() }
-                                            .onFailure { onStatus(it.message.orEmpty()) }
-                                    }
-                                }) { Text(stringResource(Res.string.master_delete)) }
-                            }
-                        }
-                    }
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { page-- }, enabled = page > 0) {
-                    Text(stringResource(Res.string.action_previous))
-                }
-                Text(stringResource(Res.string.master_page_info, page + 1, pageCount, pageData.totalCount))
-                OutlinedButton(onClick = { page++ }, enabled = pageData.hasMore) {
-                    Text(stringResource(Res.string.action_next))
-                }
-            }
-        }
-    }
-}
-
-@Composable
 internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (MasterDest) -> Unit, onStatus: (String) -> Unit) {
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
@@ -803,6 +619,11 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     var variants by remember { mutableStateOf<List<ProductVariantDto>>(emptyList()) }
     var loadedId by remember { mutableStateOf<String?>(null) }
     var uploading by remember { mutableStateOf(false) }
+    var taxonomy by remember { mutableStateOf(MasterCatalogTaxonomy()) }
+    var editShopTypeId by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(token) {
+        runCatching { taxonomy = loadTaxonomy(api, token) }.onFailure { onStatus(it.message.orEmpty()) }
+    }
     val saleVal = sale.toDoubleOrNull() ?: 0.0
     val effective = saleVal
     LaunchedEffect(productId) {
@@ -874,8 +695,36 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                         Text("${stringResource(Res.string.master_effective_price)}: ${formatInr(effective)}", style = MaterialTheme.typography.bodyMedium)
                     }
                     Column(Modifier.widthIn(min = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(categoryId, { categoryId = it }, label = { Text(stringResource(Res.string.master_category)) }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(subcategoryId, { subcategoryId = it }, label = { Text(stringResource(Res.string.master_subcategory)) }, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(Res.string.master_category), fontWeight = FontWeight.SemiBold)
+                        SearchableDropdown(
+                            label = stringResource(Res.string.master_shop_type),
+                            options = taxonomy.shopTypeOptions(),
+                            selectedId = editShopTypeId,
+                            onSelect = { editShopTypeId = it },
+                            allLabel = stringResource(Res.string.master_all),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        SearchableDropdown(
+                            label = stringResource(Res.string.master_category),
+                            options = taxonomy.categoryOptions(editShopTypeId),
+                            selectedId = categoryId,
+                            onSelect = {
+                                categoryId = it.orEmpty()
+                                subcategoryId = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        val subOptions = taxonomy.subcategoryOptions(categoryId.ifBlank { null })
+                        if (subOptions.isNotEmpty()) {
+                            SearchableDropdown(
+                                label = stringResource(Res.string.master_subcategory),
+                                options = subOptions,
+                                selectedId = subcategoryId.ifBlank { null },
+                                onSelect = { subcategoryId = it.orEmpty() },
+                                allLabel = stringResource(Res.string.master_none),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                         OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(Res.string.master_tags)) }, modifier = Modifier.fillMaxWidth())
                         VariantListEditor(
                             variants = variants,
@@ -1418,6 +1267,7 @@ internal fun PlatformScreen(token: String, onStatus: (String) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
     val api = remember { MasterApi() }
@@ -1428,12 +1278,27 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
     var parentId by rememberSaveable { mutableStateOf("") }
     var typeName by rememberSaveable { mutableStateOf("") }
     var translatingCategory by remember { mutableStateOf<CategoryDto?>(null) }
+    var editingCatId by rememberSaveable { mutableStateOf<String?>(null) }
+    var catShopTypes by remember { mutableStateOf<Set<String>>(emptySet()) }
     fun refresh() {
         scope.launch {
             runCatching {
                 categories = api.categories(token)
                 shopTypes = api.shopTypes(token)
             }.onFailure { onStatus(it.message.orEmpty()) }
+        }
+    }
+    fun resetCategoryForm() {
+        editingCatId = null
+        catName = ""
+        parentId = ""
+        catShopTypes = emptySet()
+    }
+    fun deleteCategory(id: String) {
+        scope.launch {
+            runCatching { api.deleteCategory(token, id) }
+                .onSuccess { refresh() }
+                .onFailure { onStatus(it.message.orEmpty()) }
         }
     }
     translatingCategory?.let { c ->
@@ -1465,29 +1330,106 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
                 fontWeight = FontWeight.SemiBold,
             )
             MasterSectionCard(title = stringResource(Res.string.master_tab_categories)) {
-                Text(stringResource(Res.string.master_new_category), fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(catName, { catName = it }, label = { Text(stringResource(Res.string.field_name)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(parentId, { parentId = it }, label = { Text(stringResource(Res.string.master_parent_category)) }, modifier = Modifier.fillMaxWidth())
-                Button(onClick = {
-                    scope.launch {
-                        runCatching { api.saveCategory(token, CategoryUpsert(name = catName, parentId = parentId.ifBlank { null })) }
-                            .onSuccess { catName = ""; parentId = ""; refresh() }
-                            .onFailure { onStatus(it.message.orEmpty()) }
-                    }
-                }) { Text(stringResource(Res.string.master_save)) }
-                categories.forEach { c ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${c.name} [${c.id}] parent=${c.parentId.orEmpty()}", modifier = Modifier.weight(1f))
-                        TextButton(onClick = { translatingCategory = c }) {
-                            Text(stringResource(Res.string.master_translate_action))
+                Text(
+                    stringResource(if (editingCatId == null) Res.string.master_new_category else Res.string.action_edit),
+                    fontWeight = FontWeight.SemiBold,
+                )
+                OutlinedTextField(
+                    catName,
+                    { catName = it },
+                    label = { Text(stringResource(Res.string.field_name)) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SearchableDropdown(
+                    label = stringResource(Res.string.master_parent_category_label),
+                    options = categories.filter { it.parentId.isNullOrBlank() && it.id != editingCatId }
+                        .sortedBy { it.name.lowercase() }
+                        .map { DropdownOption(it.id, it.name) },
+                    selectedId = parentId.ifBlank { null },
+                    onSelect = { parentId = it.orEmpty() },
+                    allLabel = stringResource(Res.string.master_top_level),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (parentId.isBlank()) {
+                    Text(
+                        stringResource(Res.string.master_category_shop_types),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = catShopTypes.isEmpty(),
+                            onClick = { catShopTypes = emptySet() },
+                            label = { Text(stringResource(Res.string.master_category_all_shop_types)) },
+                        )
+                        shopTypes.filter { it.active }.forEach { t ->
+                            FilterChip(
+                                selected = t.id in catShopTypes,
+                                onClick = { catShopTypes = if (t.id in catShopTypes) catShopTypes - t.id else catShopTypes + t.id },
+                                label = { Text(t.name) },
+                            )
                         }
-                        TextButton(onClick = {
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = catName.isNotBlank(),
+                        shape = RoundedCornerShape(12.dp),
+                        onClick = {
                             scope.launch {
-                                runCatching { api.deleteCategory(token, c.id) }
-                                    .onSuccess { refresh() }
+                                runCatching {
+                                    api.saveCategory(
+                                        token,
+                                        CategoryUpsert(
+                                            id = editingCatId,
+                                            name = catName,
+                                            parentId = parentId.ifBlank { null },
+                                            shopTypeIds = catShopTypes.toList(),
+                                        ),
+                                    )
+                                }.onSuccess { resetCategoryForm(); refresh() }
                                     .onFailure { onStatus(it.message.orEmpty()) }
                             }
-                        }) { Text(stringResource(Res.string.master_delete)) }
+                        },
+                    ) { Text(stringResource(Res.string.master_save)) }
+                    if (editingCatId != null) {
+                        OutlinedButton(onClick = ::resetCategoryForm, shape = RoundedCornerShape(12.dp)) {
+                            Text(stringResource(Res.string.master_cancel))
+                        }
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                val shopTypeNames = shopTypes.associate { it.id to it.name }
+                categories.filter { it.parentId.isNullOrBlank() }.sortedBy { it.name.lowercase() }.forEach { root ->
+                    CategoryManageRow(
+                        category = root,
+                        shopTypeLabels = root.shopTypeIds.mapNotNull { shopTypeNames[it] },
+                        indent = false,
+                        onEdit = {
+                            editingCatId = root.id
+                            catName = root.name
+                            parentId = ""
+                            catShopTypes = root.shopTypeIds.toSet()
+                        },
+                        onTranslate = { translatingCategory = root },
+                        onDelete = { deleteCategory(root.id) },
+                    )
+                    categories.filter { it.parentId == root.id }.sortedBy { it.name.lowercase() }.forEach { child ->
+                        CategoryManageRow(
+                            category = child,
+                            shopTypeLabels = emptyList(),
+                            indent = true,
+                            onEdit = {
+                                editingCatId = child.id
+                                catName = child.name
+                                parentId = root.id
+                                catShopTypes = emptySet()
+                            },
+                            onTranslate = { translatingCategory = child },
+                            onDelete = { deleteCategory(child.id) },
+                        )
                     }
                 }
             }

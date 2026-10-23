@@ -236,7 +236,7 @@ fun MarketScreen(
     val cartShopId by cart.shopId.collectAsStateWithLifecycle()
     val cartShopName by cart.shopName.collectAsStateWithLifecycle()
     val cartRestored by cart.restored.collectAsStateWithLifecycle()
-    val sortedShopTypes = ShopType.entries.map { it to shopTypeLabel(it) }.sortedBy { it.second.lowercase() }
+    val sortedShopTypes = orderedShopTypes(state.recentShopTypes)
     var showResumeSheet by remember { mutableStateOf(false) }
     LaunchedEffect(cartRestored) {
         if (cartRestored && !cart.resumePromptShown && cart.lines.value.isNotEmpty() && cart.shopId.value != null) {
@@ -316,6 +316,7 @@ fun MarketScreen(
                 viewModel.hideFilterSheet()
             },
             onDismiss = viewModel::hideFilterSheet,
+            recent = state.recentShopTypes,
         )
     }
 

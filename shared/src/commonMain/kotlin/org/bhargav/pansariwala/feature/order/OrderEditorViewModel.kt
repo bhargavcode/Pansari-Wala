@@ -64,6 +64,8 @@ import pansariwala.shared.generated.resources.Res
 import org.bhargav.pansariwala.feature.user.displayName
 import org.bhargav.pansariwala.i18n.ANONYMOUS_CUSTOMER_KEY
 import org.bhargav.pansariwala.util.asQuantity
+import org.bhargav.pansariwala.util.asMoney
+import pansariwala.shared.generated.resources.error_udhaar_paid_too_much
 import pansariwala.shared.generated.resources.unbilled_sale_over_stock
 import pansariwala.shared.generated.resources.unbilled_sale_saved
 import pansariwala.shared.generated.resources.error_generic
@@ -136,6 +138,9 @@ data class OrderEditorUiState(
     val udhaarAddingNew: Boolean = false,
     val udhaarAddress: String = "",
     val udhaarPhotoPreview: ByteArray? = null,
+    /** Partial udhaar: amount the customer pays now; only the rest goes on credit. */
+    val udhaarPaidInput: String = "",
+    val udhaarPaidMethod: String = AppConstants.PosPayment.CASH,
     val pendingPrint: Boolean = false,
     val shopUpiId: String = "",
     val shopName: String = "",
@@ -174,6 +179,8 @@ data class OrderEditorUiState(
         get() = cart.groupBy { it.product.id }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
     val bill: BillTotals get() = computeBill(cart, offers, manualDiscountInput, manualDiscountPercent)
     val total: Double get() = bill.total
+    val udhaarPaidNow: Double get() = (udhaarPaidInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+    val udhaarCredit: Double get() = (total - udhaarPaidNow).coerceAtLeast(0.0)
     val itemCount: Int get() = cart.size
     val filteredCatalog: List<Product>
         get() {
@@ -392,6 +399,8 @@ class OrderEditorViewModel(
                         createdAtEpochMs = existing.createdAtEpochMs,
                         customerName = existing.customerName.orEmpty(),
                         udhaarPhone = existing.customerPhone.orEmpty(),
+                        udhaarPaidInput = if (existing.isPartialUdhaar) existing.paidNow.asMoneyInput() else "",
+                        udhaarPaidMethod = existing.paidNowMethod ?: AppConstants.PosPayment.CASH,
                         catalog = catalog,
                         cart = cart,
                         manualDiscountInput = if (existing.discount > 0.0) existing.discount.asMoneyInput() else "",
@@ -878,6 +887,14 @@ class OrderEditorViewModel(
 
     fun onUdhaarAddressChange(value: String) = _uiState.update { it.copy(udhaarAddress = value) }
 
+    fun onUdhaarPaidChange(value: String) {
+        val cleaned = value.filter { it.isDigit() || it == '.' }
+        if (cleaned.count { it == '.' } > 1) return
+        _uiState.update { it.copy(udhaarPaidInput = cleaned, error = null) }
+    }
+
+    fun onUdhaarPaidMethodChange(method: String) = _uiState.update { it.copy(udhaarPaidMethod = method) }
+
     fun takeBorrowerPhoto() {
         viewModelScope.launch {
             val picked = imagePicker.pickImageCatching(ImageSource.CAMERA).getOrElse { err ->
@@ -902,6 +919,10 @@ class OrderEditorViewModel(
         val state = _uiState.value
         if (state.udhaarPhone.length != AppConstants.PHONE_LOCAL_DIGITS) {
             _uiState.update { it.copy(error = UiText.res(Res.string.error_udhaar_phone)) }
+            return
+        }
+        if (state.udhaarPaidNow >= state.total) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_udhaar_paid_too_much, state.total.asMoney())) }
             return
         }
         if (state.udhaarAddingNew) {
@@ -949,6 +970,7 @@ class OrderEditorViewModel(
                 screen = "order_editor",
             ),
         )
+        val isUdhaar = paymentMethod == AppConstants.PosPayment.UDHAAR
         val order = Order(
             id = editingOrderId ?: generateId("order"),
             shopId = shopId,
@@ -957,8 +979,10 @@ class OrderEditorViewModel(
             customerName = state.customerName.trim().ifBlank { WALK_IN_CUSTOMER_KEY },
             channel = OrderChannel.POS,
             paymentMethod = paymentMethod,
-            customerPhone = state.udhaarPhone.takeIf { paymentMethod == AppConstants.PosPayment.UDHAAR },
+            customerPhone = state.udhaarPhone.takeIf { isUdhaar },
             discount = state.bill.discount,
+            paidNow = if (isUdhaar) state.udhaarPaidNow else 0.0,
+            paidNowMethod = state.udhaarPaidMethod.takeIf { isUdhaar && state.udhaarPaidNow > 0.0 },
             items = state.cart.map { line ->
                 OrderItem(
                     productId = line.product.id,

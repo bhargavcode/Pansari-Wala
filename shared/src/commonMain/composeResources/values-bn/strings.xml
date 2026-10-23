@@ -2213,4 +2213,39 @@
         <item>নভে</item>
         <item>ডিসে</item>
     </string-array>
+    <string name="dropdown_no_matches">কোনো মিল নেই</string>
+    <string name="dropdown_search_hint">খুঁজতে টাইপ করুন</string>
+    <string name="master_none">কোনোটি নয়</string>
+    <string name="master_category_shop_types">এই দোকানের ধরনগুলির জন্য দেখান</string>
+    <string name="master_category_all_shop_types">সব দোকানের ধরন</string>
+    <string name="master_parent_category_label">মূল বিভাগ</string>
+    <string name="master_top_level">কোনোটি নয় (মূল বিভাগ)</string>
+    <string name="master_products_subtitle">ক্যাটালগে %1$dটি পণ্য</string>
+    <string name="master_search_products">নাম, ব্র্যান্ড বা বারকোড দিয়ে খুঁজুন</string>
+    <string name="master_delete_product_title">পণ্য মুছবেন?</string>
+    <string name="master_delete_product_message">%1$s মাস্টার ক্যাটালগ থেকে সরানো হবে। এটি আর ফেরানো যাবে না।</string>
+    <string name="master_no_products">এই ফিল্টারে কোনো পণ্য নেই</string>
+    <string name="dashboard_item_count">%1$dটি আইটেম</string>
+    <string name="udhaar_remind_action">পেমেন্টের অনুরোধ করুন</string>
+    <string name="udhaar_remind_title">পেমেন্টের অনুরোধ</string>
+    <string name="udhaar_remind_subtitle">UPI পেমেন্ট লিঙ্কসহ %1$s-কে মনে করিয়ে দিন</string>
+    <string name="udhaar_remind_amount">ন্যূনতম পরিশোধের পরিমাণ</string>
+    <string name="udhaar_remind_full">সম্পূর্ণ বকেয়া</string>
+    <string name="udhaar_remind_half">অর্ধেক</string>
+    <string name="udhaar_remind_message">বার্তা</string>
+    <string name="udhaar_remind_tokens">প্লেসহোল্ডার: {name}, {amount}, {due}, {shop}, {link}</string>
+    <string name="udhaar_remind_reset">ডিফল্ট বার্তায় ফিরুন</string>
+    <string name="udhaar_remind_whatsapp">WhatsApp</string>
+    <string name="udhaar_remind_sms">SMS</string>
+    <string name="udhaar_remind_sent">রিমাইন্ডার পাঠাতে অ্যাপ খোলা হচ্ছে</string>
+    <string name="udhaar_remind_default_template">নমস্কার {name}, {shop}-এ আপনার বকেয়া {due}। অনুগ্রহ করে এই UPI লিঙ্কে অন্তত {amount} পরিশোধ করুন: {link}\nধন্যবাদ!</string>
+    <string name="error_udhaar_paid_too_much">এখন পরিশোধ বিলের মোট (%1$s) থেকে কম হতে হবে</string>
+    <string name="pos_udhaar_paid_now_title">কিছুটা এখন দিচ্ছেন?</string>
+    <string name="pos_udhaar_paid_now_hint">গ্রাহক এখন যা দিচ্ছেন তা লিখুন। শুধু বাকি অংশ বাকির খাতায় যোগ হবে।</string>
+    <string name="pos_udhaar_paid_now">এখন পরিশোধ (ঐচ্ছিক)</string>
+    <string name="pos_udhaar_paid_now_row">এখন পরিশোধ (%1$s)</string>
+    <string name="pos_udhaar_on_credit">বাকিতে</string>
+    <string name="pos_udhaar_split_summary">%1$s এখন পরিশোধ · %2$s বাকি</string>
+    <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
+    <string name="udhaar_txn_partial">বিল %1$s · পরিশোধ %2$s (%3$s)</string>
 </resources>

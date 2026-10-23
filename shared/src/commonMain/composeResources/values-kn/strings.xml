@@ -2213,4 +2213,39 @@
         <item>ನವೆಂ</item>
         <item>ಡಿಸೆಂ</item>
     </string-array>
+    <string name="dropdown_no_matches">ಯಾವುದೇ ಹೊಂದಾಣಿಕೆ ಇಲ್ಲ</string>
+    <string name="dropdown_search_hint">ಹುಡುಕಲು ಟೈಪ್ ಮಾಡಿ</string>
+    <string name="master_none">ಯಾವುದೂ ಇಲ್ಲ</string>
+    <string name="master_category_shop_types">ಈ ಅಂಗಡಿ ಪ್ರಕಾರಗಳಿಗೆ ತೋರಿಸಿ</string>
+    <string name="master_category_all_shop_types">ಎಲ್ಲಾ ಅಂಗಡಿ ಪ್ರಕಾರಗಳು</string>
+    <string name="master_parent_category_label">ಮುಖ್ಯ ವರ್ಗ</string>
+    <string name="master_top_level">ಯಾವುದೂ ಇಲ್ಲ (ಮುಖ್ಯ ವರ್ಗ)</string>
+    <string name="master_products_subtitle">ಕ್ಯಾಟಲಾಗ್‌ನಲ್ಲಿ %1$d ಉತ್ಪನ್ನಗಳು</string>
+    <string name="master_search_products">ಹೆಸರು, ಬ್ರ್ಯಾಂಡ್ ಅಥವಾ ಬಾರ್‌ಕೋಡ್ ಮೂಲಕ ಹುಡುಕಿ</string>
+    <string name="master_delete_product_title">ಉತ್ಪನ್ನ ಅಳಿಸಬೇಕೆ?</string>
+    <string name="master_delete_product_message">%1$s ಮಾಸ್ಟರ್ ಕ್ಯಾಟಲಾಗ್‌ನಿಂದ ತೆಗೆದುಹಾಕಲಾಗುತ್ತದೆ. ಇದನ್ನು ಹಿಂಪಡೆಯಲಾಗುವುದಿಲ್ಲ.</string>
+    <string name="master_no_products">ಈ ಫಿಲ್ಟರ್‌ಗಳಿಗೆ ಯಾವುದೇ ಉತ್ಪನ್ನವಿಲ್ಲ</string>
+    <string name="dashboard_item_count">%1$d ಐಟಂಗಳು</string>
+    <string name="udhaar_remind_action">ಪಾವತಿ ವಿನಂತಿಸಿ</string>
+    <string name="udhaar_remind_title">ಪಾವತಿ ವಿನಂತಿ</string>
+    <string name="udhaar_remind_subtitle">UPI ಪಾವತಿ ಲಿಂಕ್‌ನೊಂದಿಗೆ %1$s ಅವರಿಗೆ ಜ್ಞಾಪನೆ ಕಳುಹಿಸಿ</string>
+    <string name="udhaar_remind_amount">ಕನಿಷ್ಠ ಪಾವತಿ ಮೊತ್ತ</string>
+    <string name="udhaar_remind_full">ಪೂರ್ಣ ಬಾಕಿ</string>
+    <string name="udhaar_remind_half">ಅರ್ಧ</string>
+    <string name="udhaar_remind_message">ಸಂದೇಶ</string>
+    <string name="udhaar_remind_tokens">ಪ್ಲೇಸ್‌ಹೋಲ್ಡರ್‌ಗಳು: {name}, {amount}, {due}, {shop}, {link}</string>
+    <string name="udhaar_remind_reset">ಡೀಫಾಲ್ಟ್ ಸಂದೇಶಕ್ಕೆ ಮರುಹೊಂದಿಸಿ</string>
+    <string name="udhaar_remind_whatsapp">WhatsApp</string>
+    <string name="udhaar_remind_sms">SMS</string>
+    <string name="udhaar_remind_sent">ಜ್ಞಾಪನೆ ಕಳುಹಿಸಲು ಆ್ಯಪ್ ತೆರೆಯಲಾಗುತ್ತಿದೆ</string>
+    <string name="udhaar_remind_default_template">ನಮಸ್ತೆ {name}, {shop} ನಲ್ಲಿ ನಿಮ್ಮ ಬಾಕಿ {due}. ದಯವಿಟ್ಟು ಈ UPI ಲಿಂಕ್ ಬಳಸಿ ಕನಿಷ್ಠ {amount} ಪಾವತಿಸಿ: {link}\nಧನ್ಯವಾದಗಳು!</string>
+    <string name="error_udhaar_paid_too_much">ಈಗ ಪಾವತಿ ಬಿಲ್ ಒಟ್ಟು ಮೊತ್ತಕ್ಕಿಂತ (%1$s) ಕಡಿಮೆ ಇರಬೇಕು</string>
+    <string name="pos_udhaar_paid_now_title">ಈಗ ಸ್ವಲ್ಪ ಪಾವತಿಸುತ್ತಿದ್ದಾರೆಯೇ?</string>
+    <string name="pos_udhaar_paid_now_hint">ಗ್ರಾಹಕರು ಈಗ ಪಾವತಿಸುವ ಮೊತ್ತ ನಮೂದಿಸಿ. ಉಳಿದದ್ದು ಮಾತ್ರ ಸಾಲಕ್ಕೆ ಸೇರುತ್ತದೆ.</string>
+    <string name="pos_udhaar_paid_now">ಈಗ ಪಾವತಿ (ಐಚ್ಛಿಕ)</string>
+    <string name="pos_udhaar_paid_now_row">ಈಗ ಪಾವತಿ (%1$s)</string>
+    <string name="pos_udhaar_on_credit">ಸಾಲದಲ್ಲಿ</string>
+    <string name="pos_udhaar_split_summary">%1$s ಈಗ ಪಾವತಿ · %2$s ಸಾಲ</string>
+    <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
+    <string name="udhaar_txn_partial">ಬಿಲ್ %1$s · ಪಾವತಿ %2$s (%3$s)</string>
 </resources>

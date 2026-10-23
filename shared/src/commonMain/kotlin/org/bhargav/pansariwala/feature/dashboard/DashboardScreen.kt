@@ -3,6 +3,18 @@ package org.bhargav.pansariwala.feature.dashboard
 import org.bhargav.pansariwala.feature.order.SubscriptionRenewBanner
 import org.bhargav.pansariwala.feature.support.ReportIssueButton
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.CurrencyRupee
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import pansariwala.shared.generated.resources.dashboard_item_count
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,11 +27,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,7 +45,6 @@ import org.bhargav.pansariwala.analytics.AnalyticsEvent
 import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
-import org.bhargav.pansariwala.designsystem.StatTile
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.auth.AuthRepository
@@ -91,7 +100,6 @@ import pansariwala.shared.generated.resources.inventory_subtitle
 import pansariwala.shared.generated.resources.inventory_title
 import pansariwala.shared.generated.resources.low_stock_count
 import pansariwala.shared.generated.resources.no_orders_yet
-import pansariwala.shared.generated.resources.order_items_summary
 import pansariwala.shared.generated.resources.orders_workspace_title
 import pansariwala.shared.generated.resources.profile_title
 import pansariwala.shared.generated.resources.online_orders_title
@@ -297,53 +305,110 @@ fun DashboardHeader(
 ) {
     val showPrinter = access.can(ShopPermission.BILLING) || access.can(ShopPermission.PRINT_REPORTS) ||
         access.can(ShopPermission.SETTINGS)
-    val greeting = @Composable { modifier: Modifier ->
-        Column(modifier = modifier) {
-            val userName = state.userName.ifBlank {
-                stringResource(Res.string.shopkeeper_fallback)
-            }
+    val scheme = MaterialTheme.colorScheme
+    val userName = state.userName.ifBlank { stringResource(Res.string.shopkeeper_fallback) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(scheme.primary, scheme.tertiary)))
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).background(scheme.onPrimary.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                userName.take(1).uppercase(),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = scheme.onPrimary,
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = stringResource(Res.string.dashboard_greeting, userName),
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
+                color = scheme.onPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = stringResource(Res.string.dashboard_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onPrimary.copy(alpha = 0.85f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(scheme.surface.copy(alpha = 0.92f)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ReportIssueButton()
+            if (showPrinter) PrinterStatusButton(onClick = onOpenPrinter)
+        }
+    }
+}
+
+@Composable
+private fun SalesCard(state: DashboardData) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(Res.string.sales_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(Res.string.sales_subtitle),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        greeting(Modifier.weight(1f))
-        ReportIssueButton()
-        if (showPrinter) PrinterStatusButton(onClick = onOpenPrinter)
-    }
-}
-@Composable
-private fun SalesCard(state: DashboardData) {
-    SectionCard(
-        title = stringResource(Res.string.sales_title),
-        subtitle = stringResource(Res.string.sales_subtitle),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            StatTile(
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            GradientStat(
                 label = stringResource(Res.string.sales_orders),
                 value = state.todaySales.orderCount.toString(),
+                icon = Icons.AutoMirrored.Filled.ReceiptLong,
+                colors = listOf(Color(0xFF3F6FD8), Color(0xFF6B8DF0)),
                 modifier = Modifier.weight(1f),
             )
-            StatTile(
+            GradientStat(
                 label = stringResource(Res.string.sales_revenue),
                 value = state.todaySales.totalValue.asMoney(),
+                icon = Icons.Default.CurrencyRupee,
+                colors = listOf(Color(0xFF1B8A5A), Color(0xFF3DBE84)),
                 modifier = Modifier.weight(1f),
-                container = MaterialTheme.colorScheme.tertiaryContainer,
-                onContainer = MaterialTheme.colorScheme.onTertiaryContainer,
             )
         }
+    }
+}
+
+@Composable
+private fun GradientStat(label: String, value: String, icon: ImageVector, colors: List<Color>, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(colors))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+        }
+        Text(
+            value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.9f))
     }
 }
 
@@ -407,26 +472,39 @@ private fun OrdersCard(
             )
             return@SectionCard
         }
-        Column {
-            orders.forEachIndexed { index, order ->
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            orders.forEach { order ->
+                val name = localizeCustomerName(order.customerName)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Text(
-                            text = localizeCustomerName(order.customerName),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
+                            name.take(1).uppercase(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = stringResource(
-                                Res.string.order_items_summary,
-                                order.itemCount.toString(),
-                                order.totalValue.asMoney(),
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = name,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             text = formatPrintDateTime(order.createdAtEpochMs),
@@ -434,13 +512,25 @@ private fun OrdersCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = order.totalValue.asMoney(),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = stringResource(Res.string.dashboard_item_count, order.itemCount),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (canBill) {
-                        TextButton(onClick = { onEditOrder(order.id) }) {
-                            Text(stringResource(Res.string.action_edit))
+                        FilledTonalIconButton(onClick = { onEditOrder(order.id) }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.action_edit), modifier = Modifier.size(18.dp))
                         }
                     }
                 }
-                if (index < orders.lastIndex) HorizontalDivider()
             }
         }
     }

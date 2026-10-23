@@ -339,6 +339,27 @@ class AppPreferences(
 
     suspend fun getShopName(): String = store.getString(AppConstants.Prefs.SHOP_NAME).orEmpty()
 
+    /** Shopkeeper's own udhaar reminder text; blank = the app's default template. */
+    suspend fun getUdhaarReminderTemplate(): String = store.getString(AppConstants.Prefs.UDHAAR_REMINDER_TEMPLATE).orEmpty()
+
+    suspend fun setUdhaarReminderTemplate(template: String) {
+        store.putStrings(mapOf(AppConstants.Prefs.UDHAAR_REMINDER_TEMPLATE to template))
+    }
+
+    /** Shop types the customer picked, most recent first (LIFO). */
+    suspend fun getRecentShopTypes(): List<ShopType> =
+        store.getString(AppConstants.Prefs.RECENT_SHOP_TYPES).orEmpty().split(',')
+            .filter { it.isNotBlank() }
+            .map(ShopType::fromApi)
+            .distinct()
+
+    suspend fun pushRecentShopTypes(picked: List<ShopType>): List<ShopType> {
+        if (picked.isEmpty()) return getRecentShopTypes()
+        val updated = (picked.reversed() + getRecentShopTypes()).distinct().take(AppConstants.RECENT_CATEGORIES_MAX)
+        store.putStrings(mapOf(AppConstants.Prefs.RECENT_SHOP_TYPES to updated.joinToString(",") { it.apiValue }))
+        return updated
+    }
+
     suspend fun setShopPaymentInfo(shopName: String, upiId: String) {
         store.putStrings(
             mapOf(

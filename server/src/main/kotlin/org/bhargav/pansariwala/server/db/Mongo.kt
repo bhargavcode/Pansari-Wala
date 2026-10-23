@@ -104,6 +104,19 @@ data class ShopHoursDayDoc(
     val closed: Boolean = false,
 )
 
+/** Short https link (`/pay/{id}`) that opens [upiUri]; shared with borrowers over WhatsApp / SMS. */
+@Serializable
+data class PayLinkDoc(
+    @SerialName("_id") val id: String,
+    val shopId: String,
+    val phone: String,
+    val upiUri: String,
+    val amount: Double,
+    val payeeName: String,
+    val createdAt: Long,
+    val expiresAt: Long,
+)
+
 @Serializable
 data class ShopDoc(
     @SerialName("_id") val id: String,
@@ -247,6 +260,8 @@ data class CategoryDoc(
     val parentId: String? = null,
     /** [name] per language code (hi, kn, pa, mr, bn). */
     val translations: Map<String, String> = emptyMap(),
+    /** Shop types this root category belongs to; empty = every shop type. Subcategories inherit the parent's. */
+    val shopTypeIds: List<String> = emptyList(),
 )
 
 /**
@@ -452,6 +467,9 @@ data class OrderDoc(
     val ownPartnerVehicle: String? = null,
     /** POS bill discount in INR. */
     val discount: Double = 0.0,
+    /** UDHAAR bills: amount paid at the counter (CASH/UPI); only the rest is credit. */
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
     /** Server write time for POS bills; cursor for device pull sync. */
     val syncedAt: Long = 0L,
 )
@@ -1046,8 +1064,8 @@ private fun seed(db: MongoDatabase, security: Security, config: ServerConfig) {
     ensureMasterAdmin(db, security, config)
     db.getCollection<CategoryDoc>("master_categories").insertMany(
         listOf(
-            CategoryDoc("cat_grocery", "General Grocery"),
-            CategoryDoc("cat_spices", "Spices"),
+            CategoryDoc("cat_grocery", "General Grocery", shopTypeIds = listOf("GROCERY", "SUPERMARKET", "GENERAL_STORE")),
+            CategoryDoc("cat_spices", "Spices", shopTypeIds = listOf("GROCERY", "SUPERMARKET", "GENERAL_STORE", "ORGANIC")),
             CategoryDoc("cat_grocery_oil", "Oils", "cat_grocery"),
             CategoryDoc("cat_spices_std", "Standard Spices", "cat_spices"),
         ),

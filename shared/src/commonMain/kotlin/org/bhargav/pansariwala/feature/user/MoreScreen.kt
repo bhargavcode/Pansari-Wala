@@ -262,6 +262,7 @@ fun MoreScreen(
                 showFilter = false
             },
             onDismiss = { showFilter = false },
+            recent = state.recentShopTypes,
         )
     }
     if (showDeleteInfo) {

@@ -319,6 +319,8 @@ private fun Order.toEntity(syncRevision: Long = 1L) = OrderEntity(
     pendingSync = 1,
     syncRevision = syncRevision,
     customerPhone = customerPhone,
+    paidNow = paidNow,
+    paidNowMethod = paidNowMethod,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -354,6 +356,8 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
     paymentMethod = paymentMethod,
     customerPhone = customerPhone,
     discount = discount,
+    paidNow = paidNow,
+    paidNowMethod = paidNowMethod,
     items = items.map {
         OrderItem(
             productId = it.productId,

@@ -264,10 +264,14 @@ class KtorPansariApi(
         categoryId: String?,
         page: Int,
         pageSize: Int,
+        shopTypeId: String?,
+        subcategoryId: String?,
     ): MasterProductPageDto =
         client.get("master/products/page") {
             if (query.isNotBlank()) parameter("q", query.trim())
             categoryId?.let { parameter("categoryId", it) }
+            shopTypeId?.let { parameter("shopTypeId", it) }
+            subcategoryId?.let { parameter("subcategoryId", it) }
             parameter("page", page)
             parameter("pageSize", pageSize)
         }.body()
@@ -503,6 +507,9 @@ class KtorPansariApi(
 
     override suspend fun recordRepayment(phone: String, body: RepaymentRequest): CreditTxnDto =
         client.post("shop/borrowers/$phone/repayments") { setBody(body) }.body()
+
+    override suspend fun createPayLink(phone: String, amount: Double): PayLinkDto =
+        client.post("shop/borrowers/$phone/pay-link") { setBody(PayLinkRequest(amount)) }.body()
 
     override suspend fun myCredit(): MyCreditSummaryDto = client.get("me/credit").body()
 

@@ -17,6 +17,10 @@ object AppConstants {
     const val CATALOG_PAGE_SIZE: Int = 10
     /** Catalog section key for products without a master category; must match the server. */
     const val UNCATEGORIZED_CATEGORY_ID: String = "uncategorized"
+    /** Master catalog waits this long for the shop's own type before listing every type. */
+    const val SHOP_TYPE_LOOKUP_TIMEOUT_MS: Long = 4_000L
+    /** Recently picked shop types kept for LIFO ordering on the user app. */
+    const val RECENT_CATEGORIES_MAX: Int = 20
     const val LIST_PAGE_SIZE: Int = 20
     /** Server-side page size for order lists (server caps at 20). */
     const val ORDER_PAGE_SIZE: Int = 20
@@ -279,6 +283,8 @@ object AppConstants {
         const val NOTIFY_DELIVERY: String = "pref_notify_delivery"
         const val SHOP_UPI_ID: String = "pref_shop_upi_id"
         const val SHOP_NAME: String = "pref_shop_name"
+        const val UDHAAR_REMINDER_TEMPLATE: String = "pref_udhaar_reminder_template"
+        const val RECENT_SHOP_TYPES: String = "pref_recent_shop_types"
         const val SHOP_STAFF_ROLE: String = "pref_shop_staff_role"
         const val SHOP_PERMISSIONS: String = "pref_shop_permissions"
         const val SHOP_FEATURES: String = "pref_shop_features"
@@ -396,6 +402,12 @@ object AppConstants {
         const val SORT_CREDIT: String = "CREDIT"
         const val TYPE_CREDIT: String = "CREDIT"
         const val TYPE_REPAYMENT: String = "REPAYMENT"
+        /** Placeholders in the payment reminder template; kept verbatim in every translation. */
+        const val TOKEN_NAME: String = "{name}"
+        const val TOKEN_AMOUNT: String = "{amount}"
+        const val TOKEN_DUE: String = "{due}"
+        const val TOKEN_SHOP: String = "{shop}"
+        const val TOKEN_LINK: String = "{link}"
         const val STATUS_SUCCESS: String = "SUCCESS"
         const val STATUS_PENDING: String = "PENDING"
         const val STATUS_FAILED: String = "FAILED"
@@ -460,8 +472,12 @@ object AppConstants {
         const val REQUEST_TIMEOUT_MS: Long = 30_000L
         const val CONNECT_TIMEOUT_MS: Long = 10_000L
         const val SESSION_CHECK_INTERVAL_MS: Long = 60_000L
-        const val SIDEBAR_WIDTH_DP: Int = 220
+        const val SIDEBAR_WIDTH_DP: Int = 248
         const val COMPACT_BREAKPOINT_DP: Int = 840
+        const val THEME_MODE_KEY: String = "master_theme_mode"
+        const val CUSTOM_THEME_KEY: String = "master_custom_theme"
+        const val CONTENT_PADDING_DP: Int = 24
+        const val CARD_RADIUS_DP: Int = 16
     }
 
     /** Trailing characters of an order id shown as `#ABCD1234`. */

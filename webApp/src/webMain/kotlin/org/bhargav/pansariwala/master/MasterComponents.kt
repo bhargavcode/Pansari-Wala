@@ -1,8 +1,25 @@
 package org.bhargav.pansariwala.master
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -57,38 +74,63 @@ fun MasterStatCard(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    MasterCard(
         modifier = modifier
-            .widthIn(min = 160.dp)
+            .widthIn(min = 180.dp)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                title.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
             if (actionLabel != null && onAction != null) {
-                TextButton(onClick = onAction) { Text(actionLabel) }
+                TextButton(onClick = onAction, contentPadding = PaddingValues(0.dp)) { Text(actionLabel) }
             }
         }
     }
+}
+
+/** Flat bordered surface every master card is built on. */
+@Composable
+fun MasterCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(AppConstants.MasterWeb.CARD_RADIUS_DP.dp)
+    Card(
+        modifier = modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        content = content,
+    )
 }
 
 @Composable
 fun MasterSectionCard(
     title: String? = null,
     modifier: Modifier = Modifier,
+    trailing: @Composable (RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = {
-            if (title != null) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
+    MasterCard(modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = {
+            if (title != null || trailing != null) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        title.orEmpty(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    trailing?.invoke(this)
+                }
             }
             content()
         })
@@ -97,36 +139,38 @@ fun MasterSectionCard(
 
 @Composable
 fun StatusChip(active: Boolean) {
-    val bg = if (active) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer
-    val fg = if (active) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer
-    Surface(color = bg, shape = RoundedCornerShape(50), modifier = Modifier.clip(RoundedCornerShape(50))) {
+    val color = (if (active) MasterAction.ACTIVATE else MasterAction.DELETE).color()
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(color))
         Text(
-            text = if (active) stringResource(Res.string.master_active).uppercase() else stringResource(Res.string.master_inactive),
-            color = fg,
+            text = stringResource(if (active) Res.string.master_active else Res.string.master_inactive),
+            color = color,
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
 @Composable
 fun OnOffToggle(active: Boolean, onToggle: () -> Unit) {
-    val bg = if (active) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
-    val fg = if (active) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onError
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(bg)
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Switch(
+            checked = active,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = MasterAction.ACTIVATE.color(),
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
+            ),
+        )
         Text(
-            if (active) stringResource(Res.string.master_on) else stringResource(Res.string.master_off),
-            color = fg,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
+            stringResource(if (active) Res.string.master_on else Res.string.master_off),
+            color = (if (active) MasterAction.ACTIVATE else MasterAction.NEUTRAL).color(),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -188,16 +232,18 @@ fun TableHeader(vararg labels: String) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         labels.forEach {
             Text(
-                it,
+                it.uppercase(),
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -211,27 +257,38 @@ fun TableRow(
     onClick: (() -> Unit)? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
-                else Modifier,
-            )
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val bg = when {
+        selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        hovered && onClick != null -> MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+        else -> Color.Transparent
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .background(bg)
+                .hoverable(interaction)
+                .then(if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick) else Modifier)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    }
 }
 
 @Composable
-fun RowScope.CellText(text: String, weight: Float = 1f) {
+fun RowScope.CellText(text: String, weight: Float = 1f, emphasis: Boolean = false) {
     Text(
         text,
         modifier = Modifier.weight(weight),
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = if (emphasis) FontWeight.SemiBold else FontWeight.Normal,
+        color = if (emphasis) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )
@@ -239,22 +296,41 @@ fun RowScope.CellText(text: String, weight: Float = 1f) {
 
 @Composable
 fun PageHeaderBar(title: String, trailing: @Composable (() -> Unit)? = null) {
-    Surface(color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
+    MasterHeaderSurface {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().padding(horizontal = AppConstants.MasterWeb.CONTENT_PADDING_DP.dp, vertical = 18.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             trailing?.invoke()
+            MasterThemeMenu(tint = LocalContentColor.current)
         }
+    }
+}
+
+/** Brand gradient band behind every page title. */
+@Composable
+fun MasterHeaderSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.surface.luminance() < 0.5f
+    val start = if (dark) scheme.primaryContainer else scheme.primary
+    val end = if (dark) scheme.tertiaryContainer else scheme.tertiary
+    Box(
+        modifier
+            .fillMaxWidth()
+            .background(Brush.linearGradient(listOf(start, end))),
+    ) {
+        CompositionLocalProvider(
+            LocalContentColor provides if (dark) scheme.onPrimaryContainer else scheme.onPrimary,
+        ) { content() }
     }
 }
 
 @Composable
 fun LabelValue(label: String, value: String) {
-    Column(Modifier.padding(vertical = 2.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
+    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
     }
 }

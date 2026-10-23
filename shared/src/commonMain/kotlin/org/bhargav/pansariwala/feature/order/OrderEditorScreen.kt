@@ -153,6 +153,13 @@ import pansariwala.shared.generated.resources.pos_udhaar_not_found
 import pansariwala.shared.generated.resources.pos_udhaar_add_new
 import pansariwala.shared.generated.resources.pos_udhaar_current_due
 import pansariwala.shared.generated.resources.pos_udhaar_this_bill
+import pansariwala.shared.generated.resources.currency_symbol
+import pansariwala.shared.generated.resources.pos_udhaar_on_credit
+import pansariwala.shared.generated.resources.pos_udhaar_paid_now
+import pansariwala.shared.generated.resources.pos_udhaar_paid_now_hint
+import pansariwala.shared.generated.resources.pos_udhaar_paid_now_row
+import pansariwala.shared.generated.resources.pos_udhaar_paid_now_title
+import pansariwala.shared.generated.resources.pos_udhaar_split_summary
 import pansariwala.shared.generated.resources.pos_udhaar_new_due
 import pansariwala.shared.generated.resources.pos_udhaar_confirm_question
 import pansariwala.shared.generated.resources.pos_udhaar_photo
@@ -963,6 +970,7 @@ private fun ColumnScope.UdhaarContent(state: OrderEditorUiState, viewModel: Orde
         state.udhaarAddingNew -> UdhaarNewBorrowerStep(state, viewModel)
         else -> UdhaarSearchStep(state, viewModel)
     }
+    if (selected != null || state.udhaarAddingNew) UdhaarPaidNowSection(state, viewModel)
     state.error?.let { error ->
         Text(error.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth())
     }
@@ -976,7 +984,7 @@ private fun ColumnScope.UdhaarContent(state: OrderEditorUiState, viewModel: Orde
                 enabled = state.udhaarPhone.length == AppConstants.PHONE_LOCAL_DIGITS,
                 modifier = Modifier.weight(1f),
             ) {
-                Text(stringResource(Res.string.pos_udhaar_confirm, state.total.asMoney()))
+                Text(stringResource(Res.string.pos_udhaar_confirm, state.udhaarCredit.asMoney()))
             }
         }
     }
@@ -1080,9 +1088,19 @@ private fun UdhaarConfirmStep(borrower: BorrowerDto, state: OrderEditorUiState) 
             HorizontalDivider()
             UdhaarAmountRow(stringResource(Res.string.pos_udhaar_current_due), borrower.outstanding.asMoney())
             UdhaarAmountRow(stringResource(Res.string.pos_udhaar_this_bill), state.total.asMoney())
+            if (state.udhaarPaidNow > 0.0) {
+                UdhaarAmountRow(
+                    stringResource(
+                        Res.string.pos_udhaar_paid_now_row,
+                        stringResource(paymentMethodLabelRes(state.udhaarPaidMethod)),
+                    ),
+                    "− ${state.udhaarPaidNow.asMoney()}",
+                )
+                UdhaarAmountRow(stringResource(Res.string.pos_udhaar_on_credit), state.udhaarCredit.asMoney())
+            }
             UdhaarAmountRow(
                 stringResource(Res.string.pos_udhaar_new_due),
-                (borrower.outstanding + state.total).asMoney(),
+                (borrower.outstanding + state.udhaarCredit).asMoney(),
                 emphasize = true,
             )
         }
@@ -1093,6 +1111,54 @@ private fun UdhaarConfirmStep(borrower: BorrowerDto, state: OrderEditorUiState) 
         modifier = Modifier.fillMaxWidth(),
     )
 }
+
+@Composable
+private fun UdhaarPaidNowSection(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(Res.string.pos_udhaar_paid_now_title), style = MaterialTheme.typography.titleSmall)
+            Text(
+                stringResource(Res.string.pos_udhaar_paid_now_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = state.udhaarPaidInput,
+                onValueChange = viewModel::onUdhaarPaidChange,
+                label = { Text(stringResource(Res.string.pos_udhaar_paid_now)) },
+                prefix = { Text(stringResource(Res.string.currency_symbol)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (state.udhaarPaidNow > 0.0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    udhaarPaidMethods.forEach { method ->
+                        FilterChip(
+                            selected = state.udhaarPaidMethod == method,
+                            onClick = { viewModel.onUdhaarPaidMethodChange(method) },
+                            label = { Text(stringResource(paymentMethodLabelRes(method))) },
+                            leadingIcon = {
+                                Icon(
+                                    posPaymentOptions.first { it.first == method }.second,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                        )
+                    }
+                }
+                Text(
+                    stringResource(Res.string.pos_udhaar_split_summary, state.udhaarPaidNow.asMoney(), state.udhaarCredit.asMoney()),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+private val udhaarPaidMethods = listOf(AppConstants.PosPayment.CASH, AppConstants.PosPayment.UPI)
 
 @Composable
 private fun UdhaarAmountRow(label: String, value: String, emphasize: Boolean = false) {

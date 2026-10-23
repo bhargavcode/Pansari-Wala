@@ -39,6 +39,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -141,39 +142,41 @@ fun LoginBackground(modifier: Modifier = Modifier) {
 
 @Composable
 fun MasterTopBar(title: String, modifier: Modifier = Modifier, subtitle: String? = null) {
-    Surface(color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, modifier = modifier) {
+    MasterHeaderSurface(modifier) {
+        val content = LocalContentColor.current
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = AppConstants.MasterWeb.CONTENT_PADDING_DP.dp, vertical = 18.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 if (subtitle != null) {
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
+                    Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = content.copy(alpha = 0.8f))
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                MasterThemeMenu(tint = content)
                 Box {
                     IconButton(onClick = {}) {
-                        Icon(Icons.Default.Notifications, contentDescription = stringResource(Res.string.master_notifications))
+                        Icon(Icons.Default.Notifications, contentDescription = stringResource(Res.string.master_notifications), tint = content)
                     }
                     Box(
                         Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 8.dp, end = 8.dp)
+                            .padding(top = 10.dp, end = 10.dp)
                             .size(8.dp)
                             .background(MaterialTheme.colorScheme.error, CircleShape),
                     )
                 }
                 Box(
                     Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
+                        .background(content.copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Default.Person, contentDescription = stringResource(Res.string.master_profile), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Icon(Icons.Default.Person, contentDescription = stringResource(Res.string.master_profile), tint = content)
                 }
             }
         }
@@ -198,10 +201,8 @@ fun DashboardTopCards(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Card(
+        MasterCard(
             modifier = Modifier.width(280.dp).clickable(onClick = onOpenShops),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-            elevation = CardDefaults.cardElevation(3.dp),
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -224,10 +225,8 @@ fun DashboardTopCards(
             onClick = onOpenTransactions,
             modifier = Modifier.width(280.dp),
         )
-        Card(
+        MasterCard(
             modifier = Modifier.width(220.dp).clickable(onClick = onOpenUsers),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-            elevation = CardDefaults.cardElevation(3.dp),
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(Res.string.master_card_users), style = MaterialTheme.typography.titleSmall)
@@ -255,10 +254,8 @@ fun DateFilterSummaryCard(
         AppConstants.DateFilter.YEARLY to Res.string.master_filter_yearly,
         AppConstants.DateFilter.CUSTOM to Res.string.master_filter_custom,
     )
-    Card(
+    MasterCard(
         modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        elevation = CardDefaults.cardElevation(3.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -291,11 +288,17 @@ fun AddProductPromoCard(
 ) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
-        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(AppConstants.MasterWeb.CARD_RADIUS_DP.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+        elevation = CardDefaults.cardElevation(0.dp),
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.onPrimary)
+            }
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
     }

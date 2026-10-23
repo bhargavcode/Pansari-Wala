@@ -327,7 +327,7 @@ private fun OrderDetailsPane(
             Text(
                 stringResource(
                     Res.string.order_payment_label,
-                    stringResource(paymentMethodLabelRes(order.paymentMethod)),
+                    orderPaymentLabel(order),
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

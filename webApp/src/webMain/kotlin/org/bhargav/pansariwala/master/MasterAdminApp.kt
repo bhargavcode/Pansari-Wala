@@ -9,6 +9,17 @@ import pansariwala.shared.generated.resources.master_nav_issues
 import pansariwala.shared.generated.resources.master_nav_messages
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import org.bhargav.pansariwala.settings.ThemeMode
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -146,7 +158,14 @@ fun MasterAdminApp() {
         }
         onDispose { MasterSession.onExpired = null }
     }
-    PansariTheme {
+    val themeState = rememberMasterThemeState()
+    val dark = when (themeState.mode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    CompositionLocalProvider(LocalMasterTheme provides themeState) {
+    PansariTheme(darkTheme = dark, customTheme = themeState.accent) {
         if (token.isNullOrBlank()) {
             MasterLoginScreen(
                 sessionExpired = sessionExpired,
@@ -170,6 +189,7 @@ fun MasterAdminApp() {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -187,17 +207,19 @@ private fun MasterLoginScreen(sessionExpired: Boolean, onLoggedIn: (String, Bool
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         LoginBackground(Modifier.fillMaxSize())
+        Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) { MasterThemeMenu() }
         Card(
             modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(24.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         ) {
             Column(
-                Modifier.padding(28.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                Modifier.padding(32.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                BrandMark(size = 56)
                 Text(
                     stringResource(Res.string.master_admin_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -334,20 +356,29 @@ private fun MasterShell(token: String, onLogout: () -> Unit) {
                 Column(Modifier.fillMaxSize()) {
                     if (compact) {
                         Row(
-                            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(8.dp),
+                            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLowest).padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             IconButton(onClick = { drawerOpen = !drawerOpen }) {
                                 Icon(Icons.Default.Menu, contentDescription = stringResource(Res.string.master_menu))
                             }
-                            Text(stringResource(Res.string.master_console_title), style = MaterialTheme.typography.titleMedium)
+                            BrandMark(size = 32)
+                            Text(
+                                stringResource(Res.string.master_console_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f),
+                            )
+                            MasterThemeMenu()
                         }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                         if (drawerOpen) {
                             MasterSidebar(
                                 current = dest,
                                 onNavigate = ::go,
                                 onLogout = onLogout,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp),
                             )
                         }
                     }
@@ -388,15 +419,21 @@ private fun MasterSidebar(
         Triple(MasterDest.ServerMessages, Icons.Default.Translate, Res.string.master_nav_messages),
         Triple(MasterDest.Settings, Icons.Default.Settings, Res.string.master_nav_settings),
     )
-    Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLowest) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                "P",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(12.dp),
-            )
+    Row(modifier) {
+    Surface(modifier = Modifier.weight(1f).fillMaxHeight(), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(
+                Modifier.padding(start = 4.dp, top = 4.dp, bottom = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BrandMark(size = 40)
+                Text(
+                    stringResource(Res.string.master_console_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
             items.forEach { (target, icon, label) ->
                 val selected = when (current) {
                     is MasterDest.ShopDetail, is MasterDest.ShopEdit, is MasterDest.ShopProducts, MasterDest.ShopCreate ->
@@ -408,30 +445,77 @@ private fun MasterSidebar(
                     is MasterDest.PartnerDetail -> target == MasterDest.Partners
                     else -> current == target
                 }
-                NavItem(stringResource(label), icon, selected) { onNavigate(target) }
+                NavItem(stringResource(label), icon, selected, onClick = { onNavigate(target) })
             }
-            Spacer(Modifier.height(16.dp))
-            NavItem(stringResource(Res.string.master_nav_logout), Icons.AutoMirrored.Filled.Logout, false, onLogout)
-            TextButton(onClick = ::navigateToLanding) { Text(stringResource(Res.string.master_back_to_site)) }
+            HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            NavItem(stringResource(Res.string.master_back_to_site), Icons.Default.Public, false, ::navigateToLanding)
+            NavItem(
+                stringResource(Res.string.master_nav_logout),
+                Icons.AutoMirrored.Filled.Logout,
+                false,
+                onLogout,
+                tint = MaterialTheme.colorScheme.error,
+            )
         }
+    }
+    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     }
 }
 
 @Composable
-private fun NavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
-    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLowest
+private fun BrandMark(size: Int) {
+    Box(
+        Modifier
+            .size(size.dp)
+            .clip(RoundedCornerShape((size / 4).dp))
+            .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Default.Storefront,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size((size * 0.55f).dp),
+        )
+    }
+}
+
+@Composable
+private fun NavItem(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val primary = MaterialTheme.colorScheme.primary
+    val bg = when {
+        selected -> primary.copy(alpha = 0.12f)
+        hovered -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+        else -> Color.Transparent
+    }
+    val fg = if (selected) primary else tint
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .height(44.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .hoverable(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+        Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) primary else if (tint == MaterialTheme.colorScheme.onSurfaceVariant) MaterialTheme.colorScheme.onSurface else tint,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+        )
     }
 }
 

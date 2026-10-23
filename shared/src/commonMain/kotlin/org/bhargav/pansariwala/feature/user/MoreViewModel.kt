@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.user
 
+import org.bhargav.pansariwala.domain.model.ShopType
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -71,6 +72,7 @@ data class MoreUiState(
     val error: UiText? = null,
     val spend: SpendSummary,
     val filter: ShopFilter = ShopFilter(AppConstants.DEFAULT_SEARCH_RADIUS_KM),
+    val recentShopTypes: List<ShopType> = emptyList(),
     val minRadiusKm: Double = AppConstants.MIN_SEARCH_RADIUS_KM,
     val photoUploading: Boolean = false,
     val photoPreview: ByteArray? = null,
@@ -99,7 +101,12 @@ class MoreViewModel(
         viewModelScope.launch {
             preferences.getCachedCustomerProfile()?.let { cached -> _state.update { it.copy(profile = cached) } }
         }
-        viewModelScope.launch { preferences.observeShopFilter().collect { f -> _state.update { it.copy(filter = f) } } }
+        viewModelScope.launch {
+            preferences.observeShopFilter().collect { f ->
+                val recent = preferences.getRecentShopTypes()
+                _state.update { it.copy(filter = f, recentShopTypes = recent) }
+            }
+        }
         viewModelScope.launch {
             val min = api.minSearchRadiusKm()
             _state.update { it.copy(minRadiusKm = min) }
@@ -224,7 +231,11 @@ class MoreViewModel(
     }
 
     fun applyFilter(filter: ShopFilter) {
-        viewModelScope.launch { preferences.setShopFilter(filter) }
+        val picked = (filter.shopTypes - _state.value.filter.shopTypes).toList()
+        viewModelScope.launch {
+            preferences.pushRecentShopTypes(picked)
+            preferences.setShopFilter(filter)
+        }
     }
 
     // ---------- change phone ----------

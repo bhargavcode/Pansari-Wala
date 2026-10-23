@@ -127,11 +127,15 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         categoryId: String?,
         page: Int,
         pageSize: Int,
+        shopTypeId: String? = null,
+        subcategoryId: String? = null,
     ): ProductPageDto =
         client.get(url("/master/products/page")) {
             bearer(token)
             parameter("q", query)
             categoryId?.takeIf { it.isNotBlank() }?.let { parameter("categoryId", it) }
+            shopTypeId?.takeIf { it.isNotBlank() }?.let { parameter("shopTypeId", it) }
+            subcategoryId?.takeIf { it.isNotBlank() }?.let { parameter("subcategoryId", it) }
             parameter("page", page)
             parameter("pageSize", pageSize)
         }.body()
@@ -811,8 +815,14 @@ data class CategoryDto(
     val name: String,
     val parentId: String? = null,
     val translations: Map<String, String> = emptyMap(),
+    val shopTypeIds: List<String> = emptyList(),
 )
-@Serializable data class CategoryUpsert(val id: String? = null, val name: String, val parentId: String? = null)
+@Serializable data class CategoryUpsert(
+    val id: String? = null,
+    val name: String,
+    val parentId: String? = null,
+    val shopTypeIds: List<String>? = null,
+)
 @Serializable data class ShopTypeDto(val id: String, val name: String, val active: Boolean = true)
 @Serializable data class ShopTypeUpsert(val id: String? = null, val name: String, val active: Boolean = true)
 @Serializable private data class PasswordChangeBody(val currentPassword: String, val newPassword: String)

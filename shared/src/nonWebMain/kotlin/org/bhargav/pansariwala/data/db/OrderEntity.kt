@@ -33,6 +33,10 @@ data class OrderEntity(
     val syncRevision: Long = 1,
     /** Required for UDHAAR bills: the borrower is identified by this number. */
     val customerPhone: String? = null,
+    /** UDHAAR bills: part paid at the counter; only the rest is credit. */
+    @ColumnInfo(defaultValue = "0")
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
 )
 
 @Entity(

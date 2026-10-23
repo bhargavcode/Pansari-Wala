@@ -52,4 +52,8 @@ data class CreditTxnDoc(
     /** A PENDING app repayment fails after this (0 = never). */
     val expiresAt: Long = 0L,
     val failureReason: String = "",
+    /** POS CREDIT rows: full bill, and the part paid at the counter ([amount] is the rest). */
+    val billTotal: Double = 0.0,
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
 )

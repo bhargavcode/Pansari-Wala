@@ -67,7 +67,14 @@ interface PansariApi {
     suspend fun shopProductDetail(shopId: String, productId: String): org.bhargav.pansariwala.domain.model.ProductDetail
     suspend fun masterCategories(): List<MasterCategoryDto>
     /** Platform master catalog; [query] matches name, Hindi name, brand or exact barcode. */
-    suspend fun masterProductPage(query: String, categoryId: String?, page: Int, pageSize: Int): MasterProductPageDto
+    suspend fun masterProductPage(
+        query: String,
+        categoryId: String?,
+        page: Int,
+        pageSize: Int,
+        shopTypeId: String? = null,
+        subcategoryId: String? = null,
+    ): MasterProductPageDto
     suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview>
     suspend fun shopOffers(shopId: String): List<ShopOffer>
     suspend fun quote(request: QuoteRequest): QuoteDto
@@ -140,6 +147,8 @@ interface PansariApi {
     suspend fun borrowerDetail(phone: String, type: String? = null, page: Int? = null, size: Int? = null): BorrowerDetailDto
     suspend fun updateBorrower(phone: String, body: BorrowerUpdateRequest): BorrowerDto
     suspend fun recordRepayment(phone: String, body: RepaymentRequest): CreditTxnDto
+    /** Short https link that opens a UPI payment of [amount] to this shop. */
+    suspend fun createPayLink(phone: String, amount: Double): PayLinkDto
     suspend fun shopStaff(): List<ShopStaffDto>
     suspend fun saveShopStaff(staffId: String?, body: ShopStaffUpsert): ShopStaffDto
     suspend fun staffUsernameAvailability(username: String): UsernameAvailabilityDto

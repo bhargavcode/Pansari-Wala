@@ -2213,4 +2213,39 @@
         <item>नव</item>
         <item>दिस</item>
     </string-array>
+    <string name="dropdown_no_matches">कोई मिलान नहीं</string>
+    <string name="dropdown_search_hint">खोजने के लिए टाइप करें</string>
+    <string name="master_none">कोई नहीं</string>
+    <string name="master_category_shop_types">इन दुकान प्रकारों के लिए दिखाएँ</string>
+    <string name="master_category_all_shop_types">सभी दुकान प्रकार</string>
+    <string name="master_parent_category_label">मुख्य श्रेणी</string>
+    <string name="master_top_level">कोई नहीं (मुख्य श्रेणी)</string>
+    <string name="master_products_subtitle">कैटलॉग में %1$d उत्पाद</string>
+    <string name="master_search_products">नाम, ब्रांड या बारकोड से खोजें</string>
+    <string name="master_delete_product_title">उत्पाद हटाएँ?</string>
+    <string name="master_delete_product_message">%1$s मास्टर कैटलॉग से हटा दिया जाएगा। इसे वापस नहीं किया जा सकता।</string>
+    <string name="master_no_products">इन फ़िल्टर से कोई उत्पाद नहीं मिला</string>
+    <string name="dashboard_item_count">%1$d आइटम</string>
+    <string name="udhaar_remind_action">भुगतान का अनुरोध करें</string>
+    <string name="udhaar_remind_title">भुगतान का अनुरोध</string>
+    <string name="udhaar_remind_subtitle">%1$s को UPI भुगतान लिंक के साथ याद दिलाएँ</string>
+    <string name="udhaar_remind_amount">न्यूनतम भुगतान राशि</string>
+    <string name="udhaar_remind_full">पूरा बकाया</string>
+    <string name="udhaar_remind_half">आधा</string>
+    <string name="udhaar_remind_message">संदेश</string>
+    <string name="udhaar_remind_tokens">प्लेसहोल्डर: {name}, {amount}, {due}, {shop}, {link}</string>
+    <string name="udhaar_remind_reset">डिफ़ॉल्ट संदेश पर लौटें</string>
+    <string name="udhaar_remind_whatsapp">WhatsApp</string>
+    <string name="udhaar_remind_sms">SMS</string>
+    <string name="udhaar_remind_sent">रिमाइंडर भेजने के लिए ऐप खोला जा रहा है</string>
+    <string name="udhaar_remind_default_template">नमस्ते {name}, {shop} पर आपका बकाया {due} है। कृपया इस UPI लिंक से कम से कम {amount} का भुगतान करें: {link}\nधन्यवाद!</string>
+    <string name="error_udhaar_paid_too_much">अभी भुगतान बिल की कुल राशि (%1$s) से कम होना चाहिए</string>
+    <string name="pos_udhaar_paid_now_title">कुछ हिस्सा अभी दे रहे हैं?</string>
+    <string name="pos_udhaar_paid_now_hint">ग्राहक अभी जितना दे रहा है वह दर्ज करें। केवल बाकी राशि उधार में जुड़ेगी।</string>
+    <string name="pos_udhaar_paid_now">अभी भुगतान (वैकल्पिक)</string>
+    <string name="pos_udhaar_paid_now_row">अभी भुगतान (%1$s)</string>
+    <string name="pos_udhaar_on_credit">उधार में</string>
+    <string name="pos_udhaar_split_summary">%1$s अभी भुगतान · %2$s उधार</string>
+    <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
+    <string name="udhaar_txn_partial">बिल %1$s · भुगतान %2$s (%3$s)</string>
 </resources>

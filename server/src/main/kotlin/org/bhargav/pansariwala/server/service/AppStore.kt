@@ -3234,12 +3234,29 @@ class AppStore(
         quote = quote,
         cancelReason = cancelReason,
         discount = discount,
+        paidNow = paidNow,
+        paidNowMethod = paidNowMethod,
         syncedAt = syncedAt,
     )
 
     /** [MasterCategoryDto.name] is in the calling app's language; the master console gets English. */
-    fun masterCategories(): List<MasterCategoryDto> =
-        categoryCol.find().toList().map { MasterCategoryDto(it.id, it.translations.localized(it.name), it.parentId, it.translations) }
+    fun masterCategories(shopTypeId: String? = null): List<MasterCategoryDto> {
+        val all = categoryCol.find().toList()
+        val byId = all.associateBy { it.id }
+        return all
+            .map { it.copy(shopTypeIds = byId[it.parentId]?.shopTypeIds ?: it.shopTypeIds) }
+            .filter { shopTypeId.isNullOrBlank() || it.shopTypeIds.isEmpty() || shopTypeId in it.shopTypeIds }
+            .map { it.toDto(it.translations.localized(it.name)) }
+    }
+
+    private fun CategoryDoc.toDto(displayName: String = name) =
+        MasterCategoryDto(id, displayName, parentId, translations, shopTypeIds)
+
+    /** Root category ids visible for [shopTypeId] (assigned to it, or unassigned). */
+    private fun categoryIdsForShopType(shopTypeId: String): List<String> =
+        categoryCol.find(eq("parentId", null)).toList()
+            .filter { it.shopTypeIds.isEmpty() || shopTypeId in it.shopTypeIds }
+            .map { it.id }
 
     fun masterProducts(): List<MasterProductDto> =
         masterProductCol.find().toList().map { it.toDto() }
@@ -3247,11 +3264,23 @@ class AppStore(
     fun masterProduct(id: String): MasterProductDto =
         masterProductCol.find(eq("_id", id)).firstOrNull()?.toDto() ?: error("Product not found")
 
-    fun masterProductPage(query: String, categoryId: String?, page: Int, pageSize: Int): MasterProductPageDto {
+    fun masterProductPage(
+        query: String,
+        categoryId: String?,
+        page: Int,
+        pageSize: Int,
+        shopTypeId: String? = null,
+        subcategoryId: String? = null,
+    ): MasterProductPageDto {
         val size = pageSize.coerceIn(1, MAX_MASTER_PAGE_SIZE)
         val safePage = page.coerceAtLeast(0)
         val parts = mutableListOf<Bson>()
-        if (!categoryId.isNullOrBlank()) parts += or(eq("categoryId", categoryId), eq("subcategoryId", categoryId))
+        if (!categoryId.isNullOrBlank()) {
+            parts += or(eq("categoryId", categoryId), eq("subcategoryId", categoryId))
+        } else if (!shopTypeId.isNullOrBlank()) {
+            parts += `in`("categoryId", categoryIdsForShopType(shopTypeId))
+        }
+        if (!subcategoryId.isNullOrBlank()) parts += eq("subcategoryId", subcategoryId)
         val q = query.trim()
         if (q.isNotEmpty()) {
             val pattern = java.util.regex.Pattern.quote(q)
@@ -3278,9 +3307,16 @@ class AppStore(
     fun upsertMasterCategory(body: MasterCategoryUpsert): MasterCategoryDto {
         val id = body.id?.takeIf { it.isNotBlank() } ?: "cat_${UUID.randomUUID().toString().take(8)}"
         val existing = categoryCol.find(eq("_id", id)).firstOrNull()
-        val doc = CategoryDoc(id, body.name.trim(), body.parentId?.takeIf { it.isNotBlank() }, existing?.translations.orEmpty())
+        val parentId = body.parentId?.takeIf { it.isNotBlank() }
+        val doc = CategoryDoc(
+            id = id,
+            name = body.name.trim(),
+            parentId = parentId,
+            translations = existing?.translations.orEmpty(),
+            shopTypeIds = if (parentId != null) emptyList() else body.shopTypeIds?.distinct() ?: existing?.shopTypeIds.orEmpty(),
+        )
         categoryCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
-        return MasterCategoryDto(doc.id, doc.name, doc.parentId, doc.translations)
+        return doc.toDto()
     }
 
     fun saveMasterCategoryTranslation(id: String, body: CategoryTranslationRequest): MasterCategoryDto {
@@ -3290,8 +3326,7 @@ class AppStore(
         if (categoryCol.updateOne(eq("_id", id), if (value.isEmpty()) unset(field) else set(field, value)).matchedCount == 0L) {
             error("Category not found")
         }
-        val doc = categoryCol.find(eq("_id", id)).first()
-        return MasterCategoryDto(doc.id, doc.name, doc.parentId, doc.translations)
+        return categoryCol.find(eq("_id", id)).first().toDto()
     }
 
     fun deleteMasterCategory(id: String) {
@@ -4773,6 +4808,8 @@ class AppStore(
             paymentIntentId = paymentIntentId,
             paymentUtr = paymentUtr,
             gatewayOrderId = gatewayOrderId,
+            paidNow = paidNow,
+            paidNowMethod = paidNowMethod,
         )
     }
 

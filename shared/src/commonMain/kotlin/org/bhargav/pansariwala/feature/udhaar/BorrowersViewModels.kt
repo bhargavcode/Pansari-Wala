@@ -35,6 +35,11 @@ import org.bhargav.pansariwala.platform.toImagePickErrorText
 import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
+import io.ktor.http.encodeURLParameter
+import org.bhargav.pansariwala.platform.e164Phone
+import org.jetbrains.compose.resources.getString
+import pansariwala.shared.generated.resources.udhaar_remind_default_template
+import pansariwala.shared.generated.resources.udhaar_remind_sent
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_photo_pick_failed
@@ -187,6 +192,17 @@ data class RepayForm(
     val error: UiText? = null,
 )
 
+enum class PayRequestChannel { WHATSAPP, SMS }
+
+/** "Request payment" sheet; [template] holds the editable text with [AppConstants.Udhaar] tokens. */
+data class PayRequestForm(
+    val amount: String = "",
+    val template: String = "",
+    val defaultTemplate: String = "",
+    val busy: Boolean = false,
+    val error: UiText? = null,
+)
+
 data class BorrowerEditForm(
     val name: String = "",
     val address: String = "",
@@ -215,6 +231,9 @@ data class BorrowerDetailUiState(
     val filter: UdhaarTxnFilter = UdhaarTxnFilter.ALL,
     val staff: List<String> = emptyList(),
     val repay: RepayForm? = null,
+    val payRequest: PayRequestForm? = null,
+    /** WhatsApp / SMS deep link ready to open; the screen opens it once and clears it. */
+    val shareUri: String? = null,
     val edit: BorrowerEditForm? = null,
     val photoUploading: Boolean = false,
     val photoPreview: ByteArray? = null,
@@ -323,6 +342,69 @@ class BorrowerDetailViewModel(
     fun dismissError() = _state.update { it.copy(error = null) }
 
     fun consumeMessage() = _state.update { it.copy(message = null) }
+
+    // payment request (WhatsApp / SMS reminder with a UPI link)
+    fun openPayRequest() {
+        viewModelScope.launch {
+            val default = getString(Res.string.udhaar_remind_default_template)
+            val saved = preferences.getUdhaarReminderTemplate()
+            _state.update { s ->
+                val due = s.detail?.borrower?.outstanding ?: 0.0
+                s.copy(
+                    payRequest = PayRequestForm(
+                        amount = due.takeIf { it > 0 }?.let(::formatAmount).orEmpty(),
+                        template = saved.ifBlank { default },
+                        defaultTemplate = default,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun closePayRequest() = _state.update { it.copy(payRequest = null) }
+
+    fun updatePayRequest(transform: (PayRequestForm) -> PayRequestForm) =
+        _state.update { s -> s.copy(payRequest = s.payRequest?.let(transform)?.copy(error = null)) }
+
+    fun consumeShareUri() = _state.update { it.copy(shareUri = null) }
+
+    fun sendPayRequest(channel: PayRequestChannel) {
+        val s = _state.value
+        val form = s.payRequest ?: return
+        val borrower = s.detail?.borrower ?: return
+        val amount = parseRepayAmount(form.amount, borrower.outstanding)
+        if (amount == null) {
+            _state.update { it.copy(payRequest = form.copy(error = UiText.res(Res.string.error_udhaar_amount))) }
+            return
+        }
+        _state.update { it.copy(payRequest = form.copy(busy = true)) }
+        viewModelScope.launch {
+            runCatching { api.createPayLink(phone, amount) }
+                .onSuccess { link ->
+                    val template = form.template.trim()
+                    preferences.setUdhaarReminderTemplate(if (template == form.defaultTemplate.trim()) "" else template)
+                    val message = fillReminderTemplate(
+                        template = template.ifBlank { form.defaultTemplate },
+                        name = borrower.name.ifBlank { borrower.phone },
+                        amount = amount.asMoney(),
+                        due = borrower.outstanding.asMoney(),
+                        shop = preferences.getShopName(),
+                        link = link.url,
+                    )
+                    _state.update {
+                        it.copy(
+                            payRequest = null,
+                            shareUri = payRequestUri(channel, borrower.phone, message),
+                            message = UiText.res(Res.string.udhaar_remind_sent),
+                        )
+                    }
+                }
+                .onFailure { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _state.update { st -> st.copy(payRequest = st.payRequest?.copy(busy = false, error = err.toApiUiText())) }
+                }
+        }
+    }
 
     // repayment
     fun openRepay() = _state.update { s ->
@@ -443,8 +525,33 @@ class BorrowerDetailViewModel(
         }
     }
 
-    private fun formatAmount(value: Double): String {
-        val paise = kotlin.math.round(value * 100).toLong()
-        return if (paise % 100 == 0L) (paise / 100).toString() else (paise / 100.0).toString()
+}
+
+internal fun formatAmount(value: Double): String {
+    val paise = kotlin.math.round(value * 100).toLong()
+    return if (paise % 100 == 0L) (paise / 100).toString() else (paise / 100.0).toString()
+}
+
+/** Replaces the [AppConstants.Udhaar] tokens; the link is appended when the shopkeeper removed its token. */
+internal fun fillReminderTemplate(template: String, name: String, amount: String, due: String, shop: String, link: String): String {
+    val filled = template
+        .replace(AppConstants.Udhaar.TOKEN_NAME, name)
+        .replace(AppConstants.Udhaar.TOKEN_AMOUNT, amount)
+        .replace(AppConstants.Udhaar.TOKEN_DUE, due)
+        .replace(AppConstants.Udhaar.TOKEN_SHOP, shop)
+    return if (AppConstants.Udhaar.TOKEN_LINK in filled) {
+        filled.replace(AppConstants.Udhaar.TOKEN_LINK, link)
+    } else {
+        "$filled\n$link"
+    }
+}
+
+private fun payRequestUri(channel: PayRequestChannel, phone: String, message: String): String {
+    val e164 = e164Phone(phone)
+    val body = message.encodeURLParameter()
+    return when (channel) {
+        PayRequestChannel.WHATSAPP -> AppConstants.WHATSAPP_CHAT_URL + e164.removePrefix("+") + "?text=" + body
+        // "?&body=" is understood by both Android and iOS messaging apps.
+        PayRequestChannel.SMS -> "sms:$e164?&body=$body"
     }
 }

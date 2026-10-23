@@ -15,6 +15,8 @@ import org.bhargav.pansariwala.server.db.CreditTxnDoc
 import org.bhargav.pansariwala.server.db.CreditTxnItemDoc
 import org.bhargav.pansariwala.server.db.CustomerDoc
 import org.bhargav.pansariwala.server.db.MongoApp
+import org.bhargav.pansariwala.server.db.PayLinkDoc
+import org.bhargav.pansariwala.server.dto.PayLinkDto
 import org.bhargav.pansariwala.server.db.ShopDoc
 import org.bhargav.pansariwala.server.db.ShopUserDoc
 import org.bhargav.pansariwala.server.dto.BorrowerDetailDto
@@ -49,6 +51,9 @@ private const val SOURCE_POS = "POS"
 private const val SOURCE_USER_APP = "USER_APP"
 private const val ORDER_CANCELLED = "CANCELLED"
 private const val PHONE_DIGITS = 10
+private const val PAY_LINK_CODE_LENGTH = 8
+private const val PAY_LINK_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+private const val PAY_LINK_TTL_MS = 30L * 24 * 60 * 60 * 1000
 /** POS placeholder name for bills without a customer (shared `WALK_IN_CUSTOMER_KEY`). */
 private const val WALK_IN_NAME = "Walk-in"
 private const val DAY_MS = 24 * 60 * 60 * 1000L
@@ -85,6 +90,8 @@ class CreditService(
     private val txnCol = mongo.db.getCollection<CreditTxnDoc>("credit_txns")
     private val shopCol = mongo.db.getCollection<ShopDoc>("shops")
     private val shopUserCol = mongo.db.getCollection<ShopUserDoc>("shop_users")
+    private val payLinkCol = mongo.db.getCollection<PayLinkDoc>("pay_links")
+    private val random = java.security.SecureRandom()
     private val customerCol = mongo.db.getCollection<CustomerDoc>("customers")
 
     init {
@@ -109,7 +116,13 @@ class CreditService(
             val now = System.currentTimeMillis()
             val existing = txnCol.find(eq("_id", txnId)).firstOrNull()
             val subtotal = order.items.sumOf { it.quantity * it.unitPrice }
-            val amount = roundMoney((subtotal - order.discount).coerceAtLeast(0.0))
+            val billTotal = roundMoney((subtotal - order.discount).coerceAtLeast(0.0))
+            val paidNow = roundMoney(order.paidNow.coerceIn(0.0, billTotal))
+            val amount = roundMoney(billTotal - paidNow)
+            if (amount <= 0.0) {
+                txnCol.deleteOne(eq("_id", txnId))
+                return@forEach
+            }
             txnCol.replaceOne(
                 eq("_id", txnId),
                 CreditTxnDoc(
@@ -128,6 +141,9 @@ class CreditService(
                     },
                     createdAt = existing?.createdAt ?: order.createdAtEpochMs,
                     updatedAt = now,
+                    billTotal = billTotal,
+                    paidNow = paidNow,
+                    paidNowMethod = order.paidNowMethod.takeIf { paidNow > 0.0 },
                 ),
                 ReplaceOptions().upsert(true),
             )
@@ -398,6 +414,22 @@ class CreditService(
         return txnCol.find(eq("_id", txn.id)).firstOrNull() ?: txn
     }
 
+    /** Short link the shop shares to ask a borrower to repay [amountInr] to the shop's own UPI id. */
+    fun createPayLink(shopId: String, rawPhone: String, amountInr: Double, baseUrl: String): PayLinkDto {
+        val phone = requirePhone(rawPhone)
+        require(amountInr > 0.0) { "Amount must be more than zero" }
+        val shop = shopCol.find(eq("_id", shopId)).firstOrNull() ?: error("Shop not found")
+        require(shop.upiId.isNotBlank()) { "Add a UPI ID in shop settings first" }
+        val code = (1..PAY_LINK_CODE_LENGTH).map { PAY_LINK_ALPHABET[random.nextInt(PAY_LINK_ALPHABET.length)] }.joinToString("")
+        val now = System.currentTimeMillis()
+        val uri = upiPayUri(shop.upiId, shop.name, amountInr, "PL$code")
+        payLinkCol.insertOne(PayLinkDoc(code, shopId, phone, uri, amountInr, shop.name, now, now + PAY_LINK_TTL_MS))
+        return PayLinkDto("$baseUrl/pay/$code", uri, amountInr)
+    }
+
+    fun payLink(code: String): PayLinkDoc? =
+        payLinkCol.find(eq("_id", code)).firstOrNull()?.takeIf { it.expiresAt > System.currentTimeMillis() }
+
     private fun upiPayUri(payee: String, payeeName: String, amountInr: Double, ref: String): String {
         fun enc(v: String) = java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")
         val amount = String.format(java.util.Locale.US, "%.2f", amountInr)
@@ -489,6 +521,9 @@ class CreditService(
         gateway = gateway,
         paymentRef = paymentRef,
         failureReason = failureReason,
+        billTotal = billTotal,
+        paidNow = paidNow,
+        paidNowMethod = paidNowMethod,
     )
 
     private fun List<CreditTxnDoc>.signedSum(): Double =

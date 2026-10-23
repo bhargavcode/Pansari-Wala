@@ -4,6 +4,8 @@ import com.auth0.jwt.interfaces.Payload
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.server.plugins.origin
+import org.bhargav.pansariwala.server.i18n.RequestLanguage
 import io.ktor.http.content.PartData
 import io.ktor.server.response.header
 import io.ktor.server.response.respondBytes
@@ -132,6 +134,12 @@ fun Route.apiRoutes(
     messages: MessageCatalog,
 ) {
     get("/health") { call.respond(OkResponse(true)) }
+    // Public: opened from WhatsApp / SMS by borrowers, so it redirects to the UPI intent instead of returning JSON.
+    get("/pay/{code}") {
+        val lang = RequestLanguage.normalize(call.request.headers[HttpHeaders.AcceptLanguage])
+        val link = withContext(Dispatchers.IO) { credit.payLink(call.parameters["code"].orEmpty()) }
+        call.respondText(payLinkPage(link, lang, messages), ContentType.Text.Html)
+    }
     imageProxyRoutes()
     get("/config/public") {
         call.respond(
@@ -700,6 +708,16 @@ fun Route.apiRoutes(
             val body = call.receive<org.bhargav.pansariwala.server.dto.BorrowerUpdateRequest>()
             call.respond(withContext(Dispatchers.IO) { credit.updateBorrower(shopId, call.parameters["phone"]!!, body) })
         }
+        post("/shop/borrowers/{phone}/pay-link") {
+            val shopId = call.requireShopId()
+            val body = call.receive<org.bhargav.pansariwala.server.dto.PayLinkRequest>()
+            val base = config.publicApiBaseUrl.ifBlank {
+                val origin = call.request.origin
+                val port = origin.serverPort.takeUnless { it == 80 || it == 443 }?.let { ":$it" }.orEmpty()
+                "${origin.scheme}://${origin.serverHost}$port"
+            }
+            call.respond(withContext(Dispatchers.IO) { credit.createPayLink(shopId, call.parameters["phone"]!!, body.amount, base) })
+        }
         post("/shop/borrowers/{phone}/repayments") {
             val shopId = call.requireShopId()
             val body = call.receive<org.bhargav.pansariwala.server.dto.RepaymentRequest>()
@@ -1090,7 +1108,7 @@ fun Route.apiRoutes(
             call.respond(OkResponse())
         }
 
-        get("/master/categories") { call.respond(store.masterCategories()) }
+        get("/master/categories") { call.respond(store.masterCategories(call.request.queryParameters["shopTypeId"])) }
         get("/master/products") { call.respond(store.masterProducts()) }
         get("/master/products/item/{id}") {
             call.respond(store.masterProduct(call.parameters["id"]!!))
@@ -1103,6 +1121,8 @@ fun Route.apiRoutes(
                     categoryId = params["categoryId"],
                     page = params["page"]?.toIntOrNull() ?: 0,
                     pageSize = params["pageSize"]?.toIntOrNull() ?: 30,
+                    shopTypeId = params["shopTypeId"],
+                    subcategoryId = params["subcategoryId"],
                 ),
             )
         }
@@ -1282,4 +1302,26 @@ private suspend fun ApplicationCall.respondSheet(fileName: String, bytes: ByteAr
 private fun startOfToday(): Long {
     val now = System.currentTimeMillis()
     return now - (now % 86_400_000)
+}
+
+private fun payLinkPage(link: org.bhargav.pansariwala.server.db.PayLinkDoc?, lang: String, messages: MessageCatalog): String {
+    fun esc(v: String) = v.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+    val head = """<!doctype html><html lang="$lang"><head><meta charset="utf-8">""" +
+        """<meta name="viewport" content="width=device-width,initial-scale=1"><title>Pansari Wala</title>""" +
+        "<style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;" +
+        "justify-content:center;background:linear-gradient(135deg,#546524,#39665F);color:#1b1c18}" +
+        ".c{background:#fff;border-radius:20px;padding:28px;max-width:360px;width:88%;text-align:center;" +
+        "box-shadow:0 12px 32px rgba(0,0,0,.2)}h1{margin:4px 0 8px;font-size:34px}p{color:#5b6147}" +
+        "a{display:block;margin-top:18px;padding:14px;border-radius:14px;background:#546524;color:#fff;" +
+        "text-decoration:none;font-weight:600}</style>"
+    if (link == null) {
+        return "$head</head><body><div class=\"c\"><p>${esc(messages.localize("This payment link has expired.", lang))}</p></div></body></html>"
+    }
+    val uri = esc(link.upiUri)
+    val amount = String.format(java.util.Locale.US, "%.2f", link.amount)
+    return "$head<meta http-equiv=\"refresh\" content=\"0;url=$uri\"></head><body><div class=\"c\">" +
+        "<p>${esc(link.payeeName)}</p><h1>₹$amount</h1>" +
+        "<a href=\"$uri\">${esc(messages.localize("Pay with UPI", lang))}</a>" +
+        "<p>${esc(messages.localize("Tap the button if your UPI app did not open.", lang))}</p>" +
+        "</div></body></html>"
 }

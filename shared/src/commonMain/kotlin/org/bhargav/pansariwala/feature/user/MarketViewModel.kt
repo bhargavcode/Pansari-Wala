@@ -35,6 +35,8 @@ data class MarketUiState(
     val allShops: List<MarketplaceShop> = emptyList(),
     val shops: List<MarketplaceShop> = emptyList(),
     val selectedShopTypes: Set<ShopType> = emptySet(),
+    /** Most recently picked first; drives chip order on this device only. */
+    val recentShopTypes: List<ShopType> = emptyList(),
     val sortOption: ShopSortOption = ShopSortOption.DISTANCE_ASC,
     val showFilterSheet: Boolean = false,
     val userName: String = "",
@@ -71,12 +73,22 @@ class MarketViewModel(
             _state.update { it.copy(minRadiusKm = min) }
         }
         viewModelScope.launch {
+            val recent = preferences.getRecentShopTypes()
+            _state.update { it.copy(recentShopTypes = recent) }
+        }
+        viewModelScope.launch {
             val radius = preferences.getSearchRadiusKm()
             _state.update { it.copy(radiusKm = radius) }
             preferences.observeShopFilter().collect { filter ->
                 val radiusChanged = filter.radiusKm != _state.value.radiusKm
+                val recent = preferences.getRecentShopTypes()
                 _state.update {
-                    it.copy(radiusKm = filter.radiusKm, selectedShopTypes = filter.shopTypes, sortOption = filter.sort)
+                    it.copy(
+                        radiusKm = filter.radiusKm,
+                        selectedShopTypes = filter.shopTypes,
+                        sortOption = filter.sort,
+                        recentShopTypes = recent,
+                    )
                 }
                 if (radiusChanged && _state.value.locationPermissionGranted) {
                     refreshShops(useCachedLocation = true)
@@ -235,9 +247,16 @@ class MarketViewModel(
     private fun currentFilter() = _state.value.let { ShopFilter(it.radiusKm, it.selectedShopTypes, it.sortOption) }
 
     private fun saveFilter(filter: ShopFilter) {
+        val picked = (filter.shopTypes - _state.value.selectedShopTypes).toList()
         _state.update { it.copy(selectedShopTypes = filter.shopTypes, sortOption = filter.sort) }
         applyFilters()
-        viewModelScope.launch { preferences.setShopFilter(filter) }
+        viewModelScope.launch {
+            preferences.setShopFilter(filter)
+            if (picked.isNotEmpty()) {
+                val recent = preferences.pushRecentShopTypes(picked)
+                _state.update { it.copy(recentShopTypes = recent) }
+            }
+        }
     }
 
     fun showFilterSheet() { _state.update { it.copy(showFilterSheet = true) } }

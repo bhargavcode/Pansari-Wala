@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.bhargav.pansariwala.api.MasterCategoryDto
 import org.bhargav.pansariwala.api.MasterProductDto
 import org.bhargav.pansariwala.api.PansariApi
@@ -42,7 +43,10 @@ data class MasterCatalogUiState(
     /** Root categories for the filter row; [allCategories] also holds sub-categories. */
     val categories: List<MasterCategoryDto> = emptyList(),
     val allCategories: List<MasterCategoryDto> = emptyList(),
+    /** Defaults to this shop's own type once the profile loads; null = every type. */
+    val selectedShopTypeId: String? = null,
     val selectedCategoryId: String? = null,
+    val selectedSubcategoryId: String? = null,
     val items: List<MasterProductDto> = emptyList(),
     val totalCount: Int = 0,
     val hasMore: Boolean = false,
@@ -57,7 +61,15 @@ data class MasterCatalogUiState(
     val addingAll: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null,
-)
+) {
+    val visibleCategories: List<MasterCategoryDto>
+        get() = categories.filter { c ->
+            selectedShopTypeId == null || c.shopTypeIds.isEmpty() || selectedShopTypeId in c.shopTypeIds
+        }
+
+    val subcategories: List<MasterCategoryDto>
+        get() = selectedCategoryId?.let { id -> allCategories.filter { it.parentId == id } }.orEmpty()
+}
 
 @OptIn(FlowPreview::class)
 class MasterCatalogViewModel(
@@ -77,6 +89,9 @@ class MasterCatalogViewModel(
     init {
         viewModelScope.launch {
             shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID
+            runCatching { withTimeoutOrNull(AppConstants.SHOP_TYPE_LOOKUP_TIMEOUT_MS) { api.shopProfile().shop.shopType } }
+                .getOrNull()
+                ?.let { type -> _uiState.update { it.copy(selectedShopTypeId = type.ifBlank { null }) } }
             reload()
             launch {
                 runCatching { api.masterCategories() }
@@ -98,9 +113,21 @@ class MasterCatalogViewModel(
         searchText.value = value
     }
 
+    fun onShopTypeSelected(shopTypeId: String?) {
+        if (_uiState.value.selectedShopTypeId == shopTypeId) return
+        _uiState.update { it.copy(selectedShopTypeId = shopTypeId, selectedCategoryId = null, selectedSubcategoryId = null) }
+        reload()
+    }
+
     fun onCategorySelected(categoryId: String?) {
         if (_uiState.value.selectedCategoryId == categoryId) return
-        _uiState.update { it.copy(selectedCategoryId = categoryId) }
+        _uiState.update { it.copy(selectedCategoryId = categoryId, selectedSubcategoryId = null) }
+        reload()
+    }
+
+    fun onSubcategorySelected(subcategoryId: String?) {
+        if (_uiState.value.selectedSubcategoryId == subcategoryId) return
+        _uiState.update { it.copy(selectedSubcategoryId = subcategoryId) }
         reload()
     }
 
@@ -130,6 +157,8 @@ class MasterCatalogViewModel(
                 categoryId = state.selectedCategoryId,
                 page = nextPage,
                 pageSize = AppConstants.MASTER_PAGE_SIZE,
+                shopTypeId = state.selectedShopTypeId,
+                subcategoryId = state.selectedSubcategoryId,
             )
         }.onSuccess { page ->
             val links = shopRepository.productIdsByMasterIds(shopId, page.items.map { it.id })

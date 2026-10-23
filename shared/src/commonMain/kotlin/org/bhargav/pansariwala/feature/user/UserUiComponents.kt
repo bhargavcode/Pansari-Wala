@@ -155,6 +155,16 @@ import pansariwala.shared.generated.resources.pay_status_refunded
 import pansariwala.shared.generated.resources.pay_time_left
 import org.bhargav.pansariwala.i18n.localizedName
 
+/** Recently picked shop types first (LIFO), then the rest alphabetically by their localized label. */
+@Composable
+fun orderedShopTypes(recent: List<ShopType>): List<Pair<ShopType, String>> {
+    val labelled = ShopType.entries.map { it to shopTypeLabel(it) }
+    val byType = labelled.toMap()
+    val head = recent.distinct().mapNotNull { type -> byType[type]?.let { type to it } }
+    val rest = labelled.filter { it.first !in recent }.sortedBy { it.second.lowercase() }
+    return head + rest
+}
+
 @Composable
 fun shopTypeLabel(type: ShopType): String = stringResource(
     when (type) {

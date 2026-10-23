@@ -1,9 +1,14 @@
 package org.bhargav.pansariwala.feature.order
 
+import androidx.compose.runtime.Composable
+import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.util.asMoney
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToLong
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.pos_payment_split
 import pansariwala.shared.generated.resources.payment_method_cod
 import pansariwala.shared.generated.resources.payment_method_online
 import pansariwala.shared.generated.resources.pos_payment_card
@@ -41,4 +46,18 @@ fun paymentMethodLabelRes(method: String): StringResource = when (method) {
     AppConstants.PosPayment.UDHAAR -> Res.string.pos_payment_udhaar
     "COD" -> Res.string.payment_method_cod
     else -> Res.string.payment_method_online
+}
+
+/** "Udhaar", or for partial udhaar "Cash ₹300 + Udhaar ₹200". */
+@Composable
+fun orderPaymentLabel(order: Order): String {
+    val method = stringResource(paymentMethodLabelRes(order.paymentMethod))
+    if (!order.isPartialUdhaar) return method
+    return stringResource(
+        Res.string.pos_payment_split,
+        stringResource(paymentMethodLabelRes(order.paidNowMethod ?: AppConstants.PosPayment.CASH)),
+        order.paidNow.asMoney(),
+        method,
+        order.udhaarAmount.asMoney(),
+    )
 }

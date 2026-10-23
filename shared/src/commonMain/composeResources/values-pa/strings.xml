@@ -2213,4 +2213,39 @@
         <item>ਨਵੰ</item>
         <item>ਦਸੰ</item>
     </string-array>
+    <string name="dropdown_no_matches">ਕੋਈ ਮੇਲ ਨਹੀਂ</string>
+    <string name="dropdown_search_hint">ਖੋਜਣ ਲਈ ਟਾਈਪ ਕਰੋ</string>
+    <string name="master_none">ਕੋਈ ਨਹੀਂ</string>
+    <string name="master_category_shop_types">ਇਨ੍ਹਾਂ ਦੁਕਾਨ ਕਿਸਮਾਂ ਲਈ ਦਿਖਾਓ</string>
+    <string name="master_category_all_shop_types">ਸਾਰੀਆਂ ਦੁਕਾਨ ਕਿਸਮਾਂ</string>
+    <string name="master_parent_category_label">ਮੁੱਖ ਸ਼੍ਰੇਣੀ</string>
+    <string name="master_top_level">ਕੋਈ ਨਹੀਂ (ਮੁੱਖ ਸ਼੍ਰੇਣੀ)</string>
+    <string name="master_products_subtitle">ਕੈਟਾਲਾਗ ਵਿੱਚ %1$d ਉਤਪਾਦ</string>
+    <string name="master_search_products">ਨਾਮ, ਬ੍ਰਾਂਡ ਜਾਂ ਬਾਰਕੋਡ ਨਾਲ ਖੋਜੋ</string>
+    <string name="master_delete_product_title">ਉਤਪਾਦ ਮਿਟਾਉਣਾ ਹੈ?</string>
+    <string name="master_delete_product_message">%1$s ਮਾਸਟਰ ਕੈਟਾਲਾਗ ਵਿੱਚੋਂ ਹਟਾ ਦਿੱਤਾ ਜਾਵੇਗਾ। ਇਸਨੂੰ ਵਾਪਸ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਦਾ।</string>
+    <string name="master_no_products">ਇਨ੍ਹਾਂ ਫਿਲਟਰਾਂ ਨਾਲ ਕੋਈ ਉਤਪਾਦ ਨਹੀਂ ਮਿਲਿਆ</string>
+    <string name="dashboard_item_count">%1$d ਆਈਟਮ</string>
+    <string name="udhaar_remind_action">ਭੁਗਤਾਨ ਦੀ ਬੇਨਤੀ ਕਰੋ</string>
+    <string name="udhaar_remind_title">ਭੁਗਤਾਨ ਦੀ ਬੇਨਤੀ</string>
+    <string name="udhaar_remind_subtitle">%1$s ਨੂੰ UPI ਭੁਗਤਾਨ ਲਿੰਕ ਨਾਲ ਯਾਦ ਦਿਵਾਓ</string>
+    <string name="udhaar_remind_amount">ਘੱਟੋ-ਘੱਟ ਭੁਗਤਾਨ ਰਕਮ</string>
+    <string name="udhaar_remind_full">ਪੂਰਾ ਬਕਾਇਆ</string>
+    <string name="udhaar_remind_half">ਅੱਧਾ</string>
+    <string name="udhaar_remind_message">ਸੁਨੇਹਾ</string>
+    <string name="udhaar_remind_tokens">ਪਲੇਸਹੋਲਡਰ: {name}, {amount}, {due}, {shop}, {link}</string>
+    <string name="udhaar_remind_reset">ਡਿਫ਼ੌਲਟ ਸੁਨੇਹੇ \'ਤੇ ਵਾਪਸ ਜਾਓ</string>
+    <string name="udhaar_remind_whatsapp">WhatsApp</string>
+    <string name="udhaar_remind_sms">SMS</string>
+    <string name="udhaar_remind_sent">ਯਾਦ-ਦਹਾਨੀ ਭੇਜਣ ਲਈ ਐਪ ਖੋਲ੍ਹੀ ਜਾ ਰਹੀ ਹੈ</string>
+    <string name="udhaar_remind_default_template">ਸਤ ਸ੍ਰੀ ਅਕਾਲ {name}, {shop} \'ਤੇ ਤੁਹਾਡਾ ਬਕਾਇਆ {due} ਹੈ। ਕਿਰਪਾ ਕਰਕੇ ਇਸ UPI ਲਿੰਕ ਨਾਲ ਘੱਟੋ-ਘੱਟ {amount} ਦਾ ਭੁਗਤਾਨ ਕਰੋ: {link}\nਧੰਨਵਾਦ!</string>
+    <string name="error_udhaar_paid_too_much">ਹੁਣੇ ਭੁਗਤਾਨ ਬਿੱਲ ਦੀ ਕੁੱਲ ਰਕਮ (%1$s) ਤੋਂ ਘੱਟ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ</string>
+    <string name="pos_udhaar_paid_now_title">ਕੁਝ ਹਿੱਸਾ ਹੁਣੇ ਦੇ ਰਹੇ ਹੋ?</string>
+    <string name="pos_udhaar_paid_now_hint">ਗਾਹਕ ਹੁਣੇ ਜਿੰਨਾ ਦੇ ਰਿਹਾ ਹੈ ਉਹ ਦਰਜ ਕਰੋ। ਸਿਰਫ਼ ਬਾਕੀ ਰਕਮ ਉਧਾਰ ਵਿੱਚ ਜੁੜੇਗੀ।</string>
+    <string name="pos_udhaar_paid_now">ਹੁਣੇ ਭੁਗਤਾਨ (ਵਿਕਲਪਿਕ)</string>
+    <string name="pos_udhaar_paid_now_row">ਹੁਣੇ ਭੁਗਤਾਨ (%1$s)</string>
+    <string name="pos_udhaar_on_credit">ਉਧਾਰ ਵਿੱਚ</string>
+    <string name="pos_udhaar_split_summary">%1$s ਹੁਣੇ ਭੁਗਤਾਨ · %2$s ਉਧਾਰ</string>
+    <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
+    <string name="udhaar_txn_partial">ਬਿੱਲ %1$s · ਭੁਗਤਾਨ %2$s (%3$s)</string>
 </resources>

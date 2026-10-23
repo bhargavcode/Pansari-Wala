@@ -547,6 +547,9 @@ data class OrderDto(
     val discount: Double = 0.0,
     val paymentIntentId: String? = null,
     val paymentUtr: String? = null,
+    /** UDHAAR bills: amount paid at the counter; only the rest is credit. */
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
 )
 
 @Serializable
@@ -686,7 +689,13 @@ data class TxnDto(
 )
 
 @Serializable
-data class MasterCategoryDto(val id: String, val name: String, val parentId: String? = null)
+data class MasterCategoryDto(
+    val id: String,
+    val name: String,
+    val parentId: String? = null,
+    /** Root category's shop types; empty = every shop type. */
+    val shopTypeIds: List<String> = emptyList(),
+)
 
 @Serializable
 data class MasterProductDto(
@@ -987,6 +996,8 @@ fun Order.toSyncDto() = OrderDto(
     customerPhone = customerPhone,
     cancelReason = cancelReason,
     discount = discount,
+    paidNow = paidNow,
+    paidNowMethod = paidNowMethod,
     items = items.map { line ->
         OrderItemDto(
             productId = line.productId,
@@ -1054,6 +1065,8 @@ fun OrderDto.toModel() = Order(
     discount = discount,
     paymentIntentId = paymentIntentId,
     paymentUtr = paymentUtr,
+    paidNow = paidNow,
+    paidNowMethod = paidNowMethod,
 )
 
 fun PaymentIntentDto.toModel(receivedAtEpochMs: Long) = PaymentIntent(

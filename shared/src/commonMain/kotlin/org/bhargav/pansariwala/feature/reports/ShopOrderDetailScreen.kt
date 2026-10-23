@@ -48,7 +48,7 @@ import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderChannel
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.feature.order.OrderItemsTable
-import org.bhargav.pansariwala.feature.order.paymentMethodLabelRes
+import org.bhargav.pansariwala.feature.order.orderPaymentLabel
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.feature.printer.orderPrintActions
 import org.bhargav.pansariwala.feature.user.userOrderStatusLabel
@@ -160,7 +160,7 @@ fun ShopOrderDetailScreen(
                     HorizontalDivider()
                     AmountRow(stringResource(Res.string.order_card_total), order.totalValue.asMoney(), emphasize = true)
                     Text(
-                        stringResource(paymentMethodLabelRes(order.paymentMethod)),
+                        orderPaymentLabel(order),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

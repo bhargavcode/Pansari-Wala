@@ -122,8 +122,16 @@ data class Order(
     /** Payment transaction (PTX…) this order was created from, and its UPI reference. */
     val paymentIntentId: String? = null,
     val paymentUtr: String? = null,
+    /** UDHAAR bills: amount paid at the counter via [paidNowMethod] (CASH/UPI); the rest is credit. */
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
 ) {
     val subtotal: Double get() = items.sumOf { it.lineTotal }
+    val isPartialUdhaar: Boolean
+        get() = paymentMethod == AppConstants.PosPayment.UDHAAR && paidNow > 0.0
+    /** Part of the bill that went on credit (0 for non-udhaar bills). */
+    val udhaarAmount: Double
+        get() = if (paymentMethod == AppConstants.PosPayment.UDHAAR) (totalValue - paidNow).coerceAtLeast(0.0) else 0.0
     val deliveringItems: List<OrderItem>
         get() = if (packedProductIds.isEmpty()) items else items.filter { it.productId in packedProductIds }
     val isPackedForDelivery: Boolean

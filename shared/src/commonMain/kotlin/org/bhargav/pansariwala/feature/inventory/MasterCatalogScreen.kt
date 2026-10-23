@@ -1,5 +1,15 @@
 package org.bhargav.pansariwala.feature.inventory
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.draw.clip
+import org.bhargav.pansariwala.designsystem.CatalogCascadeFilter
+import org.bhargav.pansariwala.designsystem.DropdownOption
+import org.bhargav.pansariwala.domain.model.ShopType
+import org.bhargav.pansariwala.feature.user.shopTypeLabel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +21,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -23,8 +32,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,7 +70,6 @@ import pansariwala.shared.generated.resources.action_clear
 import pansariwala.shared.generated.resources.inv_master_add_all
 import pansariwala.shared.generated.resources.inv_master_add_title
 import pansariwala.shared.generated.resources.inv_master_added
-import pansariwala.shared.generated.resources.inv_master_all
 import pansariwala.shared.generated.resources.inv_master_count
 import pansariwala.shared.generated.resources.inv_master_empty
 import pansariwala.shared.generated.resources.inv_master_search_hint
@@ -119,32 +125,26 @@ fun MasterCatalogScreen(
                     }
                 },
             )
-            if (state.categories.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item(key = "all") {
-                        FilterChip(
-                            selected = state.selectedCategoryId == null,
-                            onClick = { viewModel.onCategorySelected(null) },
-                            label = { Text(stringResource(Res.string.inv_master_all)) },
-                        )
-                    }
-                    items(state.categories, key = { it.id }) { category ->
-                        FilterChip(
-                            selected = state.selectedCategoryId == category.id,
-                            onClick = { viewModel.onCategorySelected(category.id) },
-                            label = { Text(category.name) },
-                        )
-                    }
-                }
-            }
+            val shopTypeOptions = ShopType.entries.map { DropdownOption(it.apiValue, shopTypeLabel(it)) }
+            CatalogCascadeFilter(
+                shopTypes = shopTypeOptions,
+                shopTypeId = state.selectedShopTypeId,
+                onShopType = viewModel::onShopTypeSelected,
+                categories = state.visibleCategories.map { DropdownOption(it.id, it.name) },
+                categoryId = state.selectedCategoryId,
+                onCategory = viewModel::onCategorySelected,
+                subcategories = state.subcategories.map { DropdownOption(it.id, it.name) },
+                subcategoryId = state.selectedSubcategoryId,
+                onSubcategory = viewModel::onSubcategorySelected,
+                fieldMinWidth = 150.dp,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            )
             Text(
                 text = stringResource(Res.string.inv_master_count, state.totalCount),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             )
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
@@ -158,7 +158,8 @@ fun MasterCatalogScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(state.items, key = { it.id }) { item ->
                         val shopProductId = state.addedIds[item.id]
@@ -170,7 +171,6 @@ fun MasterCatalogScreen(
                             onAdd = { viewModel.startAdd(item) },
                             onOpen = { shopProductId?.let(onOpenProduct) },
                         )
-                        HorizontalDivider()
                     }
                     if (state.loadingMore) {
                         item(key = "more") {
@@ -241,10 +241,24 @@ private fun MasterRow(
     onAdd: () -> Unit,
     onOpen: () -> Unit,
 ) {
+    val accent = when {
+        added -> stockHealthyColor
+        selected -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.outlineVariant
+    }
+    val shape = RoundedCornerShape(16.dp)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                else MaterialTheme.colorScheme.surfaceContainerLow,
+            )
+            .border(1.dp, accent.copy(alpha = if (added || selected) 0.7f else 0.5f), shape)
+            .padding(start = 4.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Checkbox(
             checked = added || selected,
@@ -257,39 +271,57 @@ private fun MasterRow(
         )
         ProductImageCarousel(
             imageUrls = item.imageUrls.take(1),
-            height = 56.dp,
-            modifier = Modifier.size(56.dp),
+            height = 60.dp,
+            modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)),
         )
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = item.localizedName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (item.brandName.isNotBlank()) {
-                Text(item.localizedBrand, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    item.localizedBrand,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             if (item.salePrice > 0.0) {
                 Text(
                     text = item.salePrice.asMoney(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
         if (added) {
-            TextButton(onClick = onOpen) {
-                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = stockHealthyColor)
-                Text(
-                    text = stringResource(Res.string.inv_master_added),
-                    color = stockHealthyColor,
-                    modifier = Modifier.padding(start = 4.dp),
-                )
+            FilledTonalButton(
+                onClick = onOpen,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = stockHealthyColor.copy(alpha = 0.15f),
+                    contentColor = stockHealthyColor,
+                ),
+            ) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(Res.string.inv_master_added), modifier = Modifier.padding(start = 6.dp))
             }
         } else {
-            FilledTonalButton(onClick = onAdd) { Text(stringResource(Res.string.action_add)) }
+            Button(
+                onClick = onAdd,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(Res.string.action_add), modifier = Modifier.padding(start = 4.dp))
+            }
         }
     }
 }

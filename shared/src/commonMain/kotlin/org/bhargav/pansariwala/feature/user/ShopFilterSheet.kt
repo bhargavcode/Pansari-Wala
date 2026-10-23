@@ -73,6 +73,7 @@ fun ShopFilterSheet(
     minRadiusKm: Double,
     onApply: (ShopFilter) -> Unit,
     onDismiss: () -> Unit,
+    recent: List<ShopType> = emptyList(),
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var radius by remember(initial, minRadiusKm) {
@@ -83,7 +84,7 @@ fun ShopFilterSheet(
     val radiusSteps = remember(minRadiusKm) {
         ((AppConstants.MAX_SEARCH_RADIUS_KM - minRadiusKm) / AppConstants.SEARCH_RADIUS_STEP_KM).roundToInt() - 1
     }
-    val sortedShopTypes = ShopType.entries.map { it to shopTypeLabel(it) }.sortedBy { it.second.lowercase() }
+    val sortedShopTypes = orderedShopTypes(recent)
     AppBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),

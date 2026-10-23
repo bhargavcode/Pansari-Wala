@@ -76,6 +76,13 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE orders ADD COLUMN paidNow REAL NOT NULL DEFAULT 0")
+        connection.execSQL("ALTER TABLE orders ADD COLUMN paidNowMethod TEXT")
+    }
+}
+
 val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE products ADD COLUMN categoryId TEXT")

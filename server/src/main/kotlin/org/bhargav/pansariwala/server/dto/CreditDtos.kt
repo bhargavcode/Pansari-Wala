@@ -78,6 +78,10 @@ data class CreditTxnDto(
     val gateway: String = "",
     val paymentRef: String? = null,
     val failureReason: String = "",
+    /** POS CREDIT rows: full bill, and the part paid at the counter ([amount] is the rest). */
+    val billTotal: Double = 0.0,
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
 )
 
 @Serializable
@@ -96,6 +100,13 @@ data class BorrowerUpdateRequest(
     val notes: String = "",
     val photoUrl: String? = null,
 )
+
+@Serializable
+data class PayLinkRequest(val amount: Double)
+
+/** [url] is the short https link to share; [upiUri] is the raw `upi://pay` intent it opens. */
+@Serializable
+data class PayLinkDto(val url: String, val upiUri: String, val amount: Double)
 
 @Serializable
 data class RepaymentRequest(

@@ -2213,4 +2213,39 @@
         <item>नोव्हें</item>
         <item>डिसें</item>
     </string-array>
+    <string name="dropdown_no_matches">जुळणारे काही नाही</string>
+    <string name="dropdown_search_hint">शोधण्यासाठी टाइप करा</string>
+    <string name="master_none">काहीही नाही</string>
+    <string name="master_category_shop_types">या दुकान प्रकारांसाठी दाखवा</string>
+    <string name="master_category_all_shop_types">सर्व दुकान प्रकार</string>
+    <string name="master_parent_category_label">मुख्य श्रेणी</string>
+    <string name="master_top_level">काहीही नाही (मुख्य श्रेणी)</string>
+    <string name="master_products_subtitle">कॅटलॉगमध्ये %1$d उत्पादने</string>
+    <string name="master_search_products">नाव, ब्रँड किंवा बारकोडने शोधा</string>
+    <string name="master_delete_product_title">उत्पादन हटवायचे?</string>
+    <string name="master_delete_product_message">%1$s मास्टर कॅटलॉगमधून काढले जाईल. हे पूर्ववत करता येणार नाही.</string>
+    <string name="master_no_products">या फिल्टरनुसार कोणतेही उत्पादन नाही</string>
+    <string name="dashboard_item_count">%1$d वस्तू</string>
+    <string name="udhaar_remind_action">पेमेंटची विनंती करा</string>
+    <string name="udhaar_remind_title">पेमेंट विनंती</string>
+    <string name="udhaar_remind_subtitle">%1$s यांना UPI पेमेंट लिंकसह आठवण पाठवा</string>
+    <string name="udhaar_remind_amount">किमान भरायची रक्कम</string>
+    <string name="udhaar_remind_full">पूर्ण थकबाकी</string>
+    <string name="udhaar_remind_half">अर्धी</string>
+    <string name="udhaar_remind_message">संदेश</string>
+    <string name="udhaar_remind_tokens">प्लेसहोल्डर: {name}, {amount}, {due}, {shop}, {link}</string>
+    <string name="udhaar_remind_reset">डीफॉल्ट संदेशावर परत जा</string>
+    <string name="udhaar_remind_whatsapp">WhatsApp</string>
+    <string name="udhaar_remind_sms">SMS</string>
+    <string name="udhaar_remind_sent">आठवण पाठवण्यासाठी अ‍ॅप उघडत आहे</string>
+    <string name="udhaar_remind_default_template">नमस्कार {name}, {shop} येथे तुमची थकबाकी {due} आहे. कृपया या UPI लिंकद्वारे किमान {amount} भरा: {link}\nधन्यवाद!</string>
+    <string name="error_udhaar_paid_too_much">आता भरलेली रक्कम बिलाच्या एकूण रकमेपेक्षा (%1$s) कमी असावी</string>
+    <string name="pos_udhaar_paid_now_title">काही रक्कम आता देत आहात?</string>
+    <string name="pos_udhaar_paid_now_hint">ग्राहक आता किती देत आहे ते टाका. फक्त उरलेली रक्कम उधारीत जोडली जाईल.</string>
+    <string name="pos_udhaar_paid_now">आता भरलेले (ऐच्छिक)</string>
+    <string name="pos_udhaar_paid_now_row">आता भरलेले (%1$s)</string>
+    <string name="pos_udhaar_on_credit">उधारीत</string>
+    <string name="pos_udhaar_split_summary">%1$s आता भरले · %2$s उधारी</string>
+    <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
+    <string name="udhaar_txn_partial">बिल %1$s · भरले %2$s (%3$s)</string>
 </resources>
