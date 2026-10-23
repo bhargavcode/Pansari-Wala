@@ -210,6 +210,7 @@ class OrderEditorViewModel(
 
     private val _uiState = MutableStateFlow(OrderEditorUiState())
     private var udhaarSearchJob: Job? = null
+    private var loadedKey: Pair<String?, String?>? = null
     private var udhaarPhoto: CompressedImage? = null
     val uiState: StateFlow<OrderEditorUiState> = _uiState.asStateFlow()
 
@@ -375,6 +376,10 @@ class OrderEditorViewModel(
 
     /** [reorderFromId] starts a new bill pre-filled (at today's prices) with that order's items. */
     fun load(orderId: String?, reorderFromId: String? = null) {
+        // Called again when the screen re-enters composition (e.g. rotation); must not wipe the cart being built.
+        val key = orderId to reorderFromId
+        if (loadedKey == key) return
+        loadedKey = key
         viewModelScope.launch {
             shopRepository.ensureSeeded()
             shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID

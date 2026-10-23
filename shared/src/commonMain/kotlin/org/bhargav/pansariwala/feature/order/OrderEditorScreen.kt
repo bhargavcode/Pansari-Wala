@@ -91,7 +91,7 @@ import pansariwala.shared.generated.resources.save_and_print_order
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import org.bhargav.pansariwala.designsystem.OutlinedTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
 import androidx.compose.ui.text.input.KeyboardType

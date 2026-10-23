@@ -3692,14 +3692,27 @@ class AppStore(
     }
 
     fun shopTypes(): List<ShopTypeDto> =
-        shopTypeCol.find().toList().map { ShopTypeDto(it.id, it.name, it.active) }
+        shopTypeCol.find().toList().map { it.toDto(it.translations.localized(it.name)) }
+
+    private fun ShopTypeDoc.toDto(displayName: String = name) = ShopTypeDto(id, displayName, active, translations)
 
     fun upsertShopType(body: ShopTypeUpsert): ShopTypeDto {
         val id = body.id?.takeIf { it.isNotBlank() }
             ?: body.name.trim().uppercase().replace(Regex("[^A-Z0-9]+"), "_")
-        val doc = ShopTypeDoc(id, body.name.trim(), body.active)
+        val existing = shopTypeCol.find(eq("_id", id)).firstOrNull()
+        val doc = ShopTypeDoc(id, body.name.trim(), body.active, existing?.translations.orEmpty())
         shopTypeCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
-        return ShopTypeDto(doc.id, doc.name, doc.active)
+        return doc.toDto()
+    }
+
+    fun saveShopTypeTranslation(id: String, body: CategoryTranslationRequest): ShopTypeDto {
+        val lang = translationLanguage(body.language)
+        val field = "translations.$lang"
+        val value = body.name.trim()
+        if (shopTypeCol.updateOne(eq("_id", id), if (value.isEmpty()) unset(field) else set(field, value)).matchedCount == 0L) {
+            error("Shop type not found")
+        }
+        return shopTypeCol.find(eq("_id", id)).first().toDto()
     }
 
     fun deleteShopType(id: String) {

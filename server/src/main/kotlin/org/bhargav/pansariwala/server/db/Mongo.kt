@@ -334,6 +334,8 @@ data class ShopTypeDoc(
     @SerialName("_id") val id: String,
     val name: String,
     val active: Boolean = true,
+    /** [name] per language code (hi, kn, pa, mr, bn). */
+    val translations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -805,7 +807,11 @@ private fun ensureMasterAdmin(db: MongoDatabase, security: Security, config: Ser
 }
 
 /** Keep ids in sync with client `ShopType` enum (shared/domain/model/Marketplace.kt). */
-private fun defaultShopTypes(): List<ShopTypeDoc> = listOf(
+private fun defaultShopTypes(): List<ShopTypeDoc> = builtInShopTypes().map {
+    it.copy(translations = DEFAULT_SHOP_TYPE_TRANSLATIONS[it.id].orEmpty())
+}
+
+private fun builtInShopTypes(): List<ShopTypeDoc> = listOf(
     ShopTypeDoc("GROCERY", "Grocery / Kirana"),
     ShopTypeDoc("SUPERMARKET", "Supermarket"),
     ShopTypeDoc("GENERAL_STORE", "General Store"),
@@ -892,9 +898,15 @@ private fun prototypeAdminShops(): List<ShopDoc> {
 
 private fun ensureShopTypes(db: MongoDatabase) {
     val col = db.getCollection<ShopTypeDoc>("master_shop_types")
-    val existing = col.find().toList().map { it.id }.toSet()
-    val missing = defaultShopTypes().filter { it.id !in existing }
+    val existing = col.find().toList()
+    val existingIds = existing.map { it.id }.toSet()
+    val missing = defaultShopTypes().filter { it.id !in existingIds }
     if (missing.isNotEmpty()) col.insertMany(missing)
+    existing.forEach { doc ->
+        val seed = DEFAULT_SHOP_TYPE_TRANSLATIONS[doc.id] ?: return@forEach
+        val merged = seed + doc.translations
+        if (merged != doc.translations) col.updateOne(eq("_id", doc.id), set("translations", merged))
+    }
 }
 
 private fun ensurePrototypeShops(db: MongoDatabase) {

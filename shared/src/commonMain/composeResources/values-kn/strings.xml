@@ -2248,4 +2248,18 @@
     <string name="pos_udhaar_split_summary">%1$s ಈಗ ಪಾವತಿ · %2$s ಸಾಲ</string>
     <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
     <string name="udhaar_txn_partial">ಬಿಲ್ %1$s · ಪಾವತಿ %2$s (%3$s)</string>
+    <string name="master_translated_count">%1$d/%2$d ಭಾಷೆಗಳು</string>
+    <string name="action_done">ಮುಗಿದಿದೆ</string>
+    <string name="nav_rail_collapse">ಮೆನು ಕುಗ್ಗಿಸಿ</string>
+    <string name="nav_rail_expand">ಮೆನು ವಿಸ್ತರಿಸಿ</string>
+    <string name="orders_search_hint">ಗ್ರಾಹಕ ಅಥವಾ ಆರ್ಡರ್ ಸಂಖ್ಯೆಯಿಂದ ಹುಡುಕಿ</string>
+    <string name="orders_filter_all">ಎಲ್ಲಾ</string>
+    <string name="orders_filter_open">ತೆರೆದ</string>
+    <string name="orders_filter_completed">ಪೂರ್ಣಗೊಂಡ</string>
+    <string name="orders_filter_cancelled">ರದ್ದು</string>
+    <string name="orders_today">ಇಂದು</string>
+    <string name="orders_yesterday">ನಿನ್ನೆ</string>
+    <string name="orders_stat_avg_bill">ಇಂದಿನ ಸರಾಸರಿ ಬಿಲ್</string>
+    <string name="orders_stat_cancelled">ಇಂದು ರದ್ದು</string>
+    <string name="orders_empty_filtered">ಈ ಹುಡುಕಾಟ ಅಥವಾ ಫಿಲ್ಟರ್‌ಗೆ ಯಾವುದೇ ಆರ್ಡರ್ ಇಲ್ಲ</string>
 </resources>

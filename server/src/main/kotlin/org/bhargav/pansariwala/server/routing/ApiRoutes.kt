@@ -1172,6 +1172,10 @@ fun Route.apiRoutes(
             call.requireRole("ADMIN")
             call.respond(store.upsertShopType(call.receive()))
         }
+        post("/admin/master/shop-types/{id}/translation") {
+            call.requireRole("ADMIN")
+            call.respond(store.saveShopTypeTranslation(call.parameters["id"]!!, call.receive<CategoryTranslationRequest>()))
+        }
         delete("/admin/master/shop-types/{id}") {
             call.requireRole("ADMIN")
             store.deleteShopType(call.parameters["id"]!!)

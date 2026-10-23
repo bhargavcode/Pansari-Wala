@@ -2248,4 +2248,18 @@
     <string name="pos_udhaar_split_summary">%1$s आता भरले · %2$s उधारी</string>
     <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
     <string name="udhaar_txn_partial">बिल %1$s · भरले %2$s (%3$s)</string>
+    <string name="master_translated_count">%1$d/%2$d भाषा</string>
+    <string name="action_done">झाले</string>
+    <string name="nav_rail_collapse">मेनू लहान करा</string>
+    <string name="nav_rail_expand">मेनू मोठा करा</string>
+    <string name="orders_search_hint">ग्राहक किंवा ऑर्डर क्रमांकाने शोधा</string>
+    <string name="orders_filter_all">सर्व</string>
+    <string name="orders_filter_open">उघडे</string>
+    <string name="orders_filter_completed">पूर्ण</string>
+    <string name="orders_filter_cancelled">रद्द</string>
+    <string name="orders_today">आज</string>
+    <string name="orders_yesterday">काल</string>
+    <string name="orders_stat_avg_bill">आजचे सरासरी बिल</string>
+    <string name="orders_stat_cancelled">आज रद्द</string>
+    <string name="orders_empty_filtered">या शोध किंवा फिल्टरनुसार कोणतीही ऑर्डर नाही</string>
 </resources>

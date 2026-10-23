@@ -1154,8 +1154,10 @@ data class MasterCategoryUpsert(
 @Serializable
 data class ShopTypeDto(
     val id: String,
+    /** In the request language; English for the master console. */
     val name: String,
     val active: Boolean = true,
+    val translations: Map<String, String> = emptyMap(),
 )
 
 @Serializable

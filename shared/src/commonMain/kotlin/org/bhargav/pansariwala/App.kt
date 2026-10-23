@@ -1,5 +1,9 @@
 package org.bhargav.pansariwala
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalWindowInfo
+import org.bhargav.pansariwala.designsystem.LocalImeSidePanel
+import org.bhargav.pansariwala.designsystem.hasSoftKeyboard
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -96,11 +100,15 @@ fun App(
             darkTheme = darkTheme,
             customTheme = settings.customTheme,
         ) {
+            val window = LocalWindowInfo.current.containerSize
+            val imeSidePanel = product == AppProduct.POS && hasSoftKeyboard && window.width > window.height
             Surface(modifier = Modifier.fillMaxSize()) {
-                when (product) {
-                    AppProduct.POS -> AppNavGraph()
-                    AppProduct.USER -> UserNavGraph()
-                    AppProduct.DELIVERY -> DeliveryNavGraph()
+                CompositionLocalProvider(LocalImeSidePanel provides imeSidePanel) {
+                    when (product) {
+                        AppProduct.POS -> AppNavGraph()
+                        AppProduct.USER -> UserNavGraph()
+                        AppProduct.DELIVERY -> DeliveryNavGraph()
+                    }
                 }
                 if (showNotificationRationale) {
                     fun close(allow: Boolean) {

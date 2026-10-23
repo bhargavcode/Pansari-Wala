@@ -2248,4 +2248,18 @@
     <string name="pos_udhaar_split_summary">%1$s এখন পরিশোধ · %2$s বাকি</string>
     <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
     <string name="udhaar_txn_partial">বিল %1$s · পরিশোধ %2$s (%3$s)</string>
+    <string name="master_translated_count">%1$d/%2$d ভাষা</string>
+    <string name="action_done">সম্পন্ন</string>
+    <string name="nav_rail_collapse">মেনু ছোট করুন</string>
+    <string name="nav_rail_expand">মেনু বড় করুন</string>
+    <string name="orders_search_hint">গ্রাহক বা অর্ডার নম্বর দিয়ে খুঁজুন</string>
+    <string name="orders_filter_all">সব</string>
+    <string name="orders_filter_open">খোলা</string>
+    <string name="orders_filter_completed">সম্পূর্ণ</string>
+    <string name="orders_filter_cancelled">বাতিল</string>
+    <string name="orders_today">আজ</string>
+    <string name="orders_yesterday">গতকাল</string>
+    <string name="orders_stat_avg_bill">আজকের গড় বিল</string>
+    <string name="orders_stat_cancelled">আজ বাতিল</string>
+    <string name="orders_empty_filtered">এই খোঁজ বা ফিল্টারে কোনো অর্ডার নেই</string>
 </resources>

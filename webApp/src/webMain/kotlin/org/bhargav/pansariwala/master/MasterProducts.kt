@@ -1,5 +1,10 @@
 package org.bhargav.pansariwala.master
 
+import androidx.compose.material3.Switch
+import org.bhargav.pansariwala.i18n.AppLanguage
+import pansariwala.shared.generated.resources.master_active
+import pansariwala.shared.generated.resources.master_inactive
+import pansariwala.shared.generated.resources.master_translated_count
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -463,6 +468,50 @@ internal fun CategoryManageRow(
             }
         }
         MasterActionIcon(MasterAction.EDIT, Icons.Default.Edit, stringResource(Res.string.action_edit), onEdit)
+        MasterActionIcon(MasterAction.TRANSLATE, Icons.Default.Translate, stringResource(Res.string.master_translate_action), onTranslate)
+        MasterActionIcon(MasterAction.DELETE, Icons.Default.Delete, stringResource(Res.string.master_delete), onDelete)
+    }
+}
+
+@Composable
+internal fun ShopTypeManageRow(
+    shopType: ShopTypeDto,
+    onToggleActive: (Boolean) -> Unit,
+    onTranslate: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val languages = AppLanguage.entries.filter { it != AppLanguage.ENGLISH }
+    val translated = languages.filter { !shopType.translations[it.code].isNullOrBlank() }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(shopType.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(shopType.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TagPill(
+                    stringResource(Res.string.master_translated_count, translated.size, languages.size),
+                    if (translated.size == languages.size) MasterAction.ACTIVATE.color() else MasterAction.TRANSLATE.color(),
+                )
+                translated.forEach { lang ->
+                    TagPill(shopType.translations[lang.code].orEmpty(), MaterialTheme.colorScheme.outline)
+                }
+            }
+        }
+        Text(
+            stringResource(if (shopType.active) Res.string.master_active else Res.string.master_inactive),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (shopType.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        )
+        Switch(checked = shopType.active, onCheckedChange = onToggleActive)
         MasterActionIcon(MasterAction.TRANSLATE, Icons.Default.Translate, stringResource(Res.string.master_translate_action), onTranslate)
         MasterActionIcon(MasterAction.DELETE, Icons.Default.Delete, stringResource(Res.string.master_delete), onDelete)
     }

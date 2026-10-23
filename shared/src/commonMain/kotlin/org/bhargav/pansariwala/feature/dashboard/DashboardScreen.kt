@@ -1,5 +1,9 @@
 package org.bhargav.pansariwala.feature.dashboard
 
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.platform.LocalWindowInfo
 import org.bhargav.pansariwala.feature.order.SubscriptionRenewBanner
 import org.bhargav.pansariwala.feature.support.ReportIssueButton
 import androidx.compose.foundation.background
@@ -165,8 +169,11 @@ fun DashboardScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f)) {
+    val window = LocalWindowInfo.current.containerSize
+    val landscape = window.width > window.height
+    var railExpanded by rememberSaveable { mutableStateOf(true) }
+    val content = @Composable { contentModifier: Modifier ->
+        Box(contentModifier) {
             PansariScreen(
                 error = state.errorBannerOrNull(),
                 isLoading = state.isBlockingLoad(),
@@ -213,15 +220,45 @@ fun DashboardScreen(
                 }
             }
         }
-        NavigationBar {
-            tabs.forEach { item ->
-                val label = stringResource(item.labelRes)
-                NavigationBarItem(
-                    selected = tab == item,
-                    onClick = { tab = item },
-                    icon = { Icon(item.icon, contentDescription = label) },
-                    label = { Text(label) },
-                )
+    }
+    if (landscape) {
+        val destinations = tabs.map { item ->
+            RailItem(stringResource(item.labelRes), item.icon, selected = tab == item, onClick = { tab = item })
+        }
+        val shortcuts = buildList {
+            if (access.can(ShopPermission.BILLING)) {
+                add(RailItem(stringResource(Res.string.orders_workspace_title), Icons.AutoMirrored.Filled.ReceiptLong, onClick = onOpenOrdersWorkspace))
+            }
+            if (access.can(ShopPermission.ONLINE_ORDERS)) {
+                add(RailItem(stringResource(Res.string.online_orders_title), Icons.Default.ShoppingBag, onClick = onOpenOnlineOrders))
+            }
+            if (access.can(ShopPermission.VIEW_REPORTS)) {
+                add(RailItem(stringResource(Res.string.reports_title), Icons.Default.BarChart, onClick = onOpenReports))
+            }
+        }
+        Row(Modifier.fillMaxSize()) {
+            PosNavRail(
+                expanded = railExpanded,
+                onToggle = { railExpanded = !railExpanded },
+                destinations = destinations,
+                shortcuts = shortcuts,
+                onNewOrder = onCreateOrder.takeIf { access.can(ShopPermission.BILLING) },
+            )
+            content(Modifier.weight(1f).fillMaxHeight())
+        }
+    } else {
+        Column(Modifier.fillMaxSize()) {
+            content(Modifier.weight(1f))
+            NavigationBar {
+                tabs.forEach { item ->
+                    val label = stringResource(item.labelRes)
+                    NavigationBarItem(
+                        selected = tab == item,
+                        onClick = { tab = item },
+                        icon = { Icon(item.icon, contentDescription = label) },
+                        label = { Text(label) },
+                    )
+                }
             }
         }
     }

@@ -514,6 +514,13 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             setBody(body)
         }.body()
 
+    suspend fun saveShopTypeTranslation(token: String, shopTypeId: String, body: CategoryTranslationBody): ShopTypeDto =
+        client.post(url("/admin/master/shop-types/${shopTypeId.encodeURLPathPart()}/translation")) {
+            bearer(token)
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
     suspend fun saveCategoryTranslation(token: String, categoryId: String, body: CategoryTranslationBody): CategoryDto =
         client.post(url("/admin/master/categories/${categoryId.encodeURLPathPart()}/translation")) {
             bearer(token)
@@ -823,7 +830,12 @@ data class CategoryDto(
     val parentId: String? = null,
     val shopTypeIds: List<String>? = null,
 )
-@Serializable data class ShopTypeDto(val id: String, val name: String, val active: Boolean = true)
+@Serializable data class ShopTypeDto(
+    val id: String,
+    val name: String,
+    val active: Boolean = true,
+    val translations: Map<String, String> = emptyMap(),
+)
 @Serializable data class ShopTypeUpsert(val id: String? = null, val name: String, val active: Boolean = true)
 @Serializable private data class PasswordChangeBody(val currentPassword: String, val newPassword: String)
 

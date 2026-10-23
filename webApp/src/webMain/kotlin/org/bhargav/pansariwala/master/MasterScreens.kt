@@ -1278,6 +1278,7 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
     var parentId by rememberSaveable { mutableStateOf("") }
     var typeName by rememberSaveable { mutableStateOf("") }
     var translatingCategory by remember { mutableStateOf<CategoryDto?>(null) }
+    var translatingShopType by remember { mutableStateOf<ShopTypeDto?>(null) }
     var editingCatId by rememberSaveable { mutableStateOf<String?>(null) }
     var catShopTypes by remember { mutableStateOf<Set<String>>(emptySet()) }
     fun refresh() {
@@ -1311,6 +1312,18 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
             },
             onStatus = onStatus,
             onDismiss = { translatingCategory = null },
+        )
+    }
+    translatingShopType?.let { t ->
+        TranslationDialog(
+            title = t.name,
+            fields = listOf(TranslatableField(Res.string.field_name, t.name, t.translations)),
+            onSave = { lang, v ->
+                api.saveShopTypeTranslation(token, t.id, CategoryTranslationBody(lang, v[0]))
+                refresh()
+            },
+            onStatus = onStatus,
+            onDismiss = { translatingShopType = null },
         )
     }
     LaunchedEffect(token) { refresh() }
@@ -1443,36 +1456,26 @@ internal fun SettingsScreen(token: String, onStatus: (String) -> Unit) {
                             .onFailure { onStatus(it.message.orEmpty()) }
                     }
                 }) { Text(stringResource(Res.string.master_save)) }
-                shopTypes.forEach { t ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("${t.name} [${t.id}]", modifier = Modifier.weight(1f))
-                        Text(
-                            stringResource(if (t.active) Res.string.master_active else Res.string.master_inactive),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (t.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        )
-                        Switch(
-                            checked = t.active,
-                            onCheckedChange = { enabled ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    shopTypes.sortedBy { it.name.lowercase() }.forEach { t ->
+                        ShopTypeManageRow(
+                            shopType = t,
+                            onToggleActive = { enabled ->
                                 scope.launch {
                                     runCatching { api.saveShopType(token, ShopTypeUpsert(id = t.id, name = t.name, active = enabled)) }
                                         .onSuccess { refresh() }
                                         .onFailure { onStatus(it.message.orEmpty()) }
                                 }
                             },
-                            modifier = Modifier.padding(horizontal = 8.dp),
+                            onTranslate = { translatingShopType = t },
+                            onDelete = {
+                                scope.launch {
+                                    runCatching { api.deleteShopType(token, t.id) }
+                                        .onSuccess { refresh() }
+                                        .onFailure { onStatus(it.message.orEmpty()) }
+                                }
+                            },
                         )
-                        TextButton(onClick = {
-                            scope.launch {
-                                runCatching { api.deleteShopType(token, t.id) }
-                                    .onSuccess { refresh() }
-                                    .onFailure { onStatus(it.message.orEmpty()) }
-                            }
-                        }) { Text(stringResource(Res.string.master_delete)) }
                     }
                 }
             }

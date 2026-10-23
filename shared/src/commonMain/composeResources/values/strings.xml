@@ -2312,4 +2312,18 @@
     <string name="pos_udhaar_split_summary">%1$s paid now · %2$s on udhaar</string>
     <string name="pos_payment_split">%1$s %2$s + %3$s %4$s</string>
     <string name="udhaar_txn_partial">Bill %1$s · Paid %2$s (%3$s)</string>
+    <string name="master_translated_count">%1$d/%2$d languages</string>
+    <string name="action_done">Done</string>
+    <string name="nav_rail_collapse">Collapse menu</string>
+    <string name="nav_rail_expand">Expand menu</string>
+    <string name="orders_search_hint">Search by customer or order no.</string>
+    <string name="orders_filter_all">All</string>
+    <string name="orders_filter_open">Open</string>
+    <string name="orders_filter_completed">Completed</string>
+    <string name="orders_filter_cancelled">Cancelled</string>
+    <string name="orders_today">Today</string>
+    <string name="orders_yesterday">Yesterday</string>
+    <string name="orders_stat_avg_bill">Avg. bill today</string>
+    <string name="orders_stat_cancelled">Cancelled today</string>
+    <string name="orders_empty_filtered">No orders match this search or filter</string>
 </resources>

@@ -218,7 +218,7 @@ fun AppNavGraph(
                     AppRoute.Dashboard -> NavEntry(route) {
                         DashboardScreen(
                             onCreateOrder = { push(AppRoute.OrderEditor()) },
-                            onEditOrder = { orderId -> push(AppRoute.OrdersWorkspace(orderId)) },
+                            onEditOrder = { orderId -> push(AppRoute.OrderEditor(orderId = orderId)) },
                             onAddOrUpdateInventory = { push(AppRoute.AddEditInventory()) },
                             onShowLowStockList = { push(AppRoute.InventoryList(lowStockOnly = true)) },
                             onShowFullInventory = { push(AppRoute.InventoryList(lowStockOnly = false)) },
@@ -292,6 +292,8 @@ fun AppNavGraph(
                         OrdersWorkspaceScreen(
                             focusOrderId = route.orderId,
                             onBack = { pop() },
+                            onEditOrder = { orderId -> push(AppRoute.OrderEditor(orderId = orderId)) },
+                            onReorder = { orderId -> push(AppRoute.OrderEditor(reorderFromId = orderId)) },
                         )
                     }
 
@@ -323,7 +325,7 @@ fun AppNavGraph(
                             orderId = route.orderId,
                             online = route.online,
                             onBack = { pop() },
-                            onEditOrder = { orderId -> push(AppRoute.OrdersWorkspace(orderId)) },
+                            onEditOrder = { orderId -> push(AppRoute.OrderEditor(orderId = orderId)) },
                             onReorder = { orderId -> push(AppRoute.OrderEditor(reorderFromId = orderId)) },
                         )
                     }
