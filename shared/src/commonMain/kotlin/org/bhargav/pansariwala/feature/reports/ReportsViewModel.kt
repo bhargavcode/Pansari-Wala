@@ -22,6 +22,7 @@ import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.CategoryStock
+import org.bhargav.pansariwala.domain.model.categoryBreakdown
 import org.bhargav.pansariwala.domain.model.ItemSale
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.ProductCategory
@@ -260,13 +261,7 @@ class ReportsViewModel(
     private suspend fun loadInventory() {
         val products = runCatching { repository.observeProducts(shopId).first() }.getOrNull() ?: return
         categoryById = products.associate { it.id to it.category }
-        val breakdown = withContext(Dispatchers.Default) {
-            products.groupBy { it.category }
-                .map { (category, list) ->
-                    CategoryStock(category, list.size, list.sumOf { it.stockValue })
-                }
-                .sortedByDescending { it.stockValue }
-        }
+        val breakdown = withContext(Dispatchers.Default) { products.categoryBreakdown() }
         _state.update { it.copy(inventory = breakdown) }
         if (rangeItems.isNotEmpty()) recompute(resetPage = false)
     }

@@ -19,6 +19,7 @@ import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.CategoryStock
+import org.bhargav.pansariwala.domain.model.categoryBreakdown
 import org.bhargav.pansariwala.domain.model.OrderStatus
 import org.bhargav.pansariwala.domain.model.OrderSummary
 import org.bhargav.pansariwala.notification.OrderUpdates
@@ -131,16 +132,7 @@ class DashboardViewModel(
             }.catch { error ->
                 _uiState.value = AsyncUiState.Error(error.toApiUiText())
             }.collect { payload ->
-                val breakdown = payload.products
-                    .groupBy { it.category }
-                    .map { (category, list) ->
-                        CategoryStock(
-                            category = category,
-                            itemCount = list.size,
-                            stockValue = list.sumOf { p -> p.stockValue },
-                        )
-                    }
-                    .sortedByDescending { it.stockValue }
+                val breakdown = payload.products.categoryBreakdown()
                 val lowStock = payload.products.filter { it.isLowStock }.sortedBy { it.stockQty }
 
                 _uiState.value = AsyncUiState.Success(

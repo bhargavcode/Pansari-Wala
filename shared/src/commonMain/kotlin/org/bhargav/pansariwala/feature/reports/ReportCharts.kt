@@ -54,7 +54,8 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bhargav.pansariwala.domain.model.CategoryStock
 import org.bhargav.pansariwala.domain.model.PricePoint
-import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.feature.catalog.categoryStockLabel
+import org.bhargav.pansariwala.feature.catalog.rememberProductTaxonomy
 import org.bhargav.pansariwala.util.asMoney
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -119,6 +120,7 @@ fun InventoryPieChart(data: List<CategoryStock>, modifier: Modifier = Modifier) 
     var selected by remember(data) { mutableIntStateOf(NO_SELECTION) }
     val progress = rememberEntryProgress(data)
     val surface = MaterialTheme.colorScheme.surface
+    val taxonomy = rememberProductTaxonomy()
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -168,7 +170,7 @@ fun InventoryPieChart(data: List<CategoryStock>, modifier: Modifier = Modifier) 
             val center = data.getOrNull(selected)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    center?.category?.localizedName() ?: stringResource(Res.string.report_inventory_total),
+                    center?.let { categoryStockLabel(it, taxonomy) } ?: stringResource(Res.string.report_inventory_total),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -199,7 +201,7 @@ fun InventoryPieChart(data: List<CategoryStock>, modifier: Modifier = Modifier) 
             ) {
                 LegendDot(pieColors[i % pieColors.size])
                 Text(
-                    item.category.localizedName(),
+                    categoryStockLabel(item, taxonomy),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 8.dp).weight(1f),
                 )

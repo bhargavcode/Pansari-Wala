@@ -20,7 +20,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.domain.model.CategoryStock
-import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.feature.catalog.categoryStockLabel
+import org.bhargav.pansariwala.feature.catalog.rememberProductTaxonomy
 import org.bhargav.pansariwala.util.asMoney
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
@@ -49,6 +50,7 @@ fun CategoryBarChart(
         return
     }
     val maxValue = data.maxOf { it.stockValue }.coerceAtLeast(1.0)
+    val taxonomy = rememberProductTaxonomy()
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         data.forEachIndexed { index, item ->
             val fraction = (item.stockValue / maxValue).toFloat().coerceIn(0.02f, 1f)
@@ -59,7 +61,7 @@ fun CategoryBarChart(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = item.category.localizedName(),
+                        text = categoryStockLabel(item, taxonomy),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f).padding(end = 8.dp),

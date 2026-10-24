@@ -33,6 +33,7 @@ import org.bhargav.pansariwala.api.ShopTypeOptionDto
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.designsystem.DropdownOption
 import org.bhargav.pansariwala.designsystem.SearchableDropdown
+import org.bhargav.pansariwala.domain.model.CategoryStock
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.i18n.LocalAppLocale
 import org.bhargav.pansariwala.i18n.labelRes
@@ -127,6 +128,11 @@ fun rememberProductTaxonomy(store: ProductTaxonomyStore = koinInject()): Product
 fun productCategoryLabel(product: Product): String =
     rememberProductTaxonomy().label(product.categoryId, product.subCategoryId)
         ?: stringResource(product.category.labelRes)
+
+/** Master category name for a stock bucket, falling back to its legacy shop bucket. */
+@Composable
+fun categoryStockLabel(item: CategoryStock, taxonomy: ProductTaxonomy = rememberProductTaxonomy()): String =
+    taxonomy.name(item.categoryId) ?: stringResource(item.category.labelRes)
 
 /**
  * Shop type → category → sub-category dropdowns for a product form. The shop type list holds
