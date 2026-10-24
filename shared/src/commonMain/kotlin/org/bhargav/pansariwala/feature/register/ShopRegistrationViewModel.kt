@@ -22,7 +22,9 @@ import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.notification.PushSignals
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedException
+import org.bhargav.pansariwala.platform.LocationPositionUnavailableException
 import org.bhargav.pansariwala.platform.LocationServicesDisabledException
+import org.bhargav.pansariwala.platform.LocationTimeoutException
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.PlacePrediction
@@ -41,6 +43,8 @@ import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.dev_otp_hint
 import pansariwala.shared.generated.resources.error_phone_invalid
 import pansariwala.shared.generated.resources.error_place_details_failed
+import pansariwala.shared.generated.resources.location_os_unavailable
+import pansariwala.shared.generated.resources.location_timeout
 import pansariwala.shared.generated.resources.location_unavailable
 import pansariwala.shared.generated.resources.map_picker_unavailable
 import pansariwala.shared.generated.resources.otp_sent_to
@@ -276,6 +280,12 @@ class ShopRegistrationViewModel(
                 return@launch
             } catch (_: LocationServicesDisabledException) {
                 _state.update { it.copy(locating = false, requestLocationPermission = true) }
+                return@launch
+            } catch (_: LocationPositionUnavailableException) {
+                _state.update { it.copy(locating = false, error = UiText.res(Res.string.location_os_unavailable)) }
+                return@launch
+            } catch (_: LocationTimeoutException) {
+                _state.update { it.copy(locating = false, error = UiText.res(Res.string.location_timeout)) }
                 return@launch
             } catch (e: Throwable) {
                 e.rethrowIfStructuredCancellation()

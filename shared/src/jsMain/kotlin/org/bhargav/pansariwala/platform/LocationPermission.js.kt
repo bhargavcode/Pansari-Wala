@@ -14,6 +14,10 @@ class JsDeviceLocation : DeviceLocation {
     override suspend fun currentOrDefault(): GeoPoint = requestBrowserLocation()
 }
 
+/** `GeolocationPositionError` codes. */
+private const val GEO_PERMISSION_DENIED = 1
+private const val GEO_TIMEOUT = 3
+
 /** Desktops often have no GPS: a high-accuracy request can time out where a Wi-Fi fix succeeds. */
 internal suspend fun requestBrowserLocation(): GeoPoint = try {
     browserFix(highAccuracy = true)
@@ -44,7 +48,11 @@ private suspend fun browserFix(highAccuracy: Boolean): GeoPoint = suspendCancell
         { error: JsAny? ->
             val code = error.asDynamic().code as? Int ?: 1
             cont.resumeWithException(
-                if (code == 1) LocationPermissionDeniedException() else LocationUnavailableException(),
+                when (code) {
+                    GEO_PERMISSION_DENIED -> LocationPermissionDeniedException()
+                    GEO_TIMEOUT -> LocationTimeoutException()
+                    else -> LocationPositionUnavailableException()
+                },
             )
         },
         options,

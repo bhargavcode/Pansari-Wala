@@ -32,7 +32,12 @@ private suspend fun browserFix(highAccuracy: Boolean): GeoPoint {
     } catch (e: Throwable) {
         val denied = e.message?.contains("denied", ignoreCase = true) == true ||
             e.message?.contains("${GeolocationPositionError.PERMISSION_DENIED}", ignoreCase = false) == true
-        throw if (denied) LocationPermissionDeniedException() else LocationUnavailableException()
+        val timedOut = e.message?.contains("timeout", ignoreCase = true) == true
+        throw when {
+            denied -> LocationPermissionDeniedException()
+            timedOut -> LocationTimeoutException()
+            else -> LocationPositionUnavailableException()
+        }
     }
     return GeoPoint(
         lat = position.coords.latitude,

@@ -2406,6 +2406,8 @@
     <string name="reg_location_not_verified">Location not verified yet</string>
     <string name="reg_location_search">Search shop address on map</string>
     <string name="reg_location_pick_on_map">Pick on map</string>
+    <string name="location_os_unavailable">Your device could not find its location. Turn on Location Services for this browser (Mac: System Settings → Privacy &amp; Security → Location Services; Windows: Settings → Privacy &amp; security → Location), reopen the browser and try again.</string>
+    <string name="location_timeout">Finding your location took too long. Connect to Wi-Fi or move near a window, then try again.</string>
     <string name="map_picker_title">Pin your shop location</string>
     <string name="map_picker_search_hint">Search on Google Maps</string>
     <string name="map_picker_pin_hint">Move the map so the pin sits on your shop, or tap the spot.</string>

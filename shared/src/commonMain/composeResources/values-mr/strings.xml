@@ -2342,6 +2342,8 @@
     <string name="reg_location_not_verified">ठिकाण अजून पडताळले नाही</string>
     <string name="reg_location_search">नकाशावर दुकानाचा पत्ता शोधा</string>
     <string name="reg_location_pick_on_map">नकाशावर निवडा</string>
+    <string name="location_os_unavailable">तुमच्या डिव्हाइसला लोकेशन सापडले नाही. या ब्राउझरसाठी लोकेशन सेवा सुरू करा (Mac: System Settings → Privacy &amp; Security → Location Services; Windows: Settings → Privacy &amp; security → Location), ब्राउझर पुन्हा उघडा आणि पुन्हा प्रयत्न करा.</string>
+    <string name="location_timeout">लोकेशन शोधायला खूप वेळ लागला. Wi-Fi ला जोडा किंवा खिडकीजवळ जा, मग पुन्हा प्रयत्न करा.</string>
     <string name="map_picker_title">तुमच्या दुकानाचे ठिकाण पिन करा</string>
     <string name="map_picker_search_hint">Google Maps वर शोधा</string>
     <string name="map_picker_pin_hint">पिन तुमच्या दुकानावर येईल असा नकाशा सरकवा, किंवा त्या जागेवर टॅप करा.</string>

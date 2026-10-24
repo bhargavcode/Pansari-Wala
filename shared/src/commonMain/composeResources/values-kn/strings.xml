@@ -2342,6 +2342,8 @@
     <string name="reg_location_not_verified">ಸ್ಥಳ ಇನ್ನೂ ದೃಢೀಕರಿಸಿಲ್ಲ</string>
     <string name="reg_location_search">ನಕ್ಷೆಯಲ್ಲಿ ಅಂಗಡಿ ವಿಳಾಸ ಹುಡುಕಿ</string>
     <string name="reg_location_pick_on_map">ನಕ್ಷೆಯಲ್ಲಿ ಆಯ್ಕೆಮಾಡಿ</string>
+    <string name="location_os_unavailable">ನಿಮ್ಮ ಸಾಧನಕ್ಕೆ ಸ್ಥಳ ಸಿಗಲಿಲ್ಲ. ಈ ಬ್ರೌಸರ್‌ಗೆ ಸ್ಥಳ ಸೇವೆಗಳನ್ನು ಆನ್ ಮಾಡಿ (Mac: System Settings → Privacy &amp; Security → Location Services; Windows: Settings → Privacy &amp; security → Location), ಬ್ರೌಸರ್ ಮತ್ತೆ ತೆರೆದು ಪ್ರಯತ್ನಿಸಿ.</string>
+    <string name="location_timeout">ಸ್ಥಳ ಹುಡುಕಲು ತುಂಬಾ ಸಮಯ ಹಿಡಿಯಿತು. Wi-Fi ಗೆ ಸಂಪರ್ಕಿಸಿ ಅಥವಾ ಕಿಟಕಿಯ ಬಳಿ ಹೋಗಿ, ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.</string>
     <string name="map_picker_title">ನಿಮ್ಮ ಅಂಗಡಿಯ ಸ್ಥಳವನ್ನು ಪಿನ್ ಮಾಡಿ</string>
     <string name="map_picker_search_hint">Google Maps ನಲ್ಲಿ ಹುಡುಕಿ</string>
     <string name="map_picker_pin_hint">ಪಿನ್ ನಿಮ್ಮ ಅಂಗಡಿಯ ಮೇಲೆ ಬರುವಂತೆ ನಕ್ಷೆಯನ್ನು ಸರಿಸಿ, ಅಥವಾ ಆ ಸ್ಥಳವನ್ನು ಟ್ಯಾಪ್ ಮಾಡಿ.</string>
