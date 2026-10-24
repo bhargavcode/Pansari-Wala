@@ -63,6 +63,7 @@ import org.bhargav.pansariwala.api.ShopFeaturesDto
 import org.bhargav.pansariwala.api.ShopHoursDayDto
 import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.ShopStaffDto
+import org.bhargav.pansariwala.api.ShopTypeOptionDto
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.designsystem.LocalFloatingKeyboardEligible
@@ -72,6 +73,8 @@ import org.bhargav.pansariwala.designsystem.formatClockTime
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.model.ShopReview
+import org.bhargav.pansariwala.domain.model.ShopType
+import org.bhargav.pansariwala.feature.user.shopTypeLabel
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.media.ImageUploadFeature
 import org.bhargav.pansariwala.media.NetworkImage
@@ -168,6 +171,9 @@ import pansariwala.shared.generated.resources.profile_field_discount
 import pansariwala.shared.generated.resources.profile_field_name
 import pansariwala.shared.generated.resources.profile_field_owner_email
 import pansariwala.shared.generated.resources.profile_field_owner_name
+import pansariwala.shared.generated.resources.profile_field_shop_types
+import pansariwala.shared.generated.resources.shop_types_primary_label
+import pansariwala.shared.generated.resources.shop_types_select_hint
 import pansariwala.shared.generated.resources.profile_field_owner_phone
 import pansariwala.shared.generated.resources.profile_field_radius
 import pansariwala.shared.generated.resources.master_hours_end
@@ -331,7 +337,15 @@ fun ShopProfileScreen(
     }
 
     state.detailsDraft?.let { draft ->
-        ShopDetailsDialog(draft, viewModel::updateDetailsDraft, viewModel::saveDetails, viewModel::cancelEditDetails)
+        ShopDetailsDialog(
+            draft = draft,
+            shopTypeOptions = state.shopTypeOptions,
+            onChange = viewModel::updateDetailsDraft,
+            onToggleShopType = viewModel::toggleDraftShopType,
+            onMakePrimary = viewModel::makeDraftShopTypePrimary,
+            onSave = viewModel::saveDetails,
+            onDismiss = viewModel::cancelEditDetails,
+        )
     }
     state.hoursDraft?.let { draft ->
         OperatingHoursDialog(draft, viewModel::updateHoursDay, viewModel::saveHours, viewModel::cancelEditHours)
@@ -596,6 +610,12 @@ private fun ShopDetailsCard(shop: ShopDetailsDto, state: ShopProfileUiState, vie
             HorizontalDivider()
             DetailRow(Res.string.profile_field_rating, stringResource(Res.string.profile_rating_value, shop.rating.formatOne(), shop.ratingCount))
             DetailRow(Res.string.profile_field_address, listOf(shop.address, shop.city, shop.state, shop.zip).filter { it.isNotBlank() }.joinToString(", "))
+            DetailRow(
+                Res.string.profile_field_shop_types,
+                shop.shopTypes.ifEmpty { listOf(shop.shopType) }
+                    .map { shopTypeName(it, state.shopTypeOptions) }
+                    .joinToString(", "),
+            )
             DetailRow(Res.string.profile_field_owner_name, shop.ownerName)
             DetailRow(Res.string.profile_field_owner_phone, shop.ownerPhone)
             DetailRow(Res.string.profile_field_owner_email, shop.ownerEmail)
@@ -922,12 +942,16 @@ private fun VisitorRange.label(): StringResource = when (this) {
 @Composable
 private fun ShopDetailsDialog(
     draft: ShopDetailsDraft,
+    shopTypeOptions: List<ShopTypeOptionDto>,
     onChange: ((ShopDetailsDraft) -> ShopDetailsDraft) -> Unit,
+    onToggleShopType: (String) -> Unit,
+    onMakePrimary: (String) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     FormDialog(stringResource(Res.string.profile_edit_shop), onSave, onDismiss) {
         Field(Res.string.profile_field_name, draft.name) { v -> onChange { it.copy(name = v) } }
+        ShopTypesEditor(draft.shopTypes, shopTypeOptions, onToggleShopType, onMakePrimary)
         Field(Res.string.profile_field_address, draft.address) { v -> onChange { it.copy(address = v) } }
         Field(Res.string.profile_field_city, draft.city) { v -> onChange { it.copy(city = v) } }
         Field(Res.string.profile_field_state, draft.state) { v -> onChange { it.copy(state = v) } }
@@ -941,6 +965,53 @@ private fun ShopDetailsDialog(
         Field(Res.string.profile_field_discount, draft.discountPercent, KeyboardType.Decimal) { v -> onChange { it.copy(discountPercent = v) } }
         Field(Res.string.profile_field_registration, draft.registrationNumber) { v -> onChange { it.copy(registrationNumber = v) } }
         Field(Res.string.profile_field_tax, draft.taxId) { v -> onChange { it.copy(taxId = v) } }
+    }
+}
+
+@Composable
+private fun shopTypeName(id: String, options: List<ShopTypeOptionDto>): String =
+    options.firstOrNull { it.id == id }?.name
+        ?: ShopType.entries.firstOrNull { it.apiValue == id }?.let { shopTypeLabel(it) }
+        ?: id.replace('_', ' ')
+
+/** Multi-select; the first selected type is primary (switchable in the second row). */
+@Composable
+private fun ShopTypesEditor(
+    selected: List<String>,
+    options: List<ShopTypeOptionDto>,
+    onToggle: (String) -> Unit,
+    onMakePrimary: (String) -> Unit,
+) {
+    val ids = (options.map { it.id } + selected).distinct()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(Res.string.profile_field_shop_types), style = MaterialTheme.typography.labelLarge)
+        Text(
+            stringResource(Res.string.shop_types_select_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ids.forEach { id ->
+                FilterChip(
+                    selected = id in selected,
+                    onClick = { onToggle(id) },
+                    label = { Text(shopTypeName(id, options)) },
+                )
+            }
+        }
+        val primary = selected.firstOrNull()
+        if (selected.size > 1 && primary != null) {
+            Text(stringResource(Res.string.shop_types_primary_label), style = MaterialTheme.typography.labelMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                selected.forEach { id ->
+                    FilterChip(
+                        selected = id == primary,
+                        onClick = { onMakePrimary(id) },
+                        label = { Text(shopTypeName(id, options)) },
+                    )
+                }
+            }
+        }
     }
 }
 

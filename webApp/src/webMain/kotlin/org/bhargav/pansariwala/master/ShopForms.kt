@@ -124,8 +124,20 @@ import pansariwala.shared.generated.resources.master_zip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.AssistChip
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import org.bhargav.pansariwala.domain.model.ShopType
+import org.bhargav.pansariwala.i18n.AppLanguage
+import pansariwala.shared.generated.resources.action_add
+import pansariwala.shared.generated.resources.master_add_shop_type
+import pansariwala.shared.generated.resources.master_err_shop_type_name
+import pansariwala.shared.generated.resources.master_err_shop_type_required
+import pansariwala.shared.generated.resources.master_shop_type_exists
+import pansariwala.shared.generated.resources.master_shop_type_name_en
+import pansariwala.shared.generated.resources.master_shop_type_translations_hint
+import pansariwala.shared.generated.resources.shop_types_primary_label
+import pansariwala.shared.generated.resources.shop_types_select_hint
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.master_err_login_password
 import pansariwala.shared.generated.resources.master_err_login_username
@@ -174,7 +186,8 @@ internal fun ShopEditorScreen(
     var ownerName by rememberSaveable { mutableStateOf("") }
     var ownerPhone by rememberSaveable { mutableStateOf("") }
     var ownerEmail by rememberSaveable { mutableStateOf("") }
-    var shopType by rememberSaveable { mutableStateOf(ShopType.GROCERY.apiValue) }
+    var selectedTypes by remember { mutableStateOf(listOf(ShopType.GROCERY.apiValue)) }
+    var addingShopType by remember { mutableStateOf(false) }
     var loginUsername by rememberSaveable { mutableStateOf("") }
     var loginPassword by rememberSaveable { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
@@ -224,7 +237,10 @@ internal fun ShopEditorScreen(
                 ownerName = s.ownerName
                 ownerPhone = s.ownerPhone
                 ownerEmail = s.ownerEmail
-                shopType = s.shopType.ifBlank { ShopType.GROCERY.apiValue }
+                selectedTypes = s.shopTypes.ifEmpty { listOf(s.shopType) }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .ifEmpty { listOf(ShopType.GROCERY.apiValue) }
                 loginUsername = s.loginUsername
                 address = s.address
                 city = s.city
@@ -333,7 +349,29 @@ internal fun ShopEditorScreen(
                         LabeledField(stringResource(Res.string.master_owner_phone), ownerPhone, stringResource(Res.string.master_placeholder_phone)) { ownerPhone = it }
                         LabeledField(stringResource(Res.string.master_owner_email), ownerEmail, stringResource(Res.string.master_placeholder_email)) { ownerEmail = it }
                         SectionTitle(stringResource(Res.string.master_shop_type))
-                        ShopTypePicker(types = shopTypes, selected = shopType, onSelect = { shopType = it })
+                        ShopTypePicker(
+                            types = shopTypes,
+                            selected = selectedTypes,
+                            onToggle = { id ->
+                                selectedTypes = if (id in selectedTypes) selectedTypes - id else selectedTypes + id
+                            },
+                            onMakePrimary = { id -> selectedTypes = listOf(id) + (selectedTypes - id) },
+                            onAddNew = { addingShopType = true },
+                        )
+                        if (addingShopType) {
+                            AddShopTypeDialog(
+                                api = api,
+                                token = token,
+                                existing = shopTypes,
+                                onDismiss = { addingShopType = false },
+                                onPicked = { type, created ->
+                                    addingShopType = false
+                                    if (created) shopTypes = shopTypes + type
+                                    if (type.id !in selectedTypes) selectedTypes = selectedTypes + type.id
+                                },
+                                onStatus = onStatus,
+                            )
+                        }
                         SectionTitle(stringResource(Res.string.master_shop_login))
                         Text(
                             stringResource(Res.string.master_shop_login_hint),
@@ -366,7 +404,19 @@ internal fun ShopEditorScreen(
                         LabeledField(stringResource(Res.string.master_state), state, stringResource(Res.string.master_placeholder_state)) { state = it }
                         LabeledField(stringResource(Res.string.master_zip), zip, stringResource(Res.string.master_placeholder_zip)) { zip = it }
                         LabeledField(stringResource(Res.string.master_country), country, "India") { country = it }
-                        MapLocationPicker(lat = lat, lng = lng, onLatChange = { lat = it }, onLngChange = { lng = it })
+                        MapLocationPicker(
+                            lat = lat,
+                            lng = lng,
+                            onLatChange = { lat = it },
+                            onLngChange = { lng = it },
+                            onAddressResolved = { picked ->
+                                if (address.isBlank()) address = picked.street
+                                if (city.isBlank()) city = picked.city
+                                if (state.isBlank()) state = picked.state
+                                if (zip.isBlank()) zip = picked.zip
+                                if (country.isBlank()) country = picked.country
+                            },
+                        )
                     }
                     // Column 3 — business + hours + status + features
                     MasterSectionCard(modifier = Modifier.widthIn(min = 260.dp)) {
@@ -453,9 +503,11 @@ internal fun ShopEditorScreen(
             val errDeliveryUntil = stringResource(Res.string.master_err_delivery_until)
             val errMinOrder = stringResource(Res.string.shop_min_order_invalid)
             val errFreeDelivery = stringResource(Res.string.shop_free_delivery_invalid)
+            val errShopType = stringResource(Res.string.master_err_shop_type_required)
             fun validate(): String? {
                 val phoneDigits = ownerPhone.filter(Char::isDigit).takeLast(10)
                 return when {
+                    selectedTypes.isEmpty() -> errShopType
                     radiusKm.isNotBlank() && (radiusKm.toDoubleOrNull() ?: -1.0) <= 0.0 -> errRadius
                     discountPct.isNotBlank() && (discountPct.toDoubleOrNull() ?: -1.0) !in 0.0..100.0 -> errDiscount
                     deliveryUntil.isNotBlank() && !HH_MM_REGEX.matches(deliveryUntil) -> errDeliveryUntil
@@ -515,7 +567,8 @@ internal fun ShopEditorScreen(
                                         imageUrl = imageUrl.ifBlank { null },
                                         name = name,
                                         address = address,
-                                        shopType = shopType,
+                                        shopType = selectedTypes.first(),
+                                        shopTypes = selectedTypes,
                                         ownerName = ownerName,
                                         ownerPhone = ownerPhone,
                                         ownerEmail = ownerEmail,
@@ -537,7 +590,8 @@ internal fun ShopEditorScreen(
                                         token,
                                         ShopCreate(
                                             name = name,
-                                            shopType = shopType,
+                                            shopType = selectedTypes.first(),
+                                            shopTypes = selectedTypes,
                                             address = address,
                                             lat = lat,
                                             lng = lng,
@@ -612,9 +666,23 @@ private fun LabeledField(label: String, value: String, placeholder: String, onCh
     }
 }
 
+/** Multi-select; the first selected id is the shop's primary type. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ShopTypePicker(types: List<ShopTypeDto>, selected: String, onSelect: (String) -> Unit) {
+private fun ShopTypePicker(
+    types: List<ShopTypeDto>,
+    selected: List<String>,
+    onToggle: (String) -> Unit,
+    onMakePrimary: (String) -> Unit,
+    onAddNew: () -> Unit,
+) {
+    val missing = selected.filter { id -> types.none { it.id == id } }.map { ShopTypeDto(it, it.replace('_', ' ')) }
+    val all = types + missing
+    Text(
+        stringResource(Res.string.shop_types_select_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     FlowRow(
         Modifier
             .fillMaxWidth()
@@ -623,15 +691,143 @@ private fun ShopTypePicker(types: List<ShopTypeDto>, selected: String, onSelect:
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        types.forEach { t ->
-            val isSelected = t.id == selected || t.name.equals(selected, ignoreCase = true)
+        all.forEach { t ->
             FilterChip(
-                selected = isSelected,
-                onClick = { onSelect(t.id) },
+                selected = t.id in selected,
+                onClick = { onToggle(t.id) },
                 label = { Text(t.name, style = MaterialTheme.typography.bodySmall) },
             )
         }
+        AssistChip(
+            onClick = onAddNew,
+            label = { Text(stringResource(Res.string.master_add_shop_type), style = MaterialTheme.typography.bodySmall) },
+            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp)) },
+        )
     }
+    val primary = selected.firstOrNull()
+    if (selected.size > 1 && primary != null) {
+        Text(stringResource(Res.string.shop_types_primary_label), style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            selected.forEach { id ->
+                FilterChip(
+                    selected = id == primary,
+                    onClick = { onMakePrimary(id) },
+                    label = { Text(all.firstOrNull { it.id == id }?.name ?: id, style = MaterialTheme.typography.bodySmall) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Creates a shop type, or picks the existing one when the name (or any translation) already
+ * matches. Blank translations default to the English name.
+ */
+@Composable
+private fun AddShopTypeDialog(
+    api: MasterApi,
+    token: String,
+    existing: List<ShopTypeDto>,
+    onDismiss: () -> Unit,
+    onPicked: (type: ShopTypeDto, created: Boolean) -> Unit,
+    onStatus: (String) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val languages = remember { AppLanguage.entries.filter { it != AppLanguage.ENGLISH } }
+    var name by remember { mutableStateOf("") }
+    var translations by remember { mutableStateOf(languages.associate { it.code to "" }) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val errRequired = stringResource(Res.string.master_err_shop_type_name)
+    val existsTemplate = stringResource(Res.string.master_shop_type_exists, "%s")
+
+    fun findDuplicate(): ShopTypeDto? {
+        val keys = (listOf(name) + translations.values)
+            .map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        val idKey = name.trim().uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_')
+        return existing.firstOrNull { t ->
+            t.id == idKey ||
+                t.name.trim().lowercase() in keys ||
+                t.translations.values.any { it.trim().lowercase() in keys }
+        }
+    }
+
+    AppAlertDialog(
+        onDismissRequest = { if (!saving) onDismiss() },
+        title = { Text(stringResource(Res.string.master_add_shop_type)) },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        error = null
+                    },
+                    label = { Text(stringResource(Res.string.master_shop_type_name_en)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    stringResource(Res.string.master_shop_type_translations_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                languages.forEach { lang ->
+                    OutlinedTextField(
+                        value = translations[lang.code].orEmpty(),
+                        onValueChange = { v -> translations = translations + (lang.code to v) },
+                        label = { Text(lang.displayLabel) },
+                        placeholder = { Text(name) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = !saving,
+                onClick = {
+                    val trimmed = name.trim()
+                    if (trimmed.isEmpty()) {
+                        error = errRequired
+                        return@Button
+                    }
+                    findDuplicate()?.let { dup ->
+                        onStatus(existsTemplate.replace("%s", dup.name))
+                        onPicked(dup, false)
+                        return@Button
+                    }
+                    saving = true
+                    scope.launch {
+                        runCatching {
+                            api.saveShopType(
+                                token,
+                                ShopTypeUpsert(
+                                    name = trimmed,
+                                    translations = translations.mapValues { (_, v) -> v.trim().ifEmpty { trimmed } },
+                                ),
+                            )
+                        }.onSuccess { onPicked(it, true) }
+                            .onFailure { error = it.message }
+                        saving = false
+                    }
+                },
+            ) {
+                if (saving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text(stringResource(Res.string.action_add))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(Res.string.master_cancel)) }
+        },
+    )
 }
 
 @Composable

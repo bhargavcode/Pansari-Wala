@@ -44,6 +44,7 @@ enum class ShopType(val apiValue: String) {
     AYURVEDIC("AYURVEDIC"),
     ORGANIC("ORGANIC"),
     HARDWARE("HARDWARE"),
+    PLUMBING("PLUMBING"),
     ELECTRICAL("ELECTRICAL"),
     ELECTRONICS("ELECTRONICS"),
     MOBILE("MOBILE"),

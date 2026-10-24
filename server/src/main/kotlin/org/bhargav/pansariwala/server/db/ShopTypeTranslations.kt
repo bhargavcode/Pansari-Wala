@@ -18,6 +18,7 @@ internal val DEFAULT_SHOP_TYPE_TRANSLATIONS: Map<String, Map<String, String>> = 
     "ELECTRICAL" to mapOf("hi" to "इलेक्ट्रिकल", "kn" to "ಎಲೆಕ್ಟ್ರಿಕಲ್", "pa" to "ਇਲੈਕਟ੍ਰੀਕਲ", "mr" to "इलेक्ट्रिकल", "bn" to "ইলেকট্রিক্যাল"),
     "ELECTRONICS" to mapOf("hi" to "इलेक्ट्रॉनिक्स", "kn" to "ಎಲೆಕ್ಟ್ರಾನಿಕ್ಸ್", "pa" to "ਇਲੈਕਟ੍ਰਾਨਿਕਸ", "mr" to "इलेक्ट्रॉनिक्स", "bn" to "ইলেকট্রনিক্স"),
     "MOBILE" to mapOf("hi" to "मोबाइल और एक्सेसरीज़", "kn" to "ಮೊಬೈಲ್ ಮತ್ತು ಪರಿಕರಗಳು", "pa" to "ਮੋਬਾਈਲ ਅਤੇ ਐਕਸੈਸਰੀਜ਼", "mr" to "मोबाइल आणि ॲक्सेसरीज", "bn" to "মোবাইল ও অ্যাক্সেসরিজ"),
+    "PLUMBING" to mapOf("hi" to "प्लंबिंग और सैनिटरी", "kn" to "ಪ್ಲಂಬಿಂಗ್ ಮತ್ತು ಸ್ಯಾನಿಟರಿ", "pa" to "ਪਲੰਬਿੰਗ ਅਤੇ ਸੈਨੇਟਰੀ", "mr" to "प्लंबिंग आणि सॅनिटरी", "bn" to "প্লাম্বিং ও স্যানিটারি"),
     "STATIONERY" to mapOf("hi" to "स्टेशनरी", "kn" to "ಸ್ಟೇಷನರಿ", "pa" to "ਸਟੇਸ਼ਨਰੀ", "mr" to "स्टेशनरी", "bn" to "স্টেশনারি"),
     "BOOKS" to mapOf("hi" to "किताबें", "kn" to "ಪುಸ್ತಕಗಳು", "pa" to "ਕਿਤਾਬਾਂ", "mr" to "पुस्तके", "bn" to "বই"),
     "CLOTHING" to mapOf("hi" to "कपड़े", "kn" to "ಉಡುಪುಗಳು", "pa" to "ਕੱਪੜੇ", "mr" to "कपडे", "bn" to "পোশাক"),

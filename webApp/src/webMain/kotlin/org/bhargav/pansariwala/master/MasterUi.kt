@@ -28,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Store
@@ -103,9 +102,6 @@ import pansariwala.shared.generated.resources.master_filter_weekly
 import pansariwala.shared.generated.resources.master_filter_yearly
 import pansariwala.shared.generated.resources.master_filter_yesterday
 import pansariwala.shared.generated.resources.master_item_details
-import pansariwala.shared.generated.resources.master_latitude
-import pansariwala.shared.generated.resources.master_longitude
-import pansariwala.shared.generated.resources.master_map_location
 import pansariwala.shared.generated.resources.master_new_shop
 import pansariwala.shared.generated.resources.master_notifications
 import pansariwala.shared.generated.resources.master_offers
@@ -114,7 +110,6 @@ import pansariwala.shared.generated.resources.master_paid
 import pansariwala.shared.generated.resources.master_profile
 import pansariwala.shared.generated.resources.master_refund
 import pansariwala.shared.generated.resources.master_sales_overview
-import pansariwala.shared.generated.resources.master_select_on_map
 import pansariwala.shared.generated.resources.master_shop_details_col
 import pansariwala.shared.generated.resources.master_shop_id
 import pansariwala.shared.generated.resources.master_shop_name
@@ -401,77 +396,6 @@ fun ImageThumb(url: String?, modifier: Modifier = Modifier) {
                 Icons.Default.Image,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-fun MapLocationPicker(
-    lat: Double,
-    lng: Double,
-    onLatChange: (Double) -> Unit,
-    onLngChange: (Double) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val latText = remember(lat) { mutableStateOf(lat.toString()) }
-    val lngText = remember(lng) { mutableStateOf(lng.toString()) }
-    LaunchedEffect(lat) { latText.value = lat.toString() }
-    LaunchedEffect(lng) { lngText.value = lng.toString() }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(Res.string.master_map_location), fontWeight = FontWeight.SemiBold)
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                .clickable {
-                    onLatChange(28.6139 + (0..20).random() * 0.001)
-                    onLngChange(77.2090 + (0..20).random() * 0.001)
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(Modifier.fillMaxSize().padding(8.dp)) {
-                val step = 24f
-                var x = 0f
-                while (x < size.width) {
-                    drawLine(color = androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.25f), start = Offset(x, 0f), end = Offset(x, size.height))
-                    x += step
-                }
-                var y = 0f
-                while (y < size.height) {
-                    drawLine(color = androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.25f), start = Offset(0f, y), end = Offset(size.width, y))
-                    y += step
-                }
-            }
-            Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
-        }
-        OutlinedButton(onClick = {
-            onLatChange(28.6139)
-            onLngChange(77.2090)
-        }) { Text(stringResource(Res.string.master_select_on_map)) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = latText.value,
-                onValueChange = {
-                    latText.value = it
-                    it.toDoubleOrNull()?.let(onLatChange)
-                },
-                label = { Text(stringResource(Res.string.master_latitude)) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = lngText.value,
-                onValueChange = {
-                    lngText.value = it
-                    it.toDoubleOrNull()?.let(onLngChange)
-                },
-                label = { Text(stringResource(Res.string.master_longitude)) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
             )
         }
     }

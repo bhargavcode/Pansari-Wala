@@ -38,6 +38,8 @@ data class ShopDetailsDto(
     val address: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
+    /** All types incl. [shopType] first; empty from older servers. */
+    val shopTypes: List<String> = emptyList(),
     val joinedAtEpochMs: Long = 0L,
     val features: ShopFeaturesDto = ShopFeaturesDto(),
     val ownerName: String = "",
@@ -120,6 +122,8 @@ data class ShopProfilePatch(
     val features: ShopFeaturesDto? = null,
     val name: String? = null,
     val address: String? = null,
+    /** Non-empty replaces all types; the first is the primary one. */
+    val shopTypes: List<String>? = null,
     val ownerName: String? = null,
     val ownerPhone: String? = null,
     val ownerEmail: String? = null,

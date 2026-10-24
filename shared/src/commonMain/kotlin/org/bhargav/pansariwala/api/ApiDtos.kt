@@ -697,6 +697,14 @@ data class MasterCategoryDto(
     val shopTypeIds: List<String> = emptyList(),
 )
 
+/** Platform shop type; [name] is already in the request language. */
+@Serializable
+data class ShopTypeOptionDto(
+    val id: String,
+    val name: String,
+    val active: Boolean = true,
+)
+
 @Serializable
 data class MasterProductDto(
     val id: String,

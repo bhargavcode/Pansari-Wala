@@ -23,6 +23,7 @@ import org.bhargav.pansariwala.api.ShopProfileDto
 import org.bhargav.pansariwala.api.ShopProfilePatch
 import org.bhargav.pansariwala.api.ShopStaffDto
 import org.bhargav.pansariwala.api.ShopStaffUpsert
+import org.bhargav.pansariwala.api.ShopTypeOptionDto
 import org.bhargav.pansariwala.api.VisitorStatsDto
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
@@ -90,6 +91,8 @@ data class ShopDetailsDraft(
     val taxId: String = "",
     /** "HH:mm" or blank for all-day delivery. */
     val deliveryUntil: String = "",
+    /** Selected shop type ids; the first is the primary type. */
+    val shopTypes: List<String> = emptyList(),
 )
 
 data class StaffDraft(
@@ -141,6 +144,7 @@ data class ShopProfileUiState(
     val visitorRange: VisitorRange = VisitorRange.WEEK,
     val visitors: VisitorStatsDto? = null,
     val detailsDraft: ShopDetailsDraft? = null,
+    val shopTypeOptions: List<ShopTypeOptionDto> = emptyList(),
     val hoursDraft: List<ShopHoursDayDto>? = null,
     val orderRulesDraft: OrderRulesDraft? = null,
     val staffDraft: StaffDraft? = null,
@@ -200,6 +204,7 @@ class ShopProfileViewModel(
                         it.copy(loading = false, profile = profile, access = preferences.getShopAccess())
                     }
                     loadTab(_uiState.value.tab)
+                    if (_uiState.value.shopTypeOptions.isEmpty()) loadShopTypeOptions()
                 }
                 .onFailure { e ->
                     e.rethrowIfStructuredCancellation()
@@ -246,6 +251,20 @@ class ShopProfileViewModel(
     fun startEditDetails() {
         val shop = _uiState.value.profile?.shop ?: return
         _uiState.update { it.copy(detailsDraft = shop.toDraft()) }
+        if (_uiState.value.shopTypeOptions.isEmpty()) loadShopTypeOptions()
+    }
+
+    private fun loadShopTypeOptions() =
+        request { _uiState.update { it.copy(shopTypeOptions = api.shopTypes().filter { t -> t.active }) } }
+
+    /** Toggles [id]; the first selected type stays primary, and at least one is always kept. */
+    fun toggleDraftShopType(id: String) = updateDetailsDraft { draft ->
+        val next = if (id in draft.shopTypes) draft.shopTypes - id else draft.shopTypes + id
+        if (next.isEmpty()) draft else draft.copy(shopTypes = next)
+    }
+
+    fun makeDraftShopTypePrimary(id: String) = updateDetailsDraft { draft ->
+        if (id !in draft.shopTypes) draft else draft.copy(shopTypes = listOf(id) + (draft.shopTypes - id))
     }
 
     fun updateDetailsDraft(transform: (ShopDetailsDraft) -> ShopDetailsDraft) =
@@ -274,6 +293,7 @@ class ShopProfileViewModel(
             registrationNumber = draft.registrationNumber.trim(),
             taxId = draft.taxId.trim(),
             deliveryUntil = draft.deliveryUntil,
+            shopTypes = draft.shopTypes.takeIf { it.isNotEmpty() },
         )
         saveProfile(patch) { it.copy(detailsDraft = null) }
     }
@@ -639,4 +659,5 @@ private fun ShopDetailsDto.toDraft() = ShopDetailsDraft(
     registrationNumber = registrationNumber,
     taxId = taxId,
     deliveryUntil = deliveryUntil,
+    shopTypes = shopTypes.ifEmpty { listOf(shopType) }.filter { it.isNotBlank() }.distinct(),
 )

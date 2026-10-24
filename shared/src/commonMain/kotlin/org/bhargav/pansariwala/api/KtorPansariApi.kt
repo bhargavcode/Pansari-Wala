@@ -259,6 +259,8 @@ class KtorPansariApi(
 
     override suspend fun masterCategories(): List<MasterCategoryDto> = client.get("master/categories").body()
 
+    override suspend fun shopTypes(): List<ShopTypeOptionDto> = client.get("master/shop-types").body()
+
     override suspend fun masterProductPage(
         query: String,
         categoryId: String?,

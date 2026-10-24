@@ -168,6 +168,8 @@ data class ShopDto(
     val upiId: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
+    /** Every type the shop sells as; [shopType] is the first (primary) one. */
+    val shopTypes: List<String> = emptyList(),
     val active: Boolean = true,
     val paymentsEnabled: Boolean = true,
     val address: String = "",
@@ -193,6 +195,8 @@ data class ShopHoursDayDto(
 data class AdminShopCreate(
     val name: String,
     val shopType: String = "GENERAL_STORE",
+    /** Non-empty overrides [shopType]; the first entry becomes the primary type. */
+    val shopTypes: List<String> = emptyList(),
     val address: String = "",
     val lat: Double = 28.6139,
     val lng: Double = 77.2090,
@@ -241,6 +245,7 @@ data class AdminShopDto(
     val address: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
+    val shopTypes: List<String> = emptyList(),
     val joinedAtEpochMs: Long = 0L,
     val features: ShopFeaturesDto = ShopFeaturesDto(),
     val ownerName: String = "",
@@ -1165,6 +1170,8 @@ data class ShopTypeUpsert(
     val id: String? = null,
     val name: String,
     val active: Boolean = true,
+    /** Language code → name; merged over the stored translations. */
+    val translations: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -1231,6 +1238,8 @@ data class AdminShopPatch(
     val name: String? = null,
     val address: String? = null,
     val shopType: String? = null,
+    /** Non-empty replaces all types; the first entry becomes the primary [shopType]. */
+    val shopTypes: List<String>? = null,
     val ownerName: String? = null,
     val ownerPhone: String? = null,
     val ownerEmail: String? = null,

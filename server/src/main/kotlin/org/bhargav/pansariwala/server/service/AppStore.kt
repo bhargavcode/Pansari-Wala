@@ -842,7 +842,10 @@ class AppStore(
         val allowedTypes = categories - disabledTypes
         if (categories.isNotEmpty() && allowedTypes.isEmpty()) return emptyList()
         val shopFilter = when {
-            allowedTypes.isNotEmpty() -> and(eq("active", true), `in`("shopType", allowedTypes))
+            allowedTypes.isNotEmpty() -> and(
+                eq("active", true),
+                or(`in`("shopType", allowedTypes), `in`("shopTypes", allowedTypes)),
+            )
             disabledTypes.isNotEmpty() -> and(eq("active", true), nin("shopType", disabledTypes))
             else -> eq("active", true)
         }
@@ -882,6 +885,7 @@ class AppStore(
             upiId = upiId.ifBlank { config.defaultShopUpi },
             deliveryRadiusKm = deliveryRadiusKm,
             shopType = shopType,
+            shopTypes = allShopTypes(),
             address = address,
             deliversToYou = dist <= deliveryRadiusKm,
             deliveryUntil = deliveryUntil,
@@ -3697,10 +3701,27 @@ class AppStore(
     private fun ShopTypeDoc.toDto(displayName: String = name) = ShopTypeDto(id, displayName, active, translations)
 
     fun upsertShopType(body: ShopTypeUpsert): ShopTypeDto {
-        val id = body.id?.takeIf { it.isNotBlank() }
-            ?: body.name.trim().uppercase().replace(Regex("[^A-Z0-9]+"), "_")
-        val existing = shopTypeCol.find(eq("_id", id)).firstOrNull()
-        val doc = ShopTypeDoc(id, body.name.trim(), body.active, existing?.translations.orEmpty())
+        val name = body.name.trim()
+        require(name.isNotEmpty()) { "Shop type name is required" }
+        val givenId = body.id?.takeIf { it.isNotBlank() }
+        val id = givenId ?: name.uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_')
+        require(id.isNotEmpty()) { "Shop type name must contain letters or digits" }
+        val all = shopTypeCol.find().toList()
+        val key = name.lowercase()
+        val clash = all.firstOrNull { other ->
+            other.id != givenId && (
+                (givenId == null && other.id == id) ||
+                    other.name.trim().lowercase() == key ||
+                    other.translations.values.any { it.trim().lowercase() == key }
+                )
+        }
+        require(clash == null) { "Shop type '${clash?.name}' already exists" }
+        val existing = all.firstOrNull { it.id == id }
+        val incoming = body.translations
+            .mapKeys { it.key.trim().lowercase() }
+            .filter { (lang, value) -> lang in PRODUCT_LANGUAGES && value.isNotBlank() }
+            .mapValues { it.value.trim() }
+        val doc = ShopTypeDoc(id, name, body.active, existing?.translations.orEmpty() + incoming)
         shopTypeCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
         return doc.toDto()
     }
@@ -3714,6 +3735,9 @@ class AppStore(
         }
         return shopTypeCol.find(eq("_id", id)).first().toDto()
     }
+
+    private fun normalizeShopTypes(ids: List<String>): List<String> =
+        ids.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     fun deleteShopType(id: String) {
         shopTypeCol.deleteOne(eq("_id", id))
@@ -3735,6 +3759,7 @@ class AppStore(
         lng: Double,
         active: Boolean,
         imageUrl: String? = null,
+        shopTypes: List<String> = emptyList(),
         ownerName: String = "",
         ownerPhone: String = "",
         ownerEmail: String = "",
@@ -3750,7 +3775,8 @@ class AppStore(
         loginPassword: String = "",
     ): AdminShopDto {
         require(name.isNotBlank()) { "Shop name is required" }
-        require(shopType.isNotBlank()) { "Shop category is required" }
+        val types = normalizeShopTypes(shopTypes).ifEmpty { normalizeShopTypes(listOf(shopType)) }
+        require(types.isNotEmpty()) { "Shop category is required" }
         require(address.isNotBlank() || city.isNotBlank()) { "Shop address is required" }
         validateShopLocation(lat, lng)
         val phone = ownerPhone.trim().takeIf { it.isNotEmpty() }?.let { Security.normalizePhone(it) }
@@ -3787,7 +3813,8 @@ class AppStore(
                 deliveryRadiusKm = platform().defaultShopDeliveryRadiusKm,
                 upiId = config.defaultShopUpi,
                 address = composedAddress.ifBlank { address },
-                shopType = shopType.ifBlank { "GENERAL_STORE" },
+                shopType = types.first(),
+                shopTypes = types,
                 joinedAt = now,
                 features = features?.let {
                     ShopFeaturesDoc(
@@ -3900,6 +3927,7 @@ class AppStore(
         operatingHours: List<ShopHoursDayDto>? = null,
         loginUsername: String? = null,
         loginPassword: String? = null,
+        shopTypes: List<String>? = null,
         upiId: String? = null,
         deliveryRadiusKm: Double? = null,
         discountPercent: Double? = null,
@@ -3941,7 +3969,16 @@ class AppStore(
             if (imageUrl != null) add(set("imageUrl", assets.toKeyOrNull(imageUrl)))
             if (name != null) add(set("name", name.trim()))
             if (address != null) add(set("address", address.trim()))
-            if (shopType != null) add(set("shopType", shopType.trim()))
+            val types = shopTypes?.let(::normalizeShopTypes).orEmpty()
+            if (types.isNotEmpty()) {
+                add(set("shopType", types.first()))
+                add(set("shopTypes", types))
+            } else if (!shopType.isNullOrBlank() && shopType.trim() != shop.shopType) {
+                // Single-type (older) clients swap only the primary type and keep the extra ones.
+                val primary = shopType.trim()
+                add(set("shopType", primary))
+                add(set("shopTypes", (listOf(primary) + shop.allShopTypes().drop(1)).distinct()))
+            }
             if (ownerName != null) add(set("ownerName", ownerName.trim()))
             if (ownerPhone != null) add(set("ownerPhone", phone ?: ownerPhone.trim()))
             if (ownerEmail != null) add(set("ownerEmail", ownerEmail.trim()))
@@ -4014,6 +4051,7 @@ class AppStore(
             name = patch.name,
             address = patch.address,
             shopType = patch.shopType,
+            shopTypes = patch.shopTypes,
             ownerName = patch.ownerName,
             ownerPhone = patch.ownerPhone,
             ownerEmail = patch.ownerEmail,
@@ -4463,6 +4501,7 @@ class AppStore(
         address = address,
         deliveryRadiusKm = deliveryRadiusKm,
         shopType = shopType,
+        shopTypes = allShopTypes(),
         joinedAtEpochMs = joinedAt,
         features = ShopFeaturesDto(
             voiceSearch = features.voiceSearch,
@@ -4504,6 +4543,7 @@ class AppStore(
         upiId = upiId,
         deliveryRadiusKm = deliveryRadiusKm,
         shopType = shopType,
+        shopTypes = shopTypes,
         active = active,
         paymentsEnabled = paymentsEnabled,
         address = address,

@@ -264,6 +264,7 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         name: String? = null,
         address: String? = null,
         shopType: String? = null,
+        shopTypes: List<String>? = null,
         ownerName: String? = null,
         ownerPhone: String? = null,
         ownerEmail: String? = null,
@@ -293,7 +294,7 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
             setBody(
                 ShopPatch(
                     active = active, paymentsEnabled = paymentsEnabled, features = features, imageUrl = imageUrl,
-                    name = name, address = address, shopType = shopType,
+                    name = name, address = address, shopType = shopType, shopTypes = shopTypes,
                     ownerName = ownerName, ownerPhone = ownerPhone, ownerEmail = ownerEmail,
                     city = city, state = state, zip = zip, country = country,
                     registrationNumber = registrationNumber, taxId = taxId, lat = lat, lng = lng,
@@ -836,7 +837,12 @@ data class CategoryDto(
     val active: Boolean = true,
     val translations: Map<String, String> = emptyMap(),
 )
-@Serializable data class ShopTypeUpsert(val id: String? = null, val name: String, val active: Boolean = true)
+@Serializable data class ShopTypeUpsert(
+    val id: String? = null,
+    val name: String,
+    val active: Boolean = true,
+    val translations: Map<String, String> = emptyMap(),
+)
 @Serializable private data class PasswordChangeBody(val currentPassword: String, val newPassword: String)
 
 /** Zero means "off" for max/free-delivery/min-order fields. */
@@ -906,6 +912,7 @@ data class ShopDto(
     val active: Boolean = true,
     val paymentsEnabled: Boolean = true,
     val shopType: String = "GENERAL_STORE",
+    val shopTypes: List<String> = emptyList(),
     val address: String = "",
     val lat: Double = 0.0,
     val lng: Double = 0.0,
@@ -954,6 +961,7 @@ data class ShopPatch(
     val name: String? = null,
     val address: String? = null,
     val shopType: String? = null,
+    val shopTypes: List<String>? = null,
     val ownerName: String? = null,
     val ownerPhone: String? = null,
     val ownerEmail: String? = null,
@@ -983,6 +991,7 @@ data class ShopPatch(
 data class ShopCreate(
     val name: String,
     val shopType: String = "GENERAL_STORE",
+    val shopTypes: List<String> = emptyList(),
     val address: String = "",
     val lat: Double = 28.6139,
     val lng: Double = 77.2090,

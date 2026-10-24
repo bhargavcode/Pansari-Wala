@@ -136,6 +136,8 @@ data class ShopDoc(
     val address: String = "",
     val deliveryRadiusKm: Double = 20.0,
     val shopType: String = "GENERAL_STORE",
+    /** All types incl. [shopType] as the first; empty on legacy docs (use [allShopTypes]). */
+    val shopTypes: List<String> = emptyList(),
     val joinedAt: Long = 0L,
     val features: ShopFeaturesDoc = ShopFeaturesDoc(),
     val ownerName: String = "",
@@ -162,7 +164,9 @@ data class ShopDoc(
     /** When on, delivery is free for orders whose subtotal after discount reaches [freeDeliveryAboveInr]. */
     val freeDeliveryEnabled: Boolean = false,
     val freeDeliveryAboveInr: Double = DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR,
-)
+) {
+    fun allShopTypes(): List<String> = (listOf(shopType) + shopTypes).filter { it.isNotBlank() }.distinct()
+}
 
 const val DEFAULT_SHOP_MIN_ORDER_INR = 200.0
 const val DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR = 500.0
@@ -825,6 +829,7 @@ private fun builtInShopTypes(): List<ShopTypeDoc> = listOf(
     ShopTypeDoc("AYURVEDIC", "Ayurvedic & Herbal"),
     ShopTypeDoc("ORGANIC", "Organic Store"),
     ShopTypeDoc("HARDWARE", "Hardware"),
+    ShopTypeDoc("PLUMBING", "Plumbing & Sanitary"),
     ShopTypeDoc("ELECTRICAL", "Electrical"),
     ShopTypeDoc("ELECTRONICS", "Electronics"),
     ShopTypeDoc("MOBILE", "Mobile & Accessories"),

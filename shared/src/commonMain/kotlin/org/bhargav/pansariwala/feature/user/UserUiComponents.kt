@@ -90,6 +90,7 @@ import pansariwala.shared.generated.resources.shop_rating
 import pansariwala.shared.generated.resources.shop_type_electronics
 import pansariwala.shared.generated.resources.shop_type_general_store
 import pansariwala.shared.generated.resources.shop_type_hardware
+import pansariwala.shared.generated.resources.shop_type_plumbing
 import pansariwala.shared.generated.resources.shop_type_medical_store
 import pansariwala.shared.generated.resources.shop_type_stationery
 import pansariwala.shared.generated.resources.shop_type_sweet_shop
@@ -181,6 +182,7 @@ fun shopTypeLabel(type: ShopType): String = stringResource(
         ShopType.AYURVEDIC -> Res.string.shop_type_ayurvedic
         ShopType.ORGANIC -> Res.string.shop_type_organic
         ShopType.HARDWARE -> Res.string.shop_type_hardware
+        ShopType.PLUMBING -> Res.string.shop_type_plumbing
         ShopType.ELECTRICAL -> Res.string.shop_type_electrical
         ShopType.ELECTRONICS -> Res.string.shop_type_electronics
         ShopType.MOBILE -> Res.string.shop_type_mobile

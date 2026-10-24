@@ -66,6 +66,7 @@ interface PansariApi {
     ): org.bhargav.pansariwala.domain.model.ProductPage
     suspend fun shopProductDetail(shopId: String, productId: String): org.bhargav.pansariwala.domain.model.ProductDetail
     suspend fun masterCategories(): List<MasterCategoryDto>
+    suspend fun shopTypes(): List<ShopTypeOptionDto>
     /** Platform master catalog; [query] matches name, Hindi name, brand or exact barcode. */
     suspend fun masterProductPage(
         query: String,

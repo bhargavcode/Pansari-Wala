@@ -857,6 +857,7 @@ fun Route.apiRoutes(
                 store.createShopAdmin(
                     name = body.name,
                     shopType = body.shopType,
+                    shopTypes = body.shopTypes,
                     address = body.address,
                     lat = body.lat,
                     lng = body.lng,
@@ -947,6 +948,7 @@ fun Route.apiRoutes(
                 name = body.name,
                 address = body.address,
                 shopType = body.shopType,
+                shopTypes = body.shopTypes,
                 ownerName = body.ownerName,
                 ownerPhone = body.ownerPhone,
                 ownerEmail = body.ownerEmail,
