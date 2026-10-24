@@ -28,11 +28,11 @@ fi
 sudo nginx -t
 sudo systemctl reload nginx
 
-echo "=== live OPTIONS check (expect 204 + Access-Control-Allow-Origin) ==="
+echo "=== live OPTIONS check (expect 204 + Access-Control-Allow-Headers incl. X-App-Language) ==="
 curl -sS -D - -o /dev/null -X OPTIONS "https://api.${DOMAIN}/auth/admin/login" \
   -H "Origin: https://${DOMAIN}" \
   -H "Access-Control-Request-Method: POST" \
-  -H "Access-Control-Request-Headers: content-type" \
+  -H "Access-Control-Request-Headers: content-type,x-app-language" \
   --max-time 10 || true
 
 echo "Done."
