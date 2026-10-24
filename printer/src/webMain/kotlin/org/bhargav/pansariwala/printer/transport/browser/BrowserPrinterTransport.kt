@@ -138,13 +138,19 @@ private fun installPrinterBridge(): Unit = js(
   ];
   const BLE_CHUNK = 180;
   const P = { devices: new Map(), links: new Map(), choosing: false };
-  const usbEntry = (d) => ({ id: 'usb:' + d.vendorId + ':' + d.productId + ':' + (d.serialNumber || ''), name: d.productName || 'USB printer', mode: 'usb', handle: d });
+  const usbEntry = (d) => {
+    const id = 'usb:' + d.vendorId + ':' + d.productId + ':' + (d.serialNumber || '');
+    return { id: id, name: d.productName || 'USB printer', mode: 'usb', handle: d };
+  };
   const serialEntry = (p, i) => {
     const info = p.getInfo ? p.getInfo() : {};
     const bt = !!info.bluetoothServiceClassId;
     return { id: 'serial:' + (info.usbVendorId || '') + ':' + (info.usbProductId || '') + ':' + (bt ? 'bt' : 'usb') + ':' + i, name: bt ? 'Bluetooth printer' : 'Serial printer', mode: 'serial', bt: bt, handle: p };
   };
-  const bleEntry = (d) => ({ id: 'ble:' + d.id, name: d.name || 'BLE printer', mode: 'ble', handle: d });
+  const bleEntry = (d) => {
+    const id = 'ble:' + d.id;
+    return { id: id, name: d.name || 'BLE printer', mode: 'ble', handle: d };
+  };
   P.supported = (kind) => kind === 'usb' ? !!(nav.usb || nav.serial) : kind === 'serial-bt' ? !!nav.serial : kind === 'ble' ? !!nav.bluetooth : false;
   const ports = () => nav.serial ? nav.serial.getPorts().then(list => list.map(serialEntry)) : Promise.resolve([]);
   const granted = (kind) => {
@@ -195,7 +201,8 @@ private fun installPrinterBridge(): Unit = js(
       }
       if (!target) throw new Error('No bulk OUT endpoint');
       return d.claimInterface(target.iface).then(() => {
-        return { write: (b) => d.transferOut(target.ep, b), close: () => d.close().catch(() => {}), alive: () => d.opened };
+        const link = { write: (b) => d.transferOut(target.ep, b), close: () => d.close().catch(() => {}), alive: () => d.opened };
+        return link;
       });
     });
   const openSerial = (p) => Promise.resolve(p.writable ? null : p.open({ baudRate: 9600 })).then(() => {
