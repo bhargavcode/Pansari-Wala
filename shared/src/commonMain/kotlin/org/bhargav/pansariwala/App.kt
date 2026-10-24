@@ -1,7 +1,12 @@
 package org.bhargav.pansariwala
 
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import org.bhargav.pansariwala.util.AppConstants
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalWindowInfo
+import org.bhargav.pansariwala.designsystem.FloatingKeyboardHost
+import org.bhargav.pansariwala.designsystem.LocalFloatingKeyboardEligible
 import org.bhargav.pansariwala.designsystem.LocalImeSidePanel
 import org.bhargav.pansariwala.designsystem.hasSoftKeyboard
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -59,9 +64,12 @@ fun App(
     orderSync: OfflineOrderSync = koinInject(),
     installReporter: AppInstallReporter = koinInject(),
 ) {
-    val settings by preferences.userSettings.collectAsStateWithLifecycle(
-        initialValue = AppUserSettings(),
+    // Null until prefs load: composing with defaults first would flip AppLocaleProvider's key and wipe all
+    // restored saveable state (nav back stack, scroll, inputs) after every activity recreation.
+    val loadedSettings by preferences.userSettings.collectAsStateWithLifecycle<AppUserSettings?>(
+        initialValue = null,
     )
+    val settings = loadedSettings ?: AppUserSettings()
     val product = currentAppProduct()
     val darkTheme = when (settings.themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -95,19 +103,29 @@ fun App(
             notifications.needsPermissionPrompt()
     }
 
+    if (loadedSettings == null) return
     AppLocaleProvider(languageCode = settings.language.code) {
         PansariTheme(
             darkTheme = darkTheme,
             customTheme = settings.customTheme,
         ) {
             val window = LocalWindowInfo.current.containerSize
-            val imeSidePanel = product == AppProduct.POS && hasSoftKeyboard && window.width > window.height
+            val shortestSideDp = with(LocalDensity.current) { minOf(window.width, window.height).toDp() }
+            val isPhone = shortestSideDp < AppConstants.PHONE_MAX_SHORTEST_SIDE_DP.dp
+            val imeSidePanel = product == AppProduct.POS && hasSoftKeyboard && isPhone && window.width > window.height
+            val keyboardEligible = product == AppProduct.POS && hasSoftKeyboard && isPhone
+            val floatingKeyboardOn by preferences.floatingKeyboard.collectAsStateWithLifecycle(initialValue = false)
             Surface(modifier = Modifier.fillMaxSize()) {
-                CompositionLocalProvider(LocalImeSidePanel provides imeSidePanel) {
-                    when (product) {
-                        AppProduct.POS -> AppNavGraph()
-                        AppProduct.USER -> UserNavGraph()
-                        AppProduct.DELIVERY -> DeliveryNavGraph()
+                CompositionLocalProvider(
+                    LocalImeSidePanel provides imeSidePanel,
+                    LocalFloatingKeyboardEligible provides keyboardEligible,
+                ) {
+                    FloatingKeyboardHost(enabled = keyboardEligible && floatingKeyboardOn, preferences = preferences) {
+                        when (product) {
+                            AppProduct.POS -> AppNavGraph()
+                            AppProduct.USER -> UserNavGraph()
+                            AppProduct.DELIVERY -> DeliveryNavGraph()
+                        }
                     }
                 }
                 if (showNotificationRationale) {

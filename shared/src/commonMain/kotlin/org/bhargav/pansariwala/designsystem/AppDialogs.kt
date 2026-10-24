@@ -16,6 +16,7 @@ import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +65,7 @@ fun AppAlertDialog(
                 DialogCloseButton(onDismissRequest)
             }
         },
-        text = text,
+        text = text?.let { body -> { CompositionLocalProvider(LocalInOverlayWindow provides true) { body() } } },
         properties = appDialogProperties(usePlatformDefaultWidth),
     )
 }
@@ -78,8 +79,9 @@ fun AppDialog(
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = appDialogProperties(usePlatformDefaultWidth),
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(LocalInOverlayWindow provides true, content = content)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,6 +107,7 @@ fun AppBottomSheet(
             }
         },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false, shouldDismissOnClickOutside = false),
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(LocalInOverlayWindow provides true) { content() }
+    }
 }

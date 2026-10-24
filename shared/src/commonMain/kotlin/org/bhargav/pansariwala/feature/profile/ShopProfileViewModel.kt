@@ -178,6 +178,13 @@ class ShopProfileViewModel(
         viewModelScope.launch { preferences.setVoiceAutoAdd(enabled) }
     }
 
+    val floatingKeyboard: StateFlow<Boolean> = preferences.floatingKeyboard
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), true)
+
+    fun setFloatingKeyboard(enabled: Boolean) {
+        viewModelScope.launch { preferences.setFloatingKeyboard(enabled) }
+    }
+
     init {
         refresh()
     }

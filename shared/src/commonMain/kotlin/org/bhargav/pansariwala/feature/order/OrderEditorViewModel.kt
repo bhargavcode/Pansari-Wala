@@ -522,8 +522,10 @@ class OrderEditorViewModel(
         partialCommitJob?.cancel()
         speechToText.cancel()
         lastAppliedUtterance = null
+        pendingVoicePicks.clear()
+        scanMessageJob?.cancel()
         _uiState.update {
-            it.copy(isListening = false, partialTranscript = "", error = null)
+            it.copy(isListening = false, partialTranscript = "", error = null, scanMessage = null)
         }
     }
 
@@ -1080,6 +1082,11 @@ class OrderEditorViewModel(
                 addedAny = true
                 continue
             }
+            // Unsure match with no unit is usually shop chatter on the open mic; hint only, no sheet.
+            if (!confident && line.unit == null) {
+                messages += UiText.res(Res.string.voice_confirm_product, label)
+                continue
+            }
             // Never guess: unsure product, unit, quantity or stock → cashier confirms in the product sheet.
             when {
                 !confident -> messages += UiText.res(Res.string.voice_confirm_product, label)
@@ -1103,9 +1110,11 @@ class OrderEditorViewModel(
             it.copy(
                 partialTranscript = "",
                 voiceMessages = if (messages.isEmpty()) it.voiceMessages else it.voiceMessages + messages,
-                error = messages.lastOrNull() ?: if (addedAny) null else it.error,
+                error = if (addedAny) null else it.error,
             )
         }
+        // Transient strip, not the blocking banner: the open mic keeps producing these.
+        messages.lastOrNull()?.let(::showScanMessage)
     }
 
     /**

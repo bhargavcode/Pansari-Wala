@@ -94,6 +94,15 @@ fun OutlinedTextField(
     shape: Shape = OutlinedTextFieldDefaults.shape,
     colors: TextFieldColors = OutlinedTextFieldDefaults.colors(),
 ) {
+    val floatingKeyboard = currentFloatingKeyboard()
+    if (floatingKeyboard != null && !readOnly && enabled) {
+        FloatingKeyboardTextField(
+            floatingKeyboard, value, onValueChange, modifier, textStyle, label, placeholder, leadingIcon,
+            trailingIcon, prefix, suffix, supportingText, isError, visualTransformation, keyboardOptions,
+            keyboardActions, singleLine, maxLines, minLines, interactionSource, shape, colors,
+        )
+        return
+    }
     if (!LocalImeSidePanel.current || readOnly || !enabled) {
         M3OutlinedTextField(
             value, onValueChange, modifier, enabled, readOnly, textStyle, label, placeholder, leadingIcon,

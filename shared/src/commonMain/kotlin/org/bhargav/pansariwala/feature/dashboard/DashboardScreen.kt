@@ -224,22 +224,23 @@ fun DashboardScreen(
             }
         }
     }
-    if (landscape) {
-        val destinations = tabs.map { item ->
-            RailItem(stringResource(item.labelRes), item.icon, selected = tab == item, onClick = { tab = item })
-        }
-        val shortcuts = buildList {
-            if (access.can(ShopPermission.BILLING)) {
-                add(RailItem(stringResource(Res.string.orders_workspace_title), Icons.AutoMirrored.Filled.ReceiptLong, onClick = onOpenOrdersWorkspace))
+    // Content keeps one slot in both orientations so tab scroll/local state survives rotation.
+    Row(Modifier.fillMaxSize()) {
+        if (landscape) {
+            val destinations = tabs.map { item ->
+                RailItem(stringResource(item.labelRes), item.icon, selected = tab == item, onClick = { tab = item })
             }
-            if (access.can(ShopPermission.ONLINE_ORDERS)) {
-                add(RailItem(stringResource(Res.string.online_orders_title), Icons.Default.ShoppingBag, onClick = onOpenOnlineOrders))
+            val shortcuts = buildList {
+                if (access.can(ShopPermission.BILLING)) {
+                    add(RailItem(stringResource(Res.string.orders_workspace_title), Icons.AutoMirrored.Filled.ReceiptLong, onClick = onOpenOrdersWorkspace))
+                }
+                if (access.can(ShopPermission.ONLINE_ORDERS)) {
+                    add(RailItem(stringResource(Res.string.online_orders_title), Icons.Default.ShoppingBag, onClick = onOpenOnlineOrders))
+                }
+                if (access.can(ShopPermission.VIEW_REPORTS)) {
+                    add(RailItem(stringResource(Res.string.reports_title), Icons.Default.BarChart, onClick = onOpenReports))
+                }
             }
-            if (access.can(ShopPermission.VIEW_REPORTS)) {
-                add(RailItem(stringResource(Res.string.reports_title), Icons.Default.BarChart, onClick = onOpenReports))
-            }
-        }
-        Row(Modifier.fillMaxSize()) {
             PosNavRail(
                 expanded = railExpanded,
                 onToggle = { railExpanded = !railExpanded },
@@ -247,12 +248,10 @@ fun DashboardScreen(
                 shortcuts = shortcuts,
                 onNewOrder = onCreateOrder.takeIf { access.can(ShopPermission.BILLING) },
             )
-            content(Modifier.weight(1f).fillMaxHeight())
         }
-    } else {
-        Column(Modifier.fillMaxSize()) {
-            content(Modifier.weight(1f))
-            NavigationBar {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            content(Modifier.weight(1f).fillMaxWidth())
+            if (!landscape) NavigationBar {
                 tabs.forEach { item ->
                     val label = stringResource(item.labelRes)
                     NavigationBarItem(

@@ -19,6 +19,12 @@ object AppConstants {
     const val UNCATEGORIZED_CATEGORY_ID: String = "uncategorized"
     /** Master catalog waits this long for the shop's own type before listing every type. */
     const val SHOP_TYPE_LOOKUP_TIMEOUT_MS: Long = 4_000L
+    /** Devices whose shorter side is below this (dp) are phones; at or above are tablets. */
+    const val PHONE_MAX_SHORTEST_SIDE_DP = 600
+    /** In-app floating keyboard zoom range and step for the +/- buttons. */
+    const val KEYBOARD_SCALE_MIN: Float = 0.6f
+    const val KEYBOARD_SCALE_MAX: Float = 1.6f
+    const val KEYBOARD_SCALE_STEP: Float = 0.1f
     /** Recently picked shop types kept for LIFO ordering on the user app. */
     const val RECENT_CATEGORIES_MAX: Int = 20
     const val LIST_PAGE_SIZE: Int = 20
@@ -290,6 +296,9 @@ object AppConstants {
         const val SHOP_FEATURES: String = "pref_shop_features"
         const val SCANNER_SETTINGS: String = "pref_scanner_settings"
         const val VOICE_AUTO_ADD: String = "pref_voice_auto_add"
+        const val FLOATING_KEYBOARD: String = "pref_floating_keyboard"
+        const val FLOATING_KEYBOARD_DOCKED: String = "pref_floating_keyboard_docked"
+        const val FLOATING_KEYBOARD_SCALE: String = "pref_floating_keyboard_scale"
         /** Suffixed with the shop id so each shop keeps its own supplier list on a shared device. */
         const val SUPPLIER_BOOK_PREFIX: String = "pref_supplier_book_"
     }

@@ -434,6 +434,21 @@
     <string name="voice_confirm_quantity">Please check the quantity for %1$s</string>
     <string name="voice_auto_add">Auto-add to cart</string>
     <string name="voice_auto_add_hint">On: clear voice matches are added straight to the cart. Off: each match opens the product to add manually.</string>
+    <string name="keyboard_settings_title">Keyboard</string>
+    <string name="keyboard_floating_toggle">In-app floating keyboard</string>
+    <string name="keyboard_floating_hint">Movable, zoomable keyboard for small phones. Turn off to use your phone keyboard (Hindi, voice typing).</string>
+    <string name="keyboard_dock">Dock to bottom</string>
+    <string name="keyboard_undock">Detach and float</string>
+    <string name="keyboard_hide">Hide keyboard</string>
+    <string name="keyboard_zoom_in">Make keyboard bigger</string>
+    <string name="keyboard_zoom_out">Make keyboard smaller</string>
+    <string name="keyboard_move">Drag to move</string>
+    <string name="keyboard_backspace">Backspace</string>
+    <string name="keyboard_shift">Shift</string>
+    <string name="keyboard_space">Space</string>
+    <string name="keyboard_symbols">123</string>
+    <string name="keyboard_letters">ABC</string>
+    <string name="keyboard_enter">Enter</string>
 
     <!-- Voice controls -->
     <string name="voice_listening">Listening…</string>
@@ -1732,6 +1747,7 @@
     <string name="pos_cart_bar_items">%1$d items</string>
     <string name="pos_view_cart">View cart</string>
     <string name="pos_category_all">All (%1$d)</string>
+    <string name="pos_category_items">%1$d items</string>
     <string name="pos_out_of_stock">Out of stock</string>
     <string name="pos_no_products_match">No products match your search</string>
     <string name="pos_choose_option">Choose</string>

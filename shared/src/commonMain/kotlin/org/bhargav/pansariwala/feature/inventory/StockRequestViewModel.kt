@@ -53,6 +53,7 @@ class StockRequestViewModel(
     private var book = SupplierBook()
 
     fun open(product: Product) {
+        if (_uiState.value.product?.id == product.id) return
         viewModelScope.launch {
             shopId = prefs.getShopId() ?: AppConstants.DEMO_SHOP_ID
             book = prefs.getSupplierBook(shopId)

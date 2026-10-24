@@ -174,6 +174,29 @@ class AppPreferences(
         store.putStrings(mapOf(AppConstants.Prefs.VOICE_AUTO_ADD to enabled.toString()))
     }
 
+    /** POS phones: in-app floating keyboard instead of the system keyboard. */
+    val floatingKeyboard: Flow<Boolean> = store.observeString(AppConstants.Prefs.FLOATING_KEYBOARD)
+        .map { it.toBooleanPref(default = true) }
+
+    suspend fun setFloatingKeyboard(enabled: Boolean) {
+        store.putStrings(mapOf(AppConstants.Prefs.FLOATING_KEYBOARD to enabled.toString()))
+    }
+
+    val floatingKeyboardDocked: Flow<Boolean> = store.observeString(AppConstants.Prefs.FLOATING_KEYBOARD_DOCKED)
+        .map { it.toBooleanPref(default = true) }
+
+    val floatingKeyboardScale: Flow<Float> = store.observeString(AppConstants.Prefs.FLOATING_KEYBOARD_SCALE)
+        .map { it?.toFloatOrNull() ?: 1f }
+
+    suspend fun setFloatingKeyboardLayout(docked: Boolean, scale: Float) {
+        store.putStrings(
+            mapOf(
+                AppConstants.Prefs.FLOATING_KEYBOARD_DOCKED to docked.toString(),
+                AppConstants.Prefs.FLOATING_KEYBOARD_SCALE to scale.toString(),
+            ),
+        )
+    }
+
     suspend fun getSupplierBook(shopId: String): SupplierBook =
         store.getString(AppConstants.Prefs.SUPPLIER_BOOK_PREFIX + shopId)?.let { raw ->
             runCatching { json.decodeFromString(SupplierBook.serializer(), raw) }.getOrNull()

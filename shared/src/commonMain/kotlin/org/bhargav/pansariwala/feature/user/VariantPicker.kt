@@ -18,10 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -58,7 +54,6 @@ import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_add
 import pansariwala.shared.generated.resources.action_cancel
-import pansariwala.shared.generated.resources.action_close
 import pansariwala.shared.generated.resources.action_edit
 import pansariwala.shared.generated.resources.action_save
 import pansariwala.shared.generated.resources.variant_pack_count_label
@@ -248,9 +243,6 @@ private fun VariantPickerSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                }
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(Res.string.action_close))
                 }
             }
             if (options.size > 1) {
@@ -588,9 +580,10 @@ fun CartLineRow(
 }
 
 /** Price line for one option card: "₹10.00 · 100 g", "₹48.00 / kg · Loose", "₹220.00 · Bundle of 24". */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OptionPriceSummary(option: PurchaseOption, modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    FlowRow(modifier, itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         option.OfferPrice()
         val variant = option.variant
         val detail = when {
@@ -600,7 +593,7 @@ fun OptionPriceSummary(option: PurchaseOption, modifier: Modifier = Modifier) {
             else -> stringResource(Res.string.catalog_per_unit, option.quantityUnit.localizedLabel())
         }
         if (detail.isNotBlank()) {
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }

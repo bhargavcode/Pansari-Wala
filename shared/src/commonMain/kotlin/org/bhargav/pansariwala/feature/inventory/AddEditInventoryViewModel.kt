@@ -113,8 +113,12 @@ class AddEditInventoryViewModel(
     private var shopId: String = SeedData.DEMO_SHOP_ID
     private var loadedProduct: Product? = null
     private val loadedProductId: String? get() = loadedProduct?.id
+    private var started = false
 
     fun load(productId: String?) {
+        // Re-invoked when the screen is recreated (rotation, activity restart); keep the in-progress form.
+        if (started) return
+        started = true
         viewModelScope.launch {
             shopRepository.ensureSeeded()
             shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID

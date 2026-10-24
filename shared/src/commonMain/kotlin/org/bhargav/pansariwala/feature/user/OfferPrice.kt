@@ -2,7 +2,8 @@ package org.bhargav.pansariwala.feature.user
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +35,7 @@ fun discountPercent(was: Double?, sale: Double): Int? {
  * Sale price in bold, the struck-through "was" price, and a green "20% OFF" tag — the standard
  * e-commerce pattern. Renders just the price when there is no saving.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OfferPriceRow(
     price: String,
@@ -43,18 +45,20 @@ fun OfferPriceRow(
     priceStyle: TextStyle = MaterialTheme.typography.bodyMedium,
     priceColor: Color = MaterialTheme.colorScheme.primary,
 ) {
-    Row(
+    // Wraps instead of squeezing so the tag never breaks letter-by-letter in narrow panes.
+    FlowRow(
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
+        itemVerticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(price, style = priceStyle, fontWeight = FontWeight.Bold, color = priceColor)
+        Text(price, style = priceStyle, fontWeight = FontWeight.Bold, color = priceColor, maxLines = 1)
         if (strikePrice != null) {
             Text(
                 strikePrice,
                 style = MaterialTheme.typography.labelSmall,
                 textDecoration = TextDecoration.LineThrough,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
         if (offLabel != null) OfferTag(offLabel)
@@ -69,6 +73,7 @@ fun OfferTag(label: String, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         color = PackedGreen,
+        maxLines = 1,
         modifier = modifier
             .background(PackedGreen.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
             .padding(horizontal = 4.dp, vertical = 1.dp),

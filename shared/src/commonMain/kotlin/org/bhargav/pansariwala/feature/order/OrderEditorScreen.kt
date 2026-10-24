@@ -4,6 +4,16 @@ import pansariwala.shared.generated.resources.stock_left
 import pansariwala.shared.generated.resources.pos_no_products_match
 import pansariwala.shared.generated.resources.pos_out_of_stock
 import pansariwala.shared.generated.resources.pos_category_all
+import pansariwala.shared.generated.resources.pos_category_items
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.domain.model.ProductCategory
 import androidx.compose.runtime.setValue
@@ -196,8 +206,8 @@ fun OrderEditorScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(orderId, reorderFromId) { viewModel.load(orderId, reorderFromId) }
-    LaunchedEffect(Unit) { viewModel.refreshEntitlements() }
+    LaunchedEffect(viewModel, orderId, reorderFromId) { viewModel.load(orderId, reorderFromId) }
+    LaunchedEffect(viewModel) { viewModel.refreshEntitlements() }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     if (state.showPaymentPicker) {
         PosPaymentSheet(state = state, viewModel = viewModel)
@@ -283,18 +293,256 @@ fun OrderEditorScreen(
         onConsumed = viewModel::consumeMicPermissionRequest,
         onResult = viewModel::onMicPermissionResult,
     )
+
+    // Catalog browse state lives above the orientation switch so rotating keeps category + scroll positions.
+    var category by rememberSaveable { mutableStateOf<ProductCategory?>(null) }
+    val categories = remember(state.filteredCatalog) {
+        state.filteredCatalog.map { it.category }.distinct().sortedBy { it.ordinal }
+    }
+    LaunchedEffect(categories) {
+        if (category != null && categories.isNotEmpty() && category !in categories) category = null
+    }
+    val browse = CatalogBrowseState(
+        categories = categories,
+        category = category,
+        onCategoryChange = { category = it },
+        portraitListState = rememberLazyListState(),
+        overviewListState = rememberLazyListState(),
+        categoryListState = rememberSaveable(category, saver = LazyListState.Saver) { LazyListState() },
+    )
+
     PansariScreen(
         error = state.error.toErrorBanner(retryable = false),
         onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError) },
         isLoading = state.loading,
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            if (maxHeight > maxWidth) {
-                PortraitOrderLayout(state, viewModel, onBack, onOpenSubscription)
-            } else {
-                LandscapeOrderLayout(state, viewModel, onBack, onOpenSubscription)
+            when {
+                maxHeight > maxWidth -> PortraitOrderLayout(state, viewModel, browse, onBack, onOpenSubscription)
+                maxHeight < AppConstants.PHONE_MAX_SHORTEST_SIDE_DP.dp ->
+                    CompactLandscapeOrderLayout(state, viewModel, browse, onBack, onOpenSubscription)
+                else -> LandscapeOrderLayout(state, viewModel, onBack, onOpenSubscription)
             }
         }
+    }
+}
+
+private class CatalogBrowseState(
+    val categories: List<ProductCategory>,
+    val category: ProductCategory?,
+    val onCategoryChange: (ProductCategory?) -> Unit,
+    val portraitListState: LazyListState,
+    /** Landscape category overview; untouched while drilled into a category so back restores it. */
+    val overviewListState: LazyListState,
+    /** Landscape drill-in list; reset whenever a different category is opened. */
+    val categoryListState: LazyListState,
+)
+
+private const val CATEGORY_PREVIEW_COUNT = 3
+
+/** Phone landscape: catalog | cart | billing side by side. "N items" on a category drills into it in place. */
+@Composable
+private fun CompactLandscapeOrderLayout(
+    state: OrderEditorUiState,
+    viewModel: OrderEditorViewModel,
+    browse: CatalogBrowseState,
+    onBack: () -> Unit,
+    onOpenSubscription: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        OrderHeader(state, viewModel, onBack)
+        Row(
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OrderPane(Modifier.weight(0.38f)) { CatalogPane(state, viewModel, browse) }
+            OrderPane(Modifier.weight(0.32f)) { CartPane(state, viewModel) }
+            OrderPane(Modifier.weight(0.30f)) { BillingPane(state, viewModel, onOpenSubscription) }
+        }
+    }
+}
+
+@Composable
+private fun OrderPane(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = modifier.fillMaxHeight(),
+    ) {
+        Column(Modifier.fillMaxSize().padding(8.dp), content = content)
+    }
+}
+
+@Composable
+private fun ColumnScope.CatalogPane(state: OrderEditorUiState, viewModel: OrderEditorViewModel, browse: CatalogBrowseState) {
+    OutlinedTextField(
+        value = state.searchQuery,
+        onValueChange = viewModel::onSearchChange,
+        placeholder = { Text(stringResource(Res.string.search_products)) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = micButton(state, viewModel),
+        singleLine = true,
+        shape = RoundedCornerShape(50),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    ScanMessageStrip(state, Modifier.padding(top = 4.dp))
+    if (state.isListening || state.partialTranscript.isNotBlank()) VoiceArea(state, viewModel)
+
+    val linesByProduct = remember(state.cart) { state.cart.groupBy { it.product.id } }
+    val byCategory = remember(state.filteredCatalog) { state.filteredCatalog.groupBy { it.category } }
+    val selected = browse.category
+    NavigationBackHandler(
+        state = rememberNavigationEventState(currentInfo = NavigationEventInfo.None),
+        isBackEnabled = selected != null,
+        onBackCompleted = { browse.onCategoryChange(null) },
+    )
+    if (selected == null) {
+        LazyColumn(
+            state = browse.overviewListState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (byCategory.isEmpty() && !state.loading) item(key = "empty") { NoProductsText() }
+            browse.categories.forEach { c ->
+                val products = byCategory[c].orEmpty()
+                item(key = "header_${c.name}", contentType = "header") {
+                    CategoryHeaderRow(c, products.size, onClick = { browse.onCategoryChange(c) })
+                }
+                items(products.take(CATEGORY_PREVIEW_COUNT), key = { it.id }, contentType = { "product" }) { product ->
+                    PosCatalogRow(product, linesByProduct[product.id].orEmpty(), viewModel, compact = true)
+                }
+            }
+        }
+    } else {
+        val products = byCategory[selected].orEmpty()
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { browse.onCategoryChange(null) }, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(Res.string.action_back),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Text(
+                selected.localizedName(),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                stringResource(Res.string.pos_category_items, products.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        LazyColumn(
+            state = browse.categoryListState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (products.isEmpty() && !state.loading) item(key = "empty") { NoProductsText() }
+            items(products, key = { it.id }, contentType = { "product" }) { product ->
+                PosCatalogRow(product, linesByProduct[product.id].orEmpty(), viewModel, compact = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryHeaderRow(category: ProductCategory, count: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            category.localizedName(),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Row(
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(Res.string.pos_category_items, count),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun NoProductsText() {
+    Text(
+        stringResource(Res.string.pos_no_products_match),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+        textAlign = TextAlign.Center,
+    )
+}
+
+@Composable
+private fun ColumnScope.CartPane(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    Text(
+        text = stringResource(Res.string.cart_count, state.itemCount),
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    )
+    if (state.cart.isEmpty()) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(
+                text = stringResource(Res.string.cart_empty_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(state.cart, key = { it.key }) { line ->
+                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surface) {
+                    CartLineRow(line, viewModel, compact = true)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.BillingPane(state: OrderEditorUiState, viewModel: OrderEditorViewModel, onOpenSubscription: () -> Unit) {
+    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+        SubscriptionRenewBanner(state.billing, onOpenSubscription, Modifier.padding(bottom = 8.dp))
+        CustomerField(state.customerName, viewModel::onCustomerNameChange)
+        if (state.cart.isNotEmpty()) BillDiscountSection(state, viewModel, compact = true)
+        Text(
+            text = stringResource(Res.string.total_label, state.total.asMoney()),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+    }
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SaveOrderButtons(state, viewModel, buttonModifier = Modifier.weight(1f))
     }
 }
 
@@ -332,15 +580,13 @@ private fun LandscapeOrderLayout(
 private fun PortraitOrderLayout(
     state: OrderEditorUiState,
     viewModel: OrderEditorViewModel,
+    browse: CatalogBrowseState,
     onBack: () -> Unit,
     onOpenSubscription: () -> Unit,
 ) {
     val linesByProduct = remember(state.cart) { state.cart.groupBy { it.product.id } }
-    var category by rememberSaveable { mutableStateOf<ProductCategory?>(null) }
-    val categories = remember(state.filteredCatalog) {
-        state.filteredCatalog.map { it.category }.distinct().sortedBy { it.ordinal }
-    }
-    LaunchedEffect(categories) { if (category != null && category !in categories) category = null }
+    val category = browse.category
+    val categories = browse.categories
     val visible = remember(state.filteredCatalog, category) {
         category?.let { c -> state.filteredCatalog.filter { it.category == c } } ?: state.filteredCatalog
     }
@@ -367,10 +613,11 @@ private fun PortraitOrderLayout(
                 categories = categories,
                 selected = category,
                 total = state.filteredCatalog.size,
-                onSelect = { category = it },
+                onSelect = browse.onCategoryChange,
             )
         }
         LazyColumn(
+            state = browse.portraitListState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -425,17 +672,22 @@ private fun PosCategoryChips(
 
 /** Every variant of [product] is its own card; long-press a card to add another variant. */
 @Composable
-private fun PosCatalogRow(product: Product, productLines: List<CartLine>, viewModel: OrderEditorViewModel) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun PosCatalogRow(
+    product: Product,
+    productLines: List<CartLine>,
+    viewModel: OrderEditorViewModel,
+    compact: Boolean = false,
+) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
         product.options().forEach { option ->
-            PosOptionRow(option, productLines.firstOrNull { it.key == option.key }, viewModel)
+            PosOptionRow(option, productLines.firstOrNull { it.key == option.key }, viewModel, compact)
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PosOptionRow(option: PurchaseOption, line: CartLine?, viewModel: OrderEditorViewModel) {
+private fun PosOptionRow(option: PurchaseOption, line: CartLine?, viewModel: OrderEditorViewModel, compact: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(14.dp)
     Surface(
@@ -444,52 +696,69 @@ private fun PosOptionRow(option: PurchaseOption, line: CartLine?, viewModel: Ord
         border = if (line != null) BorderStroke(1.dp, colors.primary.copy(alpha = 0.4f)) else null,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
+        // Narrow pane: plain "Add" shrinks to an icon; wider controls (stepper, choose) drop to their own line.
+        val inlineControl = !compact || (line == null && !option.needsPicker)
+        Column(
             modifier = Modifier.fillMaxWidth()
                 .clip(shape)
                 .combinedClickable(
                     onClick = { if (line == null) viewModel.addVariant(option) },
                     onLongClick = { viewModel.startAddVariant(option.product) },
                 )
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(if (compact) 8.dp else 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            NetworkImage(
-                url = option.imageUrl,
-                contentDescription = option.displayName,
-                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)).clickable { viewModel.openProductInfo(option) },
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    option.displayName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NetworkImage(
+                    url = option.imageUrl,
+                    contentDescription = option.displayName,
+                    modifier = Modifier.size(if (compact) 40.dp else 56.dp).clip(RoundedCornerShape(10.dp)).clickable { viewModel.openProductInfo(option) },
                 )
-                OptionStockSummary(option)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        option.displayName,
+                        style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    OptionStockSummary(option)
+                }
+                if (inlineControl) PosOptionControl(option, line, viewModel, compact)
             }
-            when {
-                option.needsPicker && line != null -> OutlinedButton(onClick = { viewModel.openPicker(option.product, line.key) }) {
-                    Text(option.quantityLabel(line.quantity), maxLines = 1)
-                }
-                option.needsPicker -> OutlinedButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
-                    Text(stringResource(Res.string.pos_choose_option), maxLines = 1)
-                }
-                line != null -> PackCountStepper(
-                    option = option,
-                    quantity = line.quantity,
-                    onSet = { viewModel.setQuantity(line.key, it) },
-                    onIncrement = { viewModel.changeQuantity(line.key, 1) },
-                    onDecrement = { viewModel.changeQuantity(line.key, -1) },
-                )
-                else -> FilledTonalButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(Res.string.action_add))
-                }
+            if (!inlineControl) {
+                Box(Modifier.align(Alignment.End)) { PosOptionControl(option, line, viewModel, compact) }
             }
+        }
+    }
+}
+
+@Composable
+private fun PosOptionControl(option: PurchaseOption, line: CartLine?, viewModel: OrderEditorViewModel, compact: Boolean) {
+    when {
+        option.needsPicker && line != null -> OutlinedButton(onClick = { viewModel.openPicker(option.product, line.key) }) {
+            Text(option.quantityLabel(line.quantity), maxLines = 1)
+        }
+        option.needsPicker -> OutlinedButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
+            Text(stringResource(Res.string.pos_choose_option), maxLines = 1)
+        }
+        line != null -> PackCountStepper(
+            option = option,
+            quantity = line.quantity,
+            onSet = { viewModel.setQuantity(line.key, it) },
+            onIncrement = { viewModel.changeQuantity(line.key, 1) },
+            onDecrement = { viewModel.changeQuantity(line.key, -1) },
+        )
+        compact -> FilledTonalIconButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
+            Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.action_add))
+        }
+        else -> FilledTonalButton(onClick = { viewModel.addVariant(option) }, enabled = option.inStock) {
+            Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(Res.string.action_add))
         }
     }
 }
@@ -719,48 +988,71 @@ private fun CartTotalsAndActions(
             modifier = Modifier.weight(1f),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onBeforeSave(); viewModel.save(print = true) }) {
-                Text(
-                    stringResource(
-                        if (state.isEditing) Res.string.update_and_print_order else Res.string.save_and_print_order,
-                    ),
-                )
-            }
-            Button(onClick = { onBeforeSave(); viewModel.save() }) {
-                Text(
-                    stringResource(
-                        if (state.isEditing) Res.string.update_order else Res.string.save_order,
-                    ),
-                )
-            }
+            SaveOrderButtons(state, viewModel, onBeforeSave = onBeforeSave)
         }
     }
 }
 
 @Composable
-private fun BillDiscountSection(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+private fun SaveOrderButtons(
+    state: OrderEditorUiState,
+    viewModel: OrderEditorViewModel,
+    buttonModifier: Modifier = Modifier,
+    onBeforeSave: () -> Unit = {},
+) {
+    OutlinedButton(onClick = { onBeforeSave(); viewModel.save(print = true) }, modifier = buttonModifier) {
+        Text(
+            stringResource(
+                if (state.isEditing) Res.string.update_and_print_order else Res.string.save_and_print_order,
+            ),
+            textAlign = TextAlign.Center,
+        )
+    }
+    Button(onClick = { onBeforeSave(); viewModel.save() }, modifier = buttonModifier) {
+        Text(
+            stringResource(
+                if (state.isEditing) Res.string.update_order else Res.string.save_order,
+            ),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun BillDiscountSection(state: OrderEditorUiState, viewModel: OrderEditorViewModel, compact: Boolean = false) {
     val bill = state.bill
+    val discountField = @Composable { modifier: Modifier ->
+        OutlinedTextField(
+            value = state.manualDiscountInput,
+            onValueChange = viewModel::onManualDiscountChange,
+            label = { Text(stringResource(Res.string.bill_discount_label), maxLines = 1) },
+            placeholder = { Text(stringResource(Res.string.bill_discount_hint), maxLines = 1) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = modifier,
+        )
+    }
+    val modeChips = @Composable {
+        FilterChip(
+            selected = !state.manualDiscountPercent,
+            onClick = { viewModel.onManualDiscountPercentChange(false) },
+            label = { Text(stringResource(Res.string.bill_discount_flat)) },
+        )
+        FilterChip(
+            selected = state.manualDiscountPercent,
+            onClick = { viewModel.onManualDiscountPercentChange(true) },
+            label = { Text(stringResource(Res.string.bill_discount_percent)) },
+        )
+    }
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = state.manualDiscountInput,
-                onValueChange = viewModel::onManualDiscountChange,
-                label = { Text(stringResource(Res.string.bill_discount_label)) },
-                placeholder = { Text(stringResource(Res.string.bill_discount_hint)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f),
-            )
-            FilterChip(
-                selected = !state.manualDiscountPercent,
-                onClick = { viewModel.onManualDiscountPercentChange(false) },
-                label = { Text(stringResource(Res.string.bill_discount_flat)) },
-            )
-            FilterChip(
-                selected = state.manualDiscountPercent,
-                onClick = { viewModel.onManualDiscountPercentChange(true) },
-                label = { Text(stringResource(Res.string.bill_discount_percent)) },
-            )
+        if (compact) {
+            discountField(Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { modeChips() }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                discountField(Modifier.weight(1f))
+                modeChips()
+            }
         }
         if (bill.discount > 0.0 || bill.productDiscount > 0.0) {
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -779,54 +1071,130 @@ private fun BillDiscountSection(state: OrderEditorUiState, viewModel: OrderEdito
 }
 
 @Composable
-private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
+private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel, compact: Boolean = false) {
+    if (compact) {
+        Column(Modifier.fillMaxWidth().padding(start = 8.dp, top = 4.dp, bottom = 6.dp, end = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CartLineImage(line, viewModel)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    line.option.displayName,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).clickable(enabled = line.option.needsPicker) {
+                        viewModel.openPicker(line.product, line.key)
+                    },
+                )
+                IconButton(onClick = { viewModel.removeLine(line.key) }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(Res.string.action_remove),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.clickable { viewModel.openLinePrice(line.key) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            line.unitPrice.asMoney(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = stringResource(Res.string.pos_line_price_edit_cd),
+                            modifier = Modifier.padding(start = 2.dp).size(12.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Text(
+                        line.lineTotal.asMoney(),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                    )
+                }
+                CartLineQuantity(line, viewModel)
+            }
+        }
+        return
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NetworkImage(
-            url = line.option.imageUrl,
-            contentDescription = line.product.localizedName,
-            modifier = Modifier.size(40.dp).clip(MaterialTheme.shapes.small).clickable { viewModel.openProductInfo(line.option) },
-        )
+        CartLineImage(line, viewModel)
         Spacer(Modifier.width(8.dp))
-        Column(
-            modifier = Modifier.weight(1f).clickable(enabled = line.option.needsPicker) {
-                viewModel.openPicker(line.product, line.key)
-            },
+        CartLineInfo(line, viewModel, Modifier.weight(1f))
+        CartLineQuantity(line, viewModel)
+        TextButton(onClick = { viewModel.removeLine(line.key) }) {
+            Text(stringResource(Res.string.action_remove))
+        }
+    }
+}
+
+@Composable
+private fun CartLineImage(line: CartLine, viewModel: OrderEditorViewModel) {
+    NetworkImage(
+        url = line.option.imageUrl,
+        contentDescription = line.product.localizedName,
+        modifier = Modifier.size(40.dp).clip(MaterialTheme.shapes.small).clickable { viewModel.openProductInfo(line.option) },
+    )
+}
+
+@Composable
+private fun CartLineInfo(line: CartLine, viewModel: OrderEditorViewModel, modifier: Modifier) {
+    Column(
+        modifier = modifier.clickable(enabled = line.option.needsPicker) {
+            viewModel.openPicker(line.product, line.key)
+        },
+    ) {
+        Text(
+            text = line.option.displayName,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Row(
+            modifier = Modifier.clickable { viewModel.openLinePrice(line.key) },
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = line.option.displayName,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Row(
-                modifier = Modifier.clickable { viewModel.openLinePrice(line.key) },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (line.lockedUnitPrice == null) {
-                    line.option.OfferPrice(priceStyle = MaterialTheme.typography.labelSmall)
-                } else {
-                    Text(
-                        text = line.unitPrice.asMoney(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (line.unitPrice != line.option.unitPrice) {
-                            MaterialTheme.colorScheme.tertiary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-                Icon(
-                    Icons.Filled.Edit,
-                    contentDescription = stringResource(Res.string.pos_line_price_edit_cd),
-                    modifier = Modifier.padding(start = 4.dp).size(14.dp),
-                    tint = MaterialTheme.colorScheme.primary,
+            if (line.lockedUnitPrice == null) {
+                line.option.OfferPrice(priceStyle = MaterialTheme.typography.labelSmall)
+            } else {
+                Text(
+                    text = line.unitPrice.asMoney(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (line.unitPrice != line.option.unitPrice) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
             }
-            LineOfferPrice(line.lineTotal, line.baseLineTotal)
+            Icon(
+                Icons.Filled.Edit,
+                contentDescription = stringResource(Res.string.pos_line_price_edit_cd),
+                modifier = Modifier.padding(start = 4.dp).size(14.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
         }
-        if (line.option.isLoose) {
+        LineOfferPrice(line.lineTotal, line.baseLineTotal)
+    }
+}
+
+@Composable
+private fun CartLineQuantity(line: CartLine, viewModel: OrderEditorViewModel) {
+    if (line.option.isLoose) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = {
                 viewModel.changeQuantity(line.key, -1)
             }) { Text("−") }
@@ -837,18 +1205,15 @@ private fun CartLineRow(line: CartLine, viewModel: OrderEditorViewModel) {
             TextButton(onClick = {
                 viewModel.changeQuantity(line.key, 1)
             }) { Text("+") }
-        } else {
-            PackCountStepper(
-                option = line.option,
-                quantity = line.quantity,
-                onSet = { viewModel.setQuantity(line.key, it) },
-                onIncrement = { viewModel.changeQuantity(line.key, 1) },
-                onDecrement = { viewModel.changeQuantity(line.key, -1) },
-            )
         }
-        TextButton(onClick = { viewModel.removeLine(line.key) }) {
-            Text(stringResource(Res.string.action_remove))
-        }
+    } else {
+        PackCountStepper(
+            option = line.option,
+            quantity = line.quantity,
+            onSet = { viewModel.setQuantity(line.key, it) },
+            onIncrement = { viewModel.changeQuantity(line.key, 1) },
+            onDecrement = { viewModel.changeQuantity(line.key, -1) },
+        )
     }
 }
 

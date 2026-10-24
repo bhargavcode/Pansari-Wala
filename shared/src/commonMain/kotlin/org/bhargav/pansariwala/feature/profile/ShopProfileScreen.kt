@@ -65,6 +65,7 @@ import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.ShopStaffDto
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.SectionCard
+import org.bhargav.pansariwala.designsystem.LocalFloatingKeyboardEligible
 import org.bhargav.pansariwala.designsystem.StatTile
 import org.bhargav.pansariwala.designsystem.TimePickerField
 import org.bhargav.pansariwala.designsystem.formatClockTime
@@ -119,6 +120,9 @@ import pansariwala.shared.generated.resources.feature_online_orders
 import pansariwala.shared.generated.resources.feature_report_generation
 import pansariwala.shared.generated.resources.feature_voice_search
 import pansariwala.shared.generated.resources.voice_auto_add
+import pansariwala.shared.generated.resources.keyboard_floating_hint
+import pansariwala.shared.generated.resources.keyboard_floating_toggle
+import pansariwala.shared.generated.resources.keyboard_settings_title
 import pansariwala.shared.generated.resources.voice_auto_add_hint
 import pansariwala.shared.generated.resources.offer_active
 import pansariwala.shared.generated.resources.offer_delete_confirm
@@ -300,6 +304,12 @@ fun ShopProfileScreen(
                     item {
                         val voiceAutoAdd by viewModel.voiceAutoAdd.collectAsStateWithLifecycle()
                         FeaturesCard(profile.shop.features, voiceAutoAdd, viewModel::setVoiceAutoAdd)
+                    }
+                    item(key = "pos_keyboard") {
+                        if (LocalFloatingKeyboardEligible.current) {
+                            val floatingKeyboard by viewModel.floatingKeyboard.collectAsStateWithLifecycle()
+                            KeyboardCard(floatingKeyboard, viewModel::setFloatingKeyboard)
+                        }
                     }
                     if (settingsMode && state.access.isAdmin) {
                         item(key = "pos_account_closure") {
@@ -685,6 +695,17 @@ private fun SubscriptionEntryCard(onOpen: () -> Unit) {
             )
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
         }
+    }
+}
+
+@Composable
+private fun KeyboardCard(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    SectionCard(
+        title = stringResource(Res.string.keyboard_settings_title),
+        subtitle = stringResource(Res.string.keyboard_floating_hint),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        ToggleRow(stringResource(Res.string.keyboard_floating_toggle), enabled, true, onChange)
     }
 }
 
