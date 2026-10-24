@@ -144,11 +144,19 @@ class RoomShopRepository(
         productDao.setActiveLocal(productId, active)
     }
 
+    override fun observeDeletedProducts(shopId: String): Flow<List<Product>> =
+        productDao.observeDeleted(shopId).map { list -> list.map { it.toDomain() } }
+
+    override suspend fun setProductDeleted(productId: String, deletedAt: Long?) {
+        productDao.setDeletedLocal(productId, deletedAt)
+    }
+
     override suspend fun productCount(shopId: String): Int = productDao.count(shopId)
 
     override suspend fun findProduct(idOrBarcode: String): Product? {
         val query = idOrBarcode.trim()
-        return (productDao.findById(query) ?: productDao.findByBarcode(query))?.toDomain()
+        val byId = productDao.findById(query)?.takeIf { it.deletedAt == null }
+        return (byId ?: productDao.findByBarcode(query))?.toDomain()
     }
 
     override suspend fun productsByIds(ids: Collection<String>): List<Product> =
@@ -250,6 +258,7 @@ private fun Product.toEntity() = ProductEntity(
     subCategoryId = subCategoryId,
     translationsJson = if (translations.isEmpty()) "" else variantJson.encodeToString(translations),
     brandTranslationsJson = if (brandTranslations.isEmpty()) "" else variantJson.encodeToString(brandTranslations),
+    deletedAt = deletedAt,
 )
 
 private fun ShopProductFilter.activeArg(): Int = when (status) {
@@ -296,6 +305,7 @@ private fun ProductEntity.toDomain() = Product(
     subCategoryId = subCategoryId,
     translations = decodeTranslations(translationsJson),
     brandTranslations = decodeTranslations(brandTranslationsJson),
+    deletedAt = deletedAt,
 )
 
 private fun UserEntity.toUser() = ShopUser(

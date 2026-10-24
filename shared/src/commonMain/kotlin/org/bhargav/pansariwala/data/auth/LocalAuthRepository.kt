@@ -3,6 +3,7 @@ package org.bhargav.pansariwala.data.auth
 import kotlinx.coroutines.withTimeoutOrNull
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.api.ApiException
 import org.bhargav.pansariwala.api.JwtAuthCache
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.crash.CrashReporter
@@ -48,6 +49,7 @@ class LocalAuthRepository(
             val remote = remoteResult?.getOrNull()
             val remoteError = remoteResult?.exceptionOrNull()
             val remoteMessage = remoteError?.message.orEmpty()
+            if ((remoteError as? ApiException)?.code == AppConstants.LOGIN_LOCKED_CODE) throw remoteError
             if (remoteMessage.contains("Invalid credentials", ignoreCase = true)) {
                 throw IllegalStateException("Invalid username or password.")
             }

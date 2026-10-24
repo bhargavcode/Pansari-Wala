@@ -334,6 +334,8 @@ object AppConstants {
         const val TYPE_PAYMENT: String = "payment"
         /** Shop: DIRECT_UPI payment waiting for confirmation (opens online orders). */
         const val TYPE_PAYMENT_CONFIRM: String = "payment_confirm"
+        /** Reminder to finish self-service shop registration. */
+        const val TYPE_REGISTRATION: String = "registration"
         /** iOS local notification userInfo keys, read back when the user taps the alert. */
         const val USER_INFO_TYPE: String = "notificationType"
         const val USER_INFO_ORDER_ID: String = "orderId"
@@ -379,6 +381,8 @@ object AppConstants {
         const val EVENT_PAYMENT_CONFIRM: String = "PAYMENT_CONFIRM"
         const val KEY_INTENT_ID: String = "intentId"
         const val KEY_AMOUNT: String = "amount"
+        /** Sent to a device that left shop onboarding unfinished (no session on that device yet). */
+        const val EVENT_REGISTRATION_REMINDER: String = "REGISTRATION_REMINDER"
     }
 
     /** In-app issue reports and build tracking (server `SupportService`). */
@@ -487,6 +491,33 @@ object AppConstants {
         const val CUSTOM_THEME_KEY: String = "master_custom_theme"
         const val CONTENT_PADDING_DP: Int = 24
         const val CARD_RADIUS_DP: Int = 16
+    }
+
+    /** Server error code when password login is locked after repeated failures. */
+    const val LOGIN_LOCKED_CODE: String = "LOGIN_LOCKED"
+
+    /** Self-service shop onboarding (server `ShopRegistrationService`). */
+    object ShopRegistration {
+        const val CONGRATS_DURATION_MS: Long = 3_000L
+        const val MIN_PASSWORD: Int = 8
+        const val USERNAME_CHECK_DEBOUNCE_MS: Long = 400L
+        const val DEFAULT_COUNTRY: String = "India"
+        const val ZIP_LENGTH: Int = 6
+        /** Shown to the user; must match the server's tolerance between the GPS fix and the shop pin. */
+        const val LOCATION_TOLERANCE_KM: Int = 1
+        const val DEFAULT_OPEN: String = "09:00"
+        const val DEFAULT_CLOSE: String = "21:00"
+        val WEEK_DAYS: List<String> = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        const val CODE_ALREADY_REGISTERED: String = "REG_ALREADY_REGISTERED"
+        const val CODE_LOCATION_UNVERIFIED: String = "REG_LOCATION_UNVERIFIED"
+        const val CODE_WEAK_PASSWORD: String = "REG_WEAK_PASSWORD"
+    }
+
+    /** Browser POS (`/pos`): sessions are tab-scoped and end after inactivity. */
+    object PosWeb {
+        const val IDLE_TIMEOUT_MS: Long = 30 * 60_000L
+        const val IDLE_CHECK_INTERVAL_MS: Long = 30_000L
+        const val SESSION_CHECK_INTERVAL_MS: Long = 60_000L
     }
 
     /** Trailing characters of an order id shown as `#ABCD1234`. */

@@ -4,6 +4,7 @@ import pansariwala.shared.generated.resources.app_settings_subtitle
 import pansariwala.shared.generated.resources.app_settings_title
 import pansariwala.shared.generated.resources.pos_settings_subtitle
 import pansariwala.shared.generated.resources.pos_settings_title
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -107,6 +108,8 @@ import pansariwala.shared.generated.resources.low_stock_count
 import pansariwala.shared.generated.resources.online_orders_title
 import pansariwala.shared.generated.resources.orders_workspace_title
 import pansariwala.shared.generated.resources.pos_more_borrowers_cta
+import pansariwala.shared.generated.resources.bin_more_subtitle
+import pansariwala.shared.generated.resources.bin_title
 import pansariwala.shared.generated.resources.pos_more_borrowers_sub
 import pansariwala.shared.generated.resources.pos_more_borrowers_title
 import pansariwala.shared.generated.resources.pos_more_profile_sub
@@ -406,6 +409,7 @@ fun PosMoreTab(
     onOpenSettings: () -> Unit,
     onOpenPosSettings: () -> Unit,
     onOpenSubscription: () -> Unit,
+    onOpenProductBin: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
@@ -472,6 +476,15 @@ fun PosMoreTab(
                 title = stringResource(Res.string.pos_settings_title),
                 subtitle = stringResource(Res.string.pos_settings_subtitle),
                 onClick = onOpenPosSettings,
+            )
+        }
+        if (access.can(ShopPermission.INVENTORY)) {
+            SettingsEntryCard(
+                icon = Icons.Default.DeleteSweep,
+                accent = Color(0xFFC62828),
+                title = stringResource(Res.string.bin_title),
+                subtitle = stringResource(Res.string.bin_more_subtitle),
+                onClick = onOpenProductBin,
             )
         }
         SettingsEntryCard(

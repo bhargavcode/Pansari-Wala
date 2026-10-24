@@ -37,6 +37,9 @@ import org.bhargav.pansariwala.analytics.AnalyticsEvent
 import org.bhargav.pansariwala.feature.dashboard.DashboardScreen
 import org.bhargav.pansariwala.feature.inventory.AddEditInventoryScreen
 import org.bhargav.pansariwala.feature.inventory.InventoryListScreen
+import org.bhargav.pansariwala.feature.inventory.DeletedProductsScreen
+import org.bhargav.pansariwala.feature.register.ShopRegisteredScreen
+import org.bhargav.pansariwala.feature.register.ShopRegistrationScreen
 import org.bhargav.pansariwala.feature.inventory.MasterCatalogScreen
 import org.bhargav.pansariwala.feature.inventory.InventoryProductDetailScreen
 import org.bhargav.pansariwala.feature.login.LoginScreen
@@ -84,6 +87,9 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.Borrowers::class, AppRoute.Borrowers.serializer())
             subclass(AppRoute.ShopOrderDetail::class, AppRoute.ShopOrderDetail.serializer())
             subclass(AppRoute.BorrowerDetail::class, AppRoute.BorrowerDetail.serializer())
+            subclass(AppRoute.ProductBin::class, AppRoute.ProductBin.serializer())
+            subclass(AppRoute.RegisterShop::class, AppRoute.RegisterShop.serializer())
+            subclass(AppRoute.ShopRegistered::class, AppRoute.ShopRegistered.serializer())
         }
     }
 }
@@ -128,7 +134,7 @@ fun AppNavGraph(
 
     LaunchedEffect(Unit) {
         SessionExpiredBus.events.collect {
-            if (backStack.lastOrNull() is AppRoute.Login) return@collect
+            if ((backStack.lastOrNull() as? AppRoute)?.isPreLogin() == true) return@collect
             replaceAll(AppRoute.Login)
             snackbarHostState.showSnackbar(
                 message = sessionExpiredMessage,
@@ -158,7 +164,7 @@ fun AppNavGraph(
 
     val pendingOpen by NotificationOpenRequests.pending.collectAsState()
     val currentRoute = backStack.lastOrNull()
-    val canOpen = currentRoute != null && currentRoute !is AppRoute.Splash && currentRoute !is AppRoute.Login
+    val canOpen = currentRoute != null && !(currentRoute as AppRoute).isPreLogin()
     LaunchedEffect(pendingOpen, canOpen) {
         val request = pendingOpen ?: return@LaunchedEffect
         if (!canOpen) return@LaunchedEffect
@@ -183,7 +189,7 @@ fun AppNavGraph(
     }
 
     // Printer health monitoring / auto-reconnect only while signed in and the app is visible.
-    val signedIn = backStack.none { it is AppRoute.Splash || it is AppRoute.Login }
+    val signedIn = backStack.none { (it as AppRoute).isPreLogin() }
     if (signedIn) {
         LifecycleStartEffect(printerManager) {
             printerManager.setAppInForeground(true)
@@ -203,7 +209,10 @@ fun AppNavGraph(
                 when (val route = key as AppRoute) {
                     AppRoute.Splash -> NavEntry(route) {
                         SplashScreen(
-                            onNavigateToLogin = { replaceAll(AppRoute.Login) },
+                            onNavigateToLogin = {
+                                replaceAll(AppRoute.Login)
+                                if (LaunchIntent.consumeShopRegistration()) push(AppRoute.RegisterShop)
+                            },
                             onNavigateToHome = { replaceAll(AppRoute.Dashboard) },
                         )
                     }
@@ -211,6 +220,31 @@ fun AppNavGraph(
                     AppRoute.Login -> NavEntry(route) {
                         LoginScreen(
                             onLoginSuccess = { replaceAll(AppRoute.Dashboard) },
+                            onRegisterShop = { push(AppRoute.RegisterShop) },
+                        )
+                    }
+
+                    AppRoute.RegisterShop -> NavEntry(route) {
+                        ShopRegistrationScreen(
+                            onBack = { pop() },
+                            onRegistered = { shopName, username ->
+                                replaceAll(AppRoute.ShopRegistered(shopName, username))
+                            },
+                        )
+                    }
+
+                    is AppRoute.ShopRegistered -> NavEntry(route) {
+                        ShopRegisteredScreen(
+                            shopName = route.shopName,
+                            loginUsername = route.loginUsername,
+                            onFinished = { replaceAll(AppRoute.Login) },
+                        )
+                    }
+
+                    AppRoute.ProductBin -> NavEntry(route) {
+                        DeletedProductsScreen(
+                            onBack = { pop() },
+                            onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
                         )
                     }
 
@@ -233,6 +267,7 @@ fun AppNavGraph(
                             onOpenMasterCatalog = { push(AppRoute.MasterCatalog) },
                             onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
                             onOpenPosSettings = { push(AppRoute.PosSettings) },
+                            onOpenProductBin = { push(AppRoute.ProductBin) },
                             onLogout = { replaceAll(AppRoute.Login) },
                         )
                     }
@@ -411,3 +446,6 @@ fun AppNavGraph(
         )
     }
 }
+
+private fun AppRoute.isPreLogin(): Boolean =
+    this is AppRoute.Splash || this is AppRoute.Login || this is AppRoute.RegisterShop || this is AppRoute.ShopRegistered

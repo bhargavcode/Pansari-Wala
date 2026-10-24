@@ -129,11 +129,13 @@ class MasterApi(private val baseUrl: String = ApiRuntime.baseUrl) {
         pageSize: Int,
         shopTypeId: String? = null,
         subcategoryId: String? = null,
+        categoryIds: Collection<String> = emptyList(),
     ): ProductPageDto =
         client.get(url("/master/products/page")) {
             bearer(token)
             parameter("q", query)
             categoryId?.takeIf { it.isNotBlank() }?.let { parameter("categoryId", it) }
+            if (categoryIds.isNotEmpty()) parameter("categoryIds", categoryIds.joinToString(","))
             shopTypeId?.takeIf { it.isNotBlank() }?.let { parameter("shopTypeId", it) }
             subcategoryId?.takeIf { it.isNotBlank() }?.let { parameter("subcategoryId", it) }
             parameter("page", page)

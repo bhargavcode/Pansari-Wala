@@ -101,6 +101,7 @@ class KtorPansariApi(
                 sendWithoutRequest { request ->
                     val path = request.url.pathSegments.joinToString("/")
                     val public = path.contains("auth/") ||
+                        path.contains("shop-register/") ||
                         path.contains("config/public") ||
                         path.endsWith("health") ||
                         path.contains("partners/register") ||
@@ -143,7 +144,10 @@ class KtorPansariApi(
         client.get("config/public").body()
 
     override suspend fun shopLogin(username: String, password: String): TokenResponse =
-        client.post("auth/shop/login") { setBody(ShopLoginRequest(username, password)) }.body()
+        client.post("auth/shop/login") {
+            val platform = org.bhargav.pansariwala.platform.appBuildInfo().platform
+            setBody(ShopLoginRequest(username, password, platform.takeIf { it == AppConstants.Support.PLATFORM_WEB }))
+        }.body()
 
     override suspend fun loginWithFirebase(idToken: String): TokenResponse =
         client.post("auth/user/firebase") { setBody(FirebaseAuthRequest(idToken)) }.body()
@@ -260,6 +264,33 @@ class KtorPansariApi(
     override suspend fun masterCategories(): List<MasterCategoryDto> = client.get("master/categories").body()
 
     override suspend fun shopTypes(): List<ShopTypeOptionDto> = client.get("master/shop-types").body()
+
+    override suspend fun verifyShopRegistration(phone: String, otp: String, sessionId: String?): ShopRegistrationSessionDto =
+        client.post("auth/shop-register/verify") { setBody(ShopRegistrationVerifyRequest(phone, otp, sessionId)) }.body()
+
+    override suspend fun registrationDraft(token: String): ShopRegistrationDraftDto =
+        client.get("shop-register/draft") { bearerAuth(token) }.body()
+
+    override suspend fun saveRegistrationDraft(token: String, draft: ShopRegistrationDraftDto): ShopRegistrationDraftDto =
+        client.put("shop-register/draft") {
+            bearerAuth(token)
+            setBody(draft)
+        }.body()
+
+    override suspend fun registrationShopTypes(token: String): List<ShopTypeOptionDto> =
+        client.get("shop-register/shop-types") { bearerAuth(token) }.body()
+
+    override suspend fun registrationUsernameAvailable(token: String, username: String): UsernameAvailabilityDto =
+        client.get("shop-register/username-available") {
+            bearerAuth(token)
+            parameter("username", username)
+        }.body()
+
+    override suspend fun submitShopRegistration(token: String, body: ShopRegistrationSubmit): ShopRegistrationResultDto =
+        client.post("shop-register/submit") {
+            bearerAuth(token)
+            setBody(body)
+        }.body()
 
     override suspend fun masterProductPage(
         query: String,

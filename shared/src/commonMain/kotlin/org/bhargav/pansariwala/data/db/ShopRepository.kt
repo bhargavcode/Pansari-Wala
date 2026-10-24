@@ -43,6 +43,11 @@ interface ShopRepository {
     suspend fun setProductStock(productId: String, stockQty: Double)
     suspend fun setProductActive(productId: String, active: Boolean)
 
+    /** Products bin: deleted products are hidden from listings/billing but keep their stock and details. */
+    fun observeDeletedProducts(shopId: String): Flow<List<Product>>
+    /** Moves to the bin when [deletedAt] is set, recovers when null; queued for sync. */
+    suspend fun setProductDeleted(productId: String, deletedAt: Long?)
+
     suspend fun getOrder(orderId: String): Order?
     suspend fun saveOrder(order: Order)
 

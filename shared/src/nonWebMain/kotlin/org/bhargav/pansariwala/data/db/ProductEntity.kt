@@ -50,6 +50,8 @@ data class ProductEntity(
     /** JSON object language code → brand name. */
     @ColumnInfo(defaultValue = "")
     val brandTranslationsJson: String = "",
+    /** Epoch ms when moved to the products bin; null for live products. */
+    val deletedAt: Long? = null,
 )
 
 /** Pull cursors and other small sync bookmarks. */

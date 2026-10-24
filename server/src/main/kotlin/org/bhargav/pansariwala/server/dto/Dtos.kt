@@ -28,7 +28,12 @@ data class TokenResponse(
 )
 
 @Serializable
-data class ShopLoginRequest(val username: String, val password: String)
+data class ShopLoginRequest(
+    val username: String,
+    val password: String,
+    /** `web` for the browser POS, which gets a shorter-lived token. */
+    val client: String? = null,
+)
 
 @Serializable
 data class AdminLoginRequest(val username: String, val password: String)
@@ -550,6 +555,8 @@ data class ProductDto(
     val translations: Map<String, String> = emptyMap(),
     /** [brandName] per language code; read-only (edited from the master console). */
     val brandTranslations: Map<String, String> = emptyMap(),
+    /** Epoch ms when the shop moved the product to its bin; null for live products. */
+    val deletedAt: Long? = null,
 )
 
 @Serializable

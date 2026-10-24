@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -69,6 +70,7 @@ import pansariwala.shared.generated.resources.category_price
 import pansariwala.shared.generated.resources.inv_add_custom
 import pansariwala.shared.generated.resources.inv_add_from_master
 import pansariwala.shared.generated.resources.inv_badge_inactive
+import pansariwala.shared.generated.resources.inv_delete_action
 import pansariwala.shared.generated.resources.inv_empty
 import pansariwala.shared.generated.resources.inv_filter_all_categories
 import pansariwala.shared.generated.resources.inv_filter_low_stock
@@ -129,6 +131,17 @@ fun InventoryListScreen(
     }
     var stockRequestFor by remember { mutableStateOf<Product?>(null) }
     stockRequestFor?.let { StockRequestSheet(product = it, onDismiss = { stockRequestFor = null }) }
+    var deleteFor by remember { mutableStateOf<Product?>(null) }
+    deleteFor?.let { product ->
+        DeleteProductDialog(
+            productName = product.localizedName,
+            onConfirm = {
+                viewModel.deleteProduct(product.id)
+                deleteFor = null
+            },
+            onDismiss = { deleteFor = null },
+        )
+    }
     val filter = state.filter
     val products = state.products
     val categoryNames = remember(state.categories) { state.categoryNames }
@@ -253,6 +266,7 @@ fun InventoryListScreen(
                             categoryName = categoryNames[product.subCategoryId ?: product.categoryId].orEmpty(),
                             onClick = { onOpenProduct(product.id) },
                             onRequestStock = { stockRequestFor = product },
+                            onDelete = { deleteFor = product },
                         )
                         HorizontalDivider()
                     }
@@ -282,7 +296,13 @@ private fun ProductStatusFilter.label() = when (this) {
 }
 
 @Composable
-private fun ShopProductRow(product: Product, categoryName: String, onClick: () -> Unit, onRequestStock: () -> Unit) {
+private fun ShopProductRow(
+    product: Product,
+    categoryName: String,
+    onClick: () -> Unit,
+    onRequestStock: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val level = product.stockLevel
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
@@ -337,12 +357,21 @@ private fun ShopProductRow(product: Product, categoryName: String, onClick: () -
                 color = level.color(),
             )
             StockBadge(level)
-            if (product.isLowStock) {
-                IconButton(onClick = onRequestStock) {
+            Row {
+                if (product.isLowStock) {
+                    IconButton(onClick = onRequestStock) {
+                        Icon(
+                            Icons.Filled.LocalShipping,
+                            contentDescription = stringResource(Res.string.stock_req_action),
+                            tint = level.color(),
+                        )
+                    }
+                }
+                IconButton(onClick = onDelete) {
                     Icon(
-                        Icons.Filled.LocalShipping,
-                        contentDescription = stringResource(Res.string.stock_req_action),
-                        tint = level.color(),
+                        Icons.Outlined.Delete,
+                        contentDescription = stringResource(Res.string.inv_delete_action),
+                        tint = MaterialTheme.colorScheme.error,
                     )
                 }
             }

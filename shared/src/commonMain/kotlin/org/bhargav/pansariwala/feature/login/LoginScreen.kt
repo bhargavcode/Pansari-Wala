@@ -47,7 +47,8 @@ import pansariwala.shared.generated.resources.action_hide
 import pansariwala.shared.generated.resources.action_show
 import pansariwala.shared.generated.resources.app_name
 import pansariwala.shared.generated.resources.app_tagline_login
-import pansariwala.shared.generated.resources.login_demo_hint
+import pansariwala.shared.generated.resources.login_register_prompt
+import pansariwala.shared.generated.resources.login_register_shop
 import pansariwala.shared.generated.resources.login_forgot_password
 import pansariwala.shared.generated.resources.login_password
 import pansariwala.shared.generated.resources.login_sign_in
@@ -58,6 +59,7 @@ import pansariwala.shared.generated.resources.login_welcome
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onRegisterShop: () -> Unit = {},
     viewModel: LoginViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -88,6 +90,7 @@ fun LoginScreen(
                 LoginFormColumn(
                     uiState = uiState,
                     viewModel = viewModel,
+                    onRegisterShop = onRegisterShop,
                     paneModifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
@@ -104,6 +107,7 @@ fun LoginScreen(
                     LoginFormColumn(
                         uiState = uiState,
                         viewModel = viewModel,
+                        onRegisterShop = onRegisterShop,
                         paneModifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -147,6 +151,7 @@ private fun BrandPane(paneModifier: Modifier) {
 private fun LoginFormColumn(
     uiState: LoginUiState,
     viewModel: LoginViewModel,
+    onRegisterShop: () -> Unit,
     paneModifier: Modifier,
 ) {
     Column(
@@ -238,12 +243,20 @@ private fun LoginFormColumn(
                 }
             }
 
-            Text(
-                text = stringResource(Res.string.login_demo_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 16.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.login_register_prompt),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = onRegisterShop) {
+                    Text(stringResource(Res.string.login_register_shop), fontWeight = FontWeight.SemiBold)
+                }
+            }
         }
     }
 }

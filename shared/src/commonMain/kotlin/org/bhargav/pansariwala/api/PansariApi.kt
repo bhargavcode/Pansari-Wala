@@ -67,6 +67,14 @@ interface PansariApi {
     suspend fun shopProductDetail(shopId: String, productId: String): org.bhargav.pansariwala.domain.model.ProductDetail
     suspend fun masterCategories(): List<MasterCategoryDto>
     suspend fun shopTypes(): List<ShopTypeOptionDto>
+
+    /** Shop onboarding: every call except [verifyShopRegistration] uses the registrant [token]. */
+    suspend fun verifyShopRegistration(phone: String, otp: String, sessionId: String?): ShopRegistrationSessionDto
+    suspend fun registrationDraft(token: String): ShopRegistrationDraftDto
+    suspend fun saveRegistrationDraft(token: String, draft: ShopRegistrationDraftDto): ShopRegistrationDraftDto
+    suspend fun registrationShopTypes(token: String): List<ShopTypeOptionDto>
+    suspend fun registrationUsernameAvailable(token: String, username: String): UsernameAvailabilityDto
+    suspend fun submitShopRegistration(token: String, body: ShopRegistrationSubmit): ShopRegistrationResultDto
     /** Platform master catalog; [query] matches name, Hindi name, brand or exact barcode. */
     suspend fun masterProductPage(
         query: String,

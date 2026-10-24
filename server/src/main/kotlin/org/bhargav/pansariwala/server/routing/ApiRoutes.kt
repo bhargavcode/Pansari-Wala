@@ -112,6 +112,8 @@ private const val PAYMENT_RETURN_HTML = """<!doctype html><html><head><meta char
 <body style="font-family:sans-serif;text-align:center;padding:48px 16px">
 <h2>Payment submitted</h2><p>You can close this page and return to the Pansari Wala app.</p></body></html>"""
 
+private const val WEB_CLIENT = "web"
+
 /** User app deep link (`pansariwala://payment/<intentId>`), registered in the user Android/iOS apps. */
 private const val APP_PAYMENT_LINK = "pansariwala://payment/"
 
@@ -153,11 +155,11 @@ fun Route.apiRoutes(
     }
     post("/auth/shop/login") {
         val body = call.receive<ShopLoginRequest>()
-        call.respond(store.shopLogin(body.username, body.password))
+        call.respond(store.shopLogin(body.username, body.password, call.clientIp(), body.client == WEB_CLIENT))
     }
     post("/auth/admin/login") {
         val body = call.receive<AdminLoginRequest>()
-        call.respond(store.adminLogin(body.username, body.password))
+        call.respond(store.adminLogin(body.username, body.password, call.clientIp()))
     }
     post("/uploads/guest") {
         val prefix = (call.request.queryParameters["prefix"] ?: "").trim().trim('/') + "/"
@@ -1125,6 +1127,7 @@ fun Route.apiRoutes(
                     pageSize = params["pageSize"]?.toIntOrNull() ?: 30,
                     shopTypeId = params["shopTypeId"],
                     subcategoryId = params["subcategoryId"],
+                    categoryIds = params["categoryIds"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() },
                 ),
             )
         }

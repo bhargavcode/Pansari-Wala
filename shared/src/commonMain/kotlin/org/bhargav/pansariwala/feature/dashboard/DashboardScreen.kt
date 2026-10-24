@@ -138,6 +138,7 @@ fun DashboardScreen(
     onOpenSubscription: () -> Unit = {},
     onOpenBorrowers: () -> Unit = {},
     onOpenMasterCatalog: () -> Unit = {},
+    onOpenProductBin: () -> Unit = {},
     onOpenProduct: (String) -> Unit = {},
     onOpenPosSettings: () -> Unit = {},
     viewModel: DashboardViewModel = koinViewModel(),
@@ -205,6 +206,7 @@ fun DashboardScreen(
                         onOpenSettings = onOpenSettings,
                         onOpenPosSettings = onOpenPosSettings,
                         onOpenSubscription = onOpenSubscription,
+                        onOpenProductBin = onOpenProductBin,
                         onLogout = logout,
                     )
                     PosTab.POS -> PosHomeTab(

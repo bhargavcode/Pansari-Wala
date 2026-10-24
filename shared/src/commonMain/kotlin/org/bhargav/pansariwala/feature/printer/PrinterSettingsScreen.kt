@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -842,6 +843,7 @@ private fun Field(
 
 private fun PrinterConnectionType.icon() = when (this) {
     PrinterConnectionType.NETWORK -> Icons.Filled.Wifi
+    PrinterConnectionType.USB -> Icons.Filled.Usb
     else -> Icons.Filled.Bluetooth
 }
 

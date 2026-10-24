@@ -3,6 +3,7 @@ package org.bhargav.pansariwala.notification
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.bhargav.pansariwala.navigation.LaunchIntent
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.AppConstants.Notification
 import org.bhargav.pansariwala.util.AppConstants.Push
@@ -21,6 +22,10 @@ object NotificationOpenRequests {
     val pending: StateFlow<NotificationOpenRequest?> = _pending.asStateFlow()
 
     fun open(request: NotificationOpenRequest) {
+        if (request.type == Notification.TYPE_REGISTRATION) {
+            LaunchIntent.openShopRegistration = true
+            return
+        }
         _pending.value = request
     }
 
@@ -52,6 +57,7 @@ object NotificationOpenRequests {
             Push.EVENT_PAYMENT_CONFIRM -> NotificationOpenRequest(Notification.TYPE_PAYMENT_CONFIRM, intentId)
             Push.EVENT_DELIVERY_OFFER -> NotificationOpenRequest(Notification.TYPE_DELIVERY_OFFER, orderId)
             Push.EVENT_ISSUE_UPDATE -> NotificationOpenRequest(AppConstants.Support.NOTIFICATION_TYPE)
+            Push.EVENT_REGISTRATION_REMINDER -> NotificationOpenRequest(Notification.TYPE_REGISTRATION)
             Push.EVENT_ORDER_UPDATE -> orderId?.let {
                 val shopAlert = data[Push.KEY_ALERT] in setOf(Push.ALERT_ORDER_NEW, Push.ALERT_PARTNER_TIMEOUT)
                 NotificationOpenRequest(if (shopAlert) Notification.TYPE_ONLINE_ORDER else Notification.TYPE_ORDER, it)

@@ -13,6 +13,9 @@ enum class PrinterConnectionType {
 
     /** Raw TCP socket, usually port 9100 (Wi-Fi / Ethernet printers). */
     NETWORK,
+
+    /** USB cable (WebUSB / WebSerial in browsers). */
+    USB,
 }
 
 @Serializable

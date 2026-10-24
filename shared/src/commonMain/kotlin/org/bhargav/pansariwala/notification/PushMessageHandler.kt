@@ -21,6 +21,8 @@ import pansariwala.shared.generated.resources.notify_delivery_offer_title
 import pansariwala.shared.generated.resources.notify_issue_resolved_body
 import pansariwala.shared.generated.resources.notify_issue_resolved_body_version
 import pansariwala.shared.generated.resources.notify_issue_resolved_title
+import pansariwala.shared.generated.resources.notify_registration_reminder_body
+import pansariwala.shared.generated.resources.notify_registration_reminder_title
 
 /** Single entry for FCM data payloads on every platform: update open screens, then tray alert if any. */
 class PushMessageHandler(
@@ -29,6 +31,10 @@ class PushMessageHandler(
 ) {
     /** @param showAlert false when the OS already displayed the alert (iOS background APNs). */
     suspend fun handle(data: Map<String, String>, showAlert: Boolean = true) {
+        if (data[Push.KEY_EVENT] == Push.EVENT_REGISTRATION_REMINDER) {
+            if (showAlert && !preferences.hasSession()) gateway.show(registrationReminderNotification())
+            return
+        }
         if (!preferences.hasSession()) return
         when (data[Push.KEY_EVENT]) {
             Push.EVENT_ORDER_UPDATE -> handleOrderUpdate(data, showAlert)
@@ -75,6 +81,14 @@ class PushMessageHandler(
             ),
         )
     }
+
+    private suspend fun registrationReminderNotification() = ShopNotification(
+        id = generateId("notif"),
+        title = getString(Res.string.notify_registration_reminder_title),
+        body = getString(Res.string.notify_registration_reminder_body),
+        type = AppConstants.Notification.TYPE_REGISTRATION,
+        key = Push.EVENT_REGISTRATION_REMINDER,
+    )
 
     private suspend fun issueResolvedNotification(data: Map<String, String>): ShopNotification? {
         val issueId = data[Push.KEY_ISSUE_ID]?.takeIf { it.isNotBlank() } ?: return null

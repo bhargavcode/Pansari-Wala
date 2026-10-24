@@ -15,6 +15,7 @@ import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.asQuantity
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.bin_recovered
 import pansariwala.shared.generated.resources.inv_error_invalid_qty
 import pansariwala.shared.generated.resources.inv_error_stock_negative
 import pansariwala.shared.generated.resources.inv_msg_stock_updated
@@ -87,6 +88,15 @@ class InventoryProductDetailViewModel(
     fun setActive(active: Boolean) {
         val product = _uiState.value.product ?: return
         viewModelScope.launch { shopRepository.setProductActive(product.id, active) }
+    }
+
+    /** Brings a binned product back to the shop's product list. */
+    fun recover() {
+        val product = _uiState.value.product ?: return
+        viewModelScope.launch {
+            shopRepository.setProductDeleted(product.id, null)
+            _uiState.update { it.copy(message = UiText.res(Res.string.bin_recovered)) }
+        }
     }
 
     /** Variant products keep stock per option: customers only see options whose own stock is above zero. */

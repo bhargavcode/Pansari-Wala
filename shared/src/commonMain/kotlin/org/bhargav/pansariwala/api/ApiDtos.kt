@@ -58,7 +58,12 @@ data class TokenResponse(
 )
 
 @Serializable
-data class ShopLoginRequest(val username: String, val password: String)
+data class ShopLoginRequest(
+    val username: String,
+    val password: String,
+    /** [AppConstants.Support.PLATFORM_WEB] gets a shorter-lived browser token. */
+    val client: String? = null,
+)
 
 @Serializable
 data class FirebaseAuthRequest(val idToken: String)
@@ -345,6 +350,8 @@ data class ProductDto(
     val offer: ProductOfferDto? = null,
     val translations: Map<String, String> = emptyMap(),
     val brandTranslations: Map<String, String> = emptyMap(),
+    /** Epoch ms when moved to the shop's products bin. */
+    val deletedAt: Long? = null,
 )
 
 @Serializable
@@ -914,6 +921,7 @@ fun ProductDto.toModel() = Product(
     subCategoryId = subCategoryId,
     translations = translations,
     brandTranslations = brandTranslations,
+    deletedAt = deletedAt,
 )
 
 fun ProductOfferDto.toModel() = ProductOffer(
@@ -991,6 +999,7 @@ fun Product.toDto() = ProductDto(
     subCategoryId = subCategoryId,
     translations = translations,
     brandTranslations = brandTranslations,
+    deletedAt = deletedAt,
 )
 
 fun Order.toSyncDto() = OrderDto(

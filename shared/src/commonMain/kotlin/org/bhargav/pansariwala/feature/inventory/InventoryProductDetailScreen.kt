@@ -119,7 +119,7 @@ fun InventoryProductDetailScreen(
         error = state.error.toErrorBanner(retryable = false),
         onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError) },
         actions = {
-            if (state.product != null) {
+            if (state.product?.isDeleted == false) {
                 IconButton(onClick = { onEdit(productId) }) {
                     Icon(Icons.Filled.Edit, contentDescription = stringResource(Res.string.action_edit))
                 }
@@ -139,9 +139,10 @@ fun InventoryProductDetailScreen(
                     modifier = Modifier.widthIn(max = DETAIL_MAX_WIDTH).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    if (product.isDeleted) BinnedProductBanner(product, onRecover = viewModel::recover)
                     ProductHeader(product)
                     StockCard(product, onRequestStock = { showStockRequest = true })
-                    UpdateInventoryCard(
+                    if (!product.isDeleted) UpdateInventoryCard(
                         product = product,
                         selectedVariantId = state.selectedVariantId,
                         editedStock = state.editedStock,

@@ -82,6 +82,18 @@ sealed interface AppRoute : NavKey {
 
     @Serializable
     data class BorrowerDetail(val phone: String) : AppRoute
+
+    /** Deleted products holder (More tab); rows open [ProductDetail] with a recover action. */
+    @Serializable
+    data object ProductBin : AppRoute
+
+    /** Self-service stepped shop onboarding opened from the login screen. */
+    @Serializable
+    data object RegisterShop : AppRoute
+
+    /** Shown for a few seconds after registration, then replaced by [Login]. */
+    @Serializable
+    data class ShopRegistered(val shopName: String, val loginUsername: String) : AppRoute
 }
 
 fun AppRoute.screenName(): String = when (this) {
@@ -109,4 +121,7 @@ fun AppRoute.screenName(): String = when (this) {
     AppRoute.Borrowers -> "borrowers"
     is AppRoute.ShopOrderDetail -> "shop_order_detail"
     is AppRoute.BorrowerDetail -> "borrower_detail"
+    AppRoute.ProductBin -> "product_bin"
+    AppRoute.RegisterShop -> "register_shop"
+    is AppRoute.ShopRegistered -> "shop_registered"
 }

@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.di
 
+import org.bhargav.pansariwala.printer.transport.browser.browserPrinterTransports
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.WasmJsDeviceLocation
 import org.bhargav.pansariwala.platform.ImagePicker
@@ -22,5 +23,5 @@ actual val platformModule: Module = module {
     single<org.bhargav.pansariwala.platform.PhoneAutofill> { org.bhargav.pansariwala.platform.NoPhoneAutofill() }
     single<org.bhargav.pansariwala.platform.DocumentPicker> { org.bhargav.pansariwala.platform.WasmJsDocumentPicker() }
     single<RazorpayCheckout> { NoOpRazorpayCheckout() }
-    single { PrinterManager(emptyList(), get()) }
+    single { PrinterManager(browserPrinterTransports(), get()) }
 }

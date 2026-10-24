@@ -243,6 +243,11 @@ private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
 private const val MIN_SHOP_PASSWORD = 4
 private const val MIN_ADMIN_PASSWORD = 6
+private const val LOGIN_SCOPE_SHOP = "shop"
+private const val LOGIN_SCOPE_ADMIN = "admin"
+private const val APP_TOKEN_TTL_SECONDS = 7L * 24 * 60 * 60
+/** Browser sessions (master console, POS web) are shorter-lived than the native apps. */
+private const val WEB_TOKEN_TTL_SECONDS = 12L * 60 * 60
 private const val DAY_MS = 86_400_000L
 private val LOGIN_USERNAME_REGEX = Regex("^[a-z0-9._@-]{3,40}$")
 private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
@@ -302,6 +307,7 @@ class AppStore(
     private val offerPayoutCol = mongo.db.getCollection<Document>("delivery_offers")
     private val otpCol = mongo.db.getCollection<OtpDoc>("otp_challenges")
     private val otp = OtpService(config, security, otpCol)
+    private val loginGuard = org.bhargav.pansariwala.server.security.LoginGuard()
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
     private val shopVisitCol = mongo.db.getCollection<ShopVisitDoc>("shop_visits")
     private val platformSettingsCol = mongo.db.getCollection<PlatformSettingsDoc>("platform_settings")
@@ -332,18 +338,24 @@ class AppStore(
         sockets.remove(partnerId, session)
     }
 
-    fun shopLogin(username: String, password: String): TokenResponse {
+    fun shopLogin(username: String, password: String, clientIp: String? = null, webClient: Boolean = false): TokenResponse {
         val key = username.trim()
         require(key.isNotEmpty() && password.isNotBlank()) { "Username and password are required" }
-        val row = shopUserCol.find(eq("username", key)).firstOrNull()
-            ?: shopUserCol.find(eq("username", key.lowercase())).firstOrNull()
-            ?: shopUserCol.find(usernameFilter(key)).firstOrNull()
-            ?: error("Invalid credentials")
-        verifyAndMigratePassword(row.passwordHash, password) { hash ->
-            shopUserCol.updateOne(eq("_id", row.id), set("passwordHash", hash))
-        }
+        loginGuard.check(LOGIN_SCOPE_SHOP, key, clientIp)
+        val row = runCatching {
+            val found = shopUserCol.find(eq("username", key)).firstOrNull()
+                ?: shopUserCol.find(eq("username", key.lowercase())).firstOrNull()
+                ?: shopUserCol.find(usernameFilter(key)).firstOrNull()
+                ?: error("Invalid credentials")
+            verifyAndMigratePassword(found.passwordHash, password) { hash ->
+                shopUserCol.updateOne(eq("_id", found.id), set("passwordHash", hash))
+            }
+            found
+        }.onFailure { loginGuard.onFailure(LOGIN_SCOPE_SHOP, key, clientIp) }.getOrThrow()
+        loginGuard.onSuccess(LOGIN_SCOPE_SHOP, key)
         require(row.active) { "This login is disabled. Contact your shop admin." }
-        val token = security.issueJwt(row.id, "SHOP", row.shopId, row.displayName)
+        val ttl = if (webClient) WEB_TOKEN_TTL_SECONDS else APP_TOKEN_TTL_SECONDS
+        val token = security.issueJwt(row.id, "SHOP", row.shopId, row.displayName, ttlSeconds = ttl)
         return TokenResponse(
             token, null, "SHOP", row.id, row.shopId, row.displayName,
             shopRole = row.role,
@@ -351,16 +363,21 @@ class AppStore(
         )
     }
 
-    fun adminLogin(username: String, password: String): TokenResponse {
+    fun adminLogin(username: String, password: String, clientIp: String? = null): TokenResponse {
         val key = username.trim()
         require(key.isNotEmpty() && password.isNotBlank()) { "Username and password are required" }
-        val row = adminUserCol.find(eq("username", key)).firstOrNull()
-            ?: adminUserCol.find(usernameFilter(key)).firstOrNull()
-            ?: error("Invalid credentials")
-        verifyAndMigratePassword(row.passwordHash, password) { hash ->
-            adminUserCol.updateOne(eq("_id", row.id), set("passwordHash", hash))
-        }
-        val token = security.issueJwt(row.id, "ADMIN", displayName = "Admin")
+        loginGuard.check(LOGIN_SCOPE_ADMIN, key, clientIp)
+        val row = runCatching {
+            val found = adminUserCol.find(eq("username", key)).firstOrNull()
+                ?: adminUserCol.find(usernameFilter(key)).firstOrNull()
+                ?: error("Invalid credentials")
+            verifyAndMigratePassword(found.passwordHash, password) { hash ->
+                adminUserCol.updateOne(eq("_id", found.id), set("passwordHash", hash))
+            }
+            found
+        }.onFailure { loginGuard.onFailure(LOGIN_SCOPE_ADMIN, key, clientIp) }.getOrThrow()
+        loginGuard.onSuccess(LOGIN_SCOPE_ADMIN, key)
+        val token = security.issueJwt(row.id, "ADMIN", displayName = "Admin", ttlSeconds = WEB_TOKEN_TTL_SECONDS)
         return TokenResponse(token, null, "ADMIN", row.id, null, "Admin")
     }
 
@@ -3275,12 +3292,14 @@ class AppStore(
         pageSize: Int,
         shopTypeId: String? = null,
         subcategoryId: String? = null,
+        categoryIds: List<String> = emptyList(),
     ): MasterProductPageDto {
         val size = pageSize.coerceIn(1, MAX_MASTER_PAGE_SIZE)
         val safePage = page.coerceAtLeast(0)
         val parts = mutableListOf<Bson>()
-        if (!categoryId.isNullOrBlank()) {
-            parts += or(eq("categoryId", categoryId), eq("subcategoryId", categoryId))
+        val ids = (categoryIds + listOfNotNull(categoryId)).filter { it.isNotBlank() }.distinct()
+        if (ids.isNotEmpty()) {
+            parts += or(`in`("categoryId", ids), `in`("subcategoryId", ids))
         } else if (!shopTypeId.isNullOrBlank()) {
             parts += `in`("categoryId", categoryIdsForShopType(shopTypeId))
         }
@@ -4085,6 +4104,18 @@ class AppStore(
             .map { it.toStaffDto() }
     }
 
+    /** Self-service onboarding: is [rawUsername] free for a new owner login? */
+    fun registrationUsernameAvailability(rawUsername: String): UsernameAvailabilityDto {
+        val username = normalizeLoginUsername(rawUsername)
+        if (username.isEmpty()) return UsernameAvailabilityDto(username, available = false)
+        return UsernameAvailabilityDto(username, shopUserCol.find(eq("username", username)).firstOrNull() == null)
+    }
+
+    /** Consumes a phone OTP without creating a customer account; returns the normalized phone. */
+    fun verifyPhoneOtp(phone: String, code: String, sessionId: String?): String = otp.verify(phone, code, sessionId)
+
+    fun shopOwnerExists(phone: String): Boolean = shopCol.find(eq("ownerPhone", phone)).firstOrNull() != null
+
     fun staffUsernameAvailability(userId: String, rawUsername: String): UsernameAvailabilityDto {
         requireShopPermission(userId, ShopPerm.MANAGE_STAFF)
         val username = normalizeLoginUsername(rawUsername)
@@ -4701,11 +4732,12 @@ class AppStore(
         variants = variants.filter { includeInactiveVariants || it.active }.map { it.toDto() },
         brandName = brandName,
         masterProductId = masterProductId,
-        active = active,
+        active = if (deletedAt != null) activeBeforeDelete ?: true else active,
         categoryId = categoryId,
         subCategoryId = subCategoryId,
         translations = translations,
         brandTranslations = brandTranslations,
+        deletedAt = deletedAt,
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
@@ -4714,10 +4746,12 @@ class AppStore(
         variants = variants.toVariantDocs(),
         brandName = brandName.trim(),
         masterProductId = masterProductId?.takeIf { it.isNotBlank() },
-        active = active,
+        active = active && deletedAt == null,
         categoryId = categoryId?.takeIf { it.isNotBlank() },
         subCategoryId = subCategoryId?.takeIf { it.isNotBlank() },
         translations = cleanTranslations(translations, nameHi),
+        deletedAt = deletedAt,
+        activeBeforeDelete = active.takeIf { deletedAt != null },
     )
 
     private fun ProductVariantDoc.toDto() = ProductVariantDto(

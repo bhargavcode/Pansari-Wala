@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -122,6 +123,92 @@ fun SearchableDropdown(
             }
         }
     }
+}
+
+/**
+ * Checkbox dropdown; the field shows the picked labels comma-separated, or [allLabel] when
+ * nothing is picked. The menu stays open while toggling so several can be picked at once.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MultiSelectDropdown(
+    label: String,
+    options: List<DropdownOption>,
+    selectedIds: Set<String>,
+    onChange: (Set<String>) -> Unit,
+    allLabel: String,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val summary = options.filter { it.id in selectedIds }.joinToString(", ") { it.label }.ifEmpty { allLabel }
+    val filtered = remember(options, query) {
+        val q = query.trim()
+        if (q.isEmpty()) options else options.filter { it.label.contains(q, ignoreCase = true) }
+    }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            expanded = it
+            query = ""
+        },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = if (expanded) query else summary,
+            onValueChange = {
+                query = it
+                expanded = true
+            },
+            label = { Text(label) },
+            placeholder = { Text(if (expanded) summary else "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null) } },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true)
+                .fillMaxWidth(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 360.dp),
+        ) {
+            if (query.isBlank()) {
+                CheckItem(allLabel, selectedIds.isEmpty()) { onChange(emptySet()) }
+            }
+            filtered.forEach { option ->
+                CheckItem(option.label, option.id in selectedIds) {
+                    onChange(if (option.id in selectedIds) selectedIds - option.id else selectedIds + option.id)
+                }
+            }
+            if (filtered.isEmpty()) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(Res.string.dropdown_no_matches),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = {},
+                    enabled = false,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CheckItem(label: String, checked: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
+        onClick = onClick,
+        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+    )
 }
 
 /**

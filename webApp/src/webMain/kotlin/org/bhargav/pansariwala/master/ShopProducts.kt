@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.master
 
+import org.bhargav.pansariwala.designsystem.DropdownOption
+import org.bhargav.pansariwala.designsystem.MultiSelectDropdown
 import org.bhargav.pansariwala.designsystem.appDialogProperties
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -170,6 +172,18 @@ internal fun ShopProductsScreen(
     }
     val pageCount = ((pageData.totalCount + SHOP_PRODUCTS_PAGE_SIZE - 1) / SHOP_PRODUCTS_PAGE_SIZE).coerceAtLeast(1)
 
+    if (showPicker) {
+        MasterPickerPage(
+            token = token,
+            shopId = shopId,
+            shopName = shopName,
+            onStatus = onStatus,
+            onAdded = { refresh() },
+            onBack = { showPicker = false },
+        )
+        return
+    }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         MasterTopBar(stringResource(Res.string.master_shop_products_title, shopName ?: shopId))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -303,15 +317,6 @@ internal fun ShopProductsScreen(
         }
     }
 
-    if (showPicker) {
-        MasterPickerDialog(
-            token = token,
-            shopId = shopId,
-            onStatus = onStatus,
-            onAdded = { refresh() },
-            onDismiss = { showPicker = false },
-        )
-    }
     selected?.let { product ->
         ShopProductDialog(
             token = token,
@@ -349,35 +354,47 @@ internal fun WideDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) 
     }
 }
 
-/** Server-paged master catalog; "Added" items are already linked to this shop. */
+/**
+ * Full-page, server-paged master catalog; "Added" items are already linked to this shop.
+ * Starts filtered to the categories of the shop's own shop types.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MasterPickerDialog(
+private fun MasterPickerPage(
     token: String,
     shopId: String,
+    shopName: String?,
     onStatus: (String) -> Unit,
     onAdded: () -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val api = remember { MasterApi() }
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
-    var categoryId by remember { mutableStateOf<String?>(null) }
+    var categoryIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var page by remember { mutableIntStateOf(0) }
     var data by remember { mutableStateOf(ProductPageDto()) }
     var categories by remember { mutableStateOf<List<CategoryDto>>(emptyList()) }
     var links by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
+    var ready by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf<ProductDto?>(null) }
 
     LaunchedEffect(Unit) {
-        runCatching { categories = api.categories(token).filter { it.parentId.isNullOrBlank() } }
+        runCatching {
+            categories = api.categories(token).filter { it.parentId.isNullOrBlank() }.sortedBy { it.name.lowercase() }
+            val shop = api.shops(token).firstOrNull { it.id == shopId }
+            val types = shop?.let { (listOf(it.shopType) + it.shopTypes).filter { t -> t.isNotBlank() }.toSet() }.orEmpty()
+            categoryIds = categories.filter { c -> c.shopTypeIds.any { it in types } }.map { it.id }.toSet()
+        }
+        ready = true
     }
-    LaunchedEffect(query, categoryId, page) {
+    LaunchedEffect(ready, query, categoryIds, page) {
+        if (!ready) return@LaunchedEffect
         if (query.isNotBlank()) delay(SHOP_SEARCH_DEBOUNCE_MS)
         loading = true
         runCatching {
-            val result = api.productPage(token, query.trim(), categoryId, page, MASTER_PICKER_PAGE_SIZE)
+            val result = api.productPage(token, query.trim(), null, page, MASTER_PICKER_PAGE_SIZE, categoryIds = categoryIds)
             data = result
             links = links + api.shopMasterLinks(token, shopId, result.items.map { it.id })
         }.onFailure { onStatus(it.message.orEmpty()) }
@@ -385,41 +402,35 @@ private fun MasterPickerDialog(
     }
     val pageCount = ((data.totalCount + MASTER_PICKER_PAGE_SIZE - 1) / MASTER_PICKER_PAGE_SIZE).coerceAtLeast(1)
 
-    WideDialog(onDismiss) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize()) {
+        MasterTopBar(stringResource(Res.string.master_shop_products_title, shopName ?: shopId))
+        Column(Modifier.weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = onBack) { Text(stringResource(Res.string.action_back)) }
                 Text(
                     stringResource(Res.string.inv_add_from_master),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.master_close)) }
             }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it; page = 0 },
-                label = { Text(stringResource(Res.string.inv_master_search_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (categories.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilterChip(
-                        selected = categoryId == null,
-                        onClick = { categoryId = null; page = 0 },
-                        label = { Text(stringResource(Res.string.inv_master_all)) },
-                    )
-                    categories.forEach { c ->
-                        FilterChip(
-                            selected = categoryId == c.id,
-                            onClick = { categoryId = c.id; page = 0 },
-                            label = { Text(c.name) },
-                        )
-                    }
-                }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it; page = 0 },
+                    label = { Text(stringResource(Res.string.inv_master_search_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f).widthIn(min = 280.dp),
+                )
+                MultiSelectDropdown(
+                    label = stringResource(Res.string.master_category),
+                    options = categories.map { DropdownOption(it.id, it.name) },
+                    selectedIds = categoryIds,
+                    onChange = { categoryIds = it; page = 0 },
+                    allLabel = stringResource(Res.string.inv_master_all),
+                    modifier = Modifier.weight(1f).widthIn(min = 280.dp),
+                )
             }
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 when {
                     loading && data.items.isEmpty() ->
                         Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }

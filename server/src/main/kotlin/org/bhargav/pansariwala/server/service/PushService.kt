@@ -48,6 +48,8 @@ private const val DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token"
 private const val ACCESS_TOKEN_TTL_S = 3_600L
 private const val ACCESS_TOKEN_REFRESH_MARGIN_MS = 120_000L
 private const val PUSH_TTL = "3600s"
+/** Must match `AppConstants.Push.EVENT_REGISTRATION_REMINDER` in shared. */
+private const val EVENT_REGISTRATION_REMINDER = "REGISTRATION_REMINDER"
 /** Customer JWTs carry role `CUSTOMER`; `USER` kept for tokens registered by older builds. */
 private val CUSTOMER_ROLES = listOf("CUSTOMER", "USER")
 
@@ -308,6 +310,25 @@ class PushService(
             bodyArgs = listOf(featureLabel, fixedInVersion),
         )
         send(eq("principalId", reporterId), PushMessage(issueId, data, alert))
+    }
+
+    /** Nudges an owner who left shop onboarding unfinished; [token] belongs to a device without a session. */
+    fun registrationReminder(token: String, phone: String) {
+        if (!enabled || token.isBlank()) return
+        val data = mapOf("event" to EVENT_REGISTRATION_REMINDER)
+        val alert = Alert(
+            kind = EVENT_REGISTRATION_REMINDER,
+            key = "$EVENT_REGISTRATION_REMINDER:$phone",
+            title = "Finish registering your shop",
+            body = "Your Pansari Wala shop registration is almost done. Open the app to continue.",
+        )
+        scope.launch {
+            val bearer = runCatching { oauthToken() }.getOrElse {
+                println("FCM auth failed: ${it.message}")
+                return@launch
+            }
+            sendOne(bearer, token, PushMessage(phone, data, alert).localized(RequestLanguage.ENGLISH))
+        }
     }
 
     private fun shopAlert(u: OrderUpdate): Alert? {

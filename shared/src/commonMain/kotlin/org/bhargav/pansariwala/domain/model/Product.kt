@@ -121,7 +121,11 @@ data class Product(
     val translations: Map<String, String> = emptyMap(),
     /** [brandName] per language code; edited from the master console only. */
     val brandTranslations: Map<String, String> = emptyMap(),
+    /** Epoch ms when the shop moved this product to the bin; null for live products. */
+    val deletedAt: Long? = null,
 ) {
+    val isDeleted: Boolean get() = deletedAt != null
+
     /** Name in [languageCode], falling back to Hindi [nameHi] and then English [name]. */
     fun displayName(languageCode: String?): String = localizedProductName(name, nameHi, translations, languageCode)
 

@@ -32,6 +32,9 @@ import org.bhargav.pansariwala.server.dto.ApiErrorBody
 import org.bhargav.pansariwala.server.i18n.MessageCatalog
 import org.bhargav.pansariwala.server.i18n.RequestLanguage
 import org.bhargav.pansariwala.server.routing.apiRoutes
+import org.bhargav.pansariwala.server.routing.shopRegistrationRoutes
+import org.bhargav.pansariwala.server.service.ShopRegistrationService
+import org.bhargav.pansariwala.server.service.SmsGateway
 import org.bhargav.pansariwala.server.security.Security
 import org.bhargav.pansariwala.server.service.AppStore
 import org.bhargav.pansariwala.server.service.PushService
@@ -43,6 +46,9 @@ import org.slf4j.event.Level
 
 private const val OFFER_SWEEP_INTERVAL_MS = 30_000L
 private const val ACCOUNT_PURGE_INTERVAL_MS = 10 * 60_000L
+private const val REGISTRATION_REMINDER_INTERVAL_MS = 15 * 60_000L
+private const val LOGIN_LOCKED_CODE = "LOGIN_LOCKED"
+private const val ROLE_SHOP_REGISTRANT = ShopRegistrationService.ROLE
 
 fun main() {
     val config = ServerConfig.fromEnv()
@@ -61,6 +67,7 @@ fun main() {
     val support = SupportService(mongo, assetRefs, push)
     val credit = org.bhargav.pansariwala.server.service.CreditService(mongo, assetRefs, store.repayGateway())
     store.onRepaymentWebhook = credit::onGatewayWebhook
+    val registration = ShopRegistrationService(mongo, security, store, push, SmsGateway(config))
 
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
         // CORS first so preflight + error responses always include ACAO (web localhost → API).
@@ -100,6 +107,17 @@ fun main() {
                     ApiErrorBody(messages.localize(cause.message ?: "OTP error"), cause.code),
                 )
             }
+            exception<org.bhargav.pansariwala.server.security.LoginLockedException> { call, cause ->
+                call.response.headers.append("Retry-After", cause.retryAfterSec.toString())
+                call.respond(
+                    HttpStatusCode.TooManyRequests,
+                    ApiErrorBody(messages.localize(cause.message ?: "Too many failed login attempts"), LOGIN_LOCKED_CODE),
+                )
+            }
+            exception<org.bhargav.pansariwala.server.service.ShopRegistrationException> { call, cause ->
+                val status = if (cause.code == ShopRegistrationService.CODE_ALREADY_REGISTERED) HttpStatusCode.Conflict else HttpStatusCode.BadRequest
+                call.respond(status, ApiErrorBody(messages.localize(cause.message ?: "Registration failed"), cause.code))
+            }
             exception<io.ktor.server.plugins.BadRequestException> { call, cause ->
                 call.respond(HttpStatusCode.BadRequest, ApiErrorBody(messages.localize(cause.message ?: "Invalid request body")))
             }
@@ -131,7 +149,19 @@ fun main() {
             jwt("auth-jwt") {
                 verifier(security.verifier())
                 validate { credential ->
-                    if (credential.payload.getClaim("role").asString().isNullOrBlank()) null
+                    val role = credential.payload.getClaim("role").asString()
+                    // Onboarding tokens only open the /shop-register endpoints.
+                    if (role.isNullOrBlank() || role == ROLE_SHOP_REGISTRANT) null
+                    else io.ktor.server.auth.jwt.JWTPrincipal(credential.payload)
+                }
+                challenge { _, _ ->
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorBody(messages.localize("Token missing or invalid")))
+                }
+            }
+            jwt("auth-registrant") {
+                verifier(security.verifier())
+                validate { credential ->
+                    if (credential.payload.getClaim("role").asString() != ROLE_SHOP_REGISTRANT) null
                     else io.ktor.server.auth.jwt.JWTPrincipal(credential.payload)
                 }
                 challenge { _, _ ->
@@ -141,10 +171,18 @@ fun main() {
         }
         routing {
             apiRoutes(config, store, push, support, credit, messages)
+            shopRegistrationRoutes(registration, store)
         }
         launch(Dispatchers.IO) {
             var lastAccountPurge = 0L
+            var lastRegistrationReminder = 0L
             while (isActive) {
+                if (System.currentTimeMillis() - lastRegistrationReminder >= REGISTRATION_REMINDER_INTERVAL_MS) {
+                    lastRegistrationReminder = System.currentTimeMillis()
+                    runCatching { registration.sendReminders() }
+                        .onSuccess { if (it > 0) println("Shop registration: sent $it reminders") }
+                        .onFailure { println("Registration reminder sweep failed: ${it.message}") }
+                }
                 if (System.currentTimeMillis() - lastAccountPurge >= ACCOUNT_PURGE_INTERVAL_MS) {
                     lastAccountPurge = System.currentTimeMillis()
                     runCatching { store.purgeDeletedCustomers() }

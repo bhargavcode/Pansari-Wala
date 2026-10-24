@@ -28,6 +28,7 @@ import pansariwala.shared.generated.resources.printer_status_disconnected
 import pansariwala.shared.generated.resources.printer_type_ble
 import pansariwala.shared.generated.resources.printer_type_bluetooth
 import pansariwala.shared.generated.resources.printer_type_network
+import pansariwala.shared.generated.resources.printer_type_usb
 
 val PrinterError.messageRes: StringResource
     get() = when (this) {
@@ -48,6 +49,7 @@ val PrinterConnectionType.labelRes: StringResource
         PrinterConnectionType.BLUETOOTH -> Res.string.printer_type_bluetooth
         PrinterConnectionType.BLE -> Res.string.printer_type_ble
         PrinterConnectionType.NETWORK -> Res.string.printer_type_network
+        PrinterConnectionType.USB -> Res.string.printer_type_usb
     }
 
 @Composable

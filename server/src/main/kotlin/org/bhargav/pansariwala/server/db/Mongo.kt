@@ -367,6 +367,10 @@ data class ProductDoc(
     val translations: Map<String, String> = emptyMap(),
     /** [brandName] per language code. */
     val brandTranslations: Map<String, String> = emptyMap(),
+    /** Set when the shop moved the product to its bin; [active] is then forced false so customers never see it. */
+    val deletedAt: Long? = null,
+    /** The shop's own active flag while binned, restored on recover. */
+    val activeBeforeDelete: Boolean? = null,
 )
 
 /** One row per product price change; [price] is the customer-facing starting price at [at]. */

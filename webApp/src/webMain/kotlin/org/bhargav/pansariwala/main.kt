@@ -6,6 +6,7 @@ import org.bhargav.pansariwala.api.ApiRuntime
 import org.bhargav.pansariwala.di.initKoin
 import org.bhargav.pansariwala.landing.LandingApp
 import org.bhargav.pansariwala.master.MasterAdminApp
+import org.bhargav.pansariwala.navigation.LaunchIntent
 import org.bhargav.pansariwala.product.AppProduct
 import org.bhargav.pansariwala.product.AppProductHolder
 import org.bhargav.pansariwala.util.AppConstants
@@ -22,6 +23,7 @@ fun main() {
         koinStarted = true
     }
     val route = currentWebRoute()
+    if (route == WebRoute.PosApp && consumePosRegisterDeepLink()) LaunchIntent.openShopRegistration = true
     ComposeViewport {
         WithScriptFallbackFonts {
             when (route) {
@@ -30,6 +32,10 @@ fun main() {
                 WebRoute.UserApp -> {
                     AppProductHolder.current = AppProduct.USER
                     App()
+                }
+                WebRoute.PosApp -> {
+                    AppProductHolder.current = AppProduct.POS
+                    PosWebSessionGuard { App() }
                 }
             }
         }

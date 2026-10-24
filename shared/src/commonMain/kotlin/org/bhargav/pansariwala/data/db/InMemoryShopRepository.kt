@@ -54,7 +54,13 @@ class InMemoryShopRepository : ShopRepository {
     }
 
     override fun observeProducts(shopId: String): Flow<List<Product>> =
-        productsFlow.map { list -> list.filter { it.shopId == shopId }.sortedBy { it.name } }
+        productsFlow.map { list -> list.filter { it.shopId == shopId && !it.isDeleted }.sortedBy { it.name } }
+
+    override fun observeDeletedProducts(shopId: String): Flow<List<Product>> =
+        productsFlow.map { list -> list.filter { it.shopId == shopId && it.isDeleted }.sortedByDescending { it.deletedAt } }
+
+    override suspend fun setProductDeleted(productId: String, deletedAt: Long?) =
+        editProduct(productId) { it.copy(deletedAt = deletedAt) }
 
     override fun observeRecentOrders(shopId: String, limit: Int): Flow<List<OrderSummary>> =
         ordersFlow.map { list ->
@@ -102,11 +108,11 @@ class InMemoryShopRepository : ShopRepository {
             .map { it.toSummary() }
 
     override suspend fun productCount(shopId: String): Int =
-        productsFlow.value.count { it.shopId == shopId }
+        productsFlow.value.count { it.shopId == shopId && !it.isDeleted }
 
     override suspend fun findProduct(idOrBarcode: String): Product? {
         val query = idOrBarcode.trim()
-        return productsFlow.value.firstOrNull { it.id == query || it.barcode == query }
+        return productsFlow.value.firstOrNull { !it.isDeleted && (it.id == query || it.barcode == query) }
     }
 
     override suspend fun productsByIds(ids: Collection<String>): List<Product> {
@@ -128,14 +134,14 @@ class InMemoryShopRepository : ShopRepository {
     override fun observeProductPage(shopId: String, filter: ShopProductFilter, limit: Int): Flow<List<Product>> =
         productsFlow.map { list ->
             list.asSequence()
-                .filter { it.shopId == shopId && filter.matches(it) }
+                .filter { it.shopId == shopId && !it.isDeleted && filter.matches(it) }
                 .sortedWith(compareBy<Product, String>(String.CASE_INSENSITIVE_ORDER) { it.name }.thenBy { it.id })
                 .take(limit)
                 .toList()
         }
 
     override fun observeProductCount(shopId: String, filter: ShopProductFilter): Flow<Int> =
-        productsFlow.map { list -> list.count { it.shopId == shopId && filter.matches(it) } }
+        productsFlow.map { list -> list.count { it.shopId == shopId && !it.isDeleted && filter.matches(it) } }
 
     override fun observeProduct(productId: String): Flow<Product?> =
         productsFlow.map { list -> list.firstOrNull { it.id == productId } }
@@ -143,7 +149,7 @@ class InMemoryShopRepository : ShopRepository {
     override suspend fun productIdsByMasterIds(shopId: String, masterIds: Collection<String>): Map<String, String> {
         val wanted = masterIds.toSet()
         return productsFlow.value
-            .filter { it.shopId == shopId && it.masterProductId in wanted }
+            .filter { it.shopId == shopId && !it.isDeleted && it.masterProductId in wanted }
             .associate { it.masterProductId!! to it.id }
     }
 

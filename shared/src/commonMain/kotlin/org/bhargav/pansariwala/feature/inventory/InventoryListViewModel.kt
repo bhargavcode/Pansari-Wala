@@ -26,6 +26,7 @@ import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductStatusFilter
 import org.bhargav.pansariwala.domain.model.ShopProductFilter
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.util.AppConstants
 
 data class InventoryListUiState(
@@ -103,6 +104,17 @@ class InventoryListViewModel(
     fun onStatusSelected(status: ProductStatusFilter) = updateFilter { it.copy(status = status) }
     fun onLowStockToggle() = updateFilter { it.copy(lowStockOnly = !it.lowStockOnly) }
     fun dismissError() = _uiState.update { it.copy(error = null) }
+
+    /** Moves the product to the bin; it leaves this list but keeps its stock and details. */
+    fun deleteProduct(productId: String) {
+        viewModelScope.launch {
+            runCatching { shopRepository.setProductDeleted(productId, AppClock.nowMillis()) }
+                .onFailure { error ->
+                    error.rethrowIfStructuredCancellation()
+                    _uiState.update { it.copy(error = error.toApiUiText()) }
+                }
+        }
+    }
 
     fun loadMore() {
         val state = _uiState.value

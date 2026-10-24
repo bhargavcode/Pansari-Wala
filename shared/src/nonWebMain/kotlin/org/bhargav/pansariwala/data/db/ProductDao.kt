@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 
 /** [active] < 0 = any; [query] exact-matches ids/barcode, [pattern] is its escaped `%…%` LIKE form. */
 private const val PRODUCT_FILTER =
-    "shopId = :shopId" +
+    "shopId = :shopId AND deletedAt IS NULL" +
         " AND (:categoryId IS NULL OR categoryId = :categoryId OR subCategoryId = :categoryId)" +
         " AND (:active < 0 OR isActive = :active)" +
         " AND (:lowOnly = 0 OR stockQty <= lowStockThreshold)" +
@@ -23,8 +23,14 @@ data class MasterLink(val masterProductId: String?, val id: String)
 
 @Dao
 abstract class ProductDao {
-    @Query("SELECT * FROM products WHERE shopId = :shopId ORDER BY name ASC")
+    @Query("SELECT * FROM products WHERE shopId = :shopId AND deletedAt IS NULL ORDER BY name ASC")
     abstract fun observeAll(shopId: String): Flow<List<ProductEntity>>
+
+    @Query("SELECT * FROM products WHERE shopId = :shopId AND deletedAt IS NOT NULL ORDER BY deletedAt DESC")
+    abstract fun observeDeleted(shopId: String): Flow<List<ProductEntity>>
+
+    @Query("UPDATE products SET deletedAt = :deletedAt, $QUEUE_SYNC WHERE id = :id")
+    abstract suspend fun setDeletedLocal(id: String, deletedAt: Long?)
 
     @Query("SELECT * FROM products WHERE $PRODUCT_FILTER ORDER BY name COLLATE NOCASE ASC, id ASC LIMIT :limit")
     abstract fun observePage(
@@ -50,7 +56,7 @@ abstract class ProductDao {
     @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
     abstract fun observeById(id: String): Flow<ProductEntity?>
 
-    @Query("SELECT masterProductId, id FROM products WHERE shopId = :shopId AND masterProductId IN (:masterIds)")
+    @Query("SELECT masterProductId, id FROM products WHERE shopId = :shopId AND deletedAt IS NULL AND masterProductId IN (:masterIds)")
     abstract suspend fun masterLinks(shopId: String, masterIds: List<String>): List<MasterLink>
 
     @Query("UPDATE products SET stockQty = stockQty + :delta, $QUEUE_SYNC WHERE id = :id")
@@ -62,7 +68,7 @@ abstract class ProductDao {
     @Query("UPDATE products SET isActive = :active, $QUEUE_SYNC WHERE id = :id")
     abstract suspend fun setActiveLocal(id: String, active: Boolean)
 
-    @Query("SELECT COUNT(*) FROM products WHERE shopId = :shopId")
+    @Query("SELECT COUNT(*) FROM products WHERE shopId = :shopId AND deletedAt IS NULL")
     abstract suspend fun count(shopId: String): Int
 
     @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
@@ -71,7 +77,7 @@ abstract class ProductDao {
     @Query("SELECT * FROM products WHERE id IN (:ids)")
     abstract suspend fun findByIds(ids: List<String>): List<ProductEntity>
 
-    @Query("SELECT * FROM products WHERE barcode = :barcode LIMIT 1")
+    @Query("SELECT * FROM products WHERE barcode = :barcode AND deletedAt IS NULL LIMIT 1")
     abstract suspend fun findByBarcode(barcode: String): ProductEntity?
 
     @Upsert

@@ -9,13 +9,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.analytics.Analytics
 import org.bhargav.pansariwala.analytics.AnalyticsEvent
+import org.bhargav.pansariwala.api.ApiException
 import org.bhargav.pansariwala.domain.auth.LoginCredentials
 import org.bhargav.pansariwala.domain.auth.LoginUseCase
 import org.bhargav.pansariwala.i18n.UiText
+import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_forgot_password_later
 import pansariwala.shared.generated.resources.error_invalid_credentials
 import pansariwala.shared.generated.resources.error_login_failed
+import pansariwala.shared.generated.resources.error_login_locked
 import pansariwala.shared.generated.resources.error_login_validation
 
 data class LoginUiState(
@@ -113,10 +116,21 @@ class LoginViewModel(
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    private fun mapLoginError(error: Throwable): UiText = when (error.message) {
+    private fun mapLoginError(error: Throwable): UiText {
+        val locked = error as? ApiException
+        if (locked?.code == AppConstants.LOGIN_LOCKED_CODE) {
+            val minutes = ((locked.retryAfterSec ?: SECONDS_PER_MINUTE) + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE
+            return UiText.res(Res.string.error_login_locked, minutes)
+        }
+        return mapCredentialError(error)
+    }
+
+    private fun mapCredentialError(error: Throwable): UiText = when (error.message) {
         "Invalid username or password." -> UiText.res(Res.string.error_invalid_credentials)
         "Enter a valid phone/email and password (min 4 chars)." ->
             UiText.res(Res.string.error_login_validation)
         else -> error.message?.let { UiText.Plain(it) } ?: UiText.res(Res.string.error_login_failed)
     }
 }
+
+private const val SECONDS_PER_MINUTE = 60
