@@ -132,6 +132,22 @@ private const val STATUS_INACTIVE = "inactive"
 private val ShopProductDto.level: StockLevel get() = StockLevel.of(stockQty, lowStockThreshold)
 private val ShopProductDto.categoryEnum: ProductCategory get() = ProductCategory.fromName(category)
 
+/** Master category label, falling back to the legacy shop bucket. */
+@Composable
+private fun ShopProductDto.categoryLabel(taxonomy: MasterCatalogTaxonomy): String =
+    taxonomy.label(categoryId, subCategoryId) ?: categoryEnum.localizedName()
+
+/** Master categories plus this shop's own types (primary first). */
+private class ShopTaxonomy(val taxonomy: MasterCatalogTaxonomy = MasterCatalogTaxonomy(), val shopTypeIds: List<String> = emptyList())
+
+private suspend fun loadShopTaxonomy(api: MasterApi, token: String, shopId: String): ShopTaxonomy {
+    val shop = api.shopDetail(token, shopId).shop
+    return ShopTaxonomy(
+        taxonomy = loadTaxonomy(api, token),
+        shopTypeIds = (listOf(shop.shopType) + shop.shopTypes).filter { it.isNotBlank() }.distinct(),
+    )
+}
+
 private fun String.toQty(): Double? = trim().toDoubleOrNull()
 private fun Double.plainQty(): String = if (this == this.toLong().toDouble()) toLong().toString() else toString()
 
@@ -157,7 +173,12 @@ internal fun ShopProductsScreen(
     var loading by remember { mutableStateOf(true) }
     var showPicker by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<ShopProductDto?>(null) }
+    var shopTaxonomy by remember { mutableStateOf(ShopTaxonomy()) }
     fun refresh() { reload++ }
+
+    LaunchedEffect(token, shopId) {
+        runCatching { shopTaxonomy = loadShopTaxonomy(api, token, shopId) }.onFailure { onStatus(it.message.orEmpty()) }
+    }
 
     LaunchedEffect(token, shopId, query, category, status, lowStock, page, reload) {
         if (query.isNotBlank()) delay(SHOP_SEARCH_DEBOUNCE_MS)
@@ -177,6 +198,7 @@ internal fun ShopProductsScreen(
             token = token,
             shopId = shopId,
             shopName = shopName,
+            shopTaxonomy = shopTaxonomy,
             onStatus = onStatus,
             onAdded = { refresh() },
             onBack = { showPicker = false },
@@ -224,11 +246,11 @@ internal fun ShopProductsScreen(
                     onClick = { category = null; page = 0 },
                     label = { Text(stringResource(Res.string.inv_filter_all_categories)) },
                 )
-                ProductCategory.entries.forEach { c ->
+                shopTaxonomy.taxonomy.categoryOptions(null, shopTaxonomy.shopTypeIds).forEach { c ->
                     FilterChip(
-                        selected = category == c.name,
-                        onClick = { category = c.name; page = 0 },
-                        label = { Text(c.localizedName()) },
+                        selected = category == c.id,
+                        onClick = { category = c.id; page = 0 },
+                        label = { Text(c.label) },
                     )
                 }
             }
@@ -278,7 +300,7 @@ internal fun ShopProductsScreen(
                             Cell { ImageThumb(p.imageUrls.firstOrNull(), Modifier.size(48.dp)) }
                             CellText(p.name)
                             CellText(p.brandName.ifBlank { "—" })
-                            CellText(p.categoryEnum.localizedName())
+                            CellText(p.categoryLabel(shopTaxonomy.taxonomy))
                             CellText(formatInr(p.sellingPrice))
                             Cell {
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -322,6 +344,7 @@ internal fun ShopProductsScreen(
             token = token,
             shopId = shopId,
             initial = product,
+            shopTaxonomy = shopTaxonomy,
             onStatus = onStatus,
             onChanged = { refresh() },
             onDismiss = { selected = null },
@@ -364,6 +387,7 @@ private fun MasterPickerPage(
     token: String,
     shopId: String,
     shopName: String?,
+    shopTaxonomy: ShopTaxonomy,
     onStatus: (String) -> Unit,
     onAdded: () -> Unit,
     onBack: () -> Unit,
@@ -374,19 +398,16 @@ private fun MasterPickerPage(
     var categoryIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var page by remember { mutableIntStateOf(0) }
     var data by remember { mutableStateOf(ProductPageDto()) }
-    var categories by remember { mutableStateOf<List<CategoryDto>>(emptyList()) }
+    val taxonomy = shopTaxonomy.taxonomy
+    val categories = remember(shopTaxonomy) { taxonomy.categoryOptions(null) }
     var links by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
     var ready by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf<ProductDto?>(null) }
 
-    LaunchedEffect(Unit) {
-        runCatching {
-            categories = api.categories(token).filter { it.parentId.isNullOrBlank() }.sortedBy { it.name.lowercase() }
-            val shop = api.shops(token).firstOrNull { it.id == shopId }
-            val types = shop?.let { (listOf(it.shopType) + it.shopTypes).filter { t -> t.isNotBlank() }.toSet() }.orEmpty()
-            categoryIds = categories.filter { c -> c.shopTypeIds.any { it in types } }.map { it.id }.toSet()
-        }
+    LaunchedEffect(shopTaxonomy) {
+        if (taxonomy.categories.isEmpty()) return@LaunchedEffect
+        categoryIds = taxonomy.categoryOptions(null, shopTaxonomy.shopTypeIds).map { it.id }.toSet()
         ready = true
     }
     LaunchedEffect(ready, query, categoryIds, page) {
@@ -423,7 +444,7 @@ private fun MasterPickerPage(
                 )
                 MultiSelectDropdown(
                     label = stringResource(Res.string.master_category),
-                    options = categories.map { DropdownOption(it.id, it.name) },
+                    options = categories,
                     selectedIds = categoryIds,
                     onChange = { categoryIds = it; page = 0 },
                     allLabel = stringResource(Res.string.inv_master_all),
@@ -466,7 +487,7 @@ private fun MasterPickerPage(
                         if (adding?.id == item.id) {
                             AddFromMasterForm(
                                 item = item,
-                                categoryName = categories.firstOrNull { it.id == item.categoryId }?.name ?: item.categoryId,
+                                shopTaxonomy = shopTaxonomy,
                                 onCancel = { adding = null },
                                 onConfirm = { body ->
                                     scope.launch {
@@ -498,7 +519,7 @@ private fun MasterPickerPage(
 @Composable
 private fun AddFromMasterForm(
     item: ProductDto,
-    categoryName: String,
+    shopTaxonomy: ShopTaxonomy,
     onCancel: () -> Unit,
     onConfirm: (AddFromMasterBody) -> Unit,
 ) {
@@ -507,7 +528,8 @@ private fun AddFromMasterForm(
     var cost by remember { mutableStateOf(if (item.cost > 0) item.cost.plainQty() else "") }
     var stock by remember { mutableStateOf("") }
     var threshold by remember { mutableStateOf(if (item.lowStockThreshold > 0) item.lowStockThreshold.plainQty() else "") }
-    var category by remember { mutableStateOf(ProductCategory.fromMasterCategoryName(categoryName)) }
+    var categoryId by remember { mutableStateOf<String?>(item.categoryId.ifBlank { null }) }
+    var subCategoryId by remember { mutableStateOf(item.subcategoryId) }
     MasterSectionCard(title = stringResource(Res.string.inv_master_add_title, item.name)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             QtyField(price, stringResource(Res.string.field_selling_price)) { price = it }
@@ -515,21 +537,26 @@ private fun AddFromMasterForm(
             QtyField(stock, stringResource(Res.string.inv_opening_stock)) { stock = it }
             QtyField(threshold, stringResource(Res.string.field_low_stock_at)) { threshold = it }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            ProductCategory.entries.forEach { c ->
-                FilterChip(selected = category == c, onClick = { category = c }, label = { Text(c.localizedName()) })
-            }
-        }
+        CategoryCascadeFields(
+            taxonomy = shopTaxonomy.taxonomy,
+            categoryId = categoryId,
+            subcategoryId = subCategoryId,
+            onChange = { cat, sub -> categoryId = cat; subCategoryId = sub },
+            shopTypeIds = shopTaxonomy.shopTypeIds,
+            modifier = Modifier.widthIn(max = 560.dp),
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
                 onConfirm(
                     AddFromMasterBody(
                         masterProductId = item.id,
-                        category = category.name,
+                        category = "",
                         sellingPrice = price.toQty() ?: 0.0,
                         costPrice = cost.toQty() ?: 0.0,
                         stockQty = stock.toQty() ?: 0.0,
                         lowStockThreshold = threshold.toQty() ?: 0.0,
+                        categoryId = categoryId,
+                        subCategoryId = subCategoryId,
                     ),
                 )
             }) { Text(stringResource(Res.string.action_add)) }
@@ -556,6 +583,7 @@ private fun ShopProductDialog(
     token: String,
     shopId: String,
     initial: ShopProductDto,
+    shopTaxonomy: ShopTaxonomy,
     onStatus: (String) -> Unit,
     onChanged: () -> Unit,
     onDismiss: () -> Unit,
@@ -571,7 +599,8 @@ private fun ShopProductDialog(
     var price by remember(initial.id) { mutableStateOf(initial.sellingPrice.plainQty()) }
     var cost by remember(initial.id) { mutableStateOf(initial.costPrice.plainQty()) }
     var threshold by remember(initial.id) { mutableStateOf(initial.lowStockThreshold.plainQty()) }
-    var category by remember(initial.id) { mutableStateOf(initial.categoryEnum) }
+    var categoryId by remember(initial.id) { mutableStateOf(initial.categoryId) }
+    var subCategoryId by remember(initial.id) { mutableStateOf(initial.subCategoryId) }
     val invalidQty = stringResource(Res.string.inv_error_invalid_qty)
 
     fun run(block: suspend () -> ShopProductDto) {
@@ -596,7 +625,7 @@ private fun ShopProductDialog(
                 Column(Modifier.weight(1f)) {
                     Text(product.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        listOf(product.brandName, product.categoryEnum.localizedName()).filter { it.isNotBlank() }.joinToString(" · "),
+                        listOf(product.brandName, product.categoryLabel(shopTaxonomy.taxonomy)).filter { it.isNotBlank() }.joinToString(" · "),
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
@@ -700,16 +729,21 @@ private fun ShopProductDialog(
                     QtyField(cost, stringResource(Res.string.field_cost_price)) { cost = it }
                     QtyField(threshold, stringResource(Res.string.field_low_stock_at)) { threshold = it }
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    ProductCategory.entries.forEach { c ->
-                        FilterChip(selected = category == c, onClick = { category = c }, label = { Text(c.localizedName()) })
-                    }
-                }
+                CategoryCascadeFields(
+                    taxonomy = shopTaxonomy.taxonomy,
+                    categoryId = categoryId,
+                    subcategoryId = subCategoryId,
+                    onChange = { cat, sub -> categoryId = cat; subCategoryId = sub },
+                    shopTypeIds = shopTaxonomy.shopTypeIds,
+                    modifier = Modifier.widthIn(max = 560.dp),
+                )
                 Button(onClick = {
                     val body = ShopProductEditBody(
                         name = name,
                         nameHi = nameHi,
-                        category = category.name,
+                        category = product.category,
+                        categoryId = categoryId.orEmpty(),
+                        subCategoryId = subCategoryId,
                         brandName = brand,
                         barcode = barcode.ifBlank { null },
                         sellingPrice = price.toQty() ?: product.sellingPrice,

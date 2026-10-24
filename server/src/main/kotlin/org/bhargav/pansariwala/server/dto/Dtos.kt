@@ -599,6 +599,9 @@ data class ShopProductEdit(
     val lowStockThreshold: Double,
     /** Null keeps the stored translations. */
     val translations: Map<String, String>? = null,
+    /** Master root category; null keeps the stored category and sub-category. */
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
 )
 
 /** One translated-name column: [items] product id → name in [language]; a blank name clears it. */

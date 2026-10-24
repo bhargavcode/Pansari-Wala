@@ -83,6 +83,8 @@ interface PansariApi {
         pageSize: Int,
         shopTypeId: String? = null,
         subcategoryId: String? = null,
+        /** Any of these root categories; used when neither [categoryId] nor [shopTypeId] is set. */
+        categoryIds: List<String> = emptyList(),
     ): MasterProductPageDto
     suspend fun shopRatings(shopId: String): List<org.bhargav.pansariwala.domain.model.ShopReview>
     suspend fun shopOffers(shopId: String): List<ShopOffer>

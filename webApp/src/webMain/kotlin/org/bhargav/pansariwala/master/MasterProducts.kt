@@ -60,6 +60,7 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import org.bhargav.pansariwala.designsystem.CatalogCascadeFilter
 import org.bhargav.pansariwala.designsystem.DropdownOption
+import org.bhargav.pansariwala.designsystem.SearchableDropdown
 import org.bhargav.pansariwala.feature.catalog.ProductSheetImportDialog
 import org.bhargav.pansariwala.feature.catalog.SheetImportUiState
 import org.bhargav.pansariwala.i18n.UiText
@@ -70,6 +71,10 @@ import pansariwala.shared.generated.resources.action_edit
 import pansariwala.shared.generated.resources.action_next
 import pansariwala.shared.generated.resources.action_previous
 import pansariwala.shared.generated.resources.master_actions
+import pansariwala.shared.generated.resources.master_all
+import pansariwala.shared.generated.resources.master_none
+import pansariwala.shared.generated.resources.master_shop_type
+import pansariwala.shared.generated.resources.master_subcategory
 import pansariwala.shared.generated.resources.master_added_date
 import pansariwala.shared.generated.resources.master_brand
 import pansariwala.shared.generated.resources.master_cancel
@@ -102,19 +107,87 @@ internal class MasterCatalogTaxonomy(
 ) {
     private val byId = categories.associateBy { it.id }
 
-    fun shopTypeOptions() = shopTypes.filter { it.active }.map { DropdownOption(it.id, it.name) }
-
-    fun categoryOptions(shopTypeId: String?) = categories
-        .filter { it.parentId.isNullOrBlank() }
-        .filter { shopTypeId == null || it.shopTypeIds.isEmpty() || shopTypeId in it.shopTypeIds }
-        .sortedBy { it.name.lowercase() }
+    /** Active types, or only [within] (a shop's own types) when given. */
+    fun shopTypeOptions(within: Collection<String> = emptyList()) = shopTypes
+        .filter { it.active && (within.isEmpty() || it.id in within) }
         .map { DropdownOption(it.id, it.name) }
+
+    /** Roots for [shopTypeId]; when null, roots for any of [within] (empty = every root). */
+    fun categoryOptions(shopTypeId: String?, within: Collection<String> = emptyList()): List<DropdownOption> {
+        val wanted = shopTypeId?.let(::setOf) ?: within.toSet()
+        return categories
+            .filter { it.parentId.isNullOrBlank() }
+            .filter { wanted.isEmpty() || it.shopTypeIds.isEmpty() || it.shopTypeIds.any(wanted::contains) }
+            .sortedBy { it.name.lowercase() }
+            .map { DropdownOption(it.id, it.name) }
+    }
 
     fun subcategoryOptions(categoryId: String?) =
         if (categoryId == null) emptyList()
         else categories.filter { it.parentId == categoryId }.sortedBy { it.name.lowercase() }.map { DropdownOption(it.id, it.name) }
 
     fun name(id: String?): String? = id?.let { byId[it]?.name }
+
+    /** "Category › Sub-category", or null without a known category. */
+    fun label(categoryId: String?, subcategoryId: String?): String? {
+        val root = name(categoryId) ?: return null
+        return name(subcategoryId)?.let { "$root › $it" } ?: root
+    }
+}
+
+/**
+ * Shop type → category → sub-category pickers for a product form. [shopTypeIds] limits the shop
+ * type list to a shop's own types ("All" = all of them); empty offers every type. The shop type
+ * only narrows the categories and is not saved.
+ */
+@Composable
+internal fun CategoryCascadeFields(
+    taxonomy: MasterCatalogTaxonomy,
+    categoryId: String?,
+    subcategoryId: String?,
+    onChange: (categoryId: String?, subcategoryId: String?) -> Unit,
+    modifier: Modifier = Modifier,
+    shopTypeIds: List<String> = emptyList(),
+) {
+    var shopTypeId by remember(shopTypeIds) { mutableStateOf<String?>(null) }
+    val categoryOptions = remember(taxonomy, shopTypeId, shopTypeIds, categoryId) {
+        val visible = taxonomy.categoryOptions(shopTypeId, shopTypeIds)
+        val current = categoryId?.let { id -> taxonomy.name(id)?.let { DropdownOption(id, it) } }
+        if (current == null || visible.any { it.id == current.id }) visible else listOf(current) + visible
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SearchableDropdown(
+            label = stringResource(Res.string.master_shop_type),
+            options = taxonomy.shopTypeOptions(shopTypeIds),
+            selectedId = shopTypeId,
+            onSelect = { picked ->
+                shopTypeId = picked
+                if (categoryId != null && taxonomy.categoryOptions(picked, shopTypeIds).none { it.id == categoryId }) {
+                    onChange(null, null)
+                }
+            },
+            allLabel = stringResource(Res.string.master_all),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        SearchableDropdown(
+            label = stringResource(Res.string.master_category),
+            options = categoryOptions,
+            selectedId = categoryId,
+            onSelect = { picked -> if (picked != categoryId) onChange(picked, null) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        val subOptions = taxonomy.subcategoryOptions(categoryId)
+        if (subOptions.isNotEmpty()) {
+            SearchableDropdown(
+                label = stringResource(Res.string.master_subcategory),
+                options = subOptions,
+                selectedId = subcategoryId,
+                onSelect = { onChange(categoryId, it) },
+                allLabel = stringResource(Res.string.master_none),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 internal suspend fun loadTaxonomy(api: MasterApi, token: String) =

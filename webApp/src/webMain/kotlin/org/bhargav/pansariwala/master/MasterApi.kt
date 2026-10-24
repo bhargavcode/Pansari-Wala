@@ -701,6 +701,8 @@ data class AddFromMasterBody(
     val costPrice: Double,
     val stockQty: Double,
     val lowStockThreshold: Double,
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
 )
 
 @Serializable data class StockUpdateBody(val delta: Double? = null, val set: Double? = null)
@@ -716,6 +718,8 @@ data class ShopProductEditBody(
     val sellingPrice: Double,
     val costPrice: Double,
     val lowStockThreshold: Double,
+    val categoryId: String? = null,
+    val subCategoryId: String? = null,
 )
 
 /** One language column of product names; a blank [ProductTranslationItemBody.name] clears it. */

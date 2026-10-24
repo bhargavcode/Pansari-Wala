@@ -721,6 +721,7 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     bestEffortSeed("prototype shops") { ensurePrototypeShops(db) }
     bestEffortSeed("subscription plans") { ensureSubscriptionPlans(db) }
     bestEffortSeed("pack variants") { ensurePackVariants(db) }
+    bestEffortSeed("category alignment") { alignCategories(db) }
     return MongoApp(client, db)
 }
 

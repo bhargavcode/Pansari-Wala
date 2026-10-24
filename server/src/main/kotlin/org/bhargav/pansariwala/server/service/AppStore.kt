@@ -1095,7 +1095,11 @@ class AppStore(
         val size = pageSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
         val safePage = page.coerceAtLeast(0)
         val parts = mutableListOf(eq("shopId", shopId))
-        if (!category.isNullOrBlank()) parts += eq("category", category)
+        when {
+            category.isNullOrBlank() -> Unit
+            category in SHOP_CATEGORIES -> parts += eq("category", category)
+            else -> parts += or(eq("categoryId", category), eq("subCategoryId", category))
+        }
         when (status?.lowercase()) {
             "active" -> parts += ne("active", false)
             "inactive" -> parts += eq("active", false)
@@ -1221,6 +1225,8 @@ class AppStore(
             nameHi = body.nameHi.trim(),
             translations = body.translations?.let { cleanTranslations(it, body.nameHi) } ?: existing.translations,
             category = body.category.ifBlank { existing.category },
+            categoryId = body.categoryId?.let { it.ifBlank { null } } ?: existing.categoryId,
+            subCategoryId = if (body.categoryId != null) body.subCategoryId?.ifBlank { null } else existing.subCategoryId,
             brandName = body.brandName.trim(),
             barcode = body.barcode?.trim()?.takeIf { it.isNotEmpty() },
             sellingPrice = body.sellingPrice,
@@ -3398,7 +3404,20 @@ class AppStore(
             companyTranslations = existing?.companyTranslations.orEmpty(),
             descriptionTranslations = existing?.descriptionTranslations.orEmpty(),
         )
+        val root = categoryCol.find(eq("_id", doc.categoryId)).firstOrNull()
+        require(root != null && root.parentId.isNullOrBlank()) { "Pick a category" }
+        doc.subcategoryId?.let { sub ->
+            require(categoryCol.find(and(eq("_id", sub), eq("parentId", root.id))).firstOrNull() != null) {
+                "Sub-category does not belong to ${root.name}"
+            }
+        }
         masterProductCol.replaceOne(eq("_id", id), doc, ReplaceOptions().upsert(true))
+        if (existing != null && (existing.categoryId != doc.categoryId || existing.subcategoryId != doc.subcategoryId)) {
+            productCol.updateMany(
+                eq("masterProductId", id),
+                combine(set("categoryId", doc.categoryId), set("subCategoryId", doc.subcategoryId)),
+            )
+        }
         return doc.toDto()
     }
 

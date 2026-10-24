@@ -49,6 +49,7 @@ import org.bhargav.pansariwala.feature.user.options
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedBrand
 import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.feature.catalog.productCategoryLabel
 import org.bhargav.pansariwala.media.NetworkImage
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
@@ -144,7 +145,7 @@ fun PosProductInfoSheet(
                     )
                     if (inCartQty > 0.0) LabelValueRow(stringResource(Res.string.pos_info_in_cart), inCartQty.asQuantity())
                     LabelValueRow(stringResource(Res.string.pos_info_unit), product.unit.localizedLabel())
-                    LabelValueRow(stringResource(Res.string.field_category), product.category.localizedName())
+                    LabelValueRow(stringResource(Res.string.field_category), productCategoryLabel(product))
                     product.localizedBrand.takeIf { it.isNotBlank() }?.let { LabelValueRow(stringResource(Res.string.pos_info_brand), it) }
                     (option.variant?.barcode ?: product.barcode)?.takeIf { it.isNotBlank() }?.let {
                         LabelValueRow(stringResource(Res.string.field_barcode), it)

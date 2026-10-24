@@ -52,6 +52,7 @@ import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ProductStatusFilter
 import org.bhargav.pansariwala.feature.catalog.ProductSheetImportDialog
+import org.bhargav.pansariwala.feature.catalog.rememberProductTaxonomy
 import org.bhargav.pansariwala.feature.printer.PrintAction
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.i18n.localizedLabel
@@ -145,6 +146,10 @@ fun InventoryListScreen(
     val filter = state.filter
     val products = state.products
     val categoryNames = remember(state.categories) { state.categoryNames }
+    val taxonomy = rememberProductTaxonomy()
+    val filterRoots = remember(taxonomy, state.categories) {
+        taxonomy.roots(null).takeIf { taxonomy.shopTypeIds.isNotEmpty() } ?: state.rootCategories
+    }
 
     PansariScreen(
         title = stringResource(Res.string.inv_products_title),
@@ -213,7 +218,7 @@ fun InventoryListScreen(
                         label = { Text(stringResource(Res.string.inv_filter_all_categories)) },
                     )
                 }
-                items(state.rootCategories, key = { it.id }) { category ->
+                items(filterRoots, key = { it.id }) { category ->
                     FilterChip(
                         selected = filter.categoryId == category.id,
                         onClick = { viewModel.onCategorySelected(category.id) },

@@ -16,6 +16,7 @@ import org.bhargav.pansariwala.data.sync.SyncingShopRepository
 import org.bhargav.pansariwala.domain.auth.AuthRepository
 import org.bhargav.pansariwala.domain.auth.LoginUseCase
 import org.bhargav.pansariwala.domain.auth.ObserveSessionUseCase
+import org.bhargav.pansariwala.feature.catalog.ProductTaxonomyStore
 import org.bhargav.pansariwala.feature.dashboard.DashboardViewModel
 import org.bhargav.pansariwala.feature.profile.ShopProfileViewModel
 import org.bhargav.pansariwala.feature.inventory.AddEditInventoryViewModel
@@ -115,6 +116,7 @@ val appModule = module {
     singleOf(::PosPrintService)
     singleOf(::BorrowerProfileUploader)
     single<PansariApi> { KtorPansariApi(createPlatformHttpClient(), ApiRuntime.baseUrl, get()) }
+    single { ProductTaxonomyStore(get()) }
 
     singleOf(::LocalAuthRepository) bind AuthRepository::class
 

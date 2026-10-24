@@ -85,6 +85,7 @@ import org.bhargav.pansariwala.feature.order.rememberNewOnlineOrderCount
 import org.bhargav.pansariwala.feature.reports.InventoryPieChart
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
+import org.bhargav.pansariwala.feature.catalog.productCategoryLabel
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
@@ -372,7 +373,7 @@ private fun LowStockGaugeRow(product: Product, onOpenProduct: (String) -> Unit) 
             Column(Modifier.weight(1f)) {
                 Text(product.localizedName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    product.category.localizedName(),
+                    productCategoryLabel(product),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

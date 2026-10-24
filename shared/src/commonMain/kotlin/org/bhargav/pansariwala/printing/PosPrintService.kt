@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.data.db.ShopRepository
+import org.bhargav.pansariwala.feature.catalog.ProductTaxonomyStore
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.feature.order.paymentMethodLabelRes
@@ -103,6 +104,7 @@ class PosPrintService(
     private val printer: PrinterManager,
     private val shopRepository: ShopRepository,
     private val preferences: AppPreferences,
+    private val taxonomyStore: ProductTaxonomyStore,
 ) {
     private val background = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -196,10 +198,11 @@ class PosPrintService(
         val products = shopRepository.observeProducts(shopId()).first()
             .filter { !lowStockOnly || it.isLowStock }
         if (products.isEmpty()) return Result.failure(NothingToPrintException())
+        val taxonomy = taxonomyStore.taxonomy.value
         val rows = products.sortedBy { it.name.lowercase() }.map { product ->
             InventoryRow(
                 name = product.name,
-                category = getString(product.category.labelRes),
+                category = taxonomy.label(product.categoryId, product.subCategoryId) ?: getString(product.category.labelRes),
                 stock = "${product.stockQty.asQuantity()} ${getString(product.unit.labelRes)}",
                 value = product.stockValue,
                 isLowStock = product.isLowStock,

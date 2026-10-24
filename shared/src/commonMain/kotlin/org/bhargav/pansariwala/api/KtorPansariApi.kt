@@ -299,10 +299,12 @@ class KtorPansariApi(
         pageSize: Int,
         shopTypeId: String?,
         subcategoryId: String?,
+        categoryIds: List<String>,
     ): MasterProductPageDto =
         client.get("master/products/page") {
             if (query.isNotBlank()) parameter("q", query.trim())
             categoryId?.let { parameter("categoryId", it) }
+            if (categoryId == null && categoryIds.isNotEmpty()) parameter("categoryIds", categoryIds.joinToString(","))
             shopTypeId?.let { parameter("shopTypeId", it) }
             subcategoryId?.let { parameter("subcategoryId", it) }
             parameter("page", page)

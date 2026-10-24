@@ -27,7 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.bhargav.pansariwala.feature.catalog.MasterCategoryPicker
+import org.bhargav.pansariwala.feature.catalog.ProductCategoryPicker
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -143,8 +143,7 @@ fun AddEditInventoryScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        MasterCategoryPicker(
-            categories = state.masterCategories,
+        ProductCategoryPicker(
             categoryId = state.categoryId,
             subCategoryId = state.subCategoryId,
             onChange = viewModel::onMasterCategoryChange,

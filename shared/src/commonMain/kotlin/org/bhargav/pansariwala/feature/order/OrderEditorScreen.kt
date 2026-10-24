@@ -15,7 +15,8 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import org.bhargav.pansariwala.i18n.localizedName
-import org.bhargav.pansariwala.domain.model.ProductCategory
+import org.bhargav.pansariwala.feature.catalog.rememberProductTaxonomy
+import pansariwala.shared.generated.resources.catalog_category_other
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -278,7 +279,6 @@ fun OrderEditorScreen(
             title = stringResource(Res.string.pos_price_required_title, name),
             subtitle = stringResource(Res.string.pos_price_required_hint),
             draft = state.priceDraft,
-            categories = state.masterCategories,
             confirmLabel = stringResource(Res.string.pos_price_save_add),
             onDraftChange = viewModel::updatePriceDraft,
             onConfirm = viewModel::confirmPrice,
@@ -295,12 +295,16 @@ fun OrderEditorScreen(
     )
 
     // Catalog browse state lives above the orientation switch so rotating keeps category + scroll positions.
-    var category by rememberSaveable { mutableStateOf<ProductCategory?>(null) }
-    val categories = remember(state.filteredCatalog) {
-        state.filteredCatalog.map { it.category }.distinct().sortedBy { it.ordinal }
+    val taxonomy = rememberProductTaxonomy()
+    val otherLabel = stringResource(Res.string.catalog_category_other)
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
+    val categories = remember(state.filteredCatalog, taxonomy, otherLabel) {
+        state.filteredCatalog.map { it.browseKey }.distinct()
+            .map { key -> BrowseCategory(key, taxonomy.name(key.ifEmpty { null }) ?: otherLabel) }
+            .sortedWith(compareBy({ it.key == OTHER_CATEGORY_KEY }, { it.label.lowercase() }))
     }
     LaunchedEffect(categories) {
-        if (category != null && categories.isNotEmpty() && category !in categories) category = null
+        if (category != null && categories.isNotEmpty() && categories.none { it.key == category }) category = null
     }
     val browse = CatalogBrowseState(
         categories = categories,
@@ -327,10 +331,18 @@ fun OrderEditorScreen(
     }
 }
 
+/** One browse group: a master root category, or [OTHER_CATEGORY_KEY] for products without one. */
+private data class BrowseCategory(val key: String, val label: String)
+
+private const val OTHER_CATEGORY_KEY = ""
+
+private val Product.browseKey: String get() = categoryId?.takeIf { it.isNotBlank() } ?: OTHER_CATEGORY_KEY
+
 private class CatalogBrowseState(
-    val categories: List<ProductCategory>,
-    val category: ProductCategory?,
-    val onCategoryChange: (ProductCategory?) -> Unit,
+    val categories: List<BrowseCategory>,
+    /** [BrowseCategory.key] of the opened group, or null for all. */
+    val category: String?,
+    val onCategoryChange: (String?) -> Unit,
     val portraitListState: LazyListState,
     /** Landscape category overview; untouched while drilled into a category so back restores it. */
     val overviewListState: LazyListState,
@@ -389,7 +401,7 @@ private fun ColumnScope.CatalogPane(state: OrderEditorUiState, viewModel: OrderE
     if (state.isListening || state.partialTranscript.isNotBlank()) VoiceArea(state, viewModel)
 
     val linesByProduct = remember(state.cart) { state.cart.groupBy { it.product.id } }
-    val byCategory = remember(state.filteredCatalog) { state.filteredCatalog.groupBy { it.category } }
+    val byCategory = remember(state.filteredCatalog) { state.filteredCatalog.groupBy { it.browseKey } }
     val selected = browse.category
     NavigationBackHandler(
         state = rememberNavigationEventState(currentInfo = NavigationEventInfo.None),
@@ -405,9 +417,9 @@ private fun ColumnScope.CatalogPane(state: OrderEditorUiState, viewModel: OrderE
         ) {
             if (byCategory.isEmpty() && !state.loading) item(key = "empty") { NoProductsText() }
             browse.categories.forEach { c ->
-                val products = byCategory[c].orEmpty()
-                item(key = "header_${c.name}", contentType = "header") {
-                    CategoryHeaderRow(c, products.size, onClick = { browse.onCategoryChange(c) })
+                val products = byCategory[c.key].orEmpty()
+                item(key = "header_${c.key}", contentType = "header") {
+                    CategoryHeaderRow(c.label, products.size, onClick = { browse.onCategoryChange(c.key) })
                 }
                 items(products.take(CATEGORY_PREVIEW_COUNT), key = { it.id }, contentType = { "product" }) { product ->
                     PosCatalogRow(product, linesByProduct[product.id].orEmpty(), viewModel, compact = true)
@@ -425,7 +437,7 @@ private fun ColumnScope.CatalogPane(state: OrderEditorUiState, viewModel: OrderE
                 )
             }
             Text(
-                selected.localizedName(),
+                browse.categories.firstOrNull { it.key == selected }?.label.orEmpty(),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -453,13 +465,13 @@ private fun ColumnScope.CatalogPane(state: OrderEditorUiState, viewModel: OrderE
 }
 
 @Composable
-private fun CategoryHeaderRow(category: ProductCategory, count: Int, onClick: () -> Unit) {
+private fun CategoryHeaderRow(label: String, count: Int, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            category.localizedName(),
+            label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -588,7 +600,7 @@ private fun PortraitOrderLayout(
     val category = browse.category
     val categories = browse.categories
     val visible = remember(state.filteredCatalog, category) {
-        category?.let { c -> state.filteredCatalog.filter { it.category == c } } ?: state.filteredCatalog
+        category?.let { c -> state.filteredCatalog.filter { it.browseKey == c } } ?: state.filteredCatalog
     }
     Column(Modifier.fillMaxSize()) {
         PansariSearchTopBar(
@@ -643,10 +655,10 @@ private fun PortraitOrderLayout(
 
 @Composable
 private fun PosCategoryChips(
-    categories: List<ProductCategory>,
-    selected: ProductCategory?,
+    categories: List<BrowseCategory>,
+    selected: String?,
     total: Int,
-    onSelect: (ProductCategory?) -> Unit,
+    onSelect: (String?) -> Unit,
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -660,11 +672,11 @@ private fun PosCategoryChips(
                 label = { Text(stringResource(Res.string.pos_category_all, total)) },
             )
         }
-        items(categories, key = { it.name }) { c ->
+        items(categories, key = { it.key }) { c ->
             FilterChip(
-                selected = selected == c,
-                onClick = { onSelect(if (selected == c) null else c) },
-                label = { Text(c.localizedName()) },
+                selected = selected == c.key,
+                onClick = { onSelect(if (selected == c.key) null else c.key) },
+                label = { Text(c.label) },
             )
         }
     }

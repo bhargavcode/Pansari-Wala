@@ -125,7 +125,8 @@ fun MasterCatalogScreen(
                     }
                 },
             )
-            val shopTypeOptions = ShopType.entries.map { DropdownOption(it.apiValue, shopTypeLabel(it)) }
+            val shopTypeOptions = state.shopTypes.map { DropdownOption(it.id, it.name) }
+                .ifEmpty { ShopType.entries.map { DropdownOption(it.apiValue, shopTypeLabel(it)) } }
             CatalogCascadeFilter(
                 shopTypes = shopTypeOptions,
                 shopTypeId = state.selectedShopTypeId,
@@ -198,7 +199,6 @@ fun MasterCatalogScreen(
             title = stringResource(Res.string.inv_master_add_title, item.localizedName),
             subtitle = item.localizedBrand.takeIf { it.isNotBlank() },
             draft = state.draft,
-            categories = state.allCategories,
             confirmLabel = stringResource(Res.string.action_add),
             onDraftChange = viewModel::updateDraft,
             onConfirm = viewModel::confirmAdd,

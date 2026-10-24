@@ -3,8 +3,6 @@ package org.bhargav.pansariwala.feature.catalog
 import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -15,14 +13,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import org.bhargav.pansariwala.designsystem.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,11 +28,9 @@ import org.bhargav.pansariwala.domain.model.ProductCategory
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.action_cancel
-import pansariwala.shared.generated.resources.field_category
 import pansariwala.shared.generated.resources.field_cost_price
 import pansariwala.shared.generated.resources.field_low_stock_at
 import pansariwala.shared.generated.resources.field_selling_price
-import pansariwala.shared.generated.resources.field_sub_category
 import pansariwala.shared.generated.resources.inv_opening_stock
 
 /** Editable shop values for one product; numbers stay as typed text until saved. */
@@ -80,53 +74,12 @@ fun List<MasterCategoryDto>.legacyCategory(categoryId: String?, fallback: Produc
     return ProductCategory.fromMasterCategoryName(name)
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun MasterCategoryPicker(
-    categories: List<MasterCategoryDto>,
-    categoryId: String?,
-    subCategoryId: String?,
-    onChange: (categoryId: String?, subCategoryId: String?) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val roots = remember(categories) { categories.rootCategories }
-    if (roots.isEmpty()) return
-    val children = remember(categories, categoryId) {
-        if (categoryId == null) emptyList() else categories.filter { it.parentId == categoryId }
-    }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(Res.string.field_category), style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            roots.forEach { root ->
-                FilterChip(
-                    selected = categoryId == root.id,
-                    onClick = { if (categoryId != root.id) onChange(root.id, null) },
-                    label = { Text(root.name) },
-                )
-            }
-        }
-        if (children.isNotEmpty()) {
-            Text(stringResource(Res.string.field_sub_category), style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                children.forEach { child ->
-                    FilterChip(
-                        selected = subCategoryId == child.id,
-                        onClick = { onChange(categoryId, if (subCategoryId == child.id) null else child.id) },
-                        label = { Text(child.name) },
-                    )
-                }
-            }
-        }
-    }
-}
-
 /** Shop values (price, cost, stock, category) for a product being added or completed. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductDetailsSheet(
     title: String,
     draft: ProductDetailsDraft,
-    categories: List<MasterCategoryDto>,
     confirmLabel: String,
     onDraftChange: ((ProductDetailsDraft) -> ProductDetailsDraft) -> Unit,
     onConfirm: () -> Unit,
@@ -186,8 +139,7 @@ fun ProductDetailsSheet(
                     modifier = Modifier.weight(1f),
                 )
             }
-            MasterCategoryPicker(
-                categories = categories,
+            ProductCategoryPicker(
                 categoryId = draft.categoryId,
                 subCategoryId = draft.subCategoryId,
                 onChange = { cat, sub -> onDraftChange { it.copy(categoryId = cat, subCategoryId = sub) } },

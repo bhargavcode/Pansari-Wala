@@ -159,8 +159,6 @@ import pansariwala.shared.generated.resources.master_shop_location
 import pansariwala.shared.generated.resources.master_shop_name
 import pansariwala.shared.generated.resources.master_shop_rating
 import pansariwala.shared.generated.resources.master_shop_type
-import pansariwala.shared.generated.resources.master_all
-import pansariwala.shared.generated.resources.master_none
 import pansariwala.shared.generated.resources.master_category_shop_types
 import pansariwala.shared.generated.resources.master_category_all_shop_types
 import pansariwala.shared.generated.resources.master_parent_category_label
@@ -173,7 +171,6 @@ import pansariwala.shared.generated.resources.master_shops_list
 import pansariwala.shared.generated.resources.master_sku
 import pansariwala.shared.generated.resources.master_status
 import pansariwala.shared.generated.resources.master_stock
-import pansariwala.shared.generated.resources.master_subcategory
 import pansariwala.shared.generated.resources.master_tab_categories
 import pansariwala.shared.generated.resources.master_tab_shop_types
 import pansariwala.shared.generated.resources.master_tags
@@ -600,7 +597,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     val scope = rememberCoroutineScope()
     var name by rememberSaveable { mutableStateOf("") }
     var nameHi by rememberSaveable { mutableStateOf("") }
-    var categoryId by rememberSaveable { mutableStateOf("cat_grocery") }
+    var categoryId by rememberSaveable { mutableStateOf("") }
     var subcategoryId by rememberSaveable { mutableStateOf("") }
     var brand by rememberSaveable { mutableStateOf("") }
     var company by rememberSaveable { mutableStateOf("") }
@@ -620,7 +617,6 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
     var loadedId by remember { mutableStateOf<String?>(null) }
     var uploading by remember { mutableStateOf(false) }
     var taxonomy by remember { mutableStateOf(MasterCatalogTaxonomy()) }
-    var editShopTypeId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(token) {
         runCatching { taxonomy = loadTaxonomy(api, token) }.onFailure { onStatus(it.message.orEmpty()) }
     }
@@ -696,35 +692,16 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                     }
                     Column(Modifier.widthIn(min = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(Res.string.master_category), fontWeight = FontWeight.SemiBold)
-                        SearchableDropdown(
-                            label = stringResource(Res.string.master_shop_type),
-                            options = taxonomy.shopTypeOptions(),
-                            selectedId = editShopTypeId,
-                            onSelect = { editShopTypeId = it },
-                            allLabel = stringResource(Res.string.master_all),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        SearchableDropdown(
-                            label = stringResource(Res.string.master_category),
-                            options = taxonomy.categoryOptions(editShopTypeId),
-                            selectedId = categoryId,
-                            onSelect = {
-                                categoryId = it.orEmpty()
-                                subcategoryId = ""
+                        CategoryCascadeFields(
+                            taxonomy = taxonomy,
+                            categoryId = categoryId.ifBlank { null },
+                            subcategoryId = subcategoryId.ifBlank { null },
+                            onChange = { cat, sub ->
+                                categoryId = cat.orEmpty()
+                                subcategoryId = sub.orEmpty()
                             },
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        val subOptions = taxonomy.subcategoryOptions(categoryId.ifBlank { null })
-                        if (subOptions.isNotEmpty()) {
-                            SearchableDropdown(
-                                label = stringResource(Res.string.master_subcategory),
-                                options = subOptions,
-                                selectedId = subcategoryId.ifBlank { null },
-                                onSelect = { subcategoryId = it.orEmpty() },
-                                allLabel = stringResource(Res.string.master_none),
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
                         OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(Res.string.master_tags)) }, modifier = Modifier.fillMaxWidth())
                         VariantListEditor(
                             variants = variants,
@@ -750,7 +727,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
+                Button(enabled = name.isNotBlank() && categoryId.isNotBlank(), onClick = {
                     scope.launch {
                         runCatching {
                             api.saveProduct(
