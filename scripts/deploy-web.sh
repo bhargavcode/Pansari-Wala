@@ -71,6 +71,16 @@ if [[ -z "\$NGINX_BIN" && -x /usr/sbin/nginx ]]; then
   NGINX_BIN=/usr/sbin/nginx
 fi
 if [[ -n "\$NGINX_BIN" ]]; then
+  # The app sends X-App-Language on every API call; nginx owns CORS, so its preflight must allow it.
+  NGINX_CONF=/etc/nginx/conf.d/pansariwala.conf
+  if [[ -f "\$NGINX_CONF" ]] && ! grep -q 'X-App-Language' "\$NGINX_CONF"; then
+    sudo cp "\$NGINX_CONF" /tmp/pansariwala.conf.bak
+    sudo sed -i 's/Access-Control-Allow-Headers "Authorization, Content-Type, Accept"/Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-App-Language"/g' "\$NGINX_CONF"
+    if ! sudo "\$NGINX_BIN" -t; then
+      echo "nginx CORS patch failed validation; restoring previous config" >&2
+      sudo cp /tmp/pansariwala.conf.bak "\$NGINX_CONF"
+    fi
+  fi
   sudo "\$NGINX_BIN" -t
   sudo systemctl reload nginx
 else
