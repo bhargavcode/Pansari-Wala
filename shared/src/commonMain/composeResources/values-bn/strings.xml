@@ -2341,6 +2341,12 @@
     <string name="reg_location_verified">অবস্থান যাচাই হয়েছে</string>
     <string name="reg_location_not_verified">অবস্থান এখনও যাচাই হয়নি</string>
     <string name="reg_location_search">মানচিত্রে দোকানের ঠিকানা খুঁজুন</string>
+    <string name="reg_location_pick_on_map">মানচিত্রে বেছে নিন</string>
+    <string name="map_picker_title">আপনার দোকানের অবস্থান পিন করুন</string>
+    <string name="map_picker_search_hint">Google Maps-এ খুঁজুন</string>
+    <string name="map_picker_pin_hint">মানচিত্র সরান যাতে পিন আপনার দোকানের উপর থাকে, অথবা সেই জায়গায় ট্যাপ করুন।</string>
+    <string name="map_picker_confirm">এই অবস্থান ব্যবহার করুন</string>
+    <string name="map_picker_unavailable">Google Maps লোড করা যায়নি। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="reg_location_rationale">আপনার অবস্থান নিশ্চিত করে যে দোকানটি সত্যিই দেওয়া ঠিকানায় আছে।</string>
     <string name="reg_location_rationale_point_verify">নিবন্ধনের সময় আপনি দোকানে আছেন তা যাচাই করে</string>
     <string name="reg_location_rationale_point_pin">কাছের গ্রাহকদের জন্য আপনার দোকান সঠিক জায়গায় দেখায়</string>

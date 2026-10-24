@@ -13,13 +13,20 @@ class WasmJsDeviceLocation : DeviceLocation {
     override suspend fun currentOrDefault(): GeoPoint = requestBrowserLocation()
 }
 
-internal suspend fun requestBrowserLocation(): GeoPoint {
+/** Desktops often have no GPS: a high-accuracy request can time out where a Wi-Fi fix succeeds. */
+internal suspend fun requestBrowserLocation(): GeoPoint = try {
+    browserFix(highAccuracy = true)
+} catch (_: LocationUnavailableException) {
+    browserFix(highAccuracy = false)
+}
+
+private suspend fun browserFix(highAccuracy: Boolean): GeoPoint {
     val position = try {
         navigator.geolocation.getCurrentPosition(
             unsafeJso {
-                enableHighAccuracy = true
-                timeout = AppConstants.LOCATION_FETCH_TIMEOUT_MS.toInt()
-                maximumAge = AppConstants.LOCATION_FETCH_TIMEOUT_MS.toInt()
+                enableHighAccuracy = highAccuracy
+                timeout = if (highAccuracy) AppConstants.LOCATION_FETCH_TIMEOUT_MS.toInt() else AppConstants.LOCATION_COARSE_TIMEOUT_MS.toInt()
+                maximumAge = AppConstants.LOCATION_MAX_AGE_MS.toInt()
             },
         )
     } catch (e: Throwable) {

@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import kotlinx.browser.window
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.bhargav.pansariwala.domain.model.GeoPoint
+import org.bhargav.pansariwala.util.AppConstants
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.js.JsAny
@@ -13,12 +14,23 @@ class JsDeviceLocation : DeviceLocation {
     override suspend fun currentOrDefault(): GeoPoint = requestBrowserLocation()
 }
 
-internal suspend fun requestBrowserLocation(): GeoPoint = suspendCancellableCoroutine { cont ->
+/** Desktops often have no GPS: a high-accuracy request can time out where a Wi-Fi fix succeeds. */
+internal suspend fun requestBrowserLocation(): GeoPoint = try {
+    browserFix(highAccuracy = true)
+} catch (_: LocationUnavailableException) {
+    browserFix(highAccuracy = false)
+}
+
+private suspend fun browserFix(highAccuracy: Boolean): GeoPoint = suspendCancellableCoroutine { cont ->
     val geolocation = window.asDynamic().navigator.geolocation
     if (geolocation == undefined) {
         cont.resumeWithException(LocationUnavailableException())
         return@suspendCancellableCoroutine
     }
+    val options: dynamic = js("({})")
+    options.enableHighAccuracy = highAccuracy
+    options.timeout = if (highAccuracy) AppConstants.LOCATION_FETCH_TIMEOUT_MS.toInt() else AppConstants.LOCATION_COARSE_TIMEOUT_MS.toInt()
+    options.maximumAge = AppConstants.LOCATION_MAX_AGE_MS.toInt()
     geolocation.getCurrentPosition(
         { position: JsAny? ->
             val coords = position.asDynamic().coords
@@ -35,7 +47,7 @@ internal suspend fun requestBrowserLocation(): GeoPoint = suspendCancellableCoro
                 if (code == 1) LocationPermissionDeniedException() else LocationUnavailableException(),
             )
         },
-        js("({ enableHighAccuracy: true, timeout: 20000, maximumAge: 15000 })"),
+        options,
     )
 }
 

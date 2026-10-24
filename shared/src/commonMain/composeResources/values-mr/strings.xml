@@ -2341,6 +2341,12 @@
     <string name="reg_location_verified">ठिकाण पडताळले</string>
     <string name="reg_location_not_verified">ठिकाण अजून पडताळले नाही</string>
     <string name="reg_location_search">नकाशावर दुकानाचा पत्ता शोधा</string>
+    <string name="reg_location_pick_on_map">नकाशावर निवडा</string>
+    <string name="map_picker_title">तुमच्या दुकानाचे ठिकाण पिन करा</string>
+    <string name="map_picker_search_hint">Google Maps वर शोधा</string>
+    <string name="map_picker_pin_hint">पिन तुमच्या दुकानावर येईल असा नकाशा सरकवा, किंवा त्या जागेवर टॅप करा.</string>
+    <string name="map_picker_confirm">हे ठिकाण वापरा</string>
+    <string name="map_picker_unavailable">Google Maps लोड होऊ शकले नाही. कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.</string>
     <string name="reg_location_rationale">तुमचे ठिकाण खात्री करते की दुकान खरोखर दिलेल्या पत्त्यावर आहे.</string>
     <string name="reg_location_rationale_point_verify">नोंदणी करताना तुम्ही दुकानात आहात याची खात्री करते</string>
     <string name="reg_location_rationale_point_pin">जवळच्या ग्राहकांसाठी तुमचे दुकान योग्य ठिकाणी दाखवते</string>

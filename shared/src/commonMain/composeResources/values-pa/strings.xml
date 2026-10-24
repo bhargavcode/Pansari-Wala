@@ -2341,6 +2341,12 @@
     <string name="reg_location_verified">ਟਿਕਾਣਾ ਤਸਦੀਕਸ਼ੁਦਾ</string>
     <string name="reg_location_not_verified">ਟਿਕਾਣਾ ਅਜੇ ਤਸਦੀਕ ਨਹੀਂ</string>
     <string name="reg_location_search">ਨਕਸ਼ੇ ਤੇ ਦੁਕਾਨ ਦਾ ਪਤਾ ਲੱਭੋ</string>
+    <string name="reg_location_pick_on_map">ਨਕਸ਼ੇ ਤੇ ਚੁਣੋ</string>
+    <string name="map_picker_title">ਆਪਣੀ ਦੁਕਾਨ ਦੀ ਜਗ੍ਹਾ ਪਿੰਨ ਕਰੋ</string>
+    <string name="map_picker_search_hint">Google Maps ਤੇ ਲੱਭੋ</string>
+    <string name="map_picker_pin_hint">ਨਕਸ਼ਾ ਹਿਲਾਓ ਤਾਂ ਜੋ ਪਿੰਨ ਤੁਹਾਡੀ ਦੁਕਾਨ ਤੇ ਹੋਵੇ, ਜਾਂ ਉਸ ਜਗ੍ਹਾ ਤੇ ਟੈਪ ਕਰੋ।</string>
+    <string name="map_picker_confirm">ਇਹ ਜਗ੍ਹਾ ਵਰਤੋ</string>
+    <string name="map_picker_unavailable">Google Maps ਲੋਡ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਕਨੈਕਸ਼ਨ ਜਾਂਚੋ ਅਤੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।</string>
     <string name="reg_location_rationale">ਤੁਹਾਡੀ ਜਗ੍ਹਾ ਪੁਸ਼ਟੀ ਕਰਦੀ ਹੈ ਕਿ ਦੁਕਾਨ ਸੱਚਮੁੱਚ ਦਿੱਤੇ ਪਤੇ ਤੇ ਹੈ।</string>
     <string name="reg_location_rationale_point_verify">ਰਜਿਸਟਰ ਕਰਦੇ ਸਮੇਂ ਪੁਸ਼ਟੀ ਕਰਦਾ ਹੈ ਕਿ ਤੁਸੀਂ ਦੁਕਾਨ ਤੇ ਹੋ</string>
     <string name="reg_location_rationale_point_pin">ਨੇੜਲੇ ਗਾਹਕਾਂ ਲਈ ਤੁਹਾਡੀ ਦੁਕਾਨ ਸਹੀ ਥਾਂ ਦਿਖਾਉਂਦਾ ਹੈ</string>

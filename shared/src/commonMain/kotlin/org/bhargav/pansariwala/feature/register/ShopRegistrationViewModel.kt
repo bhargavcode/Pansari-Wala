@@ -32,6 +32,7 @@ import org.bhargav.pansariwala.platform.fetchPlaceDetails
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
 import org.bhargav.pansariwala.platform.otpCountdown
 import org.bhargav.pansariwala.platform.otpRetryAfterSec
+import org.bhargav.pansariwala.platform.pickLocationOnMap
 import org.bhargav.pansariwala.platform.reverseGeocode
 import org.bhargav.pansariwala.platform.sanitizeOtpInput
 import org.bhargav.pansariwala.platform.searchPlaces
@@ -41,6 +42,7 @@ import pansariwala.shared.generated.resources.dev_otp_hint
 import pansariwala.shared.generated.resources.error_phone_invalid
 import pansariwala.shared.generated.resources.error_place_details_failed
 import pansariwala.shared.generated.resources.location_unavailable
+import pansariwala.shared.generated.resources.map_picker_unavailable
 import pansariwala.shared.generated.resources.otp_sent_to
 import pansariwala.shared.generated.resources.reg_error_address
 import pansariwala.shared.generated.resources.reg_error_already_registered
@@ -80,6 +82,7 @@ data class ShopRegistrationUiState(
     val predictions: List<PlacePrediction> = emptyList(),
     val searchingPlaces: Boolean = false,
     val locating: Boolean = false,
+    val pickingOnMap: Boolean = false,
     val showLocationRationale: Boolean = false,
     val requestLocationPermission: Boolean = false,
     val showLocationDeniedDialog: Boolean = false,
@@ -297,6 +300,51 @@ class ShopRegistrationViewModel(
                     } else {
                         d
                     },
+                )
+            }
+        }
+    }
+
+    /** Pins the shop on a map (search or pan); fills address parts the geocoder returns. GPS verification still applies. */
+    fun pickOnMap() {
+        if (_state.value.pickingOnMap) return
+        searchJob?.cancel()
+        viewModelScope.launch {
+            _state.update { it.copy(pickingOnMap = true, error = null, searchingPlaces = false, predictions = emptyList()) }
+            val d = _state.value.draft
+            val startLat = d.lat ?: d.deviceLat
+            val startLng = d.lng ?: d.deviceLng
+            val picked = try {
+                if (startLat != null && startLng != null) {
+                    pickLocationOnMap(startLat, startLng, AppConstants.MAP_PICKER_PIN_ZOOM)
+                } else {
+                    pickLocationOnMap(AppConstants.DEFAULT_MAP_LAT, AppConstants.DEFAULT_MAP_LNG, AppConstants.MAP_PICKER_CITY_ZOOM)
+                }
+            } catch (e: Throwable) {
+                e.rethrowIfStructuredCancellation()
+                _state.update { it.copy(pickingOnMap = false, error = UiText.res(Res.string.map_picker_unavailable)) }
+                return@launch
+            }
+            if (picked == null) {
+                _state.update { it.copy(pickingOnMap = false) }
+                return@launch
+            }
+            val fallback = if (picked.address.isBlank()) reverseGeocode(picked.lat, picked.lng) else null
+            val address = picked.address.ifBlank { fallback?.formattedAddress.orEmpty() }
+            val city = picked.city.ifBlank { fallback?.locality.orEmpty() }
+            val zip = picked.zip.filter(Char::isDigit).takeIf { it.length == AppConstants.ShopRegistration.ZIP_LENGTH }
+            _state.update {
+                it.copy(
+                    pickingOnMap = false,
+                    placeQuery = address.ifBlank { it.placeQuery },
+                    draft = it.draft.copy(
+                        lat = picked.lat,
+                        lng = picked.lng,
+                        address = address.ifBlank { it.draft.address },
+                        city = city.ifBlank { it.draft.city },
+                        state = picked.state.ifBlank { it.draft.state },
+                        zip = zip ?: it.draft.zip,
+                    ),
                 )
             }
         }

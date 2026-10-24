@@ -111,8 +111,13 @@ object AppConstants {
     /** Backoff after a delivery WebSocket disconnect before reconnect. */
     const val PARTNER_OFFER_SOCKET_RETRY_MS: Long = 3_000L
     const val LOCATION_FETCH_TIMEOUT_MS: Long = 15_000L
+    /** Browser retry without high accuracy (Wi-Fi / IP fix) after a GPS-grade fix timed out or was unavailable. */
+    const val LOCATION_COARSE_TIMEOUT_MS: Long = 30_000L
     /** Cached OS fixes older than this are ignored (a stale fix from another city hides nearby shops). */
     const val LOCATION_MAX_AGE_MS: Long = 10 * 60_000L
+    /** Map picker zoom when centred on a known point vs. the default city. */
+    const val MAP_PICKER_PIN_ZOOM: Int = 17
+    const val MAP_PICKER_CITY_ZOOM: Int = 12
     /** Partner GPS push to server (foreground + background). */
     const val PARTNER_LOCATION_UPDATE_MS: Long = 2 * 60_000L
     const val PARTNER_RING_RADIUS_KM: Double = 8.0

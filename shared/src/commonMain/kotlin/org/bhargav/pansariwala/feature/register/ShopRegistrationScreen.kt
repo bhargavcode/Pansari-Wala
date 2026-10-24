@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
@@ -71,6 +72,7 @@ import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.platform.LocationPermissionDeniedDialog
 import org.bhargav.pansariwala.platform.RequestLocationPermission
+import org.bhargav.pansariwala.platform.mapLocationPickerSupported
 import org.bhargav.pansariwala.platform.openAppLocationSettings
 import org.bhargav.pansariwala.ui.toErrorBanner
 import org.bhargav.pansariwala.util.AppConstants
@@ -106,6 +108,7 @@ import pansariwala.shared.generated.resources.reg_location_subtitle
 import pansariwala.shared.generated.resources.reg_location_title
 import pansariwala.shared.generated.resources.reg_location_verified
 import pansariwala.shared.generated.resources.reg_location_not_verified
+import pansariwala.shared.generated.resources.reg_location_pick_on_map
 import pansariwala.shared.generated.resources.reg_location_verify
 import pansariwala.shared.generated.resources.reg_next
 import pansariwala.shared.generated.resources.reg_not_provided
@@ -483,6 +486,21 @@ private fun LocationStep(state: ShopRegistrationUiState, viewModel: ShopRegistra
         }
         Spacer(Modifier.width(8.dp))
         Text(stringResource(Res.string.reg_location_verify))
+    }
+    if (mapLocationPickerSupported) {
+        OutlinedButton(
+            onClick = viewModel::pickOnMap,
+            enabled = !state.loading && !state.pickingOnMap,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+        ) {
+            if (state.pickingOnMap) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(Res.string.reg_location_pick_on_map))
+        }
     }
     val verified = state.locationVerified
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
