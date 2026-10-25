@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.feature.order
 
+import org.bhargav.pansariwala.platform.PhoneAuthGateway
+import org.bhargav.pansariwala.designsystem.OtpStepController
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -101,8 +103,14 @@ data class OnlineOrdersUiState(
     val returnOrderId: String? = null,
 )
 
-data class ShopPartnerForm(val name: String = "", val phone: String = "", val vehicleReg: String = "") {
-    val valid: Boolean get() = name.trim().length >= 2 && phone.count { it.isDigit() } >= 10
+data class ShopPartnerForm(
+    val name: String = "",
+    val phone: String = "",
+    val vehicleReg: String = "",
+    val rate: String = "",
+) {
+    val rateInr: Double? get() = rate.trim().ifBlank { "0" }.toDoubleOrNull()?.takeIf { it >= 0.0 }
+    val valid: Boolean get() = name.trim().length >= 2 && phone.count { it.isDigit() } >= 10 && rateInr != null
 }
 
 /**
@@ -112,9 +120,12 @@ data class ShopPartnerForm(val name: String = "", val phone: String = "", val ve
 class OnlineOrdersViewModel(
     private val api: PansariApi,
     private val notifications: NotificationGateway,
+    phoneAuth: PhoneAuthGateway,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OnlineOrdersUiState())
     val uiState: StateFlow<OnlineOrdersUiState> = _uiState.asStateFlow()
+    /** The rider's own mobile is OTP-verified before they join the shop's roster. */
+    val partnerOtp = OtpStepController(phoneAuth, viewModelScope)
     private var visible = false
     private var loadedOnce = false
     private var loadJob: Job? = null
@@ -399,29 +410,39 @@ class OnlineOrdersViewModel(
         }
     }
 
-    fun openPartnerForm() { _uiState.update { it.copy(partnerForm = ShopPartnerForm(), partnerError = null) } }
+    fun openPartnerForm() {
+        partnerOtp.reset()
+        _uiState.update { it.copy(partnerForm = ShopPartnerForm(), partnerError = null) }
+    }
 
-    fun closePartnerForm() { _uiState.update { it.copy(partnerForm = null, partnerError = null) } }
+    fun closePartnerForm() {
+        partnerOtp.reset()
+        _uiState.update { it.copy(partnerForm = null, partnerError = null) }
+    }
 
     fun updatePartnerForm(transform: (ShopPartnerForm) -> ShopPartnerForm) {
         _uiState.update { state -> state.copy(partnerForm = state.partnerForm?.let(transform), partnerError = null) }
     }
 
+    /** First tap sends the OTP to the rider's mobile; the next one verifies it and adds the rider. */
     fun savePartner() {
         val form = _uiState.value.partnerForm?.takeIf { it.valid } ?: return
-        viewModelScope.launch {
-            _uiState.update { it.copy(partnersLoading = true) }
-            runCatching {
-                api.addShopPartner(ShopPartnerRequest(form.name.trim(), form.phone.trim(), form.vehicleReg.trim()))
-            }
-                .onSuccess { added ->
-                    _uiState.update { it.copy(shopPartners = (it.shopPartners + added).sortedBy { p -> p.name }, partnerForm = null) }
-                }
-                .onFailure { error ->
-                    error.rethrowIfStructuredCancellation()
-                    _uiState.update { it.copy(partnerError = mapOnlineOrdersError(error)) }
-                }
-            _uiState.update { it.copy(partnersLoading = false) }
+        if (!partnerOtp.state.value.codeSent) {
+            partnerOtp.send(form.phone.filter { it.isDigit() }.takeLast(AppConstants.PHONE_LOCAL_DIGITS))
+            return
+        }
+        partnerOtp.verify { phone, code, sessionId ->
+            val added = api.addShopPartner(
+                ShopPartnerRequest(
+                    name = form.name.trim(),
+                    phone = phone,
+                    vehicleReg = form.vehicleReg.trim(),
+                    otp = code,
+                    sessionId = sessionId,
+                    payoutPerDeliveryInr = form.rateInr ?: 0.0,
+                ),
+            )
+            _uiState.update { it.copy(shopPartners = (it.shopPartners + added).sortedBy { p -> p.name }, partnerForm = null) }
         }
     }
 

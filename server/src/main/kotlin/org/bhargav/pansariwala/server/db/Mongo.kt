@@ -130,7 +130,7 @@ data class ShopDoc(
     val active: Boolean,
     val paymentsEnabled: Boolean,
     val discountPercent: Double,
-    val upiId: String = "success@razorpay",
+    val upiId: String = "",
     /** Cashfree Easy Split vendor id (created + KYC'd in the Cashfree dashboard); blank → settled manually. */
     val cashfreeVendorId: String = "",
     val address: String = "",
@@ -371,6 +371,8 @@ data class ProductDoc(
     val deletedAt: Long? = null,
     /** The shop's own active flag while binned, restored on recover. */
     val activeBeforeDelete: Boolean? = null,
+    /** Most a customer may order in one order (pieces / kg / l in [unit]); 0 = no limit. */
+    val maxPerOrder: Double = 0.0,
 )
 
 /** One row per product price change; [price] is the customer-facing starting price at [at]. */
@@ -426,6 +428,19 @@ data class ShopPartnerDoc(
     val vehicleReg: String = "",
     val partnerId: String? = null,
     val createdAt: Long = 0L,
+    /** Fixed amount the shop pays this rider per delivered (or accepted-return) order. */
+    val payoutPerDeliveryInr: Double = 0.0,
+)
+
+/** Cash/UPI the shop paid to one of its own riders, settled against their per-delivery earnings. */
+@Serializable
+data class ShopPartnerPayoutDoc(
+    @SerialName("_id") val id: String,
+    val shopId: String,
+    val shopPartnerId: String,
+    val amountInr: Double,
+    val note: String = "",
+    val createdAt: Long,
 )
 
 @Serializable
@@ -467,6 +482,8 @@ data class OrderDoc(
     val totalDistanceKm: Double? = null,
     val deliveryDurationMin: Int? = null,
     val partnerPayoutInr: Double? = null,
+    /** Set when the shop accepted a partner's return (customer unreachable); the partner still earns the trip. */
+    val returnAcceptedAt: Long? = null,
     val partnerProgress: String = "",
     val packedProductIds: List<String> = emptyList(),
     /** PARTNER (platform delivery partner), SHOP_PARTNER (shop's own rider) or SELF (shop delivers itself). */
@@ -475,6 +492,9 @@ data class OrderDoc(
     val ownPartnerName: String? = null,
     val ownPartnerPhone: String? = null,
     val ownPartnerVehicle: String? = null,
+    /** [ShopPartnerDoc] id and the per-delivery amount the shop owes that rider for this order. */
+    val ownPartnerId: String? = null,
+    val ownPartnerPayoutInr: Double = 0.0,
     /** POS bill discount in INR. */
     val discount: Double = 0.0,
     /** UDHAAR bills: amount paid at the counter (CASH/UPI); only the rest is credit. */
@@ -714,7 +734,7 @@ fun connectMongo(config: ServerConfig, security: Security): MongoApp {
     if (db.getCollection<ShopDoc>("shops").countDocuments() == 0L) {
         seed(db, security, config)
     }
-    bestEffortSeed("shop UPIs") { ensureShopUpis(db) }
+
     bestEffortSeed("demo shop users") { ensureDemoShopUsers(db, security) }
     ensureMasterAdmin(db, security, config)
     bestEffortSeed("shop types") { ensureShopTypes(db) }
@@ -966,13 +986,6 @@ private fun ensureSubscriptionPlans(db: MongoDatabase) {
                 updatedAt = now,
             ),
         ),
-    )
-}
-
-private fun ensureShopUpis(db: MongoDatabase) {
-    db.getCollection<ShopDoc>("shops").updateMany(
-        or(exists("upiId", false), eq("upiId", "")),
-        set("upiId", "success@razorpay"),
     )
 }
 

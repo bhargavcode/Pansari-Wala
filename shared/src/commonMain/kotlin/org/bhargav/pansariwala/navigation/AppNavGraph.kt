@@ -100,7 +100,7 @@ fun AppNavGraph(
     printerManager: PrinterManager = koinInject(),
     printService: PosPrintService = koinInject(),
 ) {
-    val backStack = rememberNavBackStack(navSavedStateConfiguration, AppRoute.Splash)
+    val backStack = retainedAcrossRemount("pos", rememberNavBackStack(navSavedStateConfiguration, AppRoute.Splash))
     var previousScreen by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val openAction = stringResource(Res.string.action_show)

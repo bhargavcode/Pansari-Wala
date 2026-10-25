@@ -20,7 +20,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -95,7 +94,7 @@ fun SearchableDropdown(
         ExposedDropdownMenu(
             expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 320.dp),
+            modifier = Modifier.heightIn(max = 480.dp),
         ) {
             if (allLabel != null && query.isBlank()) {
                 OptionItem(allLabel, selectedId == null) {
@@ -174,7 +173,7 @@ fun MultiSelectDropdown(
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 360.dp),
+            modifier = Modifier.heightIn(max = 480.dp),
         ) {
             if (query.isBlank()) {
                 CheckItem(allLabel, selectedIds.isEmpty()) { onChange(emptySet()) }

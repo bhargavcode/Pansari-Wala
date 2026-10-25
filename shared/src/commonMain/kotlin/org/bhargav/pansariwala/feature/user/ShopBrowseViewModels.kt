@@ -23,6 +23,8 @@ data class CategoryProductsUiState(
     /** Master category id; null searches across all categories. */
     val categoryId: String? = null,
     val query: String = "",
+    /** Hide out-of-stock products. */
+    val inStockOnly: Boolean = false,
     val items: List<Product> = emptyList(),
     val totalCount: Int = 0,
     val nextPage: Int = 0,
@@ -65,7 +67,7 @@ class CategoryProductsViewModel(
         pageJob = viewModelScope.launch {
             runCatching {
                 (0 until snapshot.nextPage).map { page ->
-                    api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), page, pageSize)
+                    api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), page, pageSize, snapshot.inStockOnly)
                 }
             }.onSuccess { pages ->
                 if (gen != generation || pages.isEmpty()) return@onSuccess
@@ -91,6 +93,12 @@ class CategoryProductsViewModel(
         }
     }
 
+    fun setInStockOnly(value: Boolean) {
+        if (value == _state.value.inStockOnly) return
+        _state.update { it.copy(inStockOnly = value) }
+        reset()
+    }
+
     fun retry() {
         if (_state.value.items.isEmpty()) reset() else loadNextPage()
     }
@@ -104,7 +112,7 @@ class CategoryProductsViewModel(
         val snapshot = _state.value
         _state.update { it.copy(refreshing = true, error = null) }
         pageJob = viewModelScope.launch {
-            runCatching { api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), 0, pageSize) }
+            runCatching { api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), 0, pageSize, snapshot.inStockOnly) }
                 .onSuccess { result ->
                     if (gen != generation) return@onSuccess
                     _state.update {
@@ -151,7 +159,7 @@ class CategoryProductsViewModel(
         _state.update { it.copy(loadingInitial = page == 0, loadingMore = page > 0, error = null) }
         pageJob = viewModelScope.launch {
             runCatching {
-                api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), page, pageSize)
+                api.catalogPage(id, snapshot.categoryId, snapshot.query.trim(), page, pageSize, snapshot.inStockOnly)
             }.onSuccess { result ->
                 if (gen != generation) return@onSuccess
                 _state.update { s ->

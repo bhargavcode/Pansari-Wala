@@ -2,10 +2,8 @@ package org.bhargav.pansariwala.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.navigationevent.DirectNavigationEventInput
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 
 /** Browser `history` bridge; a no-op on native targets where the OS owns back navigation. */
 internal expect object BrowserHistory {
@@ -14,42 +12,31 @@ internal expect object BrowserHistory {
     fun go(delta: Int)
     /** Registers a `popstate` listener and returns its remover. */
     fun listen(onPop: () -> Unit): () -> Unit
-}
-
-private class HistoryTracker {
-    var depth = 1
-    var ignorePops = 0
+    /** Runs [block] once on the first pointer/key press (browsers skip history entries added before that). */
+    fun onFirstInteraction(block: () -> Unit)
 }
 
 /**
- * Mirrors an in-app back stack of [depth] entries into browser history so the browser back button
- * (and mouse/trackpad back gestures) pop one screen instead of leaving the app.
+ * Turns the browser back button (and mouse/trackpad back gestures) into an in-app back press: it goes to the
+ * topmost back handler (sheet, dialog, keyboard, nav stack) exactly like Android back, and never leaves the
+ * app because a guard history entry is re-pushed after every pop.
  */
 @Composable
-fun SyncBrowserHistory(depth: Int, onBrowserBack: () -> Unit) {
+fun BrowserBackBridge() {
     if (!BrowserHistory.supported) return
-    val onBack by rememberUpdatedState(onBrowserBack)
-    val tracker = remember { HistoryTracker() }
-    DisposableEffect(Unit) {
+    val dispatcher = LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher ?: return
+    DisposableEffect(dispatcher) {
+        val input = DirectNavigationEventInput()
+        dispatcher.addInput(input)
+        BrowserHistory.push()
+        BrowserHistory.onFirstInteraction { BrowserHistory.push() }
         val stop = BrowserHistory.listen {
-            if (tracker.ignorePops > 0) {
-                tracker.ignorePops--
-            } else {
-                tracker.depth = (tracker.depth - 1).coerceAtLeast(1)
-                onBack()
-            }
+            BrowserHistory.push()
+            input.backCompleted()
         }
-        onDispose(stop)
-    }
-    SideEffect {
-        val target = depth.coerceAtLeast(1)
-        val diff = target - tracker.depth
-        if (diff > 0) {
-            repeat(diff) { BrowserHistory.push() }
-        } else if (diff < 0) {
-            tracker.ignorePops++
-            BrowserHistory.go(diff)
+        onDispose {
+            stop()
+            dispatcher.removeInput(input)
         }
-        tracker.depth = target
     }
 }

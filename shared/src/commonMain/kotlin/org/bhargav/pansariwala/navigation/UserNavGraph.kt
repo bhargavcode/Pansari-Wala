@@ -36,7 +36,6 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import org.bhargav.pansariwala.platform.SyncBrowserHistory
 import androidx.savedstate.serialization.SavedStateConfiguration
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
@@ -52,6 +51,7 @@ import org.bhargav.pansariwala.feature.user.OrdersListScreen
 import org.bhargav.pansariwala.feature.user.PhoneAuthScreen
 import org.bhargav.pansariwala.feature.user.PhoneAuthViewModel
 import org.bhargav.pansariwala.feature.user.PhoneOtpScreen
+import org.bhargav.pansariwala.feature.user.CartLimitSnackbar
 import org.bhargav.pansariwala.feature.user.ProfileNameScreen
 import org.bhargav.pansariwala.feature.user.ProfileSetupScreen
 import org.koin.compose.viewmodel.koinViewModel
@@ -115,7 +115,7 @@ private val userNavConfig = SavedStateConfiguration {
 
 @Composable
 fun UserNavGraph() {
-    val backStack = rememberNavBackStack(userNavConfig, UserRoute.Splash)
+    val backStack = retainedAcrossRemount("user", rememberNavBackStack(userNavConfig, UserRoute.Splash))
     val snackbarHostState = remember { SnackbarHostState() }
     val openAction = stringResource(Res.string.action_show)
     val sessionExpiredMessage = stringResource(Res.string.error_session_expired_login)
@@ -195,7 +195,6 @@ fun UserNavGraph() {
         }
     }
 
-    SyncBrowserHistory(depth = backStack.size, onBrowserBack = ::onBack)
 
     Box(Modifier.fillMaxSize().safeDrawingPadding().animateContentSize()) {
         NavDisplay(
@@ -407,6 +406,7 @@ fun UserNavGraph() {
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
         )
+        CartLimitSnackbar(Modifier.align(Alignment.BottomCenter))
     }
 }
 

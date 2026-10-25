@@ -1,5 +1,8 @@
 package org.bhargav.pansariwala.feature.user
 
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -125,6 +128,10 @@ class CartStore(private val preferences: AppPreferences) {
     private val _lines = MutableStateFlow<List<Line>>(emptyList())
     val lines: StateFlow<List<Line>> = _lines.asStateFlow()
 
+    private val _limitReached = MutableSharedFlow<Product>(extraBufferCapacity = 4)
+    /** Emits the product whenever an add/increment was capped by its per-order limit. */
+    val limitReached: SharedFlow<Product> = _limitReached.asSharedFlow()
+
     private val _restored = MutableStateFlow(false)
     /** True once the saved cart (if any) has been loaded; gates the home "resume cart" prompt. */
     val restored: StateFlow<Boolean> = _restored.asStateFlow()
@@ -182,7 +189,7 @@ class CartStore(private val preferences: AppPreferences) {
     /** Adds [quantity] of [option], merging with an existing line for the same option. */
     fun add(option: PurchaseOption, quantity: Double) {
         bindShop(option.product.shopId)
-        _lines.update { current ->
+        updateCapped(option.key) { current ->
             val existing = current.firstOrNull { it.key == option.key }
             if (existing == null) current + Line(option.product, option.variant, option.normalize(quantity))
             else current.map { if (it.key == option.key) it.copy(quantity = option.normalize(it.quantity + quantity)) else it }
@@ -195,7 +202,7 @@ class CartStore(private val preferences: AppPreferences) {
      */
     fun update(key: String, option: PurchaseOption, quantity: Double) {
         bindShop(option.product.shopId)
-        _lines.update { current ->
+        updateCapped(option.key) { current ->
             val index = current.indexOfFirst { it.key == key }
             val line = Line(option.product, option.variant, option.normalize(quantity))
             val others = current.filterNot { it.key == key || it.key == option.key }
@@ -205,7 +212,7 @@ class CartStore(private val preferences: AppPreferences) {
     }
 
     fun setQuantity(key: String, quantity: Double) {
-        _lines.update { current ->
+        updateCapped(key) { current ->
             current.mapNotNull { line ->
                 when {
                     line.key != key -> line
@@ -217,7 +224,7 @@ class CartStore(private val preferences: AppPreferences) {
     }
 
     fun increment(key: String) {
-        _lines.update { current ->
+        updateCapped(key) { current ->
             current.map { if (it.key == key) it.copy(quantity = it.option.normalize(it.quantity + it.option.step)) else it }
         }
     }
@@ -234,6 +241,29 @@ class CartStore(private val preferences: AppPreferences) {
                 }
             }
         }
+    }
+
+    /** Applies [change], then trims line [key] so its product stays within [Product.maxPerOrder]. */
+    private fun updateCapped(key: String, change: (List<Line>) -> List<Line>) {
+        var capped: Product? = null
+        _lines.update { current ->
+            val next = change(current)
+            val line = next.firstOrNull { it.key == key } ?: return@update next
+            val limit = line.product.maxPerOrder
+            if (limit <= 0.0) return@update next
+            val others = next.filter { it.product.id == line.product.id && it.key != key }.sumOf { it.quantity }
+            val allowed = (limit - others).let { if (line.isLoose) it else kotlin.math.floor(it + LooseQty.EPSILON) }
+            if (line.quantity <= allowed + LooseQty.EPSILON) return@update next
+            capped = line.product
+            val before = current.firstOrNull { it.key == key }
+            when {
+                allowed + LooseQty.EPSILON >= line.option.minQty ->
+                    next.map { if (it.key == key) it.copy(quantity = allowed.coerceAtLeast(line.option.minQty)) else it }
+                before != null -> next.map { if (it.key == key) before else it }
+                else -> next.filterNot { it.key == key }
+            }
+        }
+        capped?.let { _limitReached.tryEmit(it) }
     }
 
     fun remove(key: String) {

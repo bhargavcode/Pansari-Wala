@@ -1,6 +1,12 @@
 package org.bhargav.pansariwala.feature.profile
 
 import androidx.lifecycle.ViewModel
+import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.designsystem.OtpStepController
+import org.bhargav.pansariwala.platform.PhoneAuthGateway
+import pansariwala.shared.generated.resources.upi_invalid
+import pansariwala.shared.generated.resources.upi_owner_phone_missing
+import pansariwala.shared.generated.resources.upi_saved
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -158,6 +164,8 @@ data class ShopProfileUiState(
     val requestLocationPermission: Boolean = false,
     val showLocationDeniedDialog: Boolean = false,
     val locating: Boolean = false,
+    /** Non-null while the owner is adding / changing the shop UPI ID. */
+    val upiDraft: String? = null,
 ) {
     val tabs: List<ProfileTab> get() = ProfileTab.entries.filter { it.permission == null || access.can(it.permission) }
 }
@@ -168,7 +176,11 @@ class ShopProfileViewModel(
     private val shopRepository: ShopRepository,
     private val imagePicker: ImagePicker,
     private val deviceLocation: DeviceLocation,
+    phoneAuth: PhoneAuthGateway,
 ) : ViewModel() {
+
+    /** UPI changes are confirmed by an OTP sent to the owner's registered mobile. */
+    val upiOtp = OtpStepController(phoneAuth, viewModelScope)
 
     private val _uiState = MutableStateFlow(ShopProfileUiState())
     private var usernameCheckJob: Job? = null
@@ -287,7 +299,6 @@ class ShopProfileViewModel(
             ownerName = draft.ownerName.trim(),
             ownerPhone = draft.ownerPhone.trim(),
             ownerEmail = draft.ownerEmail.trim(),
-            upiId = draft.upiId.trim(),
             deliveryRadiusKm = radius,
             discountPercent = discount,
             registrationNumber = draft.registrationNumber.trim(),
@@ -416,6 +427,35 @@ class ShopProfileViewModel(
 
     fun setShopActive(active: Boolean) = saveProfile(ShopProfilePatch(active = active))
     fun setPaymentsEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(paymentsEnabled = enabled))
+
+    fun startEditUpi() {
+        upiOtp.reset()
+        _uiState.update { it.copy(upiDraft = it.profile?.shop?.upiId.orEmpty()) }
+    }
+
+    fun onUpiDraft(value: String) = _uiState.update { it.copy(upiDraft = value.trim()) }
+
+    fun cancelEditUpi() {
+        upiOtp.reset()
+        _uiState.update { it.copy(upiDraft = null) }
+    }
+
+    fun sendUpiOtp() {
+        val draft = _uiState.value.upiDraft ?: return
+        if (!AppConstants.UPI_ID_REGEX.matches(draft)) return upiOtp.setError(UiText.res(Res.string.upi_invalid))
+        val phone = _uiState.value.profile?.shop?.ownerPhone.orEmpty()
+        if (phone.isBlank()) return upiOtp.setError(UiText.res(Res.string.upi_owner_phone_missing))
+        upiOtp.send(phone)
+    }
+
+    fun verifyUpi() {
+        val draft = _uiState.value.upiDraft ?: return
+        upiOtp.verify { _, code, sessionId ->
+            val profile = api.updateShopUpi(draft, code, sessionId)
+            preferences.setShopPaymentInfo(profile.shop.name, profile.shop.upiId)
+            _uiState.update { it.copy(profile = profile, upiDraft = null, message = UiText.res(Res.string.upi_saved)) }
+        }
+    }
 
     private fun saveProfile(
         patch: ShopProfilePatch,

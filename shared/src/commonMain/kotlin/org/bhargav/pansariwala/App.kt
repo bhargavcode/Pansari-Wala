@@ -1,14 +1,11 @@
 package org.bhargav.pansariwala
 
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
-import org.bhargav.pansariwala.util.AppConstants
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalWindowInfo
 import org.bhargav.pansariwala.designsystem.FloatingKeyboardHost
 import org.bhargav.pansariwala.designsystem.LocalFloatingKeyboardEligible
-import org.bhargav.pansariwala.designsystem.LocalImeSidePanel
 import org.bhargav.pansariwala.designsystem.hasSoftKeyboard
+import org.bhargav.pansariwala.navigation.RetainAcrossRemount
+import org.bhargav.pansariwala.platform.BrowserBackBridge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -103,23 +100,17 @@ fun App(
             notifications.needsPermissionPrompt()
     }
 
+    BrowserBackBridge()
     if (loadedSettings == null) return
-    AppLocaleProvider(languageCode = settings.language.code) {
+    RetainAcrossRemount { AppLocaleProvider(languageCode = settings.language.code) {
         PansariTheme(
             darkTheme = darkTheme,
             customTheme = settings.customTheme,
         ) {
-            val window = LocalWindowInfo.current.containerSize
-            val shortestSideDp = with(LocalDensity.current) { minOf(window.width, window.height).toDp() }
-            val isPhone = shortestSideDp < AppConstants.PHONE_MAX_SHORTEST_SIDE_DP.dp
-            val imeSidePanel = product == AppProduct.POS && hasSoftKeyboard && isPhone && window.width > window.height
-            val keyboardEligible = product == AppProduct.POS && hasSoftKeyboard && isPhone
-            val floatingKeyboardOn by preferences.floatingKeyboard.collectAsStateWithLifecycle(initialValue = false)
+            val keyboardEligible = hasSoftKeyboard
+            val floatingKeyboardOn by preferences.floatingKeyboard.collectAsStateWithLifecycle(initialValue = true)
             Surface(modifier = Modifier.fillMaxSize()) {
-                CompositionLocalProvider(
-                    LocalImeSidePanel provides imeSidePanel,
-                    LocalFloatingKeyboardEligible provides keyboardEligible,
-                ) {
+                CompositionLocalProvider(LocalFloatingKeyboardEligible provides keyboardEligible) {
                     FloatingKeyboardHost(enabled = keyboardEligible && floatingKeyboardOn, preferences = preferences) {
                         when (product) {
                             AppProduct.POS -> AppNavGraph()
@@ -151,5 +142,5 @@ fun App(
                 }
             }
         }
-    }
+    } }
 }

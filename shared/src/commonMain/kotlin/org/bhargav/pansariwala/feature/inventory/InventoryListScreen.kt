@@ -1,5 +1,10 @@
 package org.bhargav.pansariwala.feature.inventory
 
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import org.bhargav.pansariwala.feature.catalog.ProductFinderResults
+import org.bhargav.pansariwala.feature.catalog.ProductFinderActions
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -200,12 +205,22 @@ fun InventoryListScreen(
                 placeholder = { Text(stringResource(Res.string.inv_search_hint)) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
-                    if (state.searchText.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onSearchChange("") }) {
-                            Icon(Icons.Filled.Clear, contentDescription = stringResource(Res.string.action_clear))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (state.searchText.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onSearchChange("") }) {
+                                Icon(Icons.Filled.Clear, contentDescription = stringResource(Res.string.action_clear))
+                            }
                         }
+                        ProductFinderActions(viewModel.finder)
                     }
                 },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { viewModel.onSearchSubmit() }, onDone = { viewModel.onSearchSubmit() }),
+            )
+            ProductFinderResults(
+                finder = viewModel.finder,
+                onPick = { onOpenProduct(it.product.id) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

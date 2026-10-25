@@ -63,6 +63,7 @@ interface PansariApi {
         query: String,
         page: Int,
         pageSize: Int,
+        inStockOnly: Boolean = false,
     ): org.bhargav.pansariwala.domain.model.ProductPage
     suspend fun shopProductDetail(shopId: String, productId: String): org.bhargav.pansariwala.domain.model.ProductDetail
     suspend fun masterCategories(): List<MasterCategoryDto>
@@ -135,12 +136,18 @@ interface PansariApi {
     suspend fun acceptReturn(orderId: String, reason: String? = null): Order
     suspend fun shopPartners(): List<ShopPartnerDto>
     suspend fun addShopPartner(request: ShopPartnerRequest): ShopPartnerDto
+    suspend fun updateShopPartner(id: String, request: ShopPartnerUpdateRequest): ShopPartnerDto
+    suspend fun payShopPartner(id: String, request: ShopPartnerPayoutRequest): ShopPartnerDto
+    suspend fun shopPartnerLedger(id: String): ShopPartnerLedgerDto
     suspend fun removeShopPartner(id: String)
     suspend fun assignShopPartner(orderId: String, shopPartnerId: String, packedProductIds: List<String>): Order
     suspend fun cancelShopOrder(orderId: String, reason: String?): Order
 
     suspend fun shopProfile(): ShopProfileDto
     suspend fun updateShopProfile(patch: ShopProfilePatch): ShopProfileDto
+    suspend fun updateShopUpi(upiId: String, otp: String, sessionId: String): ShopProfileDto
+    suspend fun resetShopPassword(username: String, phone: String, otp: String, sessionId: String, newPassword: String)
+    suspend fun changeShopPassword(currentPassword: String, newPassword: String)
     /** Root categories the shop sells with its customer-catalog order (priority numbers or by name). */
     suspend fun shopCategoryOrder(): ShopCategoryOrderDto
     suspend fun updateShopCategoryOrder(body: ShopCategoryOrderDto): ShopCategoryOrderDto

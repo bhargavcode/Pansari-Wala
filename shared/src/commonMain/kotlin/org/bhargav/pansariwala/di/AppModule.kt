@@ -19,6 +19,7 @@ import org.bhargav.pansariwala.domain.auth.ObserveSessionUseCase
 import org.bhargav.pansariwala.feature.catalog.ProductTaxonomyStore
 import org.bhargav.pansariwala.feature.dashboard.DashboardViewModel
 import org.bhargav.pansariwala.feature.profile.ShopProfileViewModel
+import org.bhargav.pansariwala.feature.profile.ShopRidersViewModel
 import org.bhargav.pansariwala.feature.inventory.AddEditInventoryViewModel
 import org.bhargav.pansariwala.feature.inventory.InventoryListViewModel
 import org.bhargav.pansariwala.feature.inventory.DeletedProductsViewModel
@@ -34,6 +35,8 @@ import org.bhargav.pansariwala.feature.udhaar.MyCreditShopViewModel
 import org.bhargav.pansariwala.feature.udhaar.MyCreditViewModel
 import org.bhargav.pansariwala.feature.inventory.StockRequestViewModel
 import org.bhargav.pansariwala.feature.login.LoginViewModel
+import org.bhargav.pansariwala.feature.login.ForgotPasswordViewModel
+import org.bhargav.pansariwala.feature.login.ChangePasswordViewModel
 import org.bhargav.pansariwala.feature.order.OrderEditorViewModel
 import org.bhargav.pansariwala.feature.subscription.CommissionDayViewModel
 import org.bhargav.pansariwala.feature.subscription.SubscriptionViewModel
@@ -125,6 +128,8 @@ val appModule = module {
 
     viewModelOf(::SplashViewModel)
     viewModelOf(::LoginViewModel)
+    viewModelOf(::ForgotPasswordViewModel)
+    viewModelOf(::ChangePasswordViewModel)
     viewModelOf(::DashboardViewModel)
     viewModelOf(::AddEditInventoryViewModel)
     viewModelOf(::InventoryListViewModel)
@@ -168,6 +173,7 @@ val appModule = module {
     viewModelOf(::ReportsViewModel)
     viewModelOf(::SalesDrillViewModel)
     viewModelOf(::ShopProfileViewModel)
+    viewModelOf(::ShopRidersViewModel)
     viewModelOf(::IssueReportViewModel)
     viewModelOf(::BorrowersViewModel)
     viewModel { (phone: String) -> BorrowerDetailViewModel(phone, get(), get(), get()) }

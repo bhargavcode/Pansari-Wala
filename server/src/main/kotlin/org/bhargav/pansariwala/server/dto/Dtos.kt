@@ -484,6 +484,21 @@ data class ShopStaffUpsert(
 data class UsernameAvailabilityDto(val username: String = "", val available: Boolean = false)
 
 @Serializable
+data class ShopUpiUpdateRequest(val upiId: String, val otp: String, val sessionId: String? = null)
+
+@Serializable
+data class PasswordResetRequest(
+    val username: String,
+    val phone: String,
+    val otp: String,
+    val sessionId: String? = null,
+    val newPassword: String,
+)
+
+@Serializable
+data class PasswordChangeRequest(val currentPassword: String, val newPassword: String)
+
+@Serializable
 data class ShopProfileDto(
     val shop: AdminShopDto,
     val me: ShopStaffDto,
@@ -557,6 +572,8 @@ data class ProductDto(
     val brandTranslations: Map<String, String> = emptyMap(),
     /** Epoch ms when the shop moved the product to its bin; null for live products. */
     val deletedAt: Long? = null,
+    /** Most a customer may order in one order; 0 = no limit. */
+    val maxPerOrder: Double = 0.0,
 )
 
 @Serializable
@@ -851,6 +868,11 @@ data class ShopPartnerDto(
     val vehicleReg: String = "",
     /** True when the rider has a partner-app account and will get assigned orders as jobs. */
     val onPartnerApp: Boolean = false,
+    val payoutPerDeliveryInr: Double = 0.0,
+    val deliveries: Int = 0,
+    val earnedInr: Double = 0.0,
+    val paidInr: Double = 0.0,
+    val balanceInr: Double = 0.0,
 )
 
 @Serializable
@@ -858,6 +880,36 @@ data class ShopPartnerRequest(
     val name: String,
     val phone: String,
     val vehicleReg: String = "",
+    val otp: String = "",
+    val sessionId: String? = null,
+    val payoutPerDeliveryInr: Double = 0.0,
+)
+
+@Serializable
+data class ShopPartnerUpdateRequest(
+    val name: String,
+    val vehicleReg: String = "",
+    val payoutPerDeliveryInr: Double = 0.0,
+)
+
+@Serializable
+data class ShopPartnerPayoutRequest(val amountInr: Double, val note: String = "")
+
+@Serializable
+data class ShopPartnerLedgerEntryDto(
+    /** EARNING (an order) or PAYOUT (shop paid the rider). */
+    val kind: String,
+    val amountInr: Double,
+    val atEpochMs: Long,
+    val orderId: String? = null,
+    val returned: Boolean = false,
+    val note: String = "",
+)
+
+@Serializable
+data class ShopPartnerLedgerDto(
+    val partner: ShopPartnerDto,
+    val entries: List<ShopPartnerLedgerEntryDto> = emptyList(),
 )
 
 @Serializable

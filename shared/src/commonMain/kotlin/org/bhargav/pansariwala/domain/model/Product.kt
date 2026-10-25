@@ -123,8 +123,11 @@ data class Product(
     val brandTranslations: Map<String, String> = emptyMap(),
     /** Epoch ms when the shop moved this product to the bin; null for live products. */
     val deletedAt: Long? = null,
+    /** Most a customer may order in one order (in [unit]); 0 = no limit. */
+    val maxPerOrder: Double = 0.0,
 ) {
     val isDeleted: Boolean get() = deletedAt != null
+    val hasOrderLimit: Boolean get() = maxPerOrder > 0.0
 
     /** Name in [languageCode], falling back to Hindi [nameHi] and then English [name]. */
     fun displayName(languageCode: String?): String = localizedProductName(name, nameHi, translations, languageCode)

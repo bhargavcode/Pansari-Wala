@@ -2,6 +2,15 @@ package org.bhargav.pansariwala.feature.profile
 
 import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import org.bhargav.pansariwala.designsystem.AppBottomSheet
+import org.bhargav.pansariwala.designsystem.OtpStepSection
+import org.bhargav.pansariwala.designsystem.OtpStepState
+import pansariwala.shared.generated.resources.upi_not_set
+import pansariwala.shared.generated.resources.upi_add
+import pansariwala.shared.generated.resources.upi_change
+import pansariwala.shared.generated.resources.upi_sheet_title
+import pansariwala.shared.generated.resources.upi_sheet_hint
+import pansariwala.shared.generated.resources.upi_verify_save
+import pansariwala.shared.generated.resources.action_send_otp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
@@ -326,7 +335,10 @@ fun ShopProfileScreen(
                         }
                     }
                 }
-                ProfileTab.STAFF -> staffItems(state.staff, state.access, viewModel)
+                ProfileTab.STAFF -> {
+                    staffItems(state.staff, state.access, viewModel)
+                    if (state.access.can(ShopPermission.ONLINE_ORDERS)) riderItems(profile.shop.id)
+                }
                 ProfileTab.OFFERS -> offerItems(state.offers, viewModel)
                 ProfileTab.RATINGS -> ratingItems(profile.shop, state.ratings, viewModel)
                 ProfileTab.VISITORS -> item { VisitorsCard(state, viewModel::setVisitorRange) }
@@ -345,6 +357,18 @@ fun ShopProfileScreen(
             onMakePrimary = viewModel::makeDraftShopTypePrimary,
             onSave = viewModel::saveDetails,
             onDismiss = viewModel::cancelEditDetails,
+        )
+    }
+    state.upiDraft?.let { draft ->
+        val otp by viewModel.upiOtp.state.collectAsStateWithLifecycle()
+        UpiEditSheet(
+            draft = draft,
+            otp = otp,
+            onDraft = viewModel::onUpiDraft,
+            onSendOtp = viewModel::sendUpiOtp,
+            onCode = viewModel.upiOtp::onCode,
+            onVerify = viewModel::verifyUpi,
+            onDismiss = viewModel::cancelEditUpi,
         )
     }
     state.hoursDraft?.let { draft ->
@@ -489,7 +513,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.posSettingsItems(
         SectionCard(title = stringResource(Res.string.pos_settings_payments), modifier = Modifier.fillMaxWidth()) {
             ToggleRow(stringResource(Res.string.profile_payments_enabled), shop.paymentsEnabled, canEdit, viewModel::setPaymentsEnabled)
             SettingHint(stringResource(Res.string.pos_settings_payments_hint))
-            DetailRow(Res.string.profile_field_upi, shop.upiId)
+            DetailRow(Res.string.profile_field_upi, shop.upiId.ifBlank { stringResource(Res.string.upi_not_set) })
+            if (canEdit) {
+                TextButton(onClick = viewModel::startEditUpi) {
+                    Text(stringResource(if (shop.upiId.isBlank()) Res.string.upi_add else Res.string.upi_change))
+                }
+            }
         }
     }
     item(key = "pos_order_rules") {
@@ -959,7 +988,6 @@ private fun ShopDetailsDialog(
         Field(Res.string.profile_field_owner_name, draft.ownerName) { v -> onChange { it.copy(ownerName = v) } }
         Field(Res.string.profile_field_owner_phone, draft.ownerPhone, KeyboardType.Phone) { v -> onChange { it.copy(ownerPhone = v) } }
         Field(Res.string.profile_field_owner_email, draft.ownerEmail, KeyboardType.Email) { v -> onChange { it.copy(ownerEmail = v) } }
-        Field(Res.string.profile_field_upi, draft.upiId) { v -> onChange { it.copy(upiId = v) } }
         Field(Res.string.profile_field_radius, draft.deliveryRadiusKm, KeyboardType.Decimal) { v -> onChange { it.copy(deliveryRadiusKm = v) } }
         DeliveryUntilField(draft.deliveryUntil) { v -> onChange { it.copy(deliveryUntil = v) } }
         Field(Res.string.profile_field_discount, draft.discountPercent, KeyboardType.Decimal) { v -> onChange { it.copy(discountPercent = v) } }
@@ -1264,4 +1292,57 @@ private fun Double.formatCoord(): String = (kotlin.math.round(this * 100_000) / 
 private fun Double.formatOne(): String {
     val tenths = kotlin.math.round(this * 10).toLong()
     return if (tenths % 10 == 0L) (tenths / 10).toString() else "${tenths / 10}.${kotlin.math.abs(tenths % 10)}"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UpiEditSheet(
+    draft: String,
+    otp: OtpStepState,
+    onDraft: (String) -> Unit,
+    onSendOtp: () -> Unit,
+    onCode: (String) -> Unit,
+    onVerify: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AppBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(stringResource(Res.string.upi_sheet_title), style = MaterialTheme.typography.titleLarge)
+            Text(
+                stringResource(Res.string.upi_sheet_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = draft,
+                onValueChange = onDraft,
+                label = { Text(stringResource(Res.string.profile_field_upi)) },
+                singleLine = true,
+                enabled = !otp.codeSent,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (otp.codeSent) {
+                OtpStepSection(
+                    state = otp,
+                    submitLabel = stringResource(Res.string.upi_verify_save),
+                    onCode = onCode,
+                    onResend = onSendOtp,
+                    onSubmit = onVerify,
+                )
+            } else {
+                otp.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                Button(onClick = onSendOtp, enabled = !otp.busy && draft.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(Res.string.action_send_otp))
+                }
+            }
+        }
+    }
 }

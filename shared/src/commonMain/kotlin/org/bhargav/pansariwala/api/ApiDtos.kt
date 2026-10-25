@@ -220,6 +220,11 @@ data class ShopPartnerDto(
     val phone: String,
     val vehicleReg: String = "",
     val onPartnerApp: Boolean = false,
+    val payoutPerDeliveryInr: Double = 0.0,
+    val deliveries: Int = 0,
+    val earnedInr: Double = 0.0,
+    val paidInr: Double = 0.0,
+    val balanceInr: Double = 0.0,
 )
 
 @Serializable
@@ -227,6 +232,35 @@ data class ShopPartnerRequest(
     val name: String,
     val phone: String,
     val vehicleReg: String = "",
+    val otp: String = "",
+    val sessionId: String? = null,
+    val payoutPerDeliveryInr: Double = 0.0,
+)
+
+@Serializable
+data class ShopPartnerUpdateRequest(
+    val name: String,
+    val vehicleReg: String = "",
+    val payoutPerDeliveryInr: Double = 0.0,
+)
+
+@Serializable
+data class ShopPartnerPayoutRequest(val amountInr: Double, val note: String = "")
+
+@Serializable
+data class ShopPartnerLedgerEntryDto(
+    val kind: String,
+    val amountInr: Double,
+    val atEpochMs: Long,
+    val orderId: String? = null,
+    val returned: Boolean = false,
+    val note: String = "",
+)
+
+@Serializable
+data class ShopPartnerLedgerDto(
+    val partner: ShopPartnerDto,
+    val entries: List<ShopPartnerLedgerEntryDto> = emptyList(),
 )
 
 @Serializable
@@ -352,6 +386,8 @@ data class ProductDto(
     val brandTranslations: Map<String, String> = emptyMap(),
     /** Epoch ms when moved to the shop's products bin. */
     val deletedAt: Long? = null,
+    /** Most a customer may order in one order; 0 = no limit. */
+    val maxPerOrder: Double = 0.0,
 )
 
 @Serializable
@@ -922,6 +958,7 @@ fun ProductDto.toModel() = Product(
     translations = translations,
     brandTranslations = brandTranslations,
     deletedAt = deletedAt,
+    maxPerOrder = maxPerOrder,
 )
 
 fun ProductOfferDto.toModel() = ProductOffer(
@@ -1000,6 +1037,7 @@ fun Product.toDto() = ProductDto(
     translations = translations,
     brandTranslations = brandTranslations,
     deletedAt = deletedAt,
+    maxPerOrder = maxPerOrder,
 )
 
 fun Order.toSyncDto() = OrderDto(

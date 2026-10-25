@@ -1,5 +1,6 @@
 package org.bhargav.pansariwala.feature.order
 
+import org.bhargav.pansariwala.feature.catalog.MatchResultsPanel
 import pansariwala.shared.generated.resources.stock_left
 import pansariwala.shared.generated.resources.pos_no_products_match
 import pansariwala.shared.generated.resources.pos_out_of_stock
@@ -117,6 +118,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.compose.LifecycleEventEffect
 import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.PansariSearchTopBar
@@ -209,6 +213,8 @@ fun OrderEditorScreen(
 
     LaunchedEffect(viewModel, orderId, reorderFromId) { viewModel.load(orderId, reorderFromId) }
     LaunchedEffect(viewModel) { viewModel.refreshEntitlements() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.stopListeningIfActive() }
+    DisposableEffect(viewModel) { onDispose { viewModel.stopListeningIfActive() } }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     if (state.showPaymentPicker) {
         PosPaymentSheet(state = state, viewModel = viewModel)
@@ -398,7 +404,7 @@ private fun ColumnScope.CatalogPane(state: OrderEditorUiState, viewModel: OrderE
         modifier = Modifier.fillMaxWidth(),
     )
     ScanMessageStrip(state, Modifier.padding(top = 4.dp))
-    if (state.isListening || state.partialTranscript.isNotBlank()) VoiceArea(state, viewModel)
+    if (state.isListening || state.partialTranscript.isNotBlank() || state.voiceResults != null) VoiceArea(state, viewModel)
 
     val linesByProduct = remember(state.cart) { state.cart.groupBy { it.product.id } }
     val byCategory = remember(state.filteredCatalog) { state.filteredCatalog.groupBy { it.browseKey } }
@@ -905,6 +911,18 @@ private fun VoiceArea(state: OrderEditorUiState, viewModel: OrderEditorViewModel
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
+    }
+    state.voiceResults?.let { results ->
+        MatchResultsPanel(
+            kind = results.kind,
+            label = results.label,
+            options = results.visible,
+            hasMore = results.hasMore,
+            onLoadMore = viewModel::showMoreVoiceResults,
+            onPick = viewModel::pickVoiceResult,
+            onDismiss = viewModel::dismissVoiceResults,
+            modifier = Modifier.padding(bottom = 8.dp),
         )
     }
 }

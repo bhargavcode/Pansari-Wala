@@ -1,5 +1,9 @@
 package org.bhargav.pansariwala.feature.inventory
 
+import kotlinx.coroutines.flow.first
+import org.bhargav.pansariwala.voice.SpeechToText
+import org.bhargav.pansariwala.feature.catalog.looksLikeBarcode
+import org.bhargav.pansariwala.feature.catalog.ProductFinder
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +62,8 @@ data class AddEditInventoryUiState(
     val costPrice: String = "",
     val stockQty: String = "",
     val lowStockThreshold: String = "",
+    /** Blank / 0 = no per-order limit for customers. */
+    val maxPerOrder: String = "",
     val voiceAlias: String = "",
     val brandName: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
@@ -73,7 +79,21 @@ class AddEditInventoryViewModel(
     private val analytics: Analytics,
     private val api: PansariApi,
     private val imagePicker: ImagePicker,
+    speech: SpeechToText,
 ) : ViewModel() {
+
+    /** Voice / barcode lookup of an existing product; a pick loads it into the form for editing. */
+    val finder = ProductFinder(speech, viewModelScope) { shopRepository.observeProducts(shopId).first() }
+
+    fun pickFound(product: Product) {
+        fillFrom(product)
+        _uiState.update { it.copy(message = UiText.res(Res.string.msg_loaded_product, product.appLanguageName), error = null) }
+    }
+
+    override fun onCleared() {
+        finder.stopListening()
+        super.onCleared()
+    }
 
     private val _uiState = MutableStateFlow(AddEditInventoryUiState())
     val uiState: StateFlow<AddEditInventoryUiState> = _uiState.asStateFlow()
@@ -150,6 +170,7 @@ class AddEditInventoryViewModel(
     fun onCostPriceChange(value: String) = _uiState.update { it.copy(costPrice = value) }
     fun onStockQtyChange(value: String) = _uiState.update { it.copy(stockQty = value) }
     fun onThresholdChange(value: String) = _uiState.update { it.copy(lowStockThreshold = value) }
+    fun onMaxPerOrderChange(value: String) = _uiState.update { it.copy(maxPerOrder = value) }
     fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value) }
     fun onBrandNameChange(value: String) = _uiState.update { it.copy(brandName = value) }
     fun onVariantsChange(value: List<ProductVariantDto>) = _uiState.update { it.copy(variants = value) }
@@ -189,13 +210,16 @@ class AddEditInventoryViewModel(
                         error = null,
                     )
                 }
-            } else {
+            } else if (looksLikeBarcode(query)) {
                 _uiState.update {
                     it.copy(
                         message = null,
                         error = UiText.res(Res.string.error_product_not_found, query),
                     )
                 }
+            } else {
+                _uiState.update { it.copy(message = null, error = null) }
+                finder.search(query)
             }
         }
     }
@@ -228,6 +252,7 @@ class AddEditInventoryViewModel(
             costPrice = state.costPrice.toDoubleOrNull() ?: 0.0,
             stockQty = state.stockQty.toDoubleOrNull() ?: 0.0,
             lowStockThreshold = state.lowStockThreshold.toDoubleOrNull() ?: 0.0,
+            maxPerOrder = state.maxPerOrder.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0,
             voiceAlias = state.voiceAlias.trim().ifBlank { null },
             imageUrls = imageUploader.readyUrls(),
             variants = state.variants
@@ -269,6 +294,7 @@ class AddEditInventoryViewModel(
                 costPrice = product.costPrice.toString(),
                 stockQty = product.stockQty.toString(),
                 lowStockThreshold = product.lowStockThreshold.toString(),
+                maxPerOrder = product.maxPerOrder.takeIf { it > 0.0 }?.toString().orEmpty(),
                 voiceAlias = product.voiceAlias.orEmpty(),
                 brandName = product.brandName,
                 variants = product.variants.map { it.toDto() },

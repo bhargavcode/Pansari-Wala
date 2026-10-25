@@ -96,6 +96,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import androidx.compose.ui.platform.InterceptPlatformTextInput
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -282,6 +284,7 @@ fun FloatingKeyboardHost(
 
 /** Read-only field that takes input from the floating keyboard; the system keyboard never opens. */
 @Composable
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 internal fun FloatingKeyboardTextField(
     controller: FloatingKeyboardController,
     value: String,
@@ -343,11 +346,14 @@ internal fun FloatingKeyboardTextField(
         }
     }
     DisposableEffect(target) { onDispose { controller.detach(target) } }
-    M3OutlinedTextField(
-        value, onValueChange, modifier.bringIntoViewRequester(bringIntoView), true, true, textStyle, label,
-        placeholder, leadingIcon, trailingIcon, prefix, suffix, supportingText, isError, visualTransformation,
-        keyboardOptions, keyboardActions, singleLine, maxLines, minLines, source, shape, colors,
-    )
+    // Editable (so the caret blinks and hardware keys work) but the platform IME session never starts.
+    InterceptPlatformTextInput(interceptor = { _, _ -> awaitCancellation() }) {
+        M3OutlinedTextField(
+            value, onValueChange, modifier.bringIntoViewRequester(bringIntoView), true, false, textStyle, label,
+            placeholder, leadingIcon, trailingIcon, prefix, suffix, supportingText, isError, visualTransformation,
+            keyboardOptions, keyboardActions, singleLine, maxLines, minLines, source, shape, colors,
+        )
+    }
 }
 
 private fun runImeAction(action: ImeAction, actions: KeyboardActions, focusManager: FocusManager) {

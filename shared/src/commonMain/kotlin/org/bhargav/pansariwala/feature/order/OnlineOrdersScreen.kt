@@ -1,5 +1,11 @@
 package org.bhargav.pansariwala.feature.order
 
+import pansariwala.shared.generated.resources.action_send_otp
+import pansariwala.shared.generated.resources.rider_verify_add
+import pansariwala.shared.generated.resources.rider_rate_hint
+import pansariwala.shared.generated.resources.rider_rate_label
+import org.bhargav.pansariwala.designsystem.OtpStepState
+import org.bhargav.pansariwala.designsystem.OtpStepSection
 import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.background
@@ -430,8 +436,12 @@ fun OnlineOrdersScreen(
         }
         }
         if (state.assignOrderId != null) {
+            val partnerOtp by viewModel.partnerOtp.state.collectAsStateWithLifecycle()
             AssignOwnPartnerSheet(
                 state = state,
+                otp = partnerOtp,
+                onOtpCode = viewModel.partnerOtp::onCode,
+                onOtpResend = { viewModel.partnerOtp.send() },
                 onAssign = viewModel::assignPartner,
                 onRemove = viewModel::removePartner,
                 onOpenForm = viewModel::openPartnerForm,
@@ -690,7 +700,7 @@ private fun OnlineOrderActions(
         OrderStatus.ACCEPTED -> onPacking
         OrderStatus.PACKING -> if (order.selfPickup) onMarkCollected else onRequestPartner
         OrderStatus.RETURNING_TO_SHOP -> onAcceptReturn
-        OrderStatus.RETURNED_TO_SHOP -> onMarkCollected
+        OrderStatus.RETURNED_TO_SHOP -> onCompleteSelfDelivery
         else -> null
     }
     if (nextAction == null && !order.canCancel) return
@@ -836,6 +846,9 @@ fun NewOrdersBadge(count: Int) {
 @Composable
 private fun AssignOwnPartnerSheet(
     state: OnlineOrdersUiState,
+    otp: OtpStepState,
+    onOtpCode: (String) -> Unit,
+    onOtpResend: () -> Unit,
     onAssign: (String) -> Unit,
     onRemove: (String) -> Unit,
     onOpenForm: () -> Unit,
@@ -895,11 +908,13 @@ private fun AssignOwnPartnerSheet(
                     Text(stringResource(Res.string.own_partner_add))
                 }
             } else {
+                val locked = otp.codeSent
                 OutlinedTextField(
                     value = form.name,
                     onValueChange = { v -> onFormChange { it.copy(name = v) } },
                     label = { Text(stringResource(Res.string.field_name)) },
                     singleLine = true,
+                    enabled = !locked,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
@@ -907,6 +922,7 @@ private fun AssignOwnPartnerSheet(
                     onValueChange = { v -> onFormChange { it.copy(phone = v.filter { c -> c.isDigit() || c == '+' }.take(13)) } },
                     label = { Text(stringResource(Res.string.field_phone)) },
                     singleLine = true,
+                    enabled = !locked,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -915,8 +931,32 @@ private fun AssignOwnPartnerSheet(
                     onValueChange = { v -> onFormChange { it.copy(vehicleReg = v.uppercase()) } },
                     label = { Text(stringResource(Res.string.field_vehicle_reg_optional)) },
                     singleLine = true,
+                    enabled = !locked,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedTextField(
+                    value = form.rate,
+                    onValueChange = { v -> onFormChange { it.copy(rate = v.filter { c -> c.isDigit() || c == '.' }.take(7)) } },
+                    label = { Text(stringResource(Res.string.rider_rate_label)) },
+                    supportingText = { Text(stringResource(Res.string.rider_rate_hint)) },
+                    singleLine = true,
+                    enabled = !locked,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (locked) {
+                    OtpStepSection(
+                        state = otp,
+                        submitLabel = stringResource(Res.string.rider_verify_add),
+                        onCode = onOtpCode,
+                        onResend = onOtpResend,
+                        onSubmit = onSave,
+                    )
+                    OutlinedButton(onClick = onCloseForm, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(Res.string.action_cancel))
+                    }
+                } else {
+                otp.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (state.shopPartners.isNotEmpty()) {
                         OutlinedButton(onClick = onCloseForm, modifier = Modifier.weight(1f)) {
@@ -925,11 +965,12 @@ private fun AssignOwnPartnerSheet(
                     }
                     Button(
                         onClick = onSave,
-                        enabled = form.valid && !state.partnersLoading,
+                        enabled = form.valid && !state.partnersLoading && !otp.busy,
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(Res.string.action_save))
+                        Text(stringResource(Res.string.action_send_otp))
                     }
+                }
                 }
             }
         }

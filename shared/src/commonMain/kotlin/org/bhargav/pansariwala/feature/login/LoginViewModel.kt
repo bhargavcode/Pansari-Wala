@@ -15,7 +15,6 @@ import org.bhargav.pansariwala.domain.auth.LoginUseCase
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.util.AppConstants
 import pansariwala.shared.generated.resources.Res
-import pansariwala.shared.generated.resources.error_forgot_password_later
 import pansariwala.shared.generated.resources.error_invalid_credentials
 import pansariwala.shared.generated.resources.error_login_failed
 import pansariwala.shared.generated.resources.error_login_locked
@@ -27,6 +26,8 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val errorMessage: UiText? = null,
     val isPasswordVisible: Boolean = false,
+    val showForgotPassword: Boolean = false,
+    val notice: UiText? = null,
 )
 
 sealed interface LoginEvent {
@@ -63,10 +64,12 @@ class LoginViewModel(
                 screen = "login",
             ),
         )
-        _uiState.update {
-            it.copy(errorMessage = UiText.res(Res.string.error_forgot_password_later))
-        }
+        _uiState.update { it.copy(showForgotPassword = true, errorMessage = null, notice = null) }
     }
+
+    fun dismissForgotPassword() = _uiState.update { it.copy(showForgotPassword = false) }
+
+    fun onPasswordReset(notice: UiText) = _uiState.update { it.copy(showForgotPassword = false, password = "", notice = notice) }
 
     fun onLoginClick() {
         analytics.log(

@@ -1,5 +1,9 @@
 package org.bhargav.pansariwala.feature.inventory
 
+import kotlinx.coroutines.flow.first
+import org.bhargav.pansariwala.voice.SpeechToText
+import org.bhargav.pansariwala.feature.catalog.looksLikeBarcode
+import org.bhargav.pansariwala.feature.catalog.ProductFinder
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -49,7 +53,25 @@ class InventoryListViewModel(
     private val shopRepository: ShopRepository,
     private val preferences: AppPreferences,
     private val api: PansariApi,
+    speech: SpeechToText,
 ) : ViewModel() {
+
+    /** Voice / barcode lookup; a pick opens that product like tapping its row. */
+    val finder = ProductFinder(speech, viewModelScope) {
+        shopRepository.observeProducts(preferences.getShopId() ?: SeedData.DEMO_SHOP_ID).first()
+    }
+
+    /** Enter in the search field: a hardware scanner's code, otherwise a name / brand / category search. */
+    fun onSearchSubmit() {
+        val text = _uiState.value.searchText.trim()
+        if (text.isEmpty()) return
+        if (looksLikeBarcode(text)) finder.onBarcode(text) else finder.search(text)
+    }
+
+    override fun onCleared() {
+        finder.stopListening()
+        super.onCleared()
+    }
 
     private val _uiState = MutableStateFlow(InventoryListUiState())
     val uiState: StateFlow<InventoryListUiState> = _uiState.asStateFlow()

@@ -79,6 +79,13 @@ fun LoginScreen(
         },
         isLoading = uiState.isLoading,
     ) {
+    if (uiState.showForgotPassword) {
+        ForgotPasswordSheet(
+            initialUsername = uiState.identifier,
+            onDismiss = viewModel::dismissForgotPassword,
+            onDone = viewModel::onPasswordReset,
+        )
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthClass = when {
             maxWidth < 600.dp -> WindowWidthClass.Compact
@@ -223,6 +230,9 @@ private fun LoginFormColumn(
                 modifier = Modifier.align(Alignment.End),
             ) {
                 Text(stringResource(Res.string.login_forgot_password))
+            }
+            uiState.notice?.let {
+                Text(it.asString(), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
             }
 
             Button(

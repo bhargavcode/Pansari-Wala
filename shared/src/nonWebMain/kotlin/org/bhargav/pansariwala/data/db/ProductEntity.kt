@@ -52,6 +52,8 @@ data class ProductEntity(
     val brandTranslationsJson: String = "",
     /** Epoch ms when moved to the products bin; null for live products. */
     val deletedAt: Long? = null,
+    @ColumnInfo(defaultValue = "0")
+    val maxPerOrder: Double = 0.0,
 )
 
 /** Pull cursors and other small sync bookmarks. */

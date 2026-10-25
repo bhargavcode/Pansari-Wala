@@ -247,10 +247,12 @@ class KtorPansariApi(
         query: String,
         page: Int,
         pageSize: Int,
+        inStockOnly: Boolean,
     ): org.bhargav.pansariwala.domain.model.ProductPage =
         client.get("shops/$shopId/products") {
             categoryId?.let { parameter("categoryId", it) }
             if (query.isNotBlank()) parameter("query", query)
+            if (inStockOnly) parameter("inStock", true)
             parameter("page", page)
             parameter("size", pageSize)
         }.body<ProductPageDto>().toModel()
@@ -485,6 +487,15 @@ class KtorPansariApi(
     override suspend fun shopPartners(): List<ShopPartnerDto> =
         client.get("shop/partners").body()
 
+    override suspend fun updateShopPartner(id: String, request: ShopPartnerUpdateRequest): ShopPartnerDto =
+        client.put("shop/partners/$id") { setBody(request) }.body()
+
+    override suspend fun payShopPartner(id: String, request: ShopPartnerPayoutRequest): ShopPartnerDto =
+        client.post("shop/partners/$id/payouts") { setBody(request) }.body()
+
+    override suspend fun shopPartnerLedger(id: String): ShopPartnerLedgerDto =
+        client.get("shop/partners/$id/ledger").body()
+
     override suspend fun addShopPartner(request: ShopPartnerRequest): ShopPartnerDto =
         client.post("shop/partners") { setBody(request) }.body()
 
@@ -506,6 +517,17 @@ class KtorPansariApi(
 
     override suspend fun updateShopProfile(patch: ShopProfilePatch): ShopProfileDto =
         client.put("shop/profile") { setBody(patch) }.body()
+
+    override suspend fun updateShopUpi(upiId: String, otp: String, sessionId: String): ShopProfileDto =
+        client.put("shop/upi") { setBody(ShopUpiUpdateRequest(upiId, otp, sessionId)) }.body()
+
+    override suspend fun resetShopPassword(username: String, phone: String, otp: String, sessionId: String, newPassword: String) {
+        client.post("auth/shop/password/reset") { setBody(PasswordResetRequest(username, phone, otp, sessionId, newPassword)) }
+    }
+
+    override suspend fun changeShopPassword(currentPassword: String, newPassword: String) {
+        client.post("shop/account/password") { setBody(PasswordChangeRequest(currentPassword, newPassword)) }
+    }
 
     override suspend fun shopCategoryOrder(): ShopCategoryOrderDto = client.get("shop/category-order").body()
 

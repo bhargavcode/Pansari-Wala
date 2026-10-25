@@ -5,4 +5,5 @@ internal actual object BrowserHistory {
     actual fun push() = Unit
     actual fun go(delta: Int) = Unit
     actual fun listen(onPop: () -> Unit): () -> Unit = {}
+    actual fun onFirstInteraction(block: () -> Unit) = Unit
 }

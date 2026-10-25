@@ -9,6 +9,9 @@ private fun addPopListener(callback: () -> Unit): JsAny =
 
 private fun removePopListener(handler: JsAny): Unit = js("window.removeEventListener('popstate', handler)")
 
+private fun addFirstInteraction(callback: () -> Unit): Unit =
+    js("{ let f = false; const h = () => { if (!f) { f = true; callback(); } }; window.addEventListener('pointerdown', h); window.addEventListener('keydown', h); }")
+
 internal actual object BrowserHistory {
     actual val supported: Boolean = true
 
@@ -20,4 +23,6 @@ internal actual object BrowserHistory {
         val handler = addPopListener(onPop)
         return { removePopListener(handler) }
     }
+
+    actual fun onFirstInteraction(block: () -> Unit) = addFirstInteraction(block)
 }

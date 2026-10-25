@@ -259,6 +259,7 @@ private fun Product.toEntity() = ProductEntity(
     translationsJson = if (translations.isEmpty()) "" else variantJson.encodeToString(translations),
     brandTranslationsJson = if (brandTranslations.isEmpty()) "" else variantJson.encodeToString(brandTranslations),
     deletedAt = deletedAt,
+    maxPerOrder = maxPerOrder,
 )
 
 private fun ShopProductFilter.activeArg(): Int = when (status) {
@@ -306,6 +307,7 @@ private fun ProductEntity.toDomain() = Product(
     translations = decodeTranslations(translationsJson),
     brandTranslations = decodeTranslations(brandTranslationsJson),
     deletedAt = deletedAt,
+    maxPerOrder = maxPerOrder,
 )
 
 private fun UserEntity.toUser() = ShopUser(

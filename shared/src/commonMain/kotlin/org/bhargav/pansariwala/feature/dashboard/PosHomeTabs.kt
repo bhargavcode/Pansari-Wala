@@ -1,5 +1,11 @@
 package org.bhargav.pansariwala.feature.dashboard
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import pansariwala.shared.generated.resources.pwd_change_subtitle
+import pansariwala.shared.generated.resources.pwd_change_title
+import androidx.compose.material.icons.filled.Lock
 import pansariwala.shared.generated.resources.app_settings_subtitle
 import pansariwala.shared.generated.resources.app_settings_title
 import pansariwala.shared.generated.resources.pos_settings_subtitle
@@ -495,6 +501,20 @@ fun PosMoreTab(
             subtitle = stringResource(Res.string.app_settings_subtitle),
             onClick = onOpenSettings,
         )
+        var showChangePassword by remember { mutableStateOf(false) }
+        SettingsEntryCard(
+            icon = Icons.Default.Lock,
+            accent = Color(0xFF00897B),
+            title = stringResource(Res.string.pwd_change_title),
+            subtitle = stringResource(Res.string.pwd_change_subtitle),
+            onClick = { showChangePassword = true },
+        )
+        if (showChangePassword) {
+            org.bhargav.pansariwala.feature.login.ChangePasswordDialog(
+                onDismiss = { showChangePassword = false },
+                onDone = { showChangePassword = false },
+            )
+        }
         Text(
             stringResource(Res.string.pos_more_shortcuts),
             style = MaterialTheme.typography.titleMedium,

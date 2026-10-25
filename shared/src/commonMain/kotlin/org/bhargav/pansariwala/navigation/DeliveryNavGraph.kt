@@ -96,7 +96,7 @@ private fun resumePartnerJob(order: Order): DeliveryRoute {
 
 @Composable
 fun DeliveryNavGraph() {
-    val backStack = rememberNavBackStack(deliveryNavConfig, DeliveryRoute.Splash)
+    val backStack = retainedAcrossRemount("delivery", rememberNavBackStack(deliveryNavConfig, DeliveryRoute.Splash))
     val snackbarHostState = remember { SnackbarHostState() }
     val sessionExpiredMessage = stringResource(Res.string.error_session_expired_login)
     val loginViewModel: PartnerLoginViewModel = koinViewModel()

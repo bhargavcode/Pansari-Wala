@@ -1,5 +1,8 @@
 package org.bhargav.pansariwala.feature.user
 
+import androidx.compose.material3.FilterChip
+import pansariwala.shared.generated.resources.catalog_filter_all
+import pansariwala.shared.generated.resources.catalog_filter_in_stock
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -331,6 +334,18 @@ fun ShopCategoryScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 singleLine = true,
             )
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !state.inStockOnly,
+                    onClick = { viewModel.setInStockOnly(false) },
+                    label = { Text(stringResource(Res.string.catalog_filter_all)) },
+                )
+                FilterChip(
+                    selected = state.inStockOnly,
+                    onClick = { viewModel.setInStockOnly(true) },
+                    label = { Text(stringResource(Res.string.catalog_filter_in_stock)) },
+                )
+            }
             if (state.totalCount > 0) {
                 Text(
                     stringResource(Res.string.catalog_product_count, state.totalCount.toString()),

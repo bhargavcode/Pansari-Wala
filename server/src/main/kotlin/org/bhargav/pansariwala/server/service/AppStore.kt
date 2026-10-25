@@ -4,6 +4,7 @@ import com.mongodb.client.model.Filters.and
 import com.mongodb.client.model.Filters.exists
 import com.mongodb.client.model.Filters.eq
 import com.mongodb.client.model.Filters.regex
+import com.mongodb.client.model.Filters.elemMatch
 import com.mongodb.client.model.Filters.gt
 import com.mongodb.client.model.Filters.gte
 import com.mongodb.client.model.Updates.inc
@@ -64,6 +65,10 @@ import org.bhargav.pansariwala.server.db.ShopUserDoc
 import org.bhargav.pansariwala.server.db.ShopPartnerDoc
 import org.bhargav.pansariwala.server.dto.ShopPartnerDto
 import org.bhargav.pansariwala.server.dto.ShopPartnerRequest
+import org.bhargav.pansariwala.server.dto.ShopPartnerLedgerEntryDto
+import org.bhargav.pansariwala.server.dto.ShopPartnerLedgerDto
+import org.bhargav.pansariwala.server.dto.ShopPartnerPayoutRequest
+import org.bhargav.pansariwala.server.dto.ShopPartnerUpdateRequest
 import org.bhargav.pansariwala.server.db.ShopVisitDoc
 import org.bhargav.pansariwala.server.db.TxnDoc
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
@@ -178,6 +183,7 @@ import com.mongodb.client.model.Accumulators
 import com.mongodb.client.model.Aggregates
 
 private const val QUERY_MAX_MS = 8_000L
+private val UPI_ID_REGEX = Regex("^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9.-]{1,63}$")
 private const val PRICE_HISTORY_WINDOW_MS = 366L * 24 * 60 * 60 * 1000
 private const val POS_SYNC_PAGE_MAX = 500
 private const val MAX_CATALOG_PAGE_SIZE = 50
@@ -242,6 +248,8 @@ private const val MAX_MIN_USER_SEARCH_RADIUS_KM = 49.0
 private const val DEFAULT_MAP_LAT = 28.6139
 private const val DEFAULT_MAP_LNG = 77.2090
 private const val MIN_SHOP_PASSWORD = 4
+private const val MAX_RIDER_PAYOUT_INR = 10_000.0
+private const val MAX_PAYOUT_NOTE = 200
 private const val MIN_ADMIN_PASSWORD = 6
 private const val LOGIN_SCOPE_SHOP = "shop"
 private const val LOGIN_SCOPE_ADMIN = "admin"
@@ -282,6 +290,7 @@ class AppStore(
     private val shopCol = mongo.db.getCollection<ShopDoc>("shops")
     private val shopUserCol = mongo.db.getCollection<ShopUserDoc>("shop_users")
     private val shopPartnerCol = mongo.db.getCollection<ShopPartnerDoc>("shop_partners")
+    private val shopPartnerPayoutCol = mongo.db.getCollection<org.bhargav.pansariwala.server.db.ShopPartnerPayoutDoc>("shop_partner_payouts")
     private val customerCol = mongo.db.getCollection<CustomerDoc>("customers")
     private val partnerCol = mongo.db.getCollection<PartnerDoc>("partners")
     private val categoryCol = mongo.db.getCollection<CategoryDoc>("master_categories")
@@ -387,6 +396,33 @@ class AppStore(
         val next = newPassword.trim()
         require(next.length >= MIN_ADMIN_PASSWORD) { "New password must be at least $MIN_ADMIN_PASSWORD characters" }
         adminUserCol.updateOne(eq("_id", adminId), set("passwordHash", security.hashPassword(next)))
+    }
+
+    /**
+     * Forgot password for a POS login: the code goes to the shop owner's mobile, or to the login itself when the
+     * username is a mobile number. The OTP is checked before the phone match so usernames cannot be probed.
+     */
+    fun resetShopPassword(username: String, rawPhone: String, code: String, sessionId: String?, newPassword: String) {
+        val next = newPassword.trim()
+        require(next.length >= MIN_SHOP_PASSWORD) { "New password must be at least $MIN_SHOP_PASSWORD characters" }
+        val phone = otp.verify(rawPhone, code, sessionId)
+        val key = username.trim()
+        val row = shopUserCol.find(eq("username", key)).firstOrNull()
+            ?: shopUserCol.find(usernameFilter(key)).firstOrNull()
+            ?: error("Mobile number does not match this login")
+        val ownerPhone = shopCol.find(eq("_id", row.shopId)).firstOrNull()?.ownerPhone.orEmpty()
+        val allowed = setOf(Security.normalizePhone(ownerPhone), Security.normalizePhone(row.username)).filter { it.length == 10 }
+        require(phone in allowed) { "Mobile number does not match this login" }
+        shopUserCol.updateOne(eq("_id", row.id), set("passwordHash", security.hashPassword(next)))
+        loginGuard.onSuccess(LOGIN_SCOPE_SHOP, key)
+    }
+
+    fun changeShopPassword(userId: String, currentPassword: String, newPassword: String) {
+        val row = shopUserCol.find(eq("_id", userId)).firstOrNull() ?: error("User not found")
+        require(security.passwordMatches(currentPassword.trim(), row.passwordHash)) { "Current password is incorrect" }
+        val next = newPassword.trim()
+        require(next.length >= MIN_SHOP_PASSWORD) { "New password must be at least $MIN_SHOP_PASSWORD characters" }
+        shopUserCol.updateOne(eq("_id", userId), set("passwordHash", security.hashPassword(next)))
     }
 
     /** Cached for [PLATFORM_SETTINGS_CACHE_MS]; quote/checkout hit this on every request. */
@@ -899,7 +935,7 @@ class AppStore(
             offerCount = liveOffers.size,
             topOffers = liveOffers.sortedByDescending { it.headlineRank() }.take(TOP_OFFERS_ON_CARD).map { it.title },
             discountPercent = discountPercent,
-            upiId = upiId.ifBlank { config.defaultShopUpi },
+            upiId = directUpi().orEmpty(),
             deliveryRadiusKm = deliveryRadiusKm,
             shopType = shopType,
             shopTypes = allShopTypes(),
@@ -1061,10 +1097,21 @@ class AppStore(
         return shopCategoryOrder(shopId)
     }
 
-    fun catalogPage(shopId: String, categoryId: String?, query: String, page: Int, pageSize: Int): ProductPageDto {
+    fun catalogPage(
+        shopId: String,
+        categoryId: String?,
+        query: String,
+        page: Int,
+        pageSize: Int,
+        inStockOnly: Boolean = false,
+    ): ProductPageDto {
         val size = pageSize.coerceIn(1, MAX_CATALOG_PAGE_SIZE)
         val safePage = page.coerceAtLeast(0)
-        val filter = productFilter(shopId, categoryId, query)
+        val base = productFilter(shopId, categoryId, query)
+        val filter = if (!inStockOnly) base else and(
+            base,
+            or(gt("stockQty", 0.0), elemMatch("variants", and(gt("stockQty", 0.0), ne("active", false)))),
+        )
         val total = productCol.countDocuments(filter).toInt()
         val items = productCol.find(filter)
             .sort(Sorts.ascending("name", "_id"))
@@ -1435,8 +1482,19 @@ class AppStore(
                 require(kotlin.math.abs(line.quantity - kotlin.math.round(line.quantity)) < QTY_EPSILON) { "Invalid quantity" }
             }
             ResolvedLine(product, variant, line.quantity)
+        }.also { resolved ->
+            resolved.groupBy { it.product.id }.values.forEach { group ->
+                val product = group.first().product
+                val limit = product.maxPerOrder
+                require(limit <= 0 || group.sumOf { it.quantity } <= limit + QTY_EPSILON) {
+                    "${product.name}: you can order at most ${formatQty(limit)} ${product.unit.lowercase()} per order."
+                }
+            }
         }
     }
+
+    private fun formatQty(value: Double): String =
+        if (kotlin.math.abs(value - kotlin.math.round(value)) < QTY_EPSILON) kotlin.math.round(value).toLong().toString() else value.toString()
 
     private fun isLooseUnit(unit: String): Boolean = unit.uppercase() in LOOSE_UNITS
 
@@ -2413,6 +2471,7 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.shopId == shopId) { "Forbidden" }
         if (status == "PACKING") require(row.status == "ACCEPTED" || row.status == "PACKING") { "Accept first" }
+        require(row.status != "RETURNED_TO_SHOP") { "Invalid delivery OTP" }
         orderCol.updateOne(eq("_id", orderId), set("status", status))
         publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
@@ -2427,7 +2486,8 @@ class AppStore(
         val refundId = refundPayment(row, refundPaise, reasonText)
         restoreStock(row.items)
         deliveryOfferCol.find(eq("orderId", orderId)).toList().forEach { offer ->
-            if (offer.status == "RINGING" || offer.status == "ACCEPTED") {
+            val keepsReturnEarning = offer.status == "ACCEPTED" && row.returnAcceptedAt != null
+            if ((offer.status == "RINGING" || offer.status == "ACCEPTED") && !keepsReturnEarning) {
                 deliveryOfferCol.replaceOne(eq("_id", offer.id), offer.copy(status = "CANCELLED"))
             }
         }
@@ -2536,10 +2596,82 @@ class AppStore(
         return getOrder(orderId)
     }
 
-    fun shopPartners(shopId: String): List<ShopPartnerDto> =
-        shopPartnerCol.find(eq("shopId", shopId)).sort(Sorts.ascending("name")).toList().map { it.toDto() }
+    fun shopPartners(shopId: String): List<ShopPartnerDto> {
+        val riders = shopPartnerCol.find(eq("shopId", shopId)).sort(Sorts.ascending("name")).toList()
+        if (riders.isEmpty()) return emptyList()
+        val earned = orderCol.find(and(eq("shopId", shopId), ownRiderPaidFilter())).toList().groupBy { it.ownPartnerId }
+        val paid = shopPartnerPayoutCol.find(eq("shopId", shopId)).toList().groupBy { it.shopPartnerId }
+        return riders.map { it.toDto(earned[it.id].orEmpty(), paid[it.id].orEmpty().sumOf { p -> p.amountInr }) }
+    }
 
-    /** Adds a rider to the shop's roster; links to a partner-app account when the phone matches one. */
+    /** Orders a shop owes its own rider for: delivered, or returned to the shop and accepted there. */
+    private fun ownRiderPaidFilter(): Bson = and(
+        ne("ownPartnerId", null),
+        or(`in`("status", listOf("DELIVERED", "COMPLETED")), ne("returnAcceptedAt", null)),
+    )
+
+    private fun shopPartnerSummary(shopId: String, id: String): ShopPartnerDto {
+        val rider = shopPartnerCol.find(and(eq("_id", id), eq("shopId", shopId))).firstOrNull()
+            ?: error("Delivery partner not found")
+        val orders = orderCol.find(and(eq("shopId", shopId), eq("ownPartnerId", id), ownRiderPaidFilter())).toList()
+        val paid = shopPartnerPayoutCol.find(and(eq("shopId", shopId), eq("shopPartnerId", id))).toList().sumOf { it.amountInr }
+        return rider.toDto(orders, paid)
+    }
+
+    fun updateShopPartner(shopId: String, id: String, request: ShopPartnerUpdateRequest): ShopPartnerDto {
+        val name = request.name.trim()
+        require(name.length >= 2) { "Full name is required" }
+        val rate = validRiderPayout(request.payoutPerDeliveryInr)
+        val result = shopPartnerCol.updateOne(
+            and(eq("_id", id), eq("shopId", shopId)),
+            combine(set("name", name), set("vehicleReg", Security.normalizeReg(request.vehicleReg)), set("payoutPerDeliveryInr", rate)),
+        )
+        require(result.matchedCount > 0) { "Delivery partner not found" }
+        return shopPartnerSummary(shopId, id)
+    }
+
+    /** Records cash/UPI the shop handed to its rider; cannot exceed what the rider is owed. */
+    fun payShopPartner(shopId: String, id: String, request: ShopPartnerPayoutRequest): ShopPartnerDto {
+        val amount = request.amountInr
+        require(amount.isFinite() && amount > 0.0) { "Enter a valid amount" }
+        val before = shopPartnerSummary(shopId, id)
+        require(amount <= before.balanceInr + 0.001) { "Amount is more than the rider's pending balance" }
+        shopPartnerPayoutCol.insertOne(
+            org.bhargav.pansariwala.server.db.ShopPartnerPayoutDoc(
+                id = security.randomId("spp"),
+                shopId = shopId,
+                shopPartnerId = id,
+                amountInr = amount,
+                note = request.note.trim().take(MAX_PAYOUT_NOTE),
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
+        return shopPartnerSummary(shopId, id)
+    }
+
+    fun shopPartnerLedger(shopId: String, id: String): ShopPartnerLedgerDto {
+        val summary = shopPartnerSummary(shopId, id)
+        val earnings = orderCol.find(and(eq("shopId", shopId), eq("ownPartnerId", id), ownRiderPaidFilter())).toList().map {
+            ShopPartnerLedgerEntryDto(
+                kind = "EARNING",
+                amountInr = it.ownPartnerPayoutInr,
+                atEpochMs = it.returnAcceptedAt ?: it.createdAt,
+                orderId = it.id,
+                returned = it.status == "RETURNED_TO_SHOP",
+            )
+        }
+        val payouts = shopPartnerPayoutCol.find(and(eq("shopId", shopId), eq("shopPartnerId", id))).toList().map {
+            ShopPartnerLedgerEntryDto(kind = "PAYOUT", amountInr = it.amountInr, atEpochMs = it.createdAt, note = it.note)
+        }
+        return ShopPartnerLedgerDto(summary, (earnings + payouts).sortedByDescending { it.atEpochMs })
+    }
+
+    private fun validRiderPayout(value: Double): Double {
+        require(value.isFinite() && value in 0.0..MAX_RIDER_PAYOUT_INR) { "Enter a valid amount" }
+        return value
+    }
+
+    /** Adds a rider after the rider's mobile is OTP-verified; links to a partner-app account when one exists. */
     fun addShopPartner(shopId: String, request: ShopPartnerRequest): ShopPartnerDto {
         val name = request.name.trim()
         val phone = Security.normalizePhone(request.phone)
@@ -2548,6 +2680,8 @@ class AppStore(
         require(shopPartnerCol.find(and(eq("shopId", shopId), eq("phone", phone))).firstOrNull() == null) {
             "This delivery partner is already added"
         }
+        val rate = validRiderPayout(request.payoutPerDeliveryInr)
+        otp.verify(phone, request.otp, request.sessionId)
         val appPartner = partnerCol.find(eq("phone", phone)).projection(partnerLiteProjection).firstOrNull()
         val doc = ShopPartnerDoc(
             id = security.randomId("spt"),
@@ -2557,12 +2691,15 @@ class AppStore(
             vehicleReg = Security.normalizeReg(request.vehicleReg),
             partnerId = appPartner?.id,
             createdAt = System.currentTimeMillis(),
+            payoutPerDeliveryInr = rate,
         )
         shopPartnerCol.insertOne(doc)
         return doc.toDto()
     }
 
     fun removeShopPartner(shopId: String, id: String) {
+        val summary = runCatching { shopPartnerSummary(shopId, id) }.getOrNull() ?: return
+        require(summary.balanceInr <= 0.001) { "Settle the rider's pending balance before removing" }
         shopPartnerCol.deleteOne(and(eq("_id", id), eq("shopId", shopId)))
     }
 
@@ -2602,24 +2739,62 @@ class AppStore(
                 add(set("partnerProgress", "SELF_DELIVERY"))
             }
             add(set("ownPartnerName", rider.name))
+            add(set("ownPartnerId", rider.id))
+            add(set("ownPartnerPayoutInr", rider.payoutPerDeliveryInr))
             add(set("ownPartnerPhone", rider.phone))
             add(set("ownPartnerVehicle", rider.vehicleReg))
             if (packed != null) add(set("packedProductIds", packed))
             if (row.deliveryOtp.isNullOrBlank()) add(set("deliveryOtp", security.deliveryOtp()))
         }
         orderCol.updateOne(eq("_id", orderId), combine(updates))
+        if (appPartnerId != null) {
+            // Shows the shop's fixed rate in the rider's partner-app earnings (paid by the shop, not the platform).
+            deliveryOfferCol.replaceOne(
+                eq("_id", "own_$orderId"),
+                DeliveryOfferDoc(
+                    id = "own_$orderId",
+                    orderId = orderId,
+                    shopId = shopId,
+                    status = "ACCEPTED",
+                    payout = rider.payoutPerDeliveryInr,
+                    shopDistanceKm = 0.0,
+                    dropDistanceKm = 0.0,
+                    expiresAt = System.currentTimeMillis(),
+                    acceptedBy = appPartnerId,
+                    dropAddress = row.deliveryAddress.orEmpty(),
+                ),
+                ReplaceOptions().upsert(true),
+            )
+        }
         publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
     }
 
-    private fun ShopPartnerDoc.toDto() = ShopPartnerDto(id, name, phone, vehicleReg, onPartnerApp = partnerId != null)
+    private fun ShopPartnerDoc.toDto(paidOrders: List<OrderDoc> = emptyList(), paidInr: Double = 0.0): ShopPartnerDto {
+        val earned = paidOrders.sumOf { it.ownPartnerPayoutInr }
+        return ShopPartnerDto(
+            id, name, phone, vehicleReg,
+            onPartnerApp = partnerId != null,
+            payoutPerDeliveryInr = payoutPerDeliveryInr,
+            deliveries = paidOrders.size,
+            earnedInr = earned,
+            paidInr = paidInr,
+            balanceInr = (earned - paidInr).coerceAtLeast(0.0),
+        )
+    }
 
     /** Completes a self-delivered order with the customer's 4-digit delivery OTP. */
     fun completeSelfDelivery(shopId: String, orderId: String, otp: String): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.shopId == shopId) { "Forbidden" }
-        require(row.deliveryMode == "SELF" && row.status == "ON_THE_WAY") { "Order is not out for self delivery" }
+        val returnPickup = row.status == "RETURNED_TO_SHOP"
+        require(returnPickup || (row.deliveryMode == "SELF" && row.status == "ON_THE_WAY")) { "Order is not out for self delivery" }
         require(otp.trim().length == 4 && row.deliveryOtp == otp.trim()) { "Invalid delivery OTP" }
+        if (returnPickup) {
+            orderCol.updateOne(eq("_id", orderId), set("status", "DELIVERED"))
+            publishOrderUpdate(orderId, row.status)
+            return getOrder(orderId)
+        }
         val shop = shopById(shopId)
         val distanceKm = haversine(shop.lat, shop.lng, row.customerLat ?: shop.lat, row.customerLng ?: shop.lng)
         val durationMin = ((System.currentTimeMillis() - row.createdAt) / 60_000).toInt().coerceAtLeast(1)
@@ -2809,11 +2984,12 @@ class AppStore(
         val end = start + 86_400_000
         val deliveredStatuses = listOf("DELIVERED", "COMPLETED")
         val deliveredFilter = and(eq("partnerId", partnerId), `in`("status", deliveredStatuses))
-        val todayFilter = and(deliveredFilter, gte("createdAt", start), lt("createdAt", end))
+        val paidFilter = partnerPaidJobsFilter(partnerId)
+        val todayFilter = and(paidFilter, gte("createdAt", start), lt("createdAt", end))
         val deliveredCount = orderCol.countDocuments(deliveredFilter).toInt()
         val todayOrderIds = orderIdsMatching(todayFilter)
         val todayEarnings = sumPartnerPayout(partnerId, todayOrderIds)
-        val allDeliveredIds = orderIdsMatching(deliveredFilter)
+        val allDeliveredIds = orderIdsMatching(paidFilter)
         val totalEarnings = sumPartnerPayout(partnerId, allDeliveredIds)
         return PartnerProfileDto(
             id = partner.id,
@@ -2831,6 +3007,12 @@ class AppStore(
             profilePhoto = assets.toUrl(partner.profilePhoto),
         )
     }
+
+    /** Jobs a partner is paid for: delivered, or returned to the shop and accepted there. */
+    private fun partnerPaidJobsFilter(partnerId: String): Bson = and(
+        eq("partnerId", partnerId),
+        or(`in`("status", listOf("DELIVERED", "COMPLETED")), ne("returnAcceptedAt", null)),
+    )
 
     private fun orderIdsMatching(filter: Bson): List<String> =
         orderIdCol.find(filter)
@@ -2875,9 +3057,7 @@ class AppStore(
     /** [fromMs]/[toMs] bound the range totals as [fromMs, toMs); absent bounds default to today. */
     fun partnerEarnings(partnerId: String, fromMs: Long? = null, toMs: Long? = null): PartnerEarningsDto {
         val start = startOfToday()
-        val delivered = orderCol.find(
-            and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))),
-        ).toList()
+        val delivered = orderCol.find(partnerPaidJobsFilter(partnerId)).toList()
         val deliveredIds = delivered.map { it.id }.toSet()
         val acceptedOffers = deliveryOfferCol.find(eq("acceptedBy", partnerId)).toList()
         val totalEarnings = acceptedOffers.filter { it.orderId in deliveredIds }.sumOf { it.payout }
@@ -3064,6 +3244,9 @@ class AppStore(
         val updates = buildList {
             add(set("status", "RETURNED_TO_SHOP"))
             add(set("partnerProgress", ""))
+            val earnsTrip = (row.deliveryMode == "PARTNER" && row.partnerId != null) || row.ownPartnerId != null
+            if (earnsTrip) add(set("returnAcceptedAt", System.currentTimeMillis()))
+            if (row.deliveryOtp.isNullOrBlank()) add(set("deliveryOtp", security.deliveryOtp()))
             if (ownDelivery) {
                 add(set("cancelReason", reason?.trim()?.take(MAX_RETURN_REASON)?.ifBlank { null } ?: RETURN_REASON_UNREACHABLE))
             }
@@ -3074,7 +3257,7 @@ class AppStore(
     }
 
     fun partnerDashboard(partnerId: String, from: Long, to: Long): PartnerDashboardDto {
-        val delivered = orderCol.find(and(eq("partnerId", partnerId), `in`("status", listOf("DELIVERED", "COMPLETED"))))
+        val delivered = orderCol.find(partnerPaidJobsFilter(partnerId))
             .toList()
             .filter { it.createdAt in from..to }
         val accepted = orderCol.find(
@@ -3088,7 +3271,7 @@ class AppStore(
     }
 
     fun partnerJobs(partnerId: String, delivered: Boolean, from: Long? = null, to: Long? = null): List<OrderDto> {
-        val statuses = if (delivered) listOf("DELIVERED", "COMPLETED") else listOf("PARTNER_ACCEPTED", "ON_THE_WAY", "RETURNING_TO_SHOP")
+        val statuses = if (delivered) listOf("DELIVERED", "COMPLETED", "RETURNED_TO_SHOP") else listOf("PARTNER_ACCEPTED", "ON_THE_WAY", "RETURNING_TO_SHOP")
         val filter = if (delivered && from != null && to != null) {
             and(
                 eq("partnerId", partnerId),
@@ -4104,7 +4287,7 @@ class AppStore(
             operatingHours = patch.operatingHours,
             loginUsername = patch.loginUsername,
             loginPassword = patch.loginPassword,
-            upiId = patch.upiId,
+            upiId = null,
             deliveryRadiusKm = patch.deliveryRadiusKm,
             discountPercent = patch.discountPercent,
             deliveryUntil = patch.deliveryUntil,
@@ -4494,9 +4677,21 @@ class AppStore(
         )
     }
 
+    /** Owner-only UPI change; [code] is an OTP sent to the shop owner's registered mobile. */
+    fun updateShopUpi(userId: String, rawUpi: String, code: String, sessionId: String?): ShopProfileDto {
+        requireShopPermission(userId, ShopPerm.SHOP_PROFILE)
+        val shop = shopById(shopUser(userId).shopId)
+        val upi = rawUpi.trim()
+        require(UPI_ID_REGEX.matches(upi)) { "Enter a valid UPI ID (for example name@bank)." }
+        require(shop.ownerPhone.isNotBlank()) { "Add the owner's mobile number in shop profile first." }
+        otp.verify(shop.ownerPhone, code, sessionId)
+        shopCol.updateOne(eq("_id", shop.id), set("upiId", upi))
+        return shopProfile(userId)
+    }
+
     fun shopPaymentInfo(shopId: String): ShopPaymentInfoDto {
         val shop = shopById(shopId)
-        return ShopPaymentInfoDto(shopName = shop.name, upiId = shop.upiId.trim())
+        return ShopPaymentInfoDto(shopName = shop.name, upiId = shop.directUpi().orEmpty())
     }
 
     private fun shopById(shopId: String): ShopDoc =
@@ -4546,7 +4741,7 @@ class AppStore(
         active = active,
         paymentsEnabled = paymentsEnabled,
         discountPercent = discountPercent,
-        upiId = upiId,
+        upiId = directUpi().orEmpty(),
         cashfreeVendorId = cashfreeVendorId,
         address = address,
         deliveryRadiusKm = deliveryRadiusKm,
@@ -4757,6 +4952,7 @@ class AppStore(
         translations = translations,
         brandTranslations = brandTranslations,
         deletedAt = deletedAt,
+        maxPerOrder = maxPerOrder,
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
@@ -4771,6 +4967,7 @@ class AppStore(
         translations = cleanTranslations(translations, nameHi),
         deletedAt = deletedAt,
         activeBeforeDelete = active.takeIf { deletedAt != null },
+        maxPerOrder = maxPerOrder.coerceAtLeast(0.0),
     )
 
     private fun ProductVariantDoc.toDto() = ProductVariantDto(

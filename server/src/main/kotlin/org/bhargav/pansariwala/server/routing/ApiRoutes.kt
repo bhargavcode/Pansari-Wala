@@ -53,6 +53,7 @@ import org.bhargav.pansariwala.server.dto.SubmitUtrRequest
 import org.bhargav.pansariwala.server.dto.AdminPartnerPatch
 import org.bhargav.pansariwala.server.dto.AdminShopCreate
 import org.bhargav.pansariwala.server.dto.AdminShopPatch
+import org.bhargav.pansariwala.server.dto.ShopUpiUpdateRequest
 import org.bhargav.pansariwala.server.dto.AdminUserPatch
 import org.bhargav.pansariwala.server.dto.AddFromMasterRequest
 import org.bhargav.pansariwala.server.dto.ShopProductActivePatch
@@ -156,6 +157,13 @@ fun Route.apiRoutes(
     post("/auth/shop/login") {
         val body = call.receive<ShopLoginRequest>()
         call.respond(store.shopLogin(body.username, body.password, call.clientIp(), body.client == WEB_CLIENT))
+    }
+    post("/auth/shop/password/reset") {
+        val body = call.receive<org.bhargav.pansariwala.server.dto.PasswordResetRequest>()
+        withContext(Dispatchers.IO) {
+            store.resetShopPassword(body.username, body.phone, body.otp, body.sessionId, body.newPassword)
+        }
+        call.respond(HttpStatusCode.NoContent)
     }
     post("/auth/admin/login") {
         val body = call.receive<AdminLoginRequest>()
@@ -407,7 +415,8 @@ fun Route.apiRoutes(
             val query = call.parameters["query"].orEmpty()
             val page = call.parameters["page"]?.toIntOrNull() ?: 0
             val size = call.parameters["size"]?.toIntOrNull() ?: 10
-            call.respond(withContext(Dispatchers.IO) { store.catalogPage(shopId, categoryId, query, page, size) })
+            val inStockOnly = call.parameters["inStock"]?.toBooleanStrictOrNull() == true
+            call.respond(withContext(Dispatchers.IO) { store.catalogPage(shopId, categoryId, query, page, size, inStockOnly) })
         }
         get("/shops/{id}/products/{productId}") {
             val shopId = call.parameters["id"]!!
@@ -485,6 +494,20 @@ fun Route.apiRoutes(
             val body = call.receive<ShopPartnerRequest>()
             call.respond(withContext(Dispatchers.IO) { store.addShopPartner(shopId, body) })
         }
+        put("/shop/partners/{id}") {
+            val shopId = call.requireShopPerm(store, ShopPerm.SHOP_PROFILE)
+            val body = call.receive<org.bhargav.pansariwala.server.dto.ShopPartnerUpdateRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.updateShopPartner(shopId, call.parameters["id"]!!, body) })
+        }
+        post("/shop/partners/{id}/payouts") {
+            val shopId = call.requireShopPerm(store, ShopPerm.SHOP_PROFILE)
+            val body = call.receive<org.bhargav.pansariwala.server.dto.ShopPartnerPayoutRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.payShopPartner(shopId, call.parameters["id"]!!, body) })
+        }
+        get("/shop/partners/{id}/ledger") {
+            val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
+            call.respond(withContext(Dispatchers.IO) { store.shopPartnerLedger(shopId, call.parameters["id"]!!) })
+        }
         delete("/shop/partners/{id}") {
             val shopId = call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS)
             withContext(Dispatchers.IO) { store.removeShopPartner(shopId, call.parameters["id"]!!) }
@@ -559,6 +582,17 @@ fun Route.apiRoutes(
             call.requireShopId()
             val body = call.receive<AdminShopPatch>()
             call.respond(withContext(Dispatchers.IO) { store.updateShopProfile(call.userId(), body) })
+        }
+        post("/shop/account/password") {
+            call.requireShopId()
+            val body = call.receive<org.bhargav.pansariwala.server.dto.PasswordChangeRequest>()
+            withContext(Dispatchers.IO) { store.changeShopPassword(call.userId(), body.currentPassword, body.newPassword) }
+            call.respond(HttpStatusCode.NoContent)
+        }
+        put("/shop/upi") {
+            call.requireShopId()
+            val body = call.receive<ShopUpiUpdateRequest>()
+            call.respond(withContext(Dispatchers.IO) { store.updateShopUpi(call.userId(), body.upiId, body.otp, body.sessionId) })
         }
         get("/shop/staff") {
             call.requireShopId()

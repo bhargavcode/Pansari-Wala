@@ -116,6 +116,21 @@ enum class CategorySort {
 
 /** Partial update of shop details; null fields are left unchanged by the server. */
 @Serializable
+data class ShopUpiUpdateRequest(val upiId: String, val otp: String, val sessionId: String? = null)
+
+@Serializable
+data class PasswordResetRequest(
+    val username: String,
+    val phone: String,
+    val otp: String,
+    val sessionId: String? = null,
+    val newPassword: String,
+)
+
+@Serializable
+data class PasswordChangeRequest(val currentPassword: String, val newPassword: String)
+
+@Serializable
 data class ShopProfilePatch(
     val active: Boolean? = null,
     val paymentsEnabled: Boolean? = null,

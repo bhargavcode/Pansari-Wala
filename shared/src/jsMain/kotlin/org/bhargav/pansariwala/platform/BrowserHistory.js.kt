@@ -15,4 +15,11 @@ internal actual object BrowserHistory {
         window.addEventListener("popstate", handler)
         return { window.removeEventListener("popstate", handler) }
     }
+
+    actual fun onFirstInteraction(block: () -> Unit) {
+        var fired = false
+        val handler: (Event) -> Unit = { if (!fired) { fired = true; block() } }
+        window.addEventListener("pointerdown", handler)
+        window.addEventListener("keydown", handler)
+    }
 }

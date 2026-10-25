@@ -1,5 +1,11 @@
 package org.bhargav.pansariwala.feature.inventory
 
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import org.bhargav.pansariwala.feature.catalog.ProductFinderResults
+import org.bhargav.pansariwala.feature.catalog.ProductFinderActions
+import pansariwala.shared.generated.resources.field_max_per_order_hint
+import pansariwala.shared.generated.resources.field_max_per_order
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -107,12 +113,16 @@ fun AddEditInventoryScreen(
                 onValueChange = viewModel::onLookupQueryChange,
                 label = { Text(stringResource(Res.string.product_id_or_barcode)) },
                 singleLine = true,
+                trailingIcon = { ProductFinderActions(viewModel.finder) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { viewModel.onLookup() }, onDone = { viewModel.onLookup() }),
                 modifier = Modifier.weight(1f),
             )
             Button(onClick = viewModel::onLookup) {
                 Text(stringResource(Res.string.action_find))
             }
         }
+        ProductFinderResults(finder = viewModel.finder, onPick = { viewModel.pickFound(it.product) })
 
         state.message?.let {
             Text(
@@ -206,6 +216,15 @@ fun AddEditInventoryScreen(
                 modifier = Modifier.weight(1f),
             )
         }
+        OutlinedTextField(
+            value = state.maxPerOrder,
+            onValueChange = viewModel::onMaxPerOrderChange,
+            label = { Text(stringResource(Res.string.field_max_per_order)) },
+            supportingText = { Text(stringResource(Res.string.field_max_per_order_hint)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth(),
+        )
         OutlinedTextField(
             value = state.voiceAlias,
             onValueChange = viewModel::onVoiceAliasChange,

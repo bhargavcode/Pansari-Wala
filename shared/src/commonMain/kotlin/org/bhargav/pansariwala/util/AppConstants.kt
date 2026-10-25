@@ -240,6 +240,7 @@ object AppConstants {
     const val OTP_DEFAULT_TTL_SEC: Int = 300
     const val OTP_DEFAULT_RESEND_SEC: Int = 30
     const val OTP_LENGTH: Int = 6
+    val UPI_ID_REGEX = Regex("^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9.-]{1,63}$")
     const val OTP_COUNTDOWN_TICK_MS: Long = 1_000L
     const val OTP_MODE_DEV: String = "dev"
     const val OTP_MODE_FIREBASE: String = "firebase"
@@ -500,6 +501,9 @@ object AppConstants {
 
     /** Server error code when password login is locked after repeated failures. */
     const val LOGIN_LOCKED_CODE: String = "LOGIN_LOCKED"
+
+    /** Minimum POS login password length (server `MIN_SHOP_PASSWORD`). */
+    const val MIN_SHOP_PASSWORD: Int = 4
 
     /** Self-service shop onboarding (server `ShopRegistrationService`). */
     object ShopRegistration {

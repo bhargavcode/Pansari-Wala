@@ -11,6 +11,17 @@ data class ProductMatch(
     val score: Double,
 )
 
+enum class CatalogMatchKind { PRODUCT, BRAND, CATEGORY }
+
+/** What a spoken/typed query refers to: a whole brand or category, or ranked product matches. */
+data class CatalogSearch(
+    val kind: CatalogMatchKind,
+    val label: String,
+    val matches: List<ProductMatch>,
+) {
+    val products: List<Product> get() = matches.map { it.product }
+}
+
 /**
  * Phonetic-ish + Levenshtein matcher over name / nameHi / voiceAlias. Every name is compared as spoken
  * and transliterated to Latin, so English names match Devanagari STT output and vice versa.
@@ -26,20 +37,187 @@ object ProductFuzzyMatcher {
     /** A different product scoring within this of the best makes the match ambiguous. */
     const val AMBIGUITY_MARGIN = 0.05
 
+    /** A brand / category is meant when the whole query is (nearly) its name. */
+    private const val GROUP_SCORE = 0.86
+
+    /** Matches this far below the best are noise for the results list. */
+    private const val LIST_WINDOW = 0.3
+
     fun findBest(query: String, catalog: List<Product>): ProductMatch? = findCandidates(query, catalog, 1).firstOrNull()
 
     /** Best [limit] matches above the minimum score, highest first. */
     fun findCandidates(query: String, catalog: List<Product>, limit: Int): List<ProductMatch> {
-        val normalizedQuery = normalize(query)
-        if (normalizedQuery.isBlank() || catalog.isEmpty()) return emptyList()
-        val latinQuery = latin(clean(query))
+        val q = Query.of(query) ?: return emptyList()
+        if (catalog.isEmpty()) return emptyList()
+        val index = indexFor(catalog)
         return catalog.asSequence()
-            .map { ProductMatch(it, scoreProduct(normalizedQuery, latinQuery, it)) }
+            .map { ProductMatch(it, index[it.id]?.score(q) ?: 0.0) }
             .filter { it.score >= MIN_SCORE }
             .sortedByDescending { it.score }
             .take(limit)
             .toList()
     }
+
+    /**
+     * Brand ("fortune") → all its products, category ("masale") → all in it, else ranked product matches
+     * within [LIST_WINDOW] of the best. Null when nothing is close.
+     */
+    fun search(query: String, catalog: List<Product>, limit: Int = MAX_LIST): CatalogSearch? {
+        val q = Query.of(query) ?: return null
+        if (catalog.isEmpty()) return null
+        val matches = findCandidates(query, catalog, limit)
+        val bestScore = matches.firstOrNull()?.score ?: 0.0
+        val brands = catalog.flatMap { p ->
+            (listOf(p.brandName) + p.brandTranslations.values).map { it.trim() }.filter { it.isNotEmpty() }.map { it to p }
+        }
+        bestGroup(q, brands, bestScore)?.let { (label, products) -> return group(CatalogMatchKind.BRAND, label, products) }
+        val categories = catalog.flatMap { p -> listOf(p.category.displayName to p, p.category.displayNameHi to p) }
+        bestGroup(q, categories, bestScore)?.let { (label, products) -> return group(CatalogMatchKind.CATEGORY, label, products) }
+        val best = matches.firstOrNull() ?: return null
+        val shown = matches.filter { it.score >= best.score - LIST_WINDOW }
+        return CatalogSearch(CatalogMatchKind.PRODUCT, query.trim(), shown)
+    }
+
+    private fun group(kind: CatalogMatchKind, label: String, products: List<Product>) = CatalogSearch(
+        kind,
+        label,
+        products.distinctBy { it.id }.sortedBy { it.name.lowercase() }.map { ProductMatch(it, 1.0) },
+    )
+
+    /** A group wins only when it fits the query better than any single product ("parle" vs "parle g"). */
+    private fun bestGroup(q: Query, named: List<Pair<String, Product>>, bestProduct: Double): Pair<String, List<Product>>? {
+        if (named.isEmpty()) return null
+        val byName = named.groupBy({ it.first }, { it.second })
+        val (label, score) = byName.keys.map { it to Forms.of(listOf(it)).fullScore(q) }.maxByOrNull { it.second } ?: return null
+        return if (score >= GROUP_SCORE && score > bestProduct + GROUP_MARGIN) label to byName.getValue(label) else null
+    }
+
+    private const val MAX_LIST = 200
+    private const val GROUP_MARGIN = 0.02
+
+    /** Words around an item name that carry no product meaning ("do", "dena", "wala"). */
+    private val FILLER = setOf(
+        "wala", "wali", "vala", "vali", "ka", "ki", "ke", "de", "do", "dena", "dedo", "dijiye", "dijie", "chahiye",
+        "chahie", "please", "bhai", "bhaiya", "bhaiyya", "ji", "ek", "the", "a", "of",
+    )
+
+    private class Query(val native: String, val latin: String, val phon: String, val tokens: List<String>) {
+        companion object {
+            fun of(raw: String): Query? {
+                val native = normalize(raw)
+                if (native.isBlank()) return null
+                val latinForm = latin(clean(raw))
+                val tokens = latinForm.split(' ')
+                    .filter { it.isNotBlank() && it !in FILLER }
+                    .map { phonetic(it) }
+                    .filter { it.isNotEmpty() }
+                return Query(native, latinForm, phonetic(latinForm), tokens)
+            }
+        }
+    }
+
+    /** Precomputed spellings of one product's names (native, Latin, phonetic) and its phonetic words. */
+    private class Forms(val native: List<String>, val latin: List<String>, val phon: List<String>, val tokens: Set<String>) {
+        fun fullScore(q: Query): Double {
+            val n = native.maxOfOrNull { similarity(q.native, it) } ?: 0.0
+            val l = if (q.latin.isBlank()) 0.0 else latin.maxOfOrNull { similarity(q.latin, it) } ?: 0.0
+            val p = if (q.phon.isBlank()) 0.0 else phon.maxOfOrNull { similarity(q.phon, it) } ?: 0.0
+            return maxOf(n, l, p)
+        }
+
+        /** Every spoken word found in the names (any order, extra name words allowed). */
+        fun coverage(q: Query): Double {
+            if (q.tokens.isEmpty() || tokens.isEmpty()) return 0.0
+            return q.tokens.sumOf { qt -> tokens.maxOf { tokenSimilarity(qt, it) } } / q.tokens.size
+        }
+
+        fun score(q: Query): Double {
+            val full = fullScore(q)
+            val cov = coverage(q)
+            // All words matched strongly → as good as an exact name; partial cover stays below CONFIDENT_SCORE.
+            val covered = if (cov >= TOKEN_STRONG) cov * COVERAGE_WEIGHT else cov * PARTIAL_COVERAGE_WEIGHT
+            return maxOf(full, covered)
+        }
+
+        companion object {
+            fun of(raw: List<String>): Forms {
+                val names = raw.filter { it.isNotBlank() }
+                val latinForms = names.map { latin(clean(it)) }.filter { it.isNotBlank() }
+                val phon = latinForms.map { phonetic(it) }.filter { it.isNotBlank() }
+                return Forms(
+                    native = names.map { normalize(it) }.filter { it.isNotBlank() },
+                    latin = latinForms,
+                    phon = phon,
+                    tokens = phon.flatMap { it.split(' ') }.filter { it.isNotEmpty() }.toSet(),
+                )
+            }
+        }
+    }
+
+    private const val TOKEN_STRONG = 0.85
+    private const val COVERAGE_WEIGHT = 0.95
+    private const val PARTIAL_COVERAGE_WEIGHT = 0.7
+
+    private fun tokenSimilarity(a: String, b: String): Double {
+        if (a == b) return 1.0
+        if (a.length >= 3 && b.startsWith(a)) return 0.9
+        if (b.length >= 3 && a.startsWith(b)) return 0.85
+        return 1.0 - levenshtein(a, b).toDouble() / maxOf(a.length, b.length, 1)
+    }
+
+    private var indexedCatalog: List<Product>? = null
+    private var index: Map<String, Forms> = emptyMap()
+
+    /** Built once per catalog list instance; repeated voice phrases reuse it. */
+    private fun indexFor(catalog: List<Product>): Map<String, Forms> {
+        if (indexedCatalog !== catalog) {
+            index = catalog.associate { it.id to Forms.of(productNames(it)) }
+            indexedCatalog = catalog
+        }
+        return index
+    }
+
+    private fun productNames(product: Product): List<String> = buildList {
+        add(product.name)
+        add(product.nameHi)
+        addAll(product.translations.values)
+        product.voiceAlias?.let { alias ->
+            add(alias)
+            addAll(alias.split(',', '/', '|'))
+        }
+        if (product.brandName.isNotBlank()) {
+            add("${product.brandName} ${product.name}")
+            product.brandTranslations.values.forEach { add("$it ${product.name}") }
+        }
+    }
+
+    /** Sound-alike key: "chini"/"cheeni", "shakkar"/"sakar", "jeera"/"zira" collapse to one spelling. */
+    internal fun phonetic(latin: String): String {
+        var v = latin.lowercase()
+        for ((from, to) in PHONETIC_RULES) v = v.replace(from, to)
+        val out = StringBuilder()
+        for (c in v) if (out.isEmpty() || out.last() != c || c == ' ') out.append(c)
+        return out.toString().trim()
+    }
+
+    private val PHONETIC_RULES = listOf(
+        Regex("chh|ch") to "x",
+        Regex("c(?=[eiy])") to "s",
+        Regex("ck|c|q") to "k",
+        Regex("sh") to "s",
+        Regex("kh") to "k",
+        Regex("gh") to "g",
+        Regex("th") to "t",
+        Regex("dh") to "d",
+        Regex("bh") to "b",
+        Regex("jh|z") to "j",
+        Regex("ph") to "f",
+        Regex("w") to "v",
+        Regex("ee|ii|y") to "i",
+        Regex("oo|uu") to "u",
+        Regex("aa") to "a",
+        Regex("(?<=[a-z])h(?=\\s|$)") to "",
+    )
 
     /** True when [best] is confident and no other candidate is nearly as good. */
     fun isConfident(candidates: List<ProductMatch>): Boolean {
@@ -124,26 +302,6 @@ object ProductFuzzyMatcher {
         "bada" to "large", "bara" to "large", "bade" to "large", "बड़ा" to "large", "big" to "large",
         "beech" to "medium", "मीडियम" to "medium", "mid" to "medium",
     )
-
-    private fun scoreProduct(query: String, latinQuery: String, product: Product): Double {
-        val raw = buildList {
-            add(product.name)
-            add(product.nameHi)
-            addAll(product.translations.values)
-            product.voiceAlias?.let { add(it) }
-            // Also try individual alias tokens separated by /
-            product.voiceAlias?.split(',', '/', '|')?.forEach { add(it) }
-        }
-        val candidates = raw.map { normalize(it) }.filter { it.isNotBlank() }
-        if (candidates.isEmpty()) return 0.0
-
-        val native = candidates.maxOf { similarity(query, it) }
-        // Transliterated forms skip the Hinglish alias table so "शुगर" → "shugar" still meets "sugar".
-        val latinCandidates = raw.map { latin(clean(it)) }.filter { it.isNotBlank() }
-        val transliterated = if (latinQuery.isBlank()) 0.0
-        else latinCandidates.maxOfOrNull { similarity(latinQuery, it) } ?: 0.0
-        return maxOf(native, transliterated)
-    }
 
     private fun similarity(query: String, candidate: String): Double {
         if (candidate == query) return 1.0

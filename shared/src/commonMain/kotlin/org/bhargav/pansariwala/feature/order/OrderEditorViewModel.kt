@@ -1,5 +1,7 @@
 package org.bhargav.pansariwala.feature.order
 
+import org.bhargav.pansariwala.feature.user.toOptionEntries
+import org.bhargav.pansariwala.voice.CatalogMatchKind
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -108,6 +110,20 @@ data class CartLine(
 /** A cart add paused until [option] gets a price; [quantity] / [targetKey] replay the original add. */
 data class PriceRequest(val option: PurchaseOption, val quantity: Double? = null, val targetKey: String? = null)
 
+/** Voice matches waiting for the cashier to pick: a brand/category, an unsure name, or a product's variants. */
+data class VoiceResults(
+    val kind: CatalogMatchKind,
+    val label: String,
+    val options: List<PurchaseOption>,
+    val line: VoiceLineItem? = null,
+    val visibleCount: Int = VOICE_RESULTS_PAGE,
+) {
+    val visible: List<PurchaseOption> get() = options.take(visibleCount)
+    val hasMore: Boolean get() = visibleCount < options.size
+}
+
+const val VOICE_RESULTS_PAGE = 20
+
 data class OrderEditorUiState(
     val loading: Boolean = true,
     val isEditing: Boolean = false,
@@ -148,6 +164,7 @@ data class OrderEditorUiState(
     val voiceMessages: List<UiText> = emptyList(),
     val isListening: Boolean = false,
     val partialTranscript: String = "",
+    val voiceResults: VoiceResults? = null,
     val requestMicPermission: Boolean = false,
     val offers: List<ShopOfferDto> = emptyList(),
     val manualDiscountInput: String = "",
@@ -220,6 +237,8 @@ class OrderEditorViewModel(
     private var editingOrderId: String? = null
     private var createdAt: Long = AppClock.nowMillis()
     private var speechJob: Job? = null
+    /** True from mic start until the user/platform ends the session. */
+    private var micActive = false
     private var partialCommitJob: Job? = null
     private var lastAppliedUtterance: String? = null
     /** Voice lines waiting for the cashier to confirm in the product sheet, shown one at a time. */
@@ -250,6 +269,8 @@ class OrderEditorViewModel(
         }
         speechJob = viewModelScope.launch {
             speechToText.events.collect { event ->
+                // Late recognizer callbacks after the user stopped must not flip the UI back to listening.
+                if (!micActive && event !is SpeechEvent.Ended) return@collect
                 when (event) {
                     SpeechEvent.Started -> {
                         partialCommitJob?.cancel()
@@ -273,6 +294,7 @@ class OrderEditorViewModel(
                     }
                     is SpeechEvent.Error -> {
                         if (event.needsPermission) {
+                            micActive = false
                             _uiState.update {
                                 it.copy(
                                     isListening = false,
@@ -292,6 +314,7 @@ class OrderEditorViewModel(
                         }
                     }
                     SpeechEvent.Ended -> {
+                        micActive = false
                         partialCommitJob?.cancel()
                         val leftover = _uiState.value.partialTranscript
                         if (leftover.isNotBlank()) {
@@ -335,7 +358,7 @@ class OrderEditorViewModel(
         }
 
         _uiState.update {
-            it.copy(partialTranscript = displayText, isListening = true)
+            it.copy(partialTranscript = displayText)
         }
 
         if (isFinal) {
@@ -355,10 +378,18 @@ class OrderEditorViewModel(
         val toParse = pendingParseText(text)
         if (toParse.isBlank()) return
         val parsed = VoiceIntentParser.parse(toParse)
-        if (parsed.isEmpty() || parsed.any { it.unit == null }) return
+        if (parsed.isEmpty()) return
+        val catalog = _uiState.value.catalog
+        // A bare name ("parle g") commits once it has been stable a bit longer, if it names something we sell.
+        val waitMs = when {
+            parsed.all { it.unit != null } -> PARTIAL_COMMIT_DELAY_MS
+            parsed.all { it.unit != null || ProductFuzzyMatcher.search(it.productQuery, catalog) != null } ->
+                PARTIAL_COMMIT_NAME_ONLY_DELAY_MS
+            else -> return
+        }
 
         partialCommitJob = viewModelScope.launch {
-            delay(PARTIAL_COMMIT_DELAY_MS)
+            delay(waitMs)
             applyVoiceUtterance(text)
         }
     }
@@ -510,7 +541,13 @@ class OrderEditorViewModel(
         lastAppliedUtterance = null
         partialCommitJob?.cancel()
         _uiState.update { it.copy(error = null, partialTranscript = "", voiceMessages = emptyList()) }
+        micActive = true
         speechToText.startListening()
+    }
+
+    /** Screen left / app backgrounded: release the mic. */
+    fun stopListeningIfActive() {
+        if (micActive || _uiState.value.isListening) cancelListening()
     }
 
     fun consumeMicPermissionRequest() {
@@ -519,6 +556,7 @@ class OrderEditorViewModel(
 
     fun cancelListening() {
         analytics.log(AnalyticsEvent.ButtonClicked("voice_cancel", "order_editor"))
+        micActive = false
         partialCommitJob?.cancel()
         speechToText.cancel()
         lastAppliedUtterance = null
@@ -1053,57 +1091,73 @@ class OrderEditorViewModel(
         val autoAdd = _uiState.value.voiceAutoAdd
         val messages = mutableListOf<UiText>()
         var addedAny = false
+        var results: VoiceResults? = null
         for (line in lines) {
-            val candidates = ProductFuzzyMatcher.findCandidates(line.productQuery, catalog, VOICE_MATCH_CANDIDATES)
-            val match = candidates.firstOrNull()
-            if (match == null) {
+            val search = ProductFuzzyMatcher.search(line.productQuery, catalog)
+            if (search == null) {
                 // No unit + no catalog match → background speech, not an order line.
                 if (line.unit != null) {
                     messages += UiText.res(Res.string.voice_out_of_stock, line.productQuery)
                 }
                 continue
             }
-            val product = match.product
+            if (search.kind != CatalogMatchKind.PRODUCT) {
+                results = VoiceResults(search.kind, search.label, search.products.toOptionEntries().sortedByDescending { it.inStock }, line)
+                addedAny = true
+                continue
+            }
+            val candidates = search.matches
+            val product = candidates.first().product
             val label = product.nameHi.ifBlank { product.name }
             val confident = ProductFuzzyMatcher.isConfident(candidates)
+            // Unsure match with no unit is usually shop chatter on the open mic; hint only.
+            if (!confident && line.unit == null && candidates.first().score < VOICE_LIST_MIN_SCORE) {
+                messages += UiText.res(Res.string.voice_confirm_product, label)
+                continue
+            }
+            if (!confident) {
+                results = VoiceResults(CatalogMatchKind.PRODUCT, line.productQuery, search.products.toOptionEntries(), line)
+                addedAny = true
+                continue
+            }
             val variant = ProductFuzzyMatcher.findVariant(line.productQuery, line.quantity, line.unit, product)
             val option = variant?.let { PurchaseOption(product, it) } ?: product.options().singleOrNull()
-            val qty = option?.let { voiceQuantity(it, line) }
-            val alreadyInCart = option?.let { o -> _uiState.value.cart.firstOrNull { it.key == o.key }?.quantity } ?: 0.0
-            val available = option?.let { it.stock - alreadyInCart } ?: 0.0
+            if (option == null) {
+                // Product is clear but the pack isn't: list its variants.
+                results = VoiceResults(CatalogMatchKind.PRODUCT, label, product.options(), line)
+                addedAny = true
+                continue
+            }
+            val qty = voiceQuantity(option, line)
+            val alreadyInCart = _uiState.value.cart.firstOrNull { it.key == option.key }?.quantity ?: 0.0
+            val available = option.stock - alreadyInCart
 
-            if (option != null && confident && available <= 0.0) {
+            if (available <= 0.0) {
                 messages += UiText.res(Res.string.voice_out_of_stock, label)
                 continue
             }
-            val fits = option != null && qty != null && qty <= available + AppConstants.LooseQty.EPSILON
-            if (autoAdd && confident && fits && option != null && qty != null) {
+            val fits = qty != null && qty <= available + AppConstants.LooseQty.EPSILON
+            if (autoAdd && fits && qty != null) {
                 addToCart(option, qty)
                 addedAny = true
                 continue
             }
-            // Unsure match with no unit is usually shop chatter on the open mic; hint only, no sheet.
-            if (!confident && line.unit == null) {
-                messages += UiText.res(Res.string.voice_confirm_product, label)
-                continue
-            }
-            // Never guess: unsure product, unit, quantity or stock → cashier confirms in the product sheet.
+            // Never guess unit, quantity or stock → cashier confirms in the product sheet.
             when {
-                !confident -> messages += UiText.res(Res.string.voice_confirm_product, label)
-                option != null && qty != null && qty > available -> messages +=
-                    UiText.res(Res.string.voice_partial_stock, label, available.toInt())
+                qty != null && qty > available -> messages += UiText.res(Res.string.voice_partial_stock, label, available.toInt())
                 autoAdd -> messages += UiText.res(Res.string.voice_confirm_quantity, label)
             }
             queueVoicePick(
                 VariantPickerState.Request(
                     product = product,
                     editKey = null,
-                    initialOptionKey = option?.key,
+                    initialOptionKey = option.key,
                     initialQty = qty?.let { it + alreadyInCart },
                 ),
             )
             addedAny = true
         }
+        if (results != null) _uiState.update { it.copy(voiceResults = results) }
 
         // Reset listened text so the next spoken item starts with an empty transcript.
         _uiState.update {
@@ -1136,6 +1190,21 @@ class OrderEditorViewModel(
         }
         if (qty.isNaN() || qty <= 0.0 || qty < option.minQty - AppConstants.LooseQty.EPSILON) return null
         return qty
+    }
+
+    fun showMoreVoiceResults() = _uiState.update { s ->
+        s.copy(voiceResults = s.voiceResults?.let { it.copy(visibleCount = it.visibleCount + VOICE_RESULTS_PAGE) })
+    }
+
+    fun dismissVoiceResults() = _uiState.update { it.copy(voiceResults = null) }
+
+    /** Adds the picked match with the spoken amount when it fits; otherwise the usual tap flow (sheet for loose). */
+    fun pickVoiceResult(option: PurchaseOption) {
+        val results = _uiState.value.voiceResults ?: return
+        if (results.kind == CatalogMatchKind.PRODUCT) _uiState.update { it.copy(voiceResults = null) }
+        val qty = results.line?.let { voiceQuantity(option, it) }
+        val inCart = _uiState.value.cart.firstOrNull { it.key == option.key }?.quantity ?: 0.0
+        if (qty != null && qty <= option.stock - inCart + AppConstants.LooseQty.EPSILON) addToCart(option, qty) else addVariant(option)
     }
 
     private fun addToCart(option: PurchaseOption, quantity: Double) {
@@ -1261,6 +1330,7 @@ class OrderEditorViewModel(
     }
 
     override fun onCleared() {
+        micActive = false
         speechToText.cancel()
         partialCommitJob?.cancel()
         speechJob?.cancel()
@@ -1269,8 +1339,9 @@ class OrderEditorViewModel(
 
     companion object {
         private const val PARTIAL_COMMIT_DELAY_MS = 700L
-        /** Best + runner-up, enough to detect an ambiguous match. */
-        private const val VOICE_MATCH_CANDIDATES = 2
+        private const val PARTIAL_COMMIT_NAME_ONLY_DELAY_MS = 1_100L
+        /** Below this an unsure, unit-less phrase is treated as shop chatter, not shown as a list. */
+        private const val VOICE_LIST_MIN_SCORE = 0.6
         private const val SCAN_MESSAGE_MS = 2_000L
         private const val UDHAAR_SEARCH_DEBOUNCE_MS = 300L
         private const val UDHAAR_SEARCH_LIMIT = 20

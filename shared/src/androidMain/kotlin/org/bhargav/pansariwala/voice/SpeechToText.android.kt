@@ -86,8 +86,7 @@ private class AndroidSpeechToText(
             listening = false
             restartScheduled = false
             commitPartialIfNeeded()
-            runCatching { recognizer?.stopListening() }
-            sessionActive = false
+            releaseRecognizer()
             _events.tryEmit(SpeechEvent.Ended)
         }
     }
@@ -99,10 +98,22 @@ private class AndroidSpeechToText(
             restartScheduled = false
             lastPartial = ""
             committedThisUtterance = true
-            runCatching { recognizer?.cancel() }
-            sessionActive = false
+            releaseRecognizer()
             _events.tryEmit(SpeechEvent.Ended)
         }
+    }
+
+    /** Destroys the recognizer: queued callbacks die with it, so a stopped mic can't reopen itself. */
+    private fun releaseRecognizer() {
+        mainHandler.removeCallbacks(restartRunnable)
+        restartScheduled = false
+        recognizer?.let { sr ->
+            runCatching { sr.setRecognitionListener(null) }
+            runCatching { sr.cancel() }
+            runCatching { sr.destroy() }
+        }
+        recognizer = null
+        sessionActive = false
     }
 
     private fun commitPartialIfNeeded() {
@@ -120,13 +131,15 @@ private class AndroidSpeechToText(
         return (baseMs * consecutiveFailures).coerceAtMost(MAX_RESTART_BACKOFF_MS)
     }
 
+    private val restartRunnable = Runnable {
+        restartScheduled = false
+        if (continuous) beginListeningInternal()
+    }
+
     private fun scheduleRestart(delayMs: Long = 300) {
         if (!continuous || restartScheduled) return
         restartScheduled = true
-        mainHandler.postDelayed({
-            restartScheduled = false
-            if (continuous) beginListeningInternal()
-        }, delayMs)
+        mainHandler.postDelayed(restartRunnable, delayMs)
     }
 
     private fun ensureRecognizer() {
@@ -145,6 +158,7 @@ private class AndroidSpeechToText(
         recognizer = SpeechRecognizer.createSpeechRecognizer(context).also { sr ->
             sr.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
+                    if (!continuous) return
                     listening = true
                     committedThisUtterance = false
                     // Emit Started only once per mic session so commit-dedup state is kept.
@@ -242,7 +256,7 @@ private class AndroidSpeechToText(
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()
                         .orEmpty()
-                    if (text.isNotBlank()) {
+                    if (text.isNotBlank() && continuous) {
                         consecutiveFailures = 0
                         busyCount = 0
                         lastPartial = text
