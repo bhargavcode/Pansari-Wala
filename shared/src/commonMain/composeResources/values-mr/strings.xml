@@ -2460,4 +2460,18 @@
     <string name="finder_scan_cd">बारकोड स्कॅन करा</string>
     <string name="finder_scan_hint">कॅमेरा उत्पादनाच्या बारकोडकडे धरा</string>
     <string name="finder_voice_hint">उत्पादन, ब्रँड किंवा श्रेणी बोला…</string>
+    <string name="web_exit_title">पंसारी वालामधून बाहेर पडायचे?</string>
+    <string name="web_exit_message">तुम्ही होम स्क्रीनवर आहात. मागे गेल्यास ॲप बंद होईल.</string>
+    <string name="web_exit_confirm">बाहेर पडा</string>
+    <string name="web_exit_cancel">इथेच राहा</string>
+    <string name="rider_step_progress">पायरी %1$d / %2$d · %3$s</string>
+    <string name="rider_step_details">रायडरची माहिती</string>
+    <string name="rider_step_vehicle">वाहन आणि पेमेंट</string>
+    <string name="rider_step_documents">फोटो आणि कागदपत्रे</string>
+    <string name="rider_step_verify">पडताळा आणि जोडा</string>
+    <string name="rider_doc_photo">रायडरचा फोटो</string>
+    <string name="rider_doc_address_proof">पत्त्याचा पुरावा (आधार / मतदार ओळखपत्र)</string>
+    <string name="rider_docs_hint">स्पष्ट फोटो घ्या. ते रायडरच्या पार्टनर ॲप प्रोफाइलमध्ये जतन होतील.</string>
+    <string name="rider_verify_hint">रायडरच्या मोबाईलवर OTP पाठवला जाईल. पडताळणीनंतर ते जोडले जातील आणि याच नंबरने पार्टनर ॲपमध्ये लॉग इन करू शकतील.</string>
+    <string name="rider_kyc_pending">KYC बाकी · जोडण्यासाठी कागदपत्रे द्या</string>
 </resources>

@@ -1,7 +1,5 @@
 package org.bhargav.pansariwala.feature.order
 
-import org.bhargav.pansariwala.platform.PhoneAuthGateway
-import org.bhargav.pansariwala.designsystem.OtpStepController
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -13,7 +11,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.api.ShopPartnerDto
-import org.bhargav.pansariwala.api.ShopPartnerRequest
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.util.AppConstants
@@ -93,7 +90,8 @@ data class OnlineOrdersUiState(
     val assignOrderId: String? = null,
     val shopPartners: List<ShopPartnerDto> = emptyList(),
     val partnersLoading: Boolean = false,
-    val partnerForm: ShopPartnerForm? = null,
+    /** True while the stepped rider enrolment wizard is open over the assign sheet. */
+    val enrollingPartner: Boolean = false,
     val partnerError: UiText? = null,
     /** DIRECT_UPI payments the shop must confirm against its bank before the order exists. */
     val paymentIntents: List<PaymentIntent> = emptyList(),
@@ -103,16 +101,6 @@ data class OnlineOrdersUiState(
     val returnOrderId: String? = null,
 )
 
-data class ShopPartnerForm(
-    val name: String = "",
-    val phone: String = "",
-    val vehicleReg: String = "",
-    val rate: String = "",
-) {
-    val rateInr: Double? get() = rate.trim().ifBlank { "0" }.toDoubleOrNull()?.takeIf { it >= 0.0 }
-    val valid: Boolean get() = name.trim().length >= 2 && phone.count { it.isDigit() } >= 10 && rateInr != null
-}
-
 /**
  * Live via FCM ([OrderUpdates]) — no polling. Loads on screen resume (covers missed pushes / app
  * returning to foreground); while visible, tray alerts for listed orders are cleared as consumed.
@@ -120,12 +108,9 @@ data class ShopPartnerForm(
 class OnlineOrdersViewModel(
     private val api: PansariApi,
     private val notifications: NotificationGateway,
-    phoneAuth: PhoneAuthGateway,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OnlineOrdersUiState())
     val uiState: StateFlow<OnlineOrdersUiState> = _uiState.asStateFlow()
-    /** The rider's own mobile is OTP-verified before they join the shop's roster. */
-    val partnerOtp = OtpStepController(phoneAuth, viewModelScope)
     private var visible = false
     private var loadedOnce = false
     private var loadJob: Job? = null
@@ -385,23 +370,19 @@ class OnlineOrdersViewModel(
     }
 
     fun openAssignPartner(id: String) {
-        _uiState.update { it.copy(assignOrderId = id, partnerError = null, partnerForm = null) }
+        _uiState.update { it.copy(assignOrderId = id, partnerError = null, enrollingPartner = false) }
         loadShopPartners()
     }
 
     fun dismissAssignPartner() {
-        _uiState.update { it.copy(assignOrderId = null, partnerForm = null, partnerError = null) }
+        _uiState.update { it.copy(assignOrderId = null, enrollingPartner = false, partnerError = null) }
     }
 
     private fun loadShopPartners() {
         viewModelScope.launch {
             _uiState.update { it.copy(partnersLoading = true) }
             runCatching { api.shopPartners() }
-                .onSuccess { list ->
-                    _uiState.update {
-                        it.copy(shopPartners = list, partnerForm = if (list.isEmpty()) ShopPartnerForm() else it.partnerForm)
-                    }
-                }
+                .onSuccess { list -> _uiState.update { it.copy(shopPartners = list) } }
                 .onFailure { error ->
                     error.rethrowIfStructuredCancellation()
                     _uiState.update { it.copy(partnerError = mapOnlineOrdersError(error)) }
@@ -410,40 +391,12 @@ class OnlineOrdersViewModel(
         }
     }
 
-    fun openPartnerForm() {
-        partnerOtp.reset()
-        _uiState.update { it.copy(partnerForm = ShopPartnerForm(), partnerError = null) }
-    }
+    fun openPartnerForm() = _uiState.update { it.copy(enrollingPartner = true, partnerError = null) }
 
-    fun closePartnerForm() {
-        partnerOtp.reset()
-        _uiState.update { it.copy(partnerForm = null, partnerError = null) }
-    }
+    fun closePartnerForm() = _uiState.update { it.copy(enrollingPartner = false) }
 
-    fun updatePartnerForm(transform: (ShopPartnerForm) -> ShopPartnerForm) {
-        _uiState.update { state -> state.copy(partnerForm = state.partnerForm?.let(transform), partnerError = null) }
-    }
-
-    /** First tap sends the OTP to the rider's mobile; the next one verifies it and adds the rider. */
-    fun savePartner() {
-        val form = _uiState.value.partnerForm?.takeIf { it.valid } ?: return
-        if (!partnerOtp.state.value.codeSent) {
-            partnerOtp.send(form.phone.filter { it.isDigit() }.takeLast(AppConstants.PHONE_LOCAL_DIGITS))
-            return
-        }
-        partnerOtp.verify { phone, code, sessionId ->
-            val added = api.addShopPartner(
-                ShopPartnerRequest(
-                    name = form.name.trim(),
-                    phone = phone,
-                    vehicleReg = form.vehicleReg.trim(),
-                    otp = code,
-                    sessionId = sessionId,
-                    payoutPerDeliveryInr = form.rateInr ?: 0.0,
-                ),
-            )
-            _uiState.update { it.copy(shopPartners = (it.shopPartners + added).sortedBy { p -> p.name }, partnerForm = null) }
-        }
+    fun onPartnerEnrolled(partner: ShopPartnerDto) = _uiState.update {
+        it.copy(shopPartners = (it.shopPartners + partner).sortedBy { p -> p.name }, enrollingPartner = false)
     }
 
     fun removePartner(id: String) {
@@ -462,7 +415,7 @@ class OnlineOrdersViewModel(
         val id = state.assignOrderId ?: return
         val order = state.orders.firstOrNull { it.id == id } ?: return
         val packed = state.packedChecks[id].orEmpty().ifEmpty { order.packedProductIds }
-        _uiState.update { it.copy(assignOrderId = null, partnerForm = null) }
+        _uiState.update { it.copy(assignOrderId = null, enrollingPartner = false) }
         runOrderAction(id) {
             api.assignShopPartner(id, shopPartnerId, packed.toList())
             _uiState.update { it.copy(packedChecks = it.packedChecks - id) }

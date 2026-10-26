@@ -69,6 +69,7 @@ private const val USERNAME_CHECK_DEBOUNCE_MS = 400L
 enum class ProfileTab(val permission: ShopPermission?) {
     SHOP(null),
     STAFF(ShopPermission.MANAGE_STAFF),
+    RIDERS(ShopPermission.ONLINE_ORDERS),
     OFFERS(ShopPermission.OFFERS),
     RATINGS(ShopPermission.RATINGS),
     VISITORS(ShopPermission.VISITORS),
@@ -235,7 +236,7 @@ class ShopProfileViewModel(
 
     private fun loadTab(tab: ProfileTab) {
         when (tab) {
-            ProfileTab.SHOP -> Unit
+            ProfileTab.SHOP, ProfileTab.RIDERS -> Unit
             ProfileTab.STAFF -> request { _uiState.update { it.copy(staff = api.shopStaff()) } }
             ProfileTab.OFFERS -> request {
                 val shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID

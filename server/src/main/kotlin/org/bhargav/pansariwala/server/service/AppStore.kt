@@ -2681,20 +2681,64 @@ class AppStore(
             "This delivery partner is already added"
         }
         val rate = validRiderPayout(request.payoutPerDeliveryInr)
+        val reg = Security.normalizeReg(request.vehicleReg)
+        val address = request.address.trim().take(500)
+        require(Security.isValidVehicleReg(reg)) { "Invalid vehicle registration number (e.g. DL01AB1234)" }
+        require(address.isNotEmpty()) { "Address is required" }
+        val profile = requiredAssetKey("Profile photo", request.profilePhotoUrl)
+        val dl = requiredAssetKey("Driving licence photo", request.dlPhotoUrl)
+        val vehicle = requiredAssetKey("Vehicle photo", request.vehiclePhotoUrl)
+        val addressProof = requiredAssetKey("ID proof photo", request.addressProofUrl)
+        val existing = partnerCol.find(eq("phone", phone)).firstOrNull()
+        if (existing == null) {
+            val takenReg = partnerCol.find(eq("vehicleReg", reg)).firstOrNull()
+            require(takenReg == null) { "Vehicle already registered with another partner" }
+        } else {
+            require(existing.closedAt == null) { "This delivery partner account was closed." }
+        }
         otp.verify(phone, request.otp, request.sessionId)
-        val appPartner = partnerCol.find(eq("phone", phone)).projection(partnerLiteProjection).firstOrNull()
+        // Enrol the rider in the partner app: the shop verified their mobile and KYC, so they can log in with OTP.
+        val appPartnerId = existing?.id ?: security.randomId("ptr").also { id ->
+            partnerCol.insertOne(
+                PartnerDoc(
+                    id = id,
+                    phone = phone,
+                    name = name,
+                    email = "",
+                    address = address,
+                    vehicleReg = reg,
+                    vehiclePhoto = vehicle,
+                    profilePhoto = profile,
+                    dlPhoto = dl,
+                    idPhoto = addressProof,
+                    verified = true,
+                ),
+            )
+        }
         val doc = ShopPartnerDoc(
             id = security.randomId("spt"),
             shopId = shopId,
             name = name,
             phone = phone,
-            vehicleReg = Security.normalizeReg(request.vehicleReg),
-            partnerId = appPartner?.id,
+            vehicleReg = reg,
+            partnerId = appPartnerId,
             createdAt = System.currentTimeMillis(),
             payoutPerDeliveryInr = rate,
+            address = address,
+            profilePhoto = profile,
+            dlPhoto = dl,
+            vehiclePhoto = vehicle,
+            addressProofPhoto = addressProof,
         )
         shopPartnerCol.insertOne(doc)
         return doc.toDto()
+    }
+
+    private fun requiredAssetKey(label: String, value: String): String {
+        val v = value.trim()
+        require(v.isNotEmpty()) { "Add the rider's photo, licence, vehicle and ID proof" }
+        require(assets.isValidRef(v)) { "$label upload is invalid, please re-upload" }
+        return assets.toKey(v).take(2_048)
     }
 
     fun removeShopPartner(shopId: String, id: String) {
@@ -2780,6 +2824,11 @@ class AppStore(
             earnedInr = earned,
             paidInr = paidInr,
             balanceInr = (earned - paidInr).coerceAtLeast(0.0),
+            address = address,
+            profilePhotoUrl = assets.toUrlOrNull(profilePhoto).orEmpty(),
+            dlPhotoUrl = assets.toUrlOrNull(dlPhoto).orEmpty(),
+            vehiclePhotoUrl = assets.toUrlOrNull(vehiclePhoto).orEmpty(),
+            addressProofUrl = assets.toUrlOrNull(addressProofPhoto).orEmpty(),
         )
     }
 

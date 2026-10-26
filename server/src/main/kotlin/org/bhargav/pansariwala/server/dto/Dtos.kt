@@ -873,6 +873,11 @@ data class ShopPartnerDto(
     val earnedInr: Double = 0.0,
     val paidInr: Double = 0.0,
     val balanceInr: Double = 0.0,
+    val address: String = "",
+    val profilePhotoUrl: String = "",
+    val dlPhotoUrl: String = "",
+    val vehiclePhotoUrl: String = "",
+    val addressProofUrl: String = "",
 )
 
 @Serializable
@@ -883,6 +888,11 @@ data class ShopPartnerRequest(
     val otp: String = "",
     val sessionId: String? = null,
     val payoutPerDeliveryInr: Double = 0.0,
+    val address: String = "",
+    val profilePhotoUrl: String = "",
+    val dlPhotoUrl: String = "",
+    val vehiclePhotoUrl: String = "",
+    val addressProofUrl: String = "",
 )
 
 @Serializable

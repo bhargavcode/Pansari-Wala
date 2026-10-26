@@ -2460,4 +2460,18 @@
     <string name="finder_scan_cd">ಬಾರ್‌ಕೋಡ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ</string>
     <string name="finder_scan_hint">ಕ್ಯಾಮೆರಾವನ್ನು ಉತ್ಪನ್ನದ ಬಾರ್‌ಕೋಡ್ ಕಡೆ ತೋರಿಸಿ</string>
     <string name="finder_voice_hint">ಉತ್ಪನ್ನ, ಬ್ರ್ಯಾಂಡ್ ಅಥವಾ ವರ್ಗ ಹೇಳಿ…</string>
+    <string name="web_exit_title">ಪನ್ಸಾರಿ ವಾಲಾದಿಂದ ನಿರ್ಗಮಿಸುವುದೇ?</string>
+    <string name="web_exit_message">ನೀವು ಮುಖಪುಟದಲ್ಲಿದ್ದೀರಿ. ಹಿಂದೆ ಹೋದರೆ ಆ್ಯಪ್‌ನಿಂದ ಹೊರಬರುತ್ತೀರಿ.</string>
+    <string name="web_exit_confirm">ನಿರ್ಗಮಿಸಿ</string>
+    <string name="web_exit_cancel">ಇಲ್ಲೇ ಇರಿ</string>
+    <string name="rider_step_progress">ಹಂತ %1$d / %2$d · %3$s</string>
+    <string name="rider_step_details">ರೈಡರ್ ವಿವರಗಳು</string>
+    <string name="rider_step_vehicle">ವಾಹನ ಮತ್ತು ಪಾವತಿ</string>
+    <string name="rider_step_documents">ಫೋಟೋಗಳು ಮತ್ತು ದಾಖಲೆಗಳು</string>
+    <string name="rider_step_verify">ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಸೇರಿಸಿ</string>
+    <string name="rider_doc_photo">ರೈಡರ್ ಫೋಟೋ</string>
+    <string name="rider_doc_address_proof">ವಿಳಾಸ ಪುರಾವೆ (ಆಧಾರ್ / ಮತದಾರರ ಗುರುತಿನ ಚೀಟಿ)</string>
+    <string name="rider_docs_hint">ಸ್ಪಷ್ಟ ಫೋಟೋ ತೆಗೆಯಿರಿ. ಇವು ರೈಡರ್‌ನ ಪಾರ್ಟ್ನರ್ ಆ್ಯಪ್ ಪ್ರೊಫೈಲ್‌ನಲ್ಲಿ ಉಳಿಯುತ್ತವೆ.</string>
+    <string name="rider_verify_hint">ರೈಡರ್‌ನ ಮೊಬೈಲ್‌ಗೆ OTP ಕಳುಹಿಸಲಾಗುತ್ತದೆ. ಪರಿಶೀಲನೆಯ ನಂತರ ಅವರು ಸೇರ್ಪಡೆಯಾಗುತ್ತಾರೆ ಮತ್ತು ಇದೇ ಸಂಖ್ಯೆಯಿಂದ ಪಾರ್ಟ್ನರ್ ಆ್ಯಪ್‌ಗೆ ಲಾಗಿನ್ ಮಾಡಬಹುದು.</string>
+    <string name="rider_kyc_pending">KYC ಬಾಕಿ · ಸೇರಿಸಲು ದಾಖಲೆಗಳನ್ನು ನೀಡಿ</string>
 </resources>

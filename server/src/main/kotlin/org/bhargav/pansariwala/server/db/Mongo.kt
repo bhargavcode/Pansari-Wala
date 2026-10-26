@@ -430,6 +430,11 @@ data class ShopPartnerDoc(
     val createdAt: Long = 0L,
     /** Fixed amount the shop pays this rider per delivered (or accepted-return) order. */
     val payoutPerDeliveryInr: Double = 0.0,
+    val address: String = "",
+    val profilePhoto: String = "",
+    val dlPhoto: String = "",
+    val vehiclePhoto: String = "",
+    val addressProofPhoto: String = "",
 )
 
 /** Cash/UPI the shop paid to one of its own riders, settled against their per-delivery earnings. */

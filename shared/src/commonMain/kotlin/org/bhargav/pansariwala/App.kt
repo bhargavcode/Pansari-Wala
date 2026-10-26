@@ -6,6 +6,7 @@ import org.bhargav.pansariwala.designsystem.LocalFloatingKeyboardEligible
 import org.bhargav.pansariwala.designsystem.hasSoftKeyboard
 import org.bhargav.pansariwala.navigation.RetainAcrossRemount
 import org.bhargav.pansariwala.platform.BrowserBackBridge
+import org.bhargav.pansariwala.platform.WebExitGuard
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -111,6 +112,7 @@ fun App(
             val floatingKeyboardOn by preferences.floatingKeyboard.collectAsStateWithLifecycle(initialValue = true)
             Surface(modifier = Modifier.fillMaxSize()) {
                 CompositionLocalProvider(LocalFloatingKeyboardEligible provides keyboardEligible) {
+                    WebExitGuard()
                     FloatingKeyboardHost(enabled = keyboardEligible && floatingKeyboardOn, preferences = preferences) {
                         when (product) {
                             AppProduct.POS -> AppNavGraph()

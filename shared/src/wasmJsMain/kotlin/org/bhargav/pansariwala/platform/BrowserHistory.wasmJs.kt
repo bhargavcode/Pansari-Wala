@@ -9,8 +9,13 @@ private fun addPopListener(callback: () -> Unit): JsAny =
 
 private fun removePopListener(handler: JsAny): Unit = js("window.removeEventListener('popstate', handler)")
 
-private fun addFirstInteraction(callback: () -> Unit): Unit =
-    js("{ let f = false; const h = () => { if (!f) { f = true; callback(); } }; window.addEventListener('pointerdown', h); window.addEventListener('keydown', h); }")
+private fun addActivationListener(callback: () -> Unit): JsAny =
+    js("{ const h = () => callback(); ['pointerup', 'mousedown', 'touchend', 'keydown'].forEach(e => window.addEventListener(e, h)); return h; }")
+
+private fun removeActivationListener(handler: JsAny): Unit =
+    js("['pointerup', 'mousedown', 'touchend', 'keydown'].forEach(e => window.removeEventListener(e, handler))")
+
+private fun locationReplace(path: String): Unit = js("window.location.replace(path)")
 
 internal actual object BrowserHistory {
     actual val supported: Boolean = true
@@ -24,5 +29,10 @@ internal actual object BrowserHistory {
         return { removePopListener(handler) }
     }
 
-    actual fun onFirstInteraction(block: () -> Unit) = addFirstInteraction(block)
+    actual fun onInteraction(block: () -> Unit): () -> Unit {
+        val handler = addActivationListener(block)
+        return { removeActivationListener(handler) }
+    }
+
+    actual fun replaceLocation(path: String) = locationReplace(path)
 }

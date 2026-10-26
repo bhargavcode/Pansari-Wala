@@ -81,6 +81,7 @@ import org.bhargav.pansariwala.designsystem.TimePickerField
 import org.bhargav.pansariwala.designsystem.formatClockTime
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
+import pansariwala.shared.generated.resources.riders_title
 import org.bhargav.pansariwala.domain.model.ShopReview
 import org.bhargav.pansariwala.domain.model.ShopType
 import org.bhargav.pansariwala.feature.user.shopTypeLabel
@@ -335,10 +336,8 @@ fun ShopProfileScreen(
                         }
                     }
                 }
-                ProfileTab.STAFF -> {
-                    staffItems(state.staff, state.access, viewModel)
-                    if (state.access.can(ShopPermission.ONLINE_ORDERS)) riderItems(profile.shop.id)
-                }
+                ProfileTab.STAFF -> staffItems(state.staff, state.access, viewModel)
+                ProfileTab.RIDERS -> riderItems(profile.shop.id)
                 ProfileTab.OFFERS -> offerItems(state.offers, viewModel)
                 ProfileTab.RATINGS -> ratingItems(profile.shop, state.ratings, viewModel)
                 ProfileTab.VISITORS -> item { VisitorsCard(state, viewModel::setVisitorRange) }
@@ -441,6 +440,7 @@ fun ShopProfileScreen(
 private fun ProfileTab.label(): StringResource = when (this) {
     ProfileTab.SHOP -> Res.string.profile_tab_shop
     ProfileTab.STAFF -> Res.string.profile_tab_staff
+    ProfileTab.RIDERS -> Res.string.riders_title
     ProfileTab.OFFERS -> Res.string.profile_tab_offers
     ProfileTab.RATINGS -> Res.string.profile_tab_ratings
     ProfileTab.VISITORS -> Res.string.profile_tab_visitors

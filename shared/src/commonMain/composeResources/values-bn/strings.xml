@@ -2460,4 +2460,18 @@
     <string name="finder_scan_cd">বারকোড স্ক্যান করুন</string>
     <string name="finder_scan_hint">ক্যামেরা পণ্যের বারকোডের দিকে ধরুন</string>
     <string name="finder_voice_hint">পণ্য, ব্র্যান্ড বা বিভাগ বলুন…</string>
+    <string name="web_exit_title">পানসারি ওয়ালা থেকে বেরোবেন?</string>
+    <string name="web_exit_message">আপনি হোম স্ক্রিনে আছেন। পিছনে গেলে অ্যাপ থেকে বেরিয়ে যাবেন।</string>
+    <string name="web_exit_confirm">বেরোন</string>
+    <string name="web_exit_cancel">থাকুন</string>
+    <string name="rider_step_progress">ধাপ %1$d / %2$d · %3$s</string>
+    <string name="rider_step_details">রাইডারের তথ্য</string>
+    <string name="rider_step_vehicle">গাড়ি ও পেমেন্ট</string>
+    <string name="rider_step_documents">ছবি ও নথি</string>
+    <string name="rider_step_verify">যাচাই করে যোগ করুন</string>
+    <string name="rider_doc_photo">রাইডারের ছবি</string>
+    <string name="rider_doc_address_proof">ঠিকানার প্রমাণ (আধার / ভোটার আইডি)</string>
+    <string name="rider_docs_hint">পরিষ্কার ছবি তুলুন। এগুলি রাইডারের পার্টনার অ্যাপ প্রোফাইলে সংরক্ষিত হবে।</string>
+    <string name="rider_verify_hint">রাইডারের মোবাইলে OTP পাঠানো হবে। যাচাইয়ের পরে তাঁরা যুক্ত হবেন এবং এই নম্বর দিয়েই পার্টনার অ্যাপে লগ ইন করতে পারবেন।</string>
+    <string name="rider_kyc_pending">KYC বাকি · যোগ করতে নথি দিন</string>
 </resources>

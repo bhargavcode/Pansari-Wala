@@ -16,10 +16,13 @@ internal actual object BrowserHistory {
         return { window.removeEventListener("popstate", handler) }
     }
 
-    actual fun onFirstInteraction(block: () -> Unit) {
-        var fired = false
-        val handler: (Event) -> Unit = { if (!fired) { fired = true; block() } }
-        window.addEventListener("pointerdown", handler)
-        window.addEventListener("keydown", handler)
+    actual fun onInteraction(block: () -> Unit): () -> Unit {
+        val handler: (Event) -> Unit = { block() }
+        ACTIVATION_EVENTS.forEach { window.addEventListener(it, handler) }
+        return { ACTIVATION_EVENTS.forEach { window.removeEventListener(it, handler) } }
     }
+
+    actual fun replaceLocation(path: String) = window.location.replace(path)
 }
+
+private val ACTIVATION_EVENTS = listOf("pointerup", "mousedown", "touchend", "keydown")

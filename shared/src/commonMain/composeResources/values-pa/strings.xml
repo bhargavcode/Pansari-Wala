@@ -2460,4 +2460,18 @@
     <string name="finder_scan_cd">ਬਾਰਕੋਡ ਸਕੈਨ ਕਰੋ</string>
     <string name="finder_scan_hint">ਕੈਮਰਾ ਉਤਪਾਦ ਦੇ ਬਾਰਕੋਡ ਵੱਲ ਕਰੋ</string>
     <string name="finder_voice_hint">ਉਤਪਾਦ, ਬ੍ਰਾਂਡ ਜਾਂ ਸ਼੍ਰੇਣੀ ਬੋਲੋ…</string>
+    <string name="web_exit_title">ਪੰਸਾਰੀ ਵਾਲਾ ਤੋਂ ਬਾਹਰ ਜਾਣਾ ਹੈ?</string>
+    <string name="web_exit_message">ਤੁਸੀਂ ਹੋਮ ਸਕ੍ਰੀਨ \'ਤੇ ਹੋ। ਪਿੱਛੇ ਜਾਣ ਨਾਲ ਐਪ ਬੰਦ ਹੋ ਜਾਵੇਗੀ।</string>
+    <string name="web_exit_confirm">ਬਾਹਰ ਜਾਓ</string>
+    <string name="web_exit_cancel">ਇੱਥੇ ਰਹੋ</string>
+    <string name="rider_step_progress">ਕਦਮ %1$d / %2$d · %3$s</string>
+    <string name="rider_step_details">ਰਾਈਡਰ ਦੀ ਜਾਣਕਾਰੀ</string>
+    <string name="rider_step_vehicle">ਗੱਡੀ ਅਤੇ ਭੁਗਤਾਨ</string>
+    <string name="rider_step_documents">ਫੋਟੋਆਂ ਅਤੇ ਦਸਤਾਵੇਜ਼</string>
+    <string name="rider_step_verify">ਪੁਸ਼ਟੀ ਕਰੋ ਅਤੇ ਜੋੜੋ</string>
+    <string name="rider_doc_photo">ਰਾਈਡਰ ਦੀ ਫੋਟੋ</string>
+    <string name="rider_doc_address_proof">ਪਤੇ ਦਾ ਸਬੂਤ (ਆਧਾਰ / ਵੋਟਰ ਆਈਡੀ)</string>
+    <string name="rider_docs_hint">ਸਾਫ਼ ਫੋਟੋਆਂ ਲਓ। ਇਹ ਰਾਈਡਰ ਦੀ ਪਾਰਟਨਰ ਐਪ ਪ੍ਰੋਫਾਈਲ ਵਿੱਚ ਸੇਵ ਹੋਣਗੀਆਂ।</string>
+    <string name="rider_verify_hint">ਰਾਈਡਰ ਦੇ ਮੋਬਾਈਲ \'ਤੇ OTP ਭੇਜਿਆ ਜਾਵੇਗਾ। ਪੁਸ਼ਟੀ ਤੋਂ ਬਾਅਦ ਉਹ ਜੁੜ ਜਾਣਗੇ ਅਤੇ ਇਸੇ ਨੰਬਰ ਨਾਲ ਪਾਰਟਨਰ ਐਪ ਵਿੱਚ ਲੌਗ ਇਨ ਕਰ ਸਕਣਗੇ।</string>
+    <string name="rider_kyc_pending">KYC ਬਾਕੀ · ਜੋੜਨ ਲਈ ਦਸਤਾਵੇਜ਼ ਦਿਓ</string>
 </resources>

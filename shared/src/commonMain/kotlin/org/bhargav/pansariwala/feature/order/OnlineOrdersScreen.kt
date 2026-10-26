@@ -1,11 +1,8 @@
 package org.bhargav.pansariwala.feature.order
 
-import pansariwala.shared.generated.resources.action_send_otp
-import pansariwala.shared.generated.resources.rider_verify_add
-import pansariwala.shared.generated.resources.rider_rate_hint
-import pansariwala.shared.generated.resources.rider_rate_label
-import org.bhargav.pansariwala.designsystem.OtpStepState
-import org.bhargav.pansariwala.designsystem.OtpStepSection
+import org.bhargav.pansariwala.api.ShopPartnerDto
+import org.bhargav.pansariwala.feature.profile.RiderEnrollSheet
+
 import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import org.bhargav.pansariwala.designsystem.AppBottomSheet
 import androidx.compose.foundation.background
@@ -23,9 +20,6 @@ import androidx.compose.material.icons.filled.Delete
 import pansariwala.shared.generated.resources.action_assign_own_partner
 import pansariwala.shared.generated.resources.action_remove
 import pansariwala.shared.generated.resources.action_save
-import pansariwala.shared.generated.resources.field_name
-import pansariwala.shared.generated.resources.field_phone
-import pansariwala.shared.generated.resources.field_vehicle_reg_optional
 import pansariwala.shared.generated.resources.own_partner_add
 import pansariwala.shared.generated.resources.own_partner_assign
 import pansariwala.shared.generated.resources.own_partner_empty
@@ -436,18 +430,13 @@ fun OnlineOrdersScreen(
         }
         }
         if (state.assignOrderId != null) {
-            val partnerOtp by viewModel.partnerOtp.state.collectAsStateWithLifecycle()
             AssignOwnPartnerSheet(
                 state = state,
-                otp = partnerOtp,
-                onOtpCode = viewModel.partnerOtp::onCode,
-                onOtpResend = { viewModel.partnerOtp.send() },
                 onAssign = viewModel::assignPartner,
                 onRemove = viewModel::removePartner,
                 onOpenForm = viewModel::openPartnerForm,
                 onCloseForm = viewModel::closePartnerForm,
-                onFormChange = viewModel::updatePartnerForm,
-                onSave = viewModel::savePartner,
+                onEnrolled = viewModel::onPartnerEnrolled,
                 onDismiss = viewModel::dismissAssignPartner,
             )
         }
@@ -846,15 +835,11 @@ fun NewOrdersBadge(count: Int) {
 @Composable
 private fun AssignOwnPartnerSheet(
     state: OnlineOrdersUiState,
-    otp: OtpStepState,
-    onOtpCode: (String) -> Unit,
-    onOtpResend: () -> Unit,
     onAssign: (String) -> Unit,
     onRemove: (String) -> Unit,
     onOpenForm: () -> Unit,
     onCloseForm: () -> Unit,
-    onFormChange: ((ShopPartnerForm) -> ShopPartnerForm) -> Unit,
-    onSave: () -> Unit,
+    onEnrolled: (ShopPartnerDto) -> Unit,
     onDismiss: () -> Unit,
 ) {
     AppBottomSheet(
@@ -875,7 +860,7 @@ private fun AssignOwnPartnerSheet(
             }
             if (state.partnersLoading && state.shopPartners.isEmpty()) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            } else if (state.shopPartners.isEmpty() && state.partnerForm == null) {
+            } else if (state.shopPartners.isEmpty()) {
                 Text(stringResource(Res.string.own_partner_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             state.shopPartners.forEach { partner ->
@@ -900,81 +885,14 @@ private fun AssignOwnPartnerSheet(
                     }
                 }
             }
-            val form = state.partnerForm
-            if (form == null) {
-                OutlinedButton(onClick = onOpenForm, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(Res.string.own_partner_add))
-                }
-            } else {
-                val locked = otp.codeSent
-                OutlinedTextField(
-                    value = form.name,
-                    onValueChange = { v -> onFormChange { it.copy(name = v) } },
-                    label = { Text(stringResource(Res.string.field_name)) },
-                    singleLine = true,
-                    enabled = !locked,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.phone,
-                    onValueChange = { v -> onFormChange { it.copy(phone = v.filter { c -> c.isDigit() || c == '+' }.take(13)) } },
-                    label = { Text(stringResource(Res.string.field_phone)) },
-                    singleLine = true,
-                    enabled = !locked,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.vehicleReg,
-                    onValueChange = { v -> onFormChange { it.copy(vehicleReg = v.uppercase()) } },
-                    label = { Text(stringResource(Res.string.field_vehicle_reg_optional)) },
-                    singleLine = true,
-                    enabled = !locked,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.rate,
-                    onValueChange = { v -> onFormChange { it.copy(rate = v.filter { c -> c.isDigit() || c == '.' }.take(7)) } },
-                    label = { Text(stringResource(Res.string.rider_rate_label)) },
-                    supportingText = { Text(stringResource(Res.string.rider_rate_hint)) },
-                    singleLine = true,
-                    enabled = !locked,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (locked) {
-                    OtpStepSection(
-                        state = otp,
-                        submitLabel = stringResource(Res.string.rider_verify_add),
-                        onCode = onOtpCode,
-                        onResend = onOtpResend,
-                        onSubmit = onSave,
-                    )
-                    OutlinedButton(onClick = onCloseForm, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(Res.string.action_cancel))
-                    }
-                } else {
-                otp.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.shopPartners.isNotEmpty()) {
-                        OutlinedButton(onClick = onCloseForm, modifier = Modifier.weight(1f)) {
-                            Text(stringResource(Res.string.action_cancel))
-                        }
-                    }
-                    Button(
-                        onClick = onSave,
-                        enabled = form.valid && !state.partnersLoading && !otp.busy,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(stringResource(Res.string.action_send_otp))
-                    }
-                }
-                }
+            OutlinedButton(onClick = onOpenForm, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(Res.string.own_partner_add))
             }
         }
     }
+    if (state.enrollingPartner) RiderEnrollSheet(onAdded = onEnrolled, onDismiss = onCloseForm)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

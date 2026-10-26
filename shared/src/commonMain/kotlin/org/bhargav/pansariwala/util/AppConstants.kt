@@ -161,6 +161,9 @@ object AppConstants {
     const val DEFAULT_API_PORT: Int = 8080
     const val PUBLIC_DOMAIN: String = "pansariwala.shop"
     const val WEB_BASE_URL: String = "https://pansariwala.shop"
+    const val WEB_LANDING_PATH: String = "/"
+    /** Quiet time after the last exit `popstate` before falling back to the landing page. */
+    const val WEB_EXIT_SETTLE_MS: Long = 700L
     const val API_HOST: String = "api.pansariwala.shop"
     /** EC2 API for all platforms (debug + release). Override via Android `API_BASE_URL` env/property. */
     const val API_BASE_URL: String = "https://api.pansariwala.shop"

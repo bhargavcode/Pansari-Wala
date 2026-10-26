@@ -2524,4 +2524,18 @@
     <string name="finder_scan_cd">Scan barcode</string>
     <string name="finder_scan_hint">Point the camera at the product barcode</string>
     <string name="finder_voice_hint">Say a product, brand or category…</string>
+    <string name="web_exit_title">Exit Pansari Wala?</string>
+    <string name="web_exit_message">You are on the home screen. Going back will leave the app.</string>
+    <string name="web_exit_confirm">Exit</string>
+    <string name="web_exit_cancel">Stay</string>
+    <string name="rider_step_progress">Step %1$d of %2$d · %3$s</string>
+    <string name="rider_step_details">Rider details</string>
+    <string name="rider_step_vehicle">Vehicle &amp; pay</string>
+    <string name="rider_step_documents">Photos &amp; documents</string>
+    <string name="rider_step_verify">Verify &amp; enrol</string>
+    <string name="rider_doc_photo">Rider photo</string>
+    <string name="rider_doc_address_proof">Address proof (Aadhaar / voter ID)</string>
+    <string name="rider_docs_hint">Take clear photos. They are saved to the rider\'s Partner app profile.</string>
+    <string name="rider_verify_hint">We will send an OTP to the rider\'s mobile. After verification they are enrolled and can log in to the Partner app with this number.</string>
+    <string name="rider_kyc_pending">KYC pending · add documents to enrol</string>
 </resources>
