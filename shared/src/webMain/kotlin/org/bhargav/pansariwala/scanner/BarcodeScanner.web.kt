@@ -135,6 +135,7 @@ private fun scannerStart(
     v.style.top = p[1] + 'px';
     v.style.width = p[2] + 'px';
     v.style.height = p[3] + 'px';
+    v.style.borderRadius = Math.abs(p[2] - p[3]) < 2 ? '50%' : '12px';
   };
   s.stop = () => {
     s.stopped = true;
@@ -153,7 +154,7 @@ private fun scannerStart(
       v.playsInline = true;
       v.autoplay = true;
       v.srcObject = stream;
-      v.style.cssText = 'position:fixed;border-radius:50%;object-fit:cover;pointer-events:none;z-index:10;' + (front ? 'transform:scaleX(-1);' : '');
+      v.style.cssText = 'position:fixed;object-fit:cover;pointer-events:none;z-index:10;' + (front ? 'transform:scaleX(-1);' : '');
       document.body.appendChild(v);
       s.video = v;
       s.place();
