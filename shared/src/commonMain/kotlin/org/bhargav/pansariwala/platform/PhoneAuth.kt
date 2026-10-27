@@ -41,11 +41,13 @@ data class PhoneOtpSession(
     val devOtp: String? = null,
     val resendAfterSec: Int = AppConstants.OTP_DEFAULT_RESEND_SEC,
     val maskedPhone: String = "",
+    val expiresInSec: Int = AppConstants.OTP_DEFAULT_TTL_SEC,
 )
 
 fun OtpSessionResponse.toPhoneOtpSession() = PhoneOtpSession(
     sessionId = sessionId,
     devOtp = devOtp,
+    expiresInSec = expiresInSec,
     resendAfterSec = resendAfterSec,
     maskedPhone = maskedPhone,
 )
@@ -77,21 +79,38 @@ class ServerPhoneAuthGateway(
 
     override suspend fun sendOtp(phone: String): Result<PhoneOtpSession> = runCatching {
         val digits = digitsPhone(phone)
+        val masked = maskPhoneForStatus(digits)
+        OtpStatusCenter.post(OtpStatus.Sending(masked))
         val config = api.otpConfig()
         if (config.mode != AppConstants.OTP_MODE_FIREBASE) return@runCatching request(digits, OtpAppProof())
+        OtpStatusCenter.post(OtpStatus.VerifyingHuman(masked))
         val proof = verifier.proof(e164Phone(digits), config, forceRecaptcha = integrityRejected)
+        OtpStatusCenter.post(OtpStatus.Sending(masked))
         try {
             request(digits, proof)
         } catch (e: ApiException) {
             if (proof.playIntegrityToken == null || e.code !in INTEGRITY_RETRY_CODES) throw e
             integrityRejected = true
-            request(digits, verifier.proof(e164Phone(digits), config, forceRecaptcha = true))
+            OtpStatusCenter.post(OtpStatus.VerifyingHuman(masked))
+            val retryProof = verifier.proof(e164Phone(digits), config, forceRecaptcha = true)
+            OtpStatusCenter.post(OtpStatus.Sending(masked))
+            request(digits, retryProof)
         }
-    }.onFailure { it.rethrowIfStructuredCancellation() }
+    }.onSuccess { session ->
+        val shown = session.maskedPhone.ifBlank { maskPhoneForStatus(digitsPhone(phone)) }
+        OtpStatusCenter.post(OtpStatus.Sent(shown, ((session.expiresInSec + SECONDS_PER_MIN - 1) / SECONDS_PER_MIN).coerceAtLeast(1)))
+    }.onFailure {
+        it.rethrowIfStructuredCancellation()
+        OtpStatusCenter.post(
+            if (it is OtpVerificationCancelledException) OtpStatus.Cancelled
+            else OtpStatus.SendFailed(mapPhoneAuthError(it, verifying = false)),
+        )
+    }
 
     private companion object {
         /** Older servers report Firebase's HTTP 500 for a bad integrity token as a delivery failure. */
         val INTEGRITY_RETRY_CODES = setOf(OtpErrorCodes.APP_VERIFICATION_FAILED, OtpErrorCodes.DELIVERY_FAILED)
+        const val SECONDS_PER_MIN = 60
     }
 
     private suspend fun request(digits: String, proof: OtpAppProof): PhoneOtpSession =
@@ -110,8 +129,13 @@ class ServerPhoneAuthGateway(
         otp: String,
         session: PhoneOtpSession,
     ): Result<TokenResponse> = runCatching {
+        OtpStatusCenter.post(OtpStatus.Checking)
         api.verifyOtp(digitsPhone(phone), otp.filter { it.isDigit() }, session.sessionId)
-    }.onFailure { it.rethrowIfStructuredCancellation() }
+    }.onSuccess { OtpStatusCenter.post(OtpStatus.Verified) }
+        .onFailure {
+            it.rethrowIfStructuredCancellation()
+            OtpStatusCenter.post(OtpStatus.VerifyFailed(mapPhoneAuthError(it, verifying = true)))
+        }
 }
 
 /** Digits only, capped at [AppConstants.OTP_LENGTH]. */

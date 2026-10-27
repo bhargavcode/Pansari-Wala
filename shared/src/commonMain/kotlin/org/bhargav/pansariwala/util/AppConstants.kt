@@ -241,6 +241,9 @@ object AppConstants {
     const val OTP_LENGTH: Int = 6
     val UPI_ID_REGEX = Regex("^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9.-]{1,63}$")
     const val OTP_COUNTDOWN_TICK_MS: Long = 1_000L
+    /** How long the OTP status card stays up for success/info and for failures. */
+    const val OTP_STATUS_INFO_MS: Long = 4_000L
+    const val OTP_STATUS_ERROR_MS: Long = 8_000L
     const val OTP_MODE_DEV: String = "dev"
     const val OTP_MODE_FIREBASE: String = "firebase"
     /** Firebase Cloud project number (`project_number` in google-services.json) for Play Integrity. */

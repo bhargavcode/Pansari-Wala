@@ -2469,4 +2469,14 @@
     <string name="rider_kyc_pending">KYC बाकी · जोडण्यासाठी कागदपत्रे द्या</string>
     <string name="action_show_details">तपशील दाखवा</string>
     <string name="action_hide_details">तपशील लपवा</string>
+    <string name="otp_status_verifying_human">तुम्ही रोबोट नाही हे तपासत आहोत…</string>
+    <string name="otp_status_sending">OTP पाठवत आहोत…</string>
+    <string name="otp_status_to">%1$s वर</string>
+    <string name="otp_status_sent_title">OTP पाठवला</string>
+    <string name="otp_status_sent_body">कोड %1$s वर पाठवला. %2$d मिनिटे वैध.</string>
+    <string name="otp_status_failed_title">OTP पाठवला नाही</string>
+    <string name="otp_status_cancelled">पडताळणी रद्द झाली. OTP पाठवला नाही.</string>
+    <string name="otp_status_checking">OTP तपासत आहोत…</string>
+    <string name="otp_status_verified">OTP पडताळला</string>
+    <string name="otp_status_verify_failed_title">OTP पडताळला नाही</string>
 </resources>

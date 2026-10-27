@@ -2469,4 +2469,14 @@
     <string name="rider_kyc_pending">KYC বাকি · যোগ করতে নথি দিন</string>
     <string name="action_show_details">বিস্তারিত দেখান</string>
     <string name="action_hide_details">বিস্তারিত লুকান</string>
+    <string name="otp_status_verifying_human">আপনি রোবট নন তা যাচাই করা হচ্ছে…</string>
+    <string name="otp_status_sending">OTP পাঠানো হচ্ছে…</string>
+    <string name="otp_status_to">%1$s-এ</string>
+    <string name="otp_status_sent_title">OTP পাঠানো হয়েছে</string>
+    <string name="otp_status_sent_body">কোড %1$s-এ পাঠানো হয়েছে। %2$d মিনিট বৈধ।</string>
+    <string name="otp_status_failed_title">OTP পাঠানো যায়নি</string>
+    <string name="otp_status_cancelled">যাচাই বাতিল হয়েছে। OTP পাঠানো হয়নি।</string>
+    <string name="otp_status_checking">OTP যাচাই করা হচ্ছে…</string>
+    <string name="otp_status_verified">OTP যাচাই হয়েছে</string>
+    <string name="otp_status_verify_failed_title">OTP যাচাই হয়নি</string>
 </resources>

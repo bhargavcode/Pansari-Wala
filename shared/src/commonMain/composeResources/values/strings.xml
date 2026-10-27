@@ -2533,4 +2533,14 @@
     <string name="rider_kyc_pending">KYC pending · add documents to enrol</string>
     <string name="action_show_details">Show details</string>
     <string name="action_hide_details">Hide details</string>
+    <string name="otp_status_verifying_human">Checking you\'re not a robot…</string>
+    <string name="otp_status_sending">Sending OTP…</string>
+    <string name="otp_status_to">To %1$s</string>
+    <string name="otp_status_sent_title">OTP sent</string>
+    <string name="otp_status_sent_body">Code sent to %1$s. Valid for %2$d min.</string>
+    <string name="otp_status_failed_title">OTP not sent</string>
+    <string name="otp_status_cancelled">Verification cancelled. OTP was not sent.</string>
+    <string name="otp_status_checking">Checking OTP…</string>
+    <string name="otp_status_verified">OTP verified</string>
+    <string name="otp_status_verify_failed_title">OTP not verified</string>
 </resources>

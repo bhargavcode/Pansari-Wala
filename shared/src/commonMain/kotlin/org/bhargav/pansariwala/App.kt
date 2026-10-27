@@ -7,6 +7,7 @@ import org.bhargav.pansariwala.designsystem.hasSoftKeyboard
 import org.bhargav.pansariwala.navigation.RetainAcrossRemount
 import org.bhargav.pansariwala.platform.BrowserBackBridge
 import org.bhargav.pansariwala.platform.WebExitGuard
+import org.bhargav.pansariwala.platform.OtpStatusHost
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -121,6 +122,7 @@ fun App(
                         }
                     }
                 }
+                OtpStatusHost()
                 if (showNotificationRationale) {
                     fun close(allow: Boolean) {
                         showNotificationRationale = false

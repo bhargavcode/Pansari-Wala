@@ -21,6 +21,8 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.i18n.UiText
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.platform.OtpStatus
+import org.bhargav.pansariwala.platform.OtpStatusCenter
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.PhoneOtpSession
 import org.bhargav.pansariwala.platform.mapPhoneAuthError
@@ -85,11 +87,17 @@ class OtpStepController(private val gateway: PhoneAuthGateway, private val scope
         if (s.busy || s.code.length != AppConstants.OTP_LENGTH) return
         scope.launch {
             _state.update { it.copy(verifying = true, error = null) }
+            OtpStatusCenter.post(OtpStatus.Checking)
             runCatching { action(s.phone, s.code, session.sessionId) }
-                .onSuccess { reset() }
+                .onSuccess {
+                    OtpStatusCenter.post(OtpStatus.Verified)
+                    reset()
+                }
                 .onFailure { e ->
                     e.rethrowIfStructuredCancellation()
-                    _state.update { it.copy(verifying = false, error = mapPhoneAuthError(e, verifying = true)) }
+                    val error = mapPhoneAuthError(e, verifying = true)
+                    OtpStatusCenter.post(OtpStatus.VerifyFailed(error))
+                    _state.update { it.copy(verifying = false, error = error) }
                 }
         }
     }
