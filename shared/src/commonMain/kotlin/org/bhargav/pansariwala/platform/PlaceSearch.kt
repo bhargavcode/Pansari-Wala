@@ -38,17 +38,8 @@ private var placesSessionToken: String? = null
 private fun sessionToken(): String = placesSessionToken ?: generateId("ps").also { placesSessionToken = it }
 
 private const val GOOGLE_OK = "OK"
-private const val GOOGLE_ZERO_RESULTS = "ZERO_RESULTS"
-private const val PHOTON_PLACE_PREFIX = "osm:"
-private const val PHOTON_COUNTRY_CODE = "IN"
 
-/** Photon results already carry coordinates; kept here so [fetchPlaceDetails] needs no second request. */
-private val photonDetailsById = mutableMapOf<String, PlaceDetails>()
-
-/**
- * Google Places Autocomplete, restricted to India. Falls back to Photon (OpenStreetMap) when Google
- * refuses the request — e.g. REQUEST_DENIED because billing is not enabled on the Cloud project.
- */
+/** Google Places Autocomplete, restricted to India. */
 suspend fun searchPlaces(query: String): List<PlacePrediction> {
     if (query.isBlank()) return emptyList()
     val client = placesHttpClient()
@@ -61,15 +52,7 @@ suspend fun searchPlaces(query: String): List<PlacePrediction> {
                 parameter("key", AppConstants.GOOGLE_MAPS_API_KEY)
             }.body<PlacesAutocompleteResponse>()
         }.getOrNull()
-        when (body?.status) {
-            GOOGLE_OK -> body.predictions.map { PlacePrediction(it.placeId, it.description) }
-            GOOGLE_ZERO_RESULTS -> emptyList()
-            else -> photonSearch(client, query).map { details ->
-                val id = "$PHOTON_PLACE_PREFIX${details.lat},${details.lng}"
-                photonDetailsById[id] = details
-                PlacePrediction(id, details.formattedAddress)
-            }
-        }
+        if (body?.status == GOOGLE_OK) body.predictions.map { PlacePrediction(it.placeId, it.description) } else emptyList()
     } catch (_: Throwable) {
         emptyList()
     } finally {
@@ -78,7 +61,6 @@ suspend fun searchPlaces(query: String): List<PlacePrediction> {
 }
 
 suspend fun fetchPlaceDetails(placeId: String): PlaceDetails? {
-    if (placeId.startsWith(PHOTON_PLACE_PREFIX)) return photonDetailsById[placeId]
     val client = placesHttpClient()
     return try {
         val body = client.get(AppConstants.GOOGLE_PLACES_DETAILS_URL) {
@@ -115,18 +97,14 @@ suspend fun geocodeAddress(query: String): PlaceDetails? {
                 parameter("key", AppConstants.GOOGLE_MAPS_API_KEY)
             }.body<GeocodeResponse>()
         }.getOrNull()
-        when (body?.status) {
-            GOOGLE_OK -> body.results.firstOrNull()?.let { result ->
-                val loc = result.geometry?.location ?: return null
-                PlaceDetails(
-                    formattedAddress = result.formattedAddress.ifBlank { query },
-                    locality = localityFrom(result.addressComponents),
-                    lat = loc.lat,
-                    lng = loc.lng,
-                )
-            }
-            GOOGLE_ZERO_RESULTS -> null
-            else -> photonSearch(client, query).firstOrNull()
+        body?.results?.firstOrNull()?.takeIf { body.status == GOOGLE_OK }?.let { result ->
+            val loc = result.geometry?.location ?: return null
+            PlaceDetails(
+                formattedAddress = result.formattedAddress.ifBlank { query },
+                locality = localityFrom(result.addressComponents),
+                lat = loc.lat,
+                lng = loc.lng,
+            )
         }
     } catch (_: Throwable) {
         null
@@ -144,51 +122,14 @@ suspend fun reverseGeocode(lat: Double, lng: Double): PlaceDetails? {
                 parameter("key", AppConstants.GOOGLE_MAPS_API_KEY)
             }.body<GeocodeResponse>()
         }.getOrNull()
-        val google = body?.results?.firstOrNull()?.takeIf { body.status == GOOGLE_OK }?.let { result ->
+        body?.results?.firstOrNull()?.takeIf { body.status == GOOGLE_OK }?.let { result ->
             PlaceDetails(result.formattedAddress, localityFrom(result.addressComponents), lat, lng)
         }
-        google ?: photonReverse(client, lat, lng)
     } catch (_: Throwable) {
         null
     } finally {
         client.close()
     }
-}
-
-private suspend fun photonSearch(client: HttpClient, query: String): List<PlaceDetails> {
-    val body = client.get(AppConstants.PHOTON_SEARCH_URL) {
-        parameter("q", query)
-        parameter("limit", AppConstants.PHOTON_RESULT_LIMIT * 2)
-        parameter("lat", AppConstants.DEFAULT_MAP_LAT)
-        parameter("lon", AppConstants.DEFAULT_MAP_LNG)
-    }.body<PhotonResponse>()
-    return body.features
-        .filter { it.properties.countryCode.equals(PHOTON_COUNTRY_CODE, ignoreCase = true) }
-        .mapNotNull { it.toPlaceDetails() }
-        .distinctBy { it.formattedAddress }
-        .take(AppConstants.PHOTON_RESULT_LIMIT)
-}
-
-private suspend fun photonReverse(client: HttpClient, lat: Double, lng: Double): PlaceDetails? {
-    val body = client.get(AppConstants.PHOTON_REVERSE_URL) {
-        parameter("lat", lat)
-        parameter("lon", lng)
-    }.body<PhotonResponse>()
-    return body.features.firstOrNull()?.toPlaceDetails()?.copy(lat = lat, lng = lng)
-}
-
-private fun PhotonFeature.toPlaceDetails(): PlaceDetails? {
-    val coords = geometry?.coordinates ?: return null
-    if (coords.size < 2) return null
-    val p = properties
-    val street = listOfNotNull(p.houseNumber, p.street).joinToString(" ").ifBlank { null }
-    val locality = listOf(p.locality, p.district, p.city, p.county).firstOrNull { !it.isNullOrBlank() }.orEmpty()
-    val address = listOf(p.name, street, p.locality, p.district, p.city, p.state, p.postcode)
-        .filterNot { it.isNullOrBlank() }
-        .distinct()
-        .joinToString(", ")
-    if (address.isBlank()) return null
-    return PlaceDetails(formattedAddress = address, locality = locality, lat = coords[1], lng = coords[0])
 }
 
 private fun placesHttpClient(): HttpClient = createPlatformHttpClient().config {
@@ -268,35 +209,4 @@ private data class PlaceLatLng(
 private data class PlaceAddressComponent(
     @SerialName("long_name") val longName: String = "",
     val types: List<String> = emptyList(),
-)
-
-@Serializable
-private data class PhotonResponse(
-    val features: List<PhotonFeature> = emptyList(),
-)
-
-@Serializable
-private data class PhotonFeature(
-    val properties: PhotonProperties = PhotonProperties(),
-    val geometry: PhotonGeometry? = null,
-)
-
-/** [coordinates] is GeoJSON order: longitude, latitude. */
-@Serializable
-private data class PhotonGeometry(
-    val coordinates: List<Double> = emptyList(),
-)
-
-@Serializable
-private data class PhotonProperties(
-    val name: String? = null,
-    @SerialName("housenumber") val houseNumber: String? = null,
-    val street: String? = null,
-    val locality: String? = null,
-    val district: String? = null,
-    val city: String? = null,
-    val county: String? = null,
-    val state: String? = null,
-    val postcode: String? = null,
-    @SerialName("countrycode") val countryCode: String? = null,
 )

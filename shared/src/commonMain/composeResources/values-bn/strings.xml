@@ -266,13 +266,6 @@
     <string name="master_select_on_map">ম্যাপে বাছুন</string>
     <string name="master_latitude">অক্ষাংশ</string>
     <string name="master_longitude">দ্রাঘিমাংশ</string>
-    <string name="master_map_search_hint">এলাকা, রাস্তা বা শহর খুঁজুন</string>
-    <string name="master_map_not_found">জায়গা পাওয়া যায়নি। অন্যভাবে খুঁজে দেখুন।</string>
-    <string name="master_map_tap_hint">সরাতে ড্র্যাগ করুন, জুম করতে স্ক্রোল করুন বা +/- ব্যবহার করুন, আর দোকানের পিন বসাতে ট্যাপ করুন।</string>
-    <string name="master_map_zoom_in">জুম ইন</string>
-    <string name="master_map_zoom_out">জুম আউট</string>
-    <string name="master_map_recenter">পিনে কেন্দ্র করুন</string>
-    <string name="master_map_attribution">© OpenStreetMap contributors</string>
     <string name="profile_field_shop_types">দোকানের ধরন</string>
     <string name="shop_types_select_hint">এক বা একাধিক বেছে নিন। প্রথম বাছাই করা ধরনটি প্রধান ধরন হবে।</string>
     <string name="shop_types_primary_label">প্রধান ধরন</string>
@@ -2474,4 +2467,6 @@
     <string name="rider_docs_hint">পরিষ্কার ছবি তুলুন। এগুলি রাইডারের পার্টনার অ্যাপ প্রোফাইলে সংরক্ষিত হবে।</string>
     <string name="rider_verify_hint">রাইডারের মোবাইলে OTP পাঠানো হবে। যাচাইয়ের পরে তাঁরা যুক্ত হবেন এবং এই নম্বর দিয়েই পার্টনার অ্যাপে লগ ইন করতে পারবেন।</string>
     <string name="rider_kyc_pending">KYC বাকি · যোগ করতে নথি দিন</string>
+    <string name="action_show_details">বিস্তারিত দেখান</string>
+    <string name="action_hide_details">বিস্তারিত লুকান</string>
 </resources>

@@ -138,7 +138,8 @@ fun MasterCatalogScreen(
                 subcategoryId = state.selectedSubcategoryId,
                 onSubcategory = viewModel::onSubcategorySelected,
                 fieldMinWidth = 150.dp,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                collapsible = true,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
             )
             Text(
                 text = stringResource(Res.string.inv_master_count, state.totalCount),

@@ -80,15 +80,9 @@ object AppConstants {
     const val DEFAULT_MAP_LNG: Double = 77.2090
     const val GOOGLE_MAPS_API_KEY: String = "AIzaSyCd8M0FflE0xOkx_Yy3LwHAHR6CyY0JpRI"
     const val GOOGLE_DIRECTIONS_URL: String = "https://maps.googleapis.com/maps/api/directions/json"
-    /** Public OSRM demo router (fair-use); path continues with "lng,lat;lng,lat". */
-    const val OSRM_ROUTE_URL: String = "https://router.project-osrm.org/route/v1/driving/"
     const val GOOGLE_PLACES_AUTOCOMPLETE_URL: String = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
     const val GOOGLE_PLACES_DETAILS_URL: String = "https://maps.googleapis.com/maps/api/place/details/json"
     const val GOOGLE_GEOCODE_URL: String = "https://maps.googleapis.com/maps/api/geocode/json"
-    /** Keyless OpenStreetMap geocoder used when Google denies the request (billing off, key restricted). */
-    const val PHOTON_SEARCH_URL: String = "https://photon.komoot.io/api/"
-    const val PHOTON_REVERSE_URL: String = "https://photon.komoot.io/reverse"
-    const val PHOTON_RESULT_LIMIT: Int = 6
     const val PLACE_SEARCH_DEBOUNCE_MS: Long = 350L
     /** Must not exceed the server's MAX_RATING_REPLY. */
     const val RATING_COMMENT_MAX_CHARS: Int = 500
@@ -164,6 +158,8 @@ object AppConstants {
     const val WEB_LANDING_PATH: String = "/"
     /** Quiet time after the last exit `popstate` before falling back to the landing page. */
     const val WEB_EXIT_SETTLE_MS: Long = 700L
+    /** Back presses the web app absorbs between two user interactions (each interaction tops guards up). */
+    const val WEB_BACK_GUARDS: Int = 5
     const val API_HOST: String = "api.pansariwala.shop"
     /** EC2 API for all platforms (debug + release). Override via Android `API_BASE_URL` env/property. */
     const val API_BASE_URL: String = "https://api.pansariwala.shop"

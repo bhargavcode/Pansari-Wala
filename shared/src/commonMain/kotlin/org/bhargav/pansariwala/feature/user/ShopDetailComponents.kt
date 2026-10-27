@@ -25,7 +25,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.runtime.getValue
+import pansariwala.shared.generated.resources.action_hide_details
+import pansariwala.shared.generated.resources.action_show_details
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storefront
@@ -110,15 +116,21 @@ fun ShopHeroHeader(
     modifier: Modifier = Modifier,
     heroHeight: Dp = HERO_HEIGHT,
     onClick: (() -> Unit)? = null,
+    /** When non-null the header can shrink to a slim banner; [onToggleExpanded] flips it. */
+    expanded: Boolean? = null,
+    onToggleExpanded: () -> Unit = {},
     footer: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
+    val collapsed = expanded == false
+    val height by animateDpAsState(if (collapsed) COLLAPSED_HERO_HEIGHT else heroHeight, label = "shopHeroHeight")
+    val toggle = if (expanded != null) onToggleExpanded else onClick
     Card(
-        modifier = modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(20.dp),
+        modifier = modifier.fillMaxWidth().then(if (toggle != null) Modifier.clickable(onClick = toggle) else Modifier),
+        shape = RoundedCornerShape(if (collapsed) 14.dp else 20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = PansariElevation.raisedCard),
     ) {
-        Box(Modifier.fillMaxWidth().height(heroHeight)) {
+        Box(Modifier.fillMaxWidth().height(height)) {
             if (isHttpImageUrl(shop.imageUrl.orEmpty())) {
                 NetworkImage(url = shop.imageUrl, contentDescription = shop.name, modifier = Modifier.fillMaxSize())
             } else {
@@ -141,8 +153,18 @@ fun ShopHeroHeader(
                     .fillMaxSize()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f)))),
             )
+            if (expanded != null) {
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = stringResource(if (expanded) Res.string.action_hide_details else Res.string.action_show_details),
+                    tint = Color.White,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(50)).padding(2.dp),
+                )
+            }
             Column(
-                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(14.dp),
+                Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                    .padding(start = 14.dp, top = 14.dp, bottom = if (collapsed) 10.dp else 14.dp, end = if (expanded != null) 44.dp else 14.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +190,7 @@ fun ShopHeroHeader(
                         )
                     }
                 }
-                if (shop.address.isNotBlank()) {
+                if (shop.address.isNotBlank() && !collapsed) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.LocationOn, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
@@ -308,6 +330,7 @@ fun ShopRatingsSheet(
 }
 
 private val HERO_HEIGHT = 210.dp
+private val COLLAPSED_HERO_HEIGHT = 84.dp
 private val SHEET_MAX_HEIGHT = 640.dp
 private val STAR_COLOR = Color(0xFFFFB300)
 private val WARNING_CONTAINER = Color(0xFFFFF3E0)

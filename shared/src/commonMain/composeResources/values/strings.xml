@@ -267,13 +267,6 @@
     <string name="master_select_on_map">Select on Map</string>
     <string name="master_latitude">Latitude</string>
     <string name="master_longitude">Longitude</string>
-    <string name="master_map_search_hint">Search area, street or city</string>
-    <string name="master_map_not_found">Place not found. Try a different search.</string>
-    <string name="master_map_tap_hint">Drag to move, scroll or use +/- to zoom, and tap to place the shop pin.</string>
-    <string name="master_map_zoom_in">Zoom in</string>
-    <string name="master_map_zoom_out">Zoom out</string>
-    <string name="master_map_recenter">Center on pin</string>
-    <string name="master_map_attribution">© OpenStreetMap contributors</string>
     <string name="profile_field_shop_types">Shop types</string>
     <string name="shop_types_select_hint">Select one or more. The first one selected is the primary type.</string>
     <string name="shop_types_primary_label">Primary type</string>
@@ -2538,4 +2531,6 @@
     <string name="rider_docs_hint">Take clear photos. They are saved to the rider\'s Partner app profile.</string>
     <string name="rider_verify_hint">We will send an OTP to the rider\'s mobile. After verification they are enrolled and can log in to the Partner app with this number.</string>
     <string name="rider_kyc_pending">KYC pending · add documents to enrol</string>
+    <string name="action_show_details">Show details</string>
+    <string name="action_hide_details">Hide details</string>
 </resources>

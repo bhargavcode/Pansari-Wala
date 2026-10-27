@@ -11,6 +11,8 @@ import pansariwala.shared.generated.resources.map_picker_search_hint
 import pansariwala.shared.generated.resources.map_picker_title
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.js.JsAny
+import kotlin.js.js
 
 actual val mapLocationPickerSupported: Boolean = true
 
@@ -23,7 +25,6 @@ actual suspend fun pickLocationOnMap(lat: Double, lng: Double, zoom: Int): MapPi
     return suspendCancellableCoroutine { cont ->
         val handle = openMapPicker(
             AppConstants.GOOGLE_MAPS_API_KEY,
-            AppConstants.PHOTON_SEARCH_URL,
             title,
             searchHint,
             pinHint,
@@ -46,12 +47,11 @@ private fun closeMapPicker(handle: JsAny): Unit = js("handle.close()")
 
 /**
  * Google Maps JS overlay: the map stays under a fixed centre pin, search uses Places (new API, then the
- * legacy AutocompleteService, then geocoding, then Photon when Google refuses, e.g. billing off), and the
+ * legacy AutocompleteService, then geocoding), and the
  * pinned point is reverse geocoded on idle.
  */
 private fun openMapPicker(
     apiKey: String,
-    photonUrl: String,
     title: String,
     searchHint: String,
     pinHint: String,
@@ -248,24 +248,10 @@ private fun openMapPicker(
         return item;
       }));
     };
-    const viaPhoton = (q) => {
-      const c = map.getCenter();
-      const url = photonUrl + '?limit=6&q=' + encodeURIComponent(q) + (c ? '&lat=' + c.lat() + '&lon=' + c.lng() : '');
-      return fetch(url).then((r) => r.json()).then((j) => (j.features || [])
-        .filter((f) => f.geometry && String((f.properties || {}).countrycode || '').toUpperCase() === 'IN')
-        .map((f) => {
-          const pr = f.properties;
-          const parts = [pr.name, pr.street, pr.locality, pr.district, pr.city, pr.state, pr.postcode].filter((x) => x);
-          const loc = { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
-          const item = { text: parts.filter((x, i) => parts.indexOf(x) === i).join(', '), go: () => moveTo(loc) };
-          return item;
-        }));
-    };
     const tiers = [];
     if (places && places.AutocompleteSuggestion) tiers.push(viaNew);
     if (gm.places && gm.places.AutocompleteService) tiers.push(viaLegacy);
     tiers.push(viaGeocode);
-    tiers.push(viaPhoton);
     const search = (q) => tiers[0](q).catch(() => {
       if (tiers.length > 1) { tiers.shift(); return search(q); }
       return [];

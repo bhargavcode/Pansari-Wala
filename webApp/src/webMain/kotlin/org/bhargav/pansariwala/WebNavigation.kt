@@ -3,10 +3,12 @@
 package org.bhargav.pansariwala
 
 import kotlinx.browser.window
+import org.bhargav.pansariwala.platform.allowBrowserLeave
 
 fun jsPathname(): String = window.location.pathname
 
 fun jsNavigate(path: String) {
+    allowBrowserLeave()
     window.history.pushState(null, "", path)
     window.location.reload()
 }

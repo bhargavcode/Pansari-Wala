@@ -1,18 +1,18 @@
 package org.bhargav.pansariwala.platform
 
-import kotlinx.cinterop.ExperimentalForeignApi
-import platform.CoreLocation.CLLocationCoordinate2DMake
-import platform.MapKit.MKLaunchOptionsDirectionsModeDriving
-import platform.MapKit.MKLaunchOptionsDirectionsModeKey
-import platform.MapKit.MKMapItem
-import platform.MapKit.MKPlacemark
+import platform.Foundation.NSURL
+import platform.UIKit.UIApplication
 
-@OptIn(ExperimentalForeignApi::class)
+/** Google Maps app when installed, otherwise Google Maps directions on the web. */
 actual fun openExternalNavigation(destLat: Double, destLng: Double) {
-    val coordinate = CLLocationCoordinate2DMake(destLat, destLng)
-    val placemark = MKPlacemark(coordinate = coordinate, addressDictionary = null)
-    val mapItem = MKMapItem(placemark = placemark)
-    mapItem.openInMapsWithLaunchOptions(
-        mapOf(MKLaunchOptionsDirectionsModeKey to MKLaunchOptionsDirectionsModeDriving),
-    )
+    val app = UIApplication.sharedApplication
+    val web = NSURL.URLWithString("https://www.google.com/maps/dir/?api=1&destination=$destLat,$destLng&travelmode=driving")
+    val native = NSURL.URLWithString("comgooglemaps://?daddr=$destLat,$destLng&directionsmode=driving")
+    if (native == null) {
+        web?.let { app.openURL(it, emptyMap<Any?, Any>(), null) }
+        return
+    }
+    app.openURL(native, emptyMap<Any?, Any>()) { opened ->
+        if (!opened) web?.let { app.openURL(it, emptyMap<Any?, Any>(), null) }
+    }
 }

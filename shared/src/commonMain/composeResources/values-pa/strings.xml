@@ -266,13 +266,6 @@
     <string name="master_select_on_map">ਨਕਸ਼ੇ \'ਤੇ ਚੁਣੋ</string>
     <string name="master_latitude">ਅਕਸ਼ਾਂਸ਼</string>
     <string name="master_longitude">ਰੇਖਾਂਸ਼</string>
-    <string name="master_map_search_hint">ਇਲਾਕਾ, ਗਲੀ ਜਾਂ ਸ਼ਹਿਰ ਖੋਜੋ</string>
-    <string name="master_map_not_found">ਥਾਂ ਨਹੀਂ ਮਿਲੀ। ਕੁਝ ਹੋਰ ਖੋਜ ਕੇ ਵੇਖੋ।</string>
-    <string name="master_map_tap_hint">ਹਿਲਾਉਣ ਲਈ ਡਰੈਗ ਕਰੋ, ਜ਼ੂਮ ਲਈ ਸਕ੍ਰੋਲ ਕਰੋ ਜਾਂ +/- ਵਰਤੋ, ਅਤੇ ਦੁਕਾਨ ਦਾ ਪਿੰਨ ਲਗਾਉਣ ਲਈ ਟੈਪ ਕਰੋ।</string>
-    <string name="master_map_zoom_in">ਜ਼ੂਮ ਇਨ</string>
-    <string name="master_map_zoom_out">ਜ਼ੂਮ ਆਊਟ</string>
-    <string name="master_map_recenter">ਪਿੰਨ ਤੇ ਕੇਂਦਰਿਤ ਕਰੋ</string>
-    <string name="master_map_attribution">© OpenStreetMap contributors</string>
     <string name="profile_field_shop_types">ਦੁਕਾਨ ਦੀਆਂ ਕਿਸਮਾਂ</string>
     <string name="shop_types_select_hint">ਇੱਕ ਜਾਂ ਵੱਧ ਚੁਣੋ। ਪਹਿਲੀ ਚੁਣੀ ਕਿਸਮ ਮੁੱਖ ਕਿਸਮ ਹੋਵੇਗੀ।</string>
     <string name="shop_types_primary_label">ਮੁੱਖ ਕਿਸਮ</string>
@@ -2474,4 +2467,6 @@
     <string name="rider_docs_hint">ਸਾਫ਼ ਫੋਟੋਆਂ ਲਓ। ਇਹ ਰਾਈਡਰ ਦੀ ਪਾਰਟਨਰ ਐਪ ਪ੍ਰੋਫਾਈਲ ਵਿੱਚ ਸੇਵ ਹੋਣਗੀਆਂ।</string>
     <string name="rider_verify_hint">ਰਾਈਡਰ ਦੇ ਮੋਬਾਈਲ \'ਤੇ OTP ਭੇਜਿਆ ਜਾਵੇਗਾ। ਪੁਸ਼ਟੀ ਤੋਂ ਬਾਅਦ ਉਹ ਜੁੜ ਜਾਣਗੇ ਅਤੇ ਇਸੇ ਨੰਬਰ ਨਾਲ ਪਾਰਟਨਰ ਐਪ ਵਿੱਚ ਲੌਗ ਇਨ ਕਰ ਸਕਣਗੇ।</string>
     <string name="rider_kyc_pending">KYC ਬਾਕੀ · ਜੋੜਨ ਲਈ ਦਸਤਾਵੇਜ਼ ਦਿਓ</string>
+    <string name="action_show_details">ਵੇਰਵੇ ਦਿਖਾਓ</string>
+    <string name="action_hide_details">ਵੇਰਵੇ ਲੁਕਾਓ</string>
 </resources>

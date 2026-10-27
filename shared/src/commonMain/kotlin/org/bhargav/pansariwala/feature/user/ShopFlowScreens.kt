@@ -187,6 +187,7 @@ fun ShopCatalogScreen(
     val cartLines = rememberCartLines(cart)
     val picker = rememberVariantPicker()
     VariantPickerHost(picker, cart)
+    var heroExpanded by rememberSaveable { mutableStateOf(false) }
     if (data?.showRatingsSheet == true) {
         ShopRatingsSheet(
             shop = data.shop,
@@ -229,6 +230,8 @@ fun ShopCatalogScreen(
                         ShopHeroHeader(
                             shop = shop,
                             onRatingsClick = viewModel::openRatings,
+                            expanded = heroExpanded,
+                            onToggleExpanded = { heroExpanded = !heroExpanded },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }

@@ -1,15 +1,31 @@
 package org.bhargav.pansariwala.designsystem
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import pansariwala.shared.generated.resources.action_clear_all
+import pansariwala.shared.generated.resources.action_hide_details
+import pansariwala.shared.generated.resources.action_show_details
+import pansariwala.shared.generated.resources.market_filter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
@@ -213,6 +229,9 @@ private fun CheckItem(label: String, checked: Boolean, onClick: () -> Unit) {
 /**
  * Shop type → category → subcategory pickers. Picking a parent clears its children; the
  * subcategory picker only shows when [subcategories] is non-empty.
+ *
+ * When [collapsible], only a one-line summary of the active filters shows until the user expands it,
+ * so the pickers don't eat a third of a phone screen above the results.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -228,6 +247,70 @@ fun CatalogCascadeFilter(
     onSubcategory: (String?) -> Unit,
     modifier: Modifier = Modifier,
     fieldMinWidth: Dp = 220.dp,
+    collapsible: Boolean = false,
+) {
+    if (!collapsible) {
+        CascadeFields(shopTypes, shopTypeId, onShopType, categories, categoryId, onCategory, subcategories, subcategoryId, onSubcategory, modifier, fieldMinWidth)
+        return
+    }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val active = listOfNotNull(
+        shopTypes.firstOrNull { it.id == shopTypeId }?.label,
+        categories.firstOrNull { it.id == categoryId }?.label,
+        subcategories.firstOrNull { it.id == subcategoryId }?.label,
+    )
+    Column(modifier.fillMaxWidth().animateContentSize()) {
+        Surface(
+            onClick = { expanded = !expanded },
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(Modifier.padding(start = 12.dp, end = 4.dp).heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FilterList, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = active.joinToString(" › ").ifEmpty { stringResource(Res.string.market_filter) },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (active.isEmpty()) FontWeight.Normal else FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                )
+                if (active.isNotEmpty()) {
+                    IconButton(onClick = { onShopType(null); onCategory(null); onSubcategory(null) }) {
+                        Icon(Icons.Default.Clear, contentDescription = stringResource(Res.string.action_clear_all))
+                    }
+                }
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = stringResource(if (expanded) Res.string.action_hide_details else Res.string.action_show_details),
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            }
+        }
+        if (expanded) {
+            CascadeFields(
+                shopTypes, shopTypeId, onShopType, categories, categoryId, onCategory, subcategories, subcategoryId, onSubcategory,
+                Modifier.padding(top = 10.dp), fieldMinWidth,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CascadeFields(
+    shopTypes: List<DropdownOption>,
+    shopTypeId: String?,
+    onShopType: (String?) -> Unit,
+    categories: List<DropdownOption>,
+    categoryId: String?,
+    onCategory: (String?) -> Unit,
+    subcategories: List<DropdownOption>,
+    subcategoryId: String?,
+    onSubcategory: (String?) -> Unit,
+    modifier: Modifier,
+    fieldMinWidth: Dp,
 ) {
     val all = stringResource(Res.string.master_all)
     FlowRow(

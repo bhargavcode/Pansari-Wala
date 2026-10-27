@@ -266,13 +266,6 @@
     <string name="master_select_on_map">मैप पर चुनें</string>
     <string name="master_latitude">अक्षांश</string>
     <string name="master_longitude">देशांतर</string>
-    <string name="master_map_search_hint">इलाका, गली या शहर खोजें</string>
-    <string name="master_map_not_found">जगह नहीं मिली। कुछ और खोजकर देखें।</string>
-    <string name="master_map_tap_hint">खिसकाने के लिए ड्रैग करें, ज़ूम के लिए स्क्रॉल या +/- दबाएँ, और दुकान का पिन लगाने के लिए टैप करें।</string>
-    <string name="master_map_zoom_in">ज़ूम इन</string>
-    <string name="master_map_zoom_out">ज़ूम आउट</string>
-    <string name="master_map_recenter">पिन पर केंद्रित करें</string>
-    <string name="master_map_attribution">© OpenStreetMap contributors</string>
     <string name="profile_field_shop_types">दुकान के प्रकार</string>
     <string name="shop_types_select_hint">एक या अधिक चुनें। पहला चुना गया प्रकार मुख्य प्रकार होगा।</string>
     <string name="shop_types_primary_label">मुख्य प्रकार</string>
@@ -2474,4 +2467,6 @@
     <string name="rider_docs_hint">साफ़ फोटो लें। ये राइडर की पार्टनर ऐप प्रोफ़ाइल में सेव होंगी।</string>
     <string name="rider_verify_hint">राइडर के मोबाइल पर OTP भेजा जाएगा। सत्यापन के बाद वे जुड़ जाएंगे और इसी नंबर से पार्टनर ऐप में लॉग इन कर सकेंगे।</string>
     <string name="rider_kyc_pending">KYC बाकी · जोड़ने के लिए दस्तावेज़ दें</string>
+    <string name="action_show_details">विवरण दिखाएँ</string>
+    <string name="action_hide_details">विवरण छिपाएँ</string>
 </resources>

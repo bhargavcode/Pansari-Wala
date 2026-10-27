@@ -4,12 +4,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.navigationevent.DirectNavigationEventInput
 import androidx.navigationevent.NavigationEventInfo
@@ -30,26 +28,38 @@ import pansariwala.shared.generated.resources.web_exit_title
 /** Browser `history` bridge; a no-op on native targets where the OS owns back navigation. */
 internal expect object BrowserHistory {
     val supported: Boolean
-    fun push()
+    /** Pushes a same-URL entry tagged with guard [index] (the page's own entry is index 0). */
+    fun push(index: Int)
     fun go(delta: Int)
-    /** Registers a `popstate` listener and returns its remover. */
-    fun listen(onPop: () -> Unit): () -> Unit
+    /** Registers a `popstate` listener (receives the entry's guard index) and returns its remover. */
+    fun listen(onPop: (Int) -> Unit): () -> Unit
     /** Runs [block] on every user-activation event (click/tap/key) and returns its remover. */
     fun onInteraction(block: () -> Unit): () -> Unit
     fun replaceLocation(path: String)
+    /** Asks the browser to confirm before unloading the page (reload, close, back past the app). */
+    fun setLeavePrompt(enabled: Boolean)
 }
 
 private object BackGuard {
-    /** Chrome skips history entries pushed without user activation, so the guard is only "real" once re-armed on input. */
-    var armed = false
+    /** Guard index of the current history entry. */
+    var index = 0
     var exiting = false
     var pops = 0
 }
 
+/** Lets the page unload without the browser's leave prompt (logout to landing, app switch reloads). */
+fun allowBrowserLeave() {
+    if (!BrowserHistory.supported) return
+    BackGuard.exiting = true
+    BrowserHistory.setLeavePrompt(false)
+}
+
 /**
  * Turns the browser back button (and mouse/trackpad back gestures) into an in-app back press: it goes to the
- * topmost back handler (sheet, dialog, keyboard, nav stack) exactly like Android back. A guard history entry
- * is re-pushed after each pop and again on the next user interaction, so the browser never leaves the app.
+ * topmost back handler (sheet, dialog, keyboard, nav stack) exactly like Android back.
+ *
+ * Chrome's back button skips entries pushed without user activation, so guard entries are only ever pushed
+ * from click/tap/key events (topped up to [AppConstants.WEB_BACK_GUARDS]) and never from `popstate`.
  */
 @Composable
 fun BrowserBackBridge() {
@@ -58,22 +68,19 @@ fun BrowserBackBridge() {
     DisposableEffect(dispatcher) {
         val input = DirectNavigationEventInput()
         dispatcher.addInput(input)
-        BrowserHistory.push()
         val stopInteraction = BrowserHistory.onInteraction {
-            if (!BackGuard.armed && !BackGuard.exiting) {
-                BackGuard.armed = true
-                BrowserHistory.push()
+            if (BackGuard.exiting) return@onInteraction
+            BrowserHistory.setLeavePrompt(true)
+            while (BackGuard.index < AppConstants.WEB_BACK_GUARDS) {
+                BackGuard.index++
+                BrowserHistory.push(BackGuard.index)
             }
         }
-        val stopPop = BrowserHistory.listen {
+        val stopPop = BrowserHistory.listen { index ->
             BackGuard.pops++
-            if (BackGuard.exiting) {
-                BrowserHistory.go(-1)
-            } else {
-                BackGuard.armed = false
-                BrowserHistory.push()
-                input.backCompleted()
-            }
+            val wentBack = index < BackGuard.index
+            BackGuard.index = index
+            if (!BackGuard.exiting && wentBack) input.backCompleted()
         }
         onDispose {
             stopPop()
@@ -105,8 +112,8 @@ fun WebExitGuard() {
         confirmButton = {
             TextButton(onClick = {
                 asking = false
-                BackGuard.exiting = true
-                BrowserHistory.go(-1)
+                allowBrowserLeave()
+                BrowserHistory.go(-(BackGuard.index + 1))
                 scope.launch {
                     var seen = -1
                     while (seen != BackGuard.pops) {
@@ -121,37 +128,4 @@ fun WebExitGuard() {
             TextButton(onClick = { asking = false }) { Text(stringResource(Res.string.web_exit_cancel)) }
         },
     )
-}
-
-private class HistoryTracker {
-    var depth = 1
-    var ignorePops = 0
-}
-
-/** Mirrors an app back stack of [depth] entries into browser history (used by the master web console). */
-@Composable
-fun SyncBrowserHistory(depth: Int, onBrowserBack: () -> Unit) {
-    if (!BrowserHistory.supported) return
-    val onBack by rememberUpdatedState(onBrowserBack)
-    val tracker = remember { HistoryTracker() }
-    DisposableEffect(Unit) {
-        val stop = BrowserHistory.listen {
-            if (tracker.ignorePops > 0) {
-                tracker.ignorePops--
-            } else {
-                tracker.depth = (tracker.depth - 1).coerceAtLeast(1)
-                onBack()
-            }
-        }
-        onDispose(stop)
-    }
-    SideEffect {
-        val target = depth.coerceAtLeast(1)
-        val diff = target - tracker.depth
-        if (diff > 0) repeat(diff) { BrowserHistory.push() } else if (diff < 0) {
-            tracker.ignorePops++
-            BrowserHistory.go(diff)
-        }
-        tracker.depth = target
-    }
 }

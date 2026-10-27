@@ -44,10 +44,7 @@ suspend fun fetchDrivingRoute(
     destLng: Double,
 ): List<LatLngPoint> = fetchDrivingRouteDetails(originLat, originLng, destLat, destLng).points
 
-/**
- * Google Directions first, then the public OSRM router (OpenStreetMap) when Google refuses
- * (e.g. REQUEST_DENIED because billing is off). Successful road routes are cached.
- */
+/** Google Directions driving route; a straight line when Google has no route. Road routes are cached. */
 suspend fun fetchDrivingRouteDetails(
     originLat: Double,
     originLng: Double,
@@ -73,34 +70,11 @@ suspend fun fetchDrivingRouteDetails(
     }
     return try {
         val route = runCatching { fetchGoogleDrivingRoute(client, originLat, originLng, destLat, destLng) }.getOrNull()
-            ?: runCatching { fetchOsrmDrivingRoute(client, originLat, originLng, destLat, destLng) }.getOrNull()
         if (route != null) routeCacheLock.withLock { routeCache[key] = route }
         route ?: straight
     } finally {
         client.close()
     }
-}
-
-private suspend fun fetchOsrmDrivingRoute(
-    client: HttpClient,
-    originLat: Double,
-    originLng: Double,
-    destLat: Double,
-    destLng: Double,
-): DrivingRoute? {
-    val response = client.get("${AppConstants.OSRM_ROUTE_URL}$originLng,$originLat;$destLng,$destLat") {
-        parameter("overview", "full")
-        parameter("geometries", "polyline")
-    }.body<OsrmRouteResponse>()
-    if (!response.code.equals("Ok", ignoreCase = true)) return null
-    val route = response.routes.firstOrNull() ?: return null
-    val points = decodePolyline(route.geometry)
-    if (points.size < 2) return null
-    return DrivingRoute(
-        points = listOf(LatLngPoint(originLat, originLng)) + points + LatLngPoint(destLat, destLng),
-        distanceMeters = route.distance,
-        durationSeconds = route.duration,
-    )
 }
 
 private suspend fun fetchGoogleDrivingRoute(
@@ -185,19 +159,6 @@ private data class GoogleLeg(
 @Serializable
 private data class GoogleValue(
     val value: Double = 0.0,
-)
-
-@Serializable
-private data class OsrmRouteResponse(
-    val code: String = "",
-    val routes: List<OsrmRoute> = emptyList(),
-)
-
-@Serializable
-private data class OsrmRoute(
-    val geometry: String = "",
-    val distance: Double = 0.0,
-    val duration: Double = 0.0,
 )
 
 @Serializable

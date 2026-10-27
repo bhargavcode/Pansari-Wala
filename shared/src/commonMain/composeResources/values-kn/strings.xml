@@ -266,13 +266,6 @@
     <string name="master_select_on_map">ನಕ್ಷೆಯಲ್ಲಿ ಆರಿಸಿ</string>
     <string name="master_latitude">ಅಕ್ಷಾಂಶ</string>
     <string name="master_longitude">ರೇಖಾಂಶ</string>
-    <string name="master_map_search_hint">ಪ್ರದೇಶ, ರಸ್ತೆ ಅಥವಾ ನಗರವನ್ನು ಹುಡುಕಿ</string>
-    <string name="master_map_not_found">ಸ್ಥಳ ಸಿಗಲಿಲ್ಲ. ಬೇರೆ ಹುಡುಕಾಟ ಪ್ರಯತ್ನಿಸಿ.</string>
-    <string name="master_map_tap_hint">ಸರಿಸಲು ಎಳೆಯಿರಿ, ಜೂಮ್‌ಗಾಗಿ ಸ್ಕ್ರಾಲ್ ಮಾಡಿ ಅಥವಾ +/- ಬಳಸಿ, ಮತ್ತು ಅಂಗಡಿಯ ಪಿನ್ ಇಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ.</string>
-    <string name="master_map_zoom_in">ಜೂಮ್ ಇನ್</string>
-    <string name="master_map_zoom_out">ಜೂಮ್ ಔಟ್</string>
-    <string name="master_map_recenter">ಪಿನ್‌ಗೆ ಮಧ್ಯಗೊಳಿಸಿ</string>
-    <string name="master_map_attribution">© OpenStreetMap contributors</string>
     <string name="profile_field_shop_types">ಅಂಗಡಿ ಪ್ರಕಾರಗಳು</string>
     <string name="shop_types_select_hint">ಒಂದು ಅಥವಾ ಹೆಚ್ಚು ಆಯ್ಕೆಮಾಡಿ. ಮೊದಲು ಆಯ್ಕೆ ಮಾಡಿದ್ದು ಮುಖ್ಯ ಪ್ರಕಾರ.</string>
     <string name="shop_types_primary_label">ಮುಖ್ಯ ಪ್ರಕಾರ</string>
@@ -2474,4 +2467,6 @@
     <string name="rider_docs_hint">ಸ್ಪಷ್ಟ ಫೋಟೋ ತೆಗೆಯಿರಿ. ಇವು ರೈಡರ್‌ನ ಪಾರ್ಟ್ನರ್ ಆ್ಯಪ್ ಪ್ರೊಫೈಲ್‌ನಲ್ಲಿ ಉಳಿಯುತ್ತವೆ.</string>
     <string name="rider_verify_hint">ರೈಡರ್‌ನ ಮೊಬೈಲ್‌ಗೆ OTP ಕಳುಹಿಸಲಾಗುತ್ತದೆ. ಪರಿಶೀಲನೆಯ ನಂತರ ಅವರು ಸೇರ್ಪಡೆಯಾಗುತ್ತಾರೆ ಮತ್ತು ಇದೇ ಸಂಖ್ಯೆಯಿಂದ ಪಾರ್ಟ್ನರ್ ಆ್ಯಪ್‌ಗೆ ಲಾಗಿನ್ ಮಾಡಬಹುದು.</string>
     <string name="rider_kyc_pending">KYC ಬಾಕಿ · ಸೇರಿಸಲು ದಾಖಲೆಗಳನ್ನು ನೀಡಿ</string>
+    <string name="action_show_details">ವಿವರಗಳನ್ನು ತೋರಿಸಿ</string>
+    <string name="action_hide_details">ವಿವರಗಳನ್ನು ಮರೆಮಾಡಿ</string>
 </resources>

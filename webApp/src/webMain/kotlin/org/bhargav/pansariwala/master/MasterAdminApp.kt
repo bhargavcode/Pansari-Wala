@@ -92,7 +92,11 @@ import org.bhargav.pansariwala.util.AppClock
 import org.bhargav.pansariwala.designsystem.AdaptivePane
 import org.bhargav.pansariwala.designsystem.WindowWidthClass
 import org.bhargav.pansariwala.navigateToLanding
-import org.bhargav.pansariwala.platform.SyncBrowserHistory
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
+import org.bhargav.pansariwala.platform.BrowserBackBridge
+import org.bhargav.pansariwala.platform.WebExitGuard
 import org.bhargav.pansariwala.theme.PansariTheme
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.webSessionGet
@@ -166,6 +170,8 @@ fun MasterAdminApp() {
     }
     CompositionLocalProvider(LocalMasterTheme provides themeState) {
     PansariTheme(darkTheme = dark, customTheme = themeState.accent) {
+        BrowserBackBridge()
+        WebExitGuard()
         if (token.isNullOrBlank()) {
             MasterLoginScreen(
                 sessionExpired = sessionExpired,
@@ -334,7 +340,11 @@ private fun MasterShell(token: String, onLogout: () -> Unit) {
         drawerOpen = false
     }
 
-    SyncBrowserHistory(depth = backStack.size, onBrowserBack = ::back)
+    NavigationBackHandler(
+        state = rememberNavigationEventState(currentInfo = NavigationEventInfo.None),
+        isBackEnabled = backStack.size > 1 || drawerOpen,
+        onBackCompleted = ::back,
+    )
 
     fun report(msg: String) {
         if (msg.isBlank()) return
