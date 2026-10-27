@@ -104,6 +104,8 @@ jobs:
             :androidApp:assembleUserRelease \
             :androidApp:assembleDeliveryDebug \
             :androidApp:assembleDeliveryRelease \
+            -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
+            --max-workers=2 \
             --no-daemon --stacktrace
 
       - name: Upload Android APKs
