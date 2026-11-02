@@ -17,6 +17,8 @@ object PaymentMethod {
     const val COD = "COD"
     const val UPI_DIRECT = "UPI_DIRECT"
     const val CASHFREE = "CASHFREE"
+    /** Self-collection order paid in cash/UPI at the shop counter on pickup. */
+    const val PAY_AT_SHOP = "PAY_AT_SHOP"
 }
 
 /** `PaymentIntentDoc.status` / `PaymentAttemptDoc.status`. */

@@ -479,6 +479,9 @@ class KtorPansariApi(
             setBody(DeliverRequest(otp))
         }.body<OrderDto>().toModel()
 
+    override suspend fun markReadyForPickup(orderId: String): Order =
+        client.post("shop/orders/$orderId/ready-for-pickup").body<OrderDto>().toModel()
+
     override suspend fun acceptReturn(orderId: String, reason: String?): Order =
         client.post("shop/orders/$orderId/accept-return") {
             setBody(ReturnRequest(reason))

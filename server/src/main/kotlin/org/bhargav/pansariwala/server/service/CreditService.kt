@@ -51,6 +51,10 @@ private const val SOURCE_POS = "POS"
 private const val SOURCE_USER_APP = "USER_APP"
 private const val ORDER_CANCELLED = "CANCELLED"
 private const val PHONE_DIGITS = 10
+private const val MAX_REMIND_EVERY_DAYS = 60
+/** Automatic reminders go out only in shop daytime. */
+private val REMIND_ZONE: java.time.ZoneId = java.time.ZoneId.of("Asia/Kolkata")
+private val REMIND_HOURS = 10..19
 private const val PAY_LINK_CODE_LENGTH = 8
 private const val PAY_LINK_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 private const val PAY_LINK_TTL_MS = 30L * 24 * 60 * 60 * 1000
@@ -451,6 +455,37 @@ class CreditService(
             else -> markRepay(txn, STATUS_FAILED, failure = REPAY_FAIL_CANCELLED)
         }
         return updated.toDto(shopName(shopId))
+    }
+
+    /**
+     * Automatic udhaar reminders for shops that turned them on: an app push to borrowers who use the
+     * customer app, at most once per the shop's interval. SMS / WhatsApp are paid channels and are
+     * skipped until a provider is configured. Returns the number of pushes sent.
+     */
+    fun sendAutoReminders(push: PushService, now: Long = System.currentTimeMillis()): Int {
+        val hour = java.time.Instant.ofEpochMilli(now).atZone(REMIND_ZONE).hour
+        if (hour !in REMIND_HOURS) return 0
+        var sent = 0
+        shopCol.find(and(eq("udhaarAutoRemind", true), eq("active", true))).forEach { shop ->
+            val everyMs = shop.udhaarRemindEveryDays.coerceIn(1, MAX_REMIND_EVERY_DAYS) * DAY_MS
+            val minDue = shop.udhaarRemindMinInr.coerceAtLeast(1.0)
+            val borrowers = borrowerCol.find(eq("shopId", shop.id)).toList().associateBy { it.phone }
+            txnCol.find(and(eq("shopId", shop.id), eq("status", STATUS_SUCCESS))).toList()
+                .groupBy { it.phone }
+                .forEach { (phone, rows) ->
+                    val due = roundMoney(rows.signedSum())
+                    if (due < minDue) return@forEach
+                    val doc = borrowers[phone]
+                    if (doc != null && now - doc.lastAutoRemindAt < everyMs) return@forEach
+                    if (doc == null) ensureBorrower(shop.id, phone, null)
+                    customerCol.find(eq("phone", phone)).firstOrNull()?.let { customer ->
+                        push.udhaarReminder(customer.id, shop.id, shop.name, "₹${due.toLong()}")
+                        sent++
+                    }
+                    borrowerCol.updateOne(eq("_id", borrowerId(shop.id, phone)), set("lastAutoRemindAt", now))
+                }
+        }
+        return sent
     }
 
     private fun outstanding(shopId: String, phone: String): Double {

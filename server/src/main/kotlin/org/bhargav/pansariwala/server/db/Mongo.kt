@@ -154,6 +154,18 @@ data class ShopDoc(
     val deliveryUntil: String = "",
     /** False = the shop never delivers; customers can only order for pickup. */
     val homeDeliveryEnabled: Boolean = true,
+    /** Customers may choose to collect at the shop even while it delivers. */
+    val selfCollectEnabled: Boolean = true,
+    /** Self-collection orders may be paid at the counter instead of online. */
+    val payAtCollectEnabled: Boolean = false,
+    /** Automatic udhaar reminders; see [CreditService.sendAutoReminders]. */
+    val udhaarAutoRemind: Boolean = false,
+    val udhaarRemindEveryDays: Int = 7,
+    /** Borrowers owing less than this (₹) are not reminded. */
+    val udhaarRemindMinInr: Double = 100.0,
+    /** Paid channels; used only once an SMS / WhatsApp provider is configured. */
+    val udhaarRemindSms: Boolean = false,
+    val udhaarRemindWhatsapp: Boolean = false,
     /** Set while the shop admin's account closure is pending; the sweep deactivates the shop after it. */
     val deletionScheduledAt: Long? = null,
     /** Customer catalog category order: PRIORITY (shop-set numbers, then name) or NAME. */
@@ -187,6 +199,8 @@ data class ShopUserDoc(
     val permissions: List<String> = emptyList(),
     val active: Boolean = true,
     val createdAt: Long = 0L,
+    /** Shop-defined role name for custom permission sets (e.g. "Delivery boy"); blank = preset role. */
+    val roleTitle: String = "",
 )
 
 /** One row per (shop, visitor, day); unique-visitor counts are distinct [visitorId]s in a range. */
@@ -373,6 +387,8 @@ data class ProductDoc(
     val activeBeforeDelete: Boolean? = null,
     /** Most a customer may order in one order (pieces / kg / l in [unit]); 0 = no limit. */
     val maxPerOrder: Double = 0.0,
+    val mfgDate: Long? = null,
+    val expiryDate: Long? = null,
 )
 
 /** One row per product price change; [price] is the customer-facing starting price at [at]. */
@@ -465,6 +481,8 @@ data class OrderDoc(
     val deliveryOtp: String? = null,
     val pickupPhotos: List<String> = emptyList(),
     val selfPickup: Boolean = false,
+    /** Shop packed a self-collection order and told the customer to come with the OTP. */
+    val readyForPickup: Boolean = false,
     val paymentId: String? = null,
     val paymentMethod: String = "ONLINE",
     val razorpayOrderId: String? = null,
@@ -505,6 +523,10 @@ data class OrderDoc(
     /** UDHAAR bills: amount paid at the counter (CASH/UPI); only the rest is credit. */
     val paidNow: Double = 0.0,
     val paidNowMethod: String? = null,
+    /** Staff login that recorded the bill (POS) — kept for staff filters and reports. */
+    val createdById: String? = null,
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
     /** Server write time for POS bills; cursor for device pull sync. */
     val syncedAt: Long = 0L,
 )
@@ -647,6 +669,11 @@ data class PlatformSettingsDoc(
     /** 0 = never free. */
     val freeDeliveryAboveInr: Double = 0.0,
     val minOrderValueInr: Double = 0.0,
+    /** Delivered orders heavier than this (kg) pay [heavyOrderPerKgInr] per extra kg; 0 = off. */
+    val heavyOrderThresholdKg: Double = 5.0,
+    val heavyOrderPerKgInr: Double = 5.0,
+    /** Cap on the weight surcharge; 0 = no cap. */
+    val heavyOrderMaxInr: Double = 100.0,
     val partnerPayoutPerKmInr: Double = 8.0,
     val partnerRingKm: Double = 8.0,
     val offerTtlMinutes: Int = 5,

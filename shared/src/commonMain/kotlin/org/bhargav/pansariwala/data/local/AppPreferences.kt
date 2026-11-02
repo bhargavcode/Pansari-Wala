@@ -126,7 +126,7 @@ class AppPreferences(
             role = token.role,
         )
         setProfileComplete(token.profileComplete)
-        token.shopRole?.let { setShopAccess(it, token.permissions) }
+        token.shopRole?.let { setShopAccess(it, token.permissions, token.roleTitle) }
     }
 
     /** Missing role (legacy session / offline login) means full shop-admin access. */
@@ -140,14 +140,18 @@ class AppPreferences(
         store.getString(AppConstants.Prefs.SHOP_PERMISSIONS),
     )
 
-    suspend fun setShopAccess(role: String, permissions: List<String>) {
+    suspend fun setShopAccess(role: String, permissions: List<String>, roleTitle: String = "") {
         store.putStrings(
             mapOf(
                 AppConstants.Prefs.SHOP_STAFF_ROLE to role,
                 AppConstants.Prefs.SHOP_PERMISSIONS to permissions.joinToString(PERMISSION_SEPARATOR),
+                AppConstants.Prefs.SHOP_ROLE_TITLE to roleTitle,
             ),
         )
     }
+
+    /** Custom role name of the signed-in staff login; blank for preset roles and admins. */
+    suspend fun getShopRoleTitle(): String = store.getString(AppConstants.Prefs.SHOP_ROLE_TITLE).orEmpty()
 
     /** Server-side shop feature switches; defaults (all on) until the profile has been fetched once. */
     val shopFeatures: Flow<ShopFeaturesDto> = store.observeString(AppConstants.Prefs.SHOP_FEATURES).map { raw ->
@@ -195,6 +199,29 @@ class AppPreferences(
                 AppConstants.Prefs.FLOATING_KEYBOARD_SCALE to scale.toString(),
             ),
         )
+    }
+
+    /** Counts a happy moment (bill saved / order delivered); true when it's time to show the store review sheet. */
+    suspend fun recordReviewEvent(nowMs: Long): Boolean {
+        val count = (store.getString(AppConstants.Prefs.REVIEW_EVENT_COUNT)?.toIntOrNull() ?: 0) + 1
+        val askedAt = store.getString(AppConstants.Prefs.REVIEW_ASKED_AT)?.toLongOrNull() ?: 0L
+        val cooledDown = nowMs - askedAt >= AppConstants.REVIEW_COOLDOWN_DAYS * org.bhargav.pansariwala.util.MILLIS_PER_DAY
+        val ask = count >= AppConstants.REVIEW_EVENTS_BEFORE_ASK && cooledDown
+        store.putStrings(
+            buildMap {
+                put(AppConstants.Prefs.REVIEW_EVENT_COUNT, if (ask) "0" else count.toString())
+                if (ask) put(AppConstants.Prefs.REVIEW_ASKED_AT, nowMs.toString())
+            },
+        )
+        return ask
+    }
+
+    /** True (and records the time) when the store update check is due. */
+    suspend fun claimUpdateCheck(nowMs: Long): Boolean {
+        val last = store.getString(AppConstants.Prefs.UPDATE_CHECKED_AT)?.toLongOrNull() ?: 0L
+        if (nowMs - last < AppConstants.UPDATE_CHECK_INTERVAL_HOURS * 3_600_000L) return false
+        store.putStrings(mapOf(AppConstants.Prefs.UPDATE_CHECKED_AT to nowMs.toString()))
+        return true
     }
 
     suspend fun getSupplierBook(shopId: String): SupplierBook =

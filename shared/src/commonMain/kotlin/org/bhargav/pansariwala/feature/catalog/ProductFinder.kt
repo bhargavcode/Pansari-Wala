@@ -242,24 +242,10 @@ fun ProductFinderResults(
         }
     }
     if (state.scanning) {
-        AppBottomSheet(onDismissRequest = finder::closeScanner, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(Res.string.finder_scan_hint), style = MaterialTheme.typography.titleMedium)
-                Box(Modifier.fillMaxWidth().aspectRatio(SCANNER_ASPECT)) {
-                    BarcodeScannerPreview(
-                        settings = scannerSettings,
-                        active = true,
-                        onBarcode = { code ->
-                            scanFeedback(scannerSettings.beepOnScan, scannerSettings.vibrateOnScan)
-                            finder.onBarcode(code)
-                        },
-                        onPermissionDenied = finder::closeScanner,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-        }
+        org.bhargav.pansariwala.designsystem.FloatingScannerWindow(
+            settings = scannerSettings,
+            onBarcode = finder::onBarcode,
+            onClose = finder::closeScanner,
+        )
     }
 }
-
-private const val SCANNER_ASPECT = 4f / 3f

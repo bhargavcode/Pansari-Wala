@@ -46,9 +46,63 @@ data class ReportOrder(
     val itemCount: Int,
     val total: Double,
     val status: OrderStatus,
+    /** Staff login that recorded the bill; null for online orders and bills made before attribution. */
+    val staffId: String? = null,
+    val staffName: String? = null,
+    val staffRole: String? = null,
 ) {
     val countsTowardRevenue: Boolean
         get() = status != OrderStatus.CANCELLED && status != OrderStatus.REJECTED && status != OrderStatus.DRAFT
+}
+
+/** Per-staff totals for the "Sales by staff" report and the staff filter options. */
+data class StaffSales(
+    val staffId: String,
+    val name: String,
+    val role: String?,
+    val orders: Int,
+    val revenue: Double,
+)
+
+/** Gross profit on paid lines, valued at each product's current cost price. */
+data class ProfitSummary(
+    val revenue: Double = 0.0,
+    val cost: Double = 0.0,
+    /** Lines whose product has no cost price; counted at zero cost, so profit reads high. */
+    val linesWithoutCost: Int = 0,
+) {
+    val profit: Double get() = revenue - cost
+    val marginPercent: Double get() = if (revenue <= 0.0) 0.0 else profit * 100.0 / revenue
+}
+
+object StaffReport {
+    fun byStaff(orders: List<ReportOrder>): List<StaffSales> = orders
+        .filter { it.staffId != null }
+        .groupBy { it.staffId!! }
+        .map { (id, list) ->
+            val paid = list.filter { it.countsTowardRevenue }
+            StaffSales(
+                staffId = id,
+                name = list.firstNotNullOfOrNull { it.staffName }?.ifBlank { null } ?: id,
+                role = list.firstNotNullOfOrNull { it.staffRole },
+                orders = paid.size,
+                revenue = paid.sumOf { it.total },
+            )
+        }
+        .sortedByDescending { it.revenue }
+
+    fun profit(items: List<org.bhargav.pansariwala.domain.model.ItemSale>, paidOrderIds: Set<String>, costOf: (String) -> Double?): ProfitSummary {
+        var revenue = 0.0
+        var cost = 0.0
+        var missing = 0
+        items.forEach { line ->
+            if (line.orderId !in paidOrderIds) return@forEach
+            revenue += line.lineTotal
+            val unitCost = costOf(line.productId)
+            if (unitCost == null || unitCost <= 0.0) missing++ else cost += unitCost * line.quantity
+        }
+        return ProfitSummary(revenue, cost, missing)
+    }
 }
 
 data class ReportBucket(

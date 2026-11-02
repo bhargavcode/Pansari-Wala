@@ -27,10 +27,12 @@ import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import pansariwala.shared.generated.resources.inv_filter_expiring
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -90,6 +92,7 @@ import pansariwala.shared.generated.resources.print_action_inventory
 import pansariwala.shared.generated.resources.print_action_labels_all
 import pansariwala.shared.generated.resources.print_action_low_stock
 import pansariwala.shared.generated.resources.sheet_import_action
+import pansariwala.shared.generated.resources.suppliers_title
 import pansariwala.shared.generated.resources.cat_order_title
 import org.bhargav.pansariwala.i18n.localizedName
 
@@ -100,6 +103,7 @@ fun InventoryListScreen(
     onOpenProduct: (String) -> Unit,
     onAddCustomProduct: () -> Unit,
     onAddFromMaster: () -> Unit,
+    onOpenSuppliers: () -> Unit = {},
     viewModel: InventoryListViewModel = koinViewModel(),
     sheetViewModel: ShopSheetImportViewModel = koinViewModel(),
     categoryOrderViewModel: CategoryOrderViewModel = koinViewModel(),
@@ -165,6 +169,9 @@ fun InventoryListScreen(
         actions = {
             IconButton(onClick = onAddCustomProduct) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(Res.string.inv_add_custom))
+            }
+            IconButton(onClick = onOpenSuppliers) {
+                Icon(Icons.Filled.LocalShipping, contentDescription = stringResource(Res.string.suppliers_title))
             }
             IconButton(onClick = sheetViewModel::open) {
                 Icon(Icons.Filled.UploadFile, contentDescription = stringResource(Res.string.sheet_import_action))
@@ -257,6 +264,14 @@ fun InventoryListScreen(
                         selected = filter.lowStockOnly,
                         onClick = viewModel::onLowStockToggle,
                         label = { Text(stringResource(Res.string.inv_filter_low_stock)) },
+                    )
+                }
+                item(key = "expiry") {
+                    FilterChip(
+                        selected = filter.expiryBefore != null,
+                        onClick = viewModel::onExpiringToggle,
+                        leadingIcon = { ExpiryDot() },
+                        label = { Text(stringResource(Res.string.inv_filter_expiring)) },
                     )
                 }
             }
@@ -368,6 +383,7 @@ private fun ShopProductRow(
                 lowStockThreshold = product.lowStockThreshold,
                 modifier = Modifier.padding(top = 6.dp).fillMaxWidth(0.7f),
             )
+            ExpiryStatusChip(product, Modifier.padding(top = 6.dp))
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(

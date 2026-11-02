@@ -106,6 +106,7 @@ class RoomShopRepository(
             categoryId = filter.categoryId,
             active = filter.activeArg(),
             lowOnly = if (filter.lowStockOnly) 1 else 0,
+            expiryBefore = filter.expiryBefore,
             query = q,
             pattern = likePattern(q),
             limit = limit,
@@ -119,6 +120,7 @@ class RoomShopRepository(
             categoryId = filter.categoryId,
             active = filter.activeArg(),
             lowOnly = if (filter.lowStockOnly) 1 else 0,
+            expiryBefore = filter.expiryBefore,
             query = q,
             pattern = likePattern(q),
         )
@@ -260,6 +262,8 @@ private fun Product.toEntity() = ProductEntity(
     brandTranslationsJson = if (brandTranslations.isEmpty()) "" else variantJson.encodeToString(brandTranslations),
     deletedAt = deletedAt,
     maxPerOrder = maxPerOrder,
+    mfgDate = mfgDate,
+    expiryDate = expiryDate,
 )
 
 private fun ShopProductFilter.activeArg(): Int = when (status) {
@@ -308,6 +312,8 @@ private fun ProductEntity.toDomain() = Product(
     brandTranslations = decodeTranslations(brandTranslationsJson),
     deletedAt = deletedAt,
     maxPerOrder = maxPerOrder,
+    mfgDate = mfgDate,
+    expiryDate = expiryDate,
 )
 
 private fun UserEntity.toUser() = ShopUser(
@@ -333,6 +339,9 @@ private fun Order.toEntity(syncRevision: Long = 1L) = OrderEntity(
     customerPhone = customerPhone,
     paidNow = paidNow,
     paidNowMethod = paidNowMethod,
+    createdById = createdById,
+    createdByName = createdByName,
+    createdByRole = createdByRole,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -355,6 +364,9 @@ private fun OrderEntity.toSummary() = OrderSummary(
     totalValue = totalValue,
     status = OrderStatus.fromName(status),
     customerName = customerName,
+    createdById = createdById,
+    createdByName = createdByName,
+    createdByRole = createdByRole,
 )
 
 private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
@@ -370,6 +382,9 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
     discount = discount,
     paidNow = paidNow,
     paidNowMethod = paidNowMethod,
+    createdById = createdById,
+    createdByName = createdByName,
+    createdByRole = createdByRole,
     items = items.map {
         OrderItem(
             productId = it.productId,

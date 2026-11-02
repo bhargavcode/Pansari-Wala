@@ -15,4 +15,16 @@ data class StockSupplier(
 data class SupplierBook(
     val suppliers: List<StockSupplier> = emptyList(),
     val productSupplier: Map<String, String> = emptyMap(),
+    val autoRequest: SupplierAutoRequest = SupplierAutoRequest(),
+    /** productId → epoch ms of the last automatic request, to avoid re-alerting every sale. */
+    val lastAutoAt: Map<String, Long> = emptyMap(),
+)
+
+/** POS-controlled automatic restock requests raised when a sale drops a linked product to low stock. */
+@Serializable
+data class SupplierAutoRequest(
+    val enabled: Boolean = false,
+    val appNotify: Boolean = true,
+    /** Chargeable WhatsApp Business delivery; stored now, sent once a paid provider is configured. */
+    val whatsapp: Boolean = false,
 )

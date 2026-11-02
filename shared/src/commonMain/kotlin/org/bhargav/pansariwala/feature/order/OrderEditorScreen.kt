@@ -138,6 +138,9 @@ import org.bhargav.pansariwala.voice.RequestMicrophonePermission
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.voice_sheet_done
+import pansariwala.shared.generated.resources.voice_sheet_listening
+import pansariwala.shared.generated.resources.voice_sheet_tap_to_speak
 import androidx.compose.material.icons.filled.Edit
 import pansariwala.shared.generated.resources.pos_line_price_edit_cd
 import pansariwala.shared.generated.resources.action_add
@@ -404,7 +407,11 @@ private fun ColumnScope.CatalogPane(state: OrderEditorUiState, viewModel: OrderE
         modifier = Modifier.fillMaxWidth(),
     )
     ScanMessageStrip(state, Modifier.padding(top = 4.dp))
-    if (state.isListening || state.partialTranscript.isNotBlank() || state.voiceResults != null) VoiceArea(state, viewModel)
+    if (state.voiceSheetOpen) {
+        VoiceSheet(state, viewModel)
+    } else if (state.isListening || state.partialTranscript.isNotBlank() || state.voiceResults != null) {
+        VoiceArea(state, viewModel)
+    }
 
     val linesByProduct = remember(state.cart) { state.cart.groupBy { it.product.id } }
     val byCategory = remember(state.filteredCatalog) { state.filteredCatalog.groupBy { it.browseKey } }
@@ -924,6 +931,65 @@ private fun VoiceArea(state: OrderEditorUiState, viewModel: OrderEditorViewModel
             onDismiss = viewModel::dismissVoiceResults,
             modifier = Modifier.padding(bottom = 8.dp),
         )
+    }
+}
+
+/** Mic tap opens this sheet: one phrase per tap, live status, what was heard and the matching items. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun VoiceSheet(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
+    org.bhargav.pansariwala.designsystem.AppBottomSheet(onDismissRequest = viewModel::closeVoiceSheet) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val listening = state.isListening
+            val statusColor = if (listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            ListeningMicButton(isListening = listening, onClick = viewModel::onMicClick, modifier = Modifier.size(72.dp))
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = statusColor.copy(alpha = 0.12f),
+            ) {
+                Text(
+                    stringResource(
+                        when {
+                            listening -> Res.string.voice_sheet_listening
+                            state.lastHeard.isNotBlank() -> Res.string.voice_sheet_done
+                            else -> Res.string.voice_sheet_tap_to_speak
+                        },
+                    ),
+                    color = statusColor,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                )
+            }
+            val heard = state.partialTranscript.ifBlank { state.lastHeard }
+            if (heard.isNotBlank()) {
+                Text("“$heard”", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+            } else {
+                Text(
+                    stringResource(Res.string.voice_hint_example),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            state.voiceMessages.lastOrNull()?.let {
+                Text(it.asString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            state.voiceResults?.let { results ->
+                MatchResultsPanel(
+                    kind = results.kind,
+                    label = results.label,
+                    options = results.visible,
+                    hasMore = results.hasMore,
+                    onLoadMore = viewModel::showMoreVoiceResults,
+                    onPick = viewModel::pickVoiceResult,
+                    onDismiss = viewModel::dismissVoiceResults,
+                )
+            }
+        }
     }
 }
 

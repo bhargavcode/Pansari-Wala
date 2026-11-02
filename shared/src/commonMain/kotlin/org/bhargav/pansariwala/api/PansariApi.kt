@@ -133,6 +133,7 @@ interface PansariApi {
     suspend fun requestDelivery(orderId: String, packedProductIds: List<String>): DeliveryOffer
     suspend fun startSelfDelivery(orderId: String, packedProductIds: List<String>): Order
     suspend fun completeSelfDelivery(orderId: String, otp: String): Order
+    suspend fun markReadyForPickup(orderId: String): Order
     suspend fun acceptReturn(orderId: String, reason: String? = null): Order
     suspend fun shopPartners(): List<ShopPartnerDto>
     suspend fun addShopPartner(request: ShopPartnerRequest): ShopPartnerDto

@@ -58,6 +58,8 @@ object NotificationOpenRequests {
             Push.EVENT_DELIVERY_OFFER -> NotificationOpenRequest(Notification.TYPE_DELIVERY_OFFER, orderId)
             Push.EVENT_ISSUE_UPDATE -> NotificationOpenRequest(AppConstants.Support.NOTIFICATION_TYPE)
             Push.EVENT_REGISTRATION_REMINDER -> NotificationOpenRequest(Notification.TYPE_REGISTRATION)
+            Push.EVENT_UDHAAR_REMINDER -> data[Push.KEY_SHOP_ID]?.takeIf { it.isNotBlank() }
+                ?.let { NotificationOpenRequest(Notification.TYPE_UDHAAR, it) }
             Push.EVENT_ORDER_UPDATE -> orderId?.let {
                 val shopAlert = data[Push.KEY_ALERT] in setOf(Push.ALERT_ORDER_NEW, Push.ALERT_PARTNER_TIMEOUT)
                 NotificationOpenRequest(if (shopAlert) Notification.TYPE_ONLINE_ORDER else Notification.TYPE_ORDER, it)

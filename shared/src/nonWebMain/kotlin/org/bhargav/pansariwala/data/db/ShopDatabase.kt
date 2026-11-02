@@ -13,7 +13,7 @@ import androidx.room.RoomDatabaseConstructor
         OrderItemEntity::class,
         SyncStateEntity::class,
     ],
-    version = 16,
+    version = 18,
     exportSchema = true,
 )
 @ConstructedBy(ShopDatabaseConstructor::class)

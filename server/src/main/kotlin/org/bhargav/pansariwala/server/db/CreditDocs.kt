@@ -15,6 +15,7 @@ data class BorrowerDoc(
     val notes: String = "",
     val createdAt: Long,
     val updatedAt: Long,
+    val lastAutoRemindAt: Long = 0L,
 )
 
 @Serializable

@@ -19,6 +19,7 @@ import pansariwala.shared.generated.resources.bin_recovered
 import pansariwala.shared.generated.resources.inv_error_invalid_qty
 import pansariwala.shared.generated.resources.inv_error_stock_negative
 import pansariwala.shared.generated.resources.inv_msg_stock_updated
+import pansariwala.shared.generated.resources.error_expiry_before_mfg
 
 data class InventoryProductDetailUiState(
     val loading: Boolean = true,
@@ -27,6 +28,9 @@ data class InventoryProductDetailUiState(
     val qtyInput: String = "",
     /** Variant whose stock the update card edits; null for products without options. */
     val selectedVariantId: String? = null,
+    /** Batch dates saved with the next stock-in; prefilled from the product. */
+    val batchMfg: Long? = null,
+    val batchExpiry: Long? = null,
     val message: UiText? = null,
     val error: UiText? = null,
 ) {
@@ -54,7 +58,15 @@ class InventoryProductDetailViewModel(
                     _uiState.update { state ->
                         val stockIds = product?.stockVariants.orEmpty().map { it.id }
                         val selected = state.selectedVariantId?.takeIf { it in stockIds } ?: stockIds.firstOrNull()
-                        state.copy(loading = false, product = product, missing = product == null, selectedVariantId = selected)
+                        val first = state.product == null
+                        state.copy(
+                            loading = false,
+                            product = product,
+                            missing = product == null,
+                            selectedVariantId = selected,
+                            batchMfg = if (first) product?.mfgDate else state.batchMfg,
+                            batchExpiry = if (first) product?.expiryDate else state.batchExpiry,
+                        )
                     }
                 }
         }
@@ -66,9 +78,17 @@ class InventoryProductDetailViewModel(
     fun dismissMessage() = _uiState.update { it.copy(message = null) }
     fun dismissError() = _uiState.update { it.copy(error = null) }
 
+    fun onBatchMfgChange(value: Long?) = _uiState.update { it.copy(batchMfg = value, error = null) }
+    fun onBatchExpiryChange(value: Long?) = _uiState.update { it.copy(batchExpiry = value, error = null) }
+
     fun stockIn(step: Double? = null) {
         val qty = step ?: parsedQty() ?: return
-        applyStock(qty)
+        val s = _uiState.value
+        if (s.batchMfg != null && s.batchExpiry != null && s.batchExpiry < s.batchMfg) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_expiry_before_mfg)) }
+            return
+        }
+        applyStock(qty, withDates = true)
     }
 
     fun stockOut(step: Double? = null) {
@@ -100,9 +120,11 @@ class InventoryProductDetailViewModel(
     }
 
     /** Variant products keep stock per option: customers only see options whose own stock is above zero. */
-    private fun applyStock(delta: Double) {
+    private fun applyStock(delta: Double, withDates: Boolean = false) {
         val state = _uiState.value
-        val product = state.product ?: return
+        val loaded = state.product ?: return
+        val datesChanged = withDates && (loaded.mfgDate != state.batchMfg || loaded.expiryDate != state.batchExpiry)
+        val product = if (datesChanged) loaded.copy(mfgDate = state.batchMfg, expiryDate = state.batchExpiry) else loaded
         val variantId = state.selectedVariantId?.takeIf { product.variant(it) != null }
         val newQty = product.stockOf(variantId) + delta
         viewModelScope.launch {
@@ -110,6 +132,7 @@ class InventoryProductDetailViewModel(
                 if (variantId != null) {
                     shopRepository.upsertProduct(product.withStock(variantId, newQty))
                 } else {
+                    if (datesChanged) shopRepository.upsertProduct(product)
                     shopRepository.adjustProductStock(product.id, delta)
                 }
             }

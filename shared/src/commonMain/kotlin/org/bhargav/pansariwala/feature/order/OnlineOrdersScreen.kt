@@ -109,8 +109,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.HorizontalDivider
 import pansariwala.shared.generated.resources.customer_rating_badge_cd
-import pansariwala.shared.generated.resources.order_action_mark_collected
+import pansariwala.shared.generated.resources.order_action_collect_otp
+import pansariwala.shared.generated.resources.order_action_ready_to_collect
 import pansariwala.shared.generated.resources.order_pickup_badge
+import pansariwala.shared.generated.resources.order_pickup_ready_badge
 import pansariwala.shared.generated.resources.action_confirm_payment
 import pansariwala.shared.generated.resources.shop_pay_hint
 import pansariwala.shared.generated.resources.shop_pay_late
@@ -353,9 +355,12 @@ fun OnlineOrdersScreen(
                             )
                         }
                         if (order.selfPickup) {
-                            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp)) {
+                            Surface(
+                                color = if (order.readyForPickup) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
                                 Text(
-                                    stringResource(Res.string.order_pickup_badge),
+                                    stringResource(if (order.readyForPickup) Res.string.order_pickup_ready_badge else Res.string.order_pickup_badge),
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
@@ -373,7 +378,11 @@ fun OnlineOrdersScreen(
                             onSetAll = { viewModel.setAllPacked(order.id, it) },
                         )
                         order.isPackedForDelivery -> DeliveringItemsList(order)
-                        else -> OrderItemsTable(order.items, collapsedCount = ONLINE_CARD_VISIBLE_ITEMS)
+                        else -> OrderItemsTable(
+                            order.items,
+                            collapsedCount = ONLINE_CARD_VISIBLE_ITEMS,
+                            stockOf = if (order.status == OrderStatus.RECEIVED || order.status == OrderStatus.ACCEPTED) state::inStock else null,
+                        )
                     }
                     HorizontalDivider()
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -675,7 +684,7 @@ private fun OnlineOrderActions(
         OrderStatus.RETURNING_TO_SHOP -> stringResource(Res.string.return_shop_verify_action)
         OrderStatus.RETURNED_TO_SHOP -> stringResource(Res.string.return_shop_collected_action)
         OrderStatus.PACKING -> if (order.selfPickup) {
-            stringResource(Res.string.order_action_mark_collected)
+            stringResource(if (order.readyForPickup) Res.string.order_action_collect_otp else Res.string.order_action_ready_to_collect)
         } else if (packedCount in 1 until order.items.size) {
             stringResource(Res.string.action_request_delivery_partial, packedCount, order.items.size)
         } else {
@@ -683,11 +692,15 @@ private fun OnlineOrderActions(
         }
         else -> null
     }
-    val nextEnabled = order.status != OrderStatus.PACKING || packedCount > 0
+    val nextEnabled = order.status != OrderStatus.PACKING || order.readyForPickup || packedCount > 0
     val nextAction = when (order.status) {
         OrderStatus.RECEIVED -> onAccept
         OrderStatus.ACCEPTED -> onPacking
-        OrderStatus.PACKING -> if (order.selfPickup) onMarkCollected else onRequestPartner
+        OrderStatus.PACKING -> when {
+            !order.selfPickup -> onRequestPartner
+            order.readyForPickup -> onCompleteSelfDelivery
+            else -> onMarkCollected
+        }
         OrderStatus.RETURNING_TO_SHOP -> onAcceptReturn
         OrderStatus.RETURNED_TO_SHOP -> onCompleteSelfDelivery
         else -> null

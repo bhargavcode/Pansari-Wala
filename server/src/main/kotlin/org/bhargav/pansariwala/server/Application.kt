@@ -47,6 +47,7 @@ import org.slf4j.event.Level
 private const val OFFER_SWEEP_INTERVAL_MS = 30_000L
 private const val ACCOUNT_PURGE_INTERVAL_MS = 10 * 60_000L
 private const val REGISTRATION_REMINDER_INTERVAL_MS = 15 * 60_000L
+private const val UDHAAR_REMINDER_INTERVAL_MS = 60 * 60_000L
 private const val LOGIN_LOCKED_CODE = "LOGIN_LOCKED"
 private const val ROLE_SHOP_REGISTRANT = ShopRegistrationService.ROLE
 
@@ -176,7 +177,17 @@ fun main() {
         launch(Dispatchers.IO) {
             var lastAccountPurge = 0L
             var lastRegistrationReminder = 0L
+            var lastUdhaarReminder = 0L
             while (isActive) {
+                if (System.currentTimeMillis() - lastUdhaarReminder >= UDHAAR_REMINDER_INTERVAL_MS) {
+                    lastUdhaarReminder = System.currentTimeMillis()
+                    runCatching { credit.sendAutoReminders(push) }
+                        .onSuccess { if (it > 0) println("Udhaar: sent $it automatic reminders") }
+                        .onFailure { println("Udhaar reminder sweep failed: ${it.message}") }
+                    runCatching { store.retryFailedRefunds() }
+                        .onSuccess { if (it > 0) println("Refunds: retried $it failed gateway refunds") }
+                        .onFailure { println("Refund retry sweep failed: ${it.message}") }
+                }
                 if (System.currentTimeMillis() - lastRegistrationReminder >= REGISTRATION_REMINDER_INTERVAL_MS) {
                     lastRegistrationReminder = System.currentTimeMillis()
                     runCatching { registration.sendReminders() }

@@ -38,6 +38,7 @@ import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_image_upload_failed
+import pansariwala.shared.generated.resources.error_expiry_before_mfg
 import pansariwala.shared.generated.resources.error_product_name_required
 import pansariwala.shared.generated.resources.error_product_not_found
 import pansariwala.shared.generated.resources.msg_loaded_product
@@ -67,6 +68,10 @@ data class AddEditInventoryUiState(
     val voiceAlias: String = "",
     val brandName: String = "",
     val variants: List<ProductVariantDto> = emptyList(),
+    /** False = single product: pricing/stock/dates on the product; true = each variant carries its own. */
+    val hasVariants: Boolean = false,
+    val mfgDate: Long? = null,
+    val expiryDate: Long? = null,
     val imageSlots: List<ImageSlotState> = List(AppConstants.PHOTO_MAX_PRODUCT_IMAGES) { ImageSlotState.Empty },
     val message: UiText? = null,
     val error: UiText? = null,
@@ -174,6 +179,20 @@ class AddEditInventoryViewModel(
     fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value) }
     fun onBrandNameChange(value: String) = _uiState.update { it.copy(brandName = value) }
     fun onVariantsChange(value: List<ProductVariantDto>) = _uiState.update { it.copy(variants = value) }
+    fun onHasVariantsChange(value: Boolean) = _uiState.update { it.copy(hasVariants = value) }
+    fun onMfgDateChange(value: Long?) = _uiState.update { it.copy(mfgDate = value) }
+    fun onExpiryDateChange(value: Long?) = _uiState.update { it.copy(expiryDate = value) }
+
+    private var baseline: List<Any?> = AddEditInventoryUiState().formKey()
+
+    /** True when the form differs from what was loaded (or from blank for a new product). */
+    fun hasUnsavedChanges(): Boolean = !_uiState.value.saved && _uiState.value.formKey() != baseline
+
+    private fun AddEditInventoryUiState.formKey(): List<Any?> = listOf(
+        name, nameHi, brandName, categoryId, subCategoryId, unit, barcode, sellingPrice, costPrice, stockQty,
+        lowStockThreshold, maxPerOrder, voiceAlias, variants, hasVariants, mfgDate, expiryDate,
+        imageSlots.count { it !is ImageSlotState.Empty },
+    )
 
     suspend fun uploadVariantImage(): String? {
         val picked = runCatching { imagePicker.pickImage() }.getOrNull() ?: return null
@@ -240,6 +259,11 @@ class AddEditInventoryViewModel(
             _uiState.update { it.copy(error = UiText.res(Res.string.error_image_upload_failed)) }
             return
         }
+        if (state.mfgDate != null && state.expiryDate != null && state.expiryDate < state.mfgDate) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_expiry_before_mfg)) }
+            return
+        }
+        val keptVariants = if (state.hasVariants) state.variants.filter { it.name.isNotBlank() } else emptyList()
         val product = Product(
             id = loadedProductId ?: generateId("prod"),
             shopId = shopId,
@@ -255,14 +279,15 @@ class AddEditInventoryViewModel(
             maxPerOrder = state.maxPerOrder.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0,
             voiceAlias = state.voiceAlias.trim().ifBlank { null },
             imageUrls = imageUploader.readyUrls(),
-            variants = state.variants
-                .filter { it.name.isNotBlank() }
+            variants = keptVariants
                 .map { v -> v.copy(id = v.id.ifBlank { generateId("v") }).toModel() },
             brandName = state.brandName.trim(),
             masterProductId = loadedProduct?.masterProductId,
             isActive = loadedProduct?.isActive ?: true,
             categoryId = state.categoryId,
             subCategoryId = state.subCategoryId,
+            mfgDate = state.mfgDate,
+            expiryDate = state.expiryDate,
         )
         viewModelScope.launch {
             shopRepository.upsertProduct(product)
@@ -298,7 +323,11 @@ class AddEditInventoryViewModel(
                 voiceAlias = product.voiceAlias.orEmpty(),
                 brandName = product.brandName,
                 variants = product.variants.map { it.toDto() },
+                hasVariants = product.variants.isNotEmpty(),
+                mfgDate = product.mfgDate,
+                expiryDate = product.expiryDate,
             )
         }
+        baseline = _uiState.value.formKey()
     }
 }

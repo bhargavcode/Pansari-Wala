@@ -99,7 +99,15 @@ data class OnlineOrdersUiState(
     val paymentNotice: UiText? = null,
     /** Order whose returned parcel the shop is verifying (partner return or own-rider return). */
     val returnOrderId: String? = null,
-)
+    /** "productId" / "productId|variantId" → quantity on hand, for the per-line in-stock tick. */
+    val stockOnHand: Map<String, Double> = emptyMap(),
+) {
+    /** Null when the product isn't in local inventory (no badge). */
+    fun inStock(item: org.bhargav.pansariwala.domain.model.OrderItem): Boolean? {
+        val qty = item.variantId?.let { stockOnHand["${item.productId}|$it"] } ?: stockOnHand[item.productId] ?: return null
+        return qty >= item.quantity
+    }
+}
 
 /**
  * Live via FCM ([OrderUpdates]) — no polling. Loads on screen resume (covers missed pushes / app
@@ -108,6 +116,8 @@ data class OnlineOrdersUiState(
 class OnlineOrdersViewModel(
     private val api: PansariApi,
     private val notifications: NotificationGateway,
+    private val shopRepository: org.bhargav.pansariwala.data.db.ShopRepository,
+    private val preferences: org.bhargav.pansariwala.data.local.AppPreferences,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OnlineOrdersUiState())
     val uiState: StateFlow<OnlineOrdersUiState> = _uiState.asStateFlow()
@@ -121,6 +131,17 @@ class OnlineOrdersViewModel(
     init {
         viewModelScope.launch {
             OrderUpdates.events.collect(::onOrderUpdate)
+        }
+        viewModelScope.launch {
+            val shopId = preferences.getShopId() ?: return@launch
+            shopRepository.observeProducts(shopId).collect { products ->
+                val stock = HashMap<String, Double>(products.size * 2)
+                products.forEach { p ->
+                    stock[p.id] = p.stockQty
+                    p.variants.forEach { v -> if (v.stockQty > 0.0) stock["${p.id}|${v.id}"] = v.stockQty }
+                }
+                _uiState.update { it.copy(stockOnHand = stock) }
+            }
         }
         viewModelScope.launch {
             PaymentUpdates.events.collect {
@@ -318,10 +339,8 @@ class OnlineOrdersViewModel(
         api.setOrderStatus(id, OrderStatus.PACKING.name)
     }
 
-    /** Self-pickup orders end at the counter: the customer collected, no partner involved. */
-    fun markCollected(id: String) = runOrderAction(id) {
-        api.setOrderStatus(id, OrderStatus.COMPLETED.name)
-    }
+    /** Packed self-collection order: notifies the customer; handover then needs their OTP. */
+    fun markCollected(id: String) = runOrderAction(id) { api.markReadyForPickup(id) }
 
     fun openAcceptReturn(id: String) { _uiState.update { it.copy(returnOrderId = id) } }
 

@@ -37,6 +37,9 @@ data class OrderEntity(
     @ColumnInfo(defaultValue = "0")
     val paidNow: Double = 0.0,
     val paidNowMethod: String? = null,
+    val createdById: String? = null,
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
 )
 
 @Entity(

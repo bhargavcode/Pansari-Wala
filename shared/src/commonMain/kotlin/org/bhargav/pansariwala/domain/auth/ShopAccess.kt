@@ -26,6 +26,27 @@ enum class ShopPermission {
     }
 }
 
+/** Ready-made permission bundles for executives; any manual tweak makes the role [CUSTOM]. */
+enum class StaffRolePreset(val permissions: Set<ShopPermission>) {
+    CASHIER(setOf(ShopPermission.BILLING, ShopPermission.PRINT_REPORTS)),
+    ORDER_PACKER(setOf(ShopPermission.ONLINE_ORDERS)),
+    STOCK_KEEPER(setOf(ShopPermission.INVENTORY, ShopPermission.ONLINE_ORDERS)),
+    MANAGER(
+        setOf(
+            ShopPermission.BILLING, ShopPermission.ONLINE_ORDERS, ShopPermission.INVENTORY, ShopPermission.VIEW_REPORTS,
+            ShopPermission.PRINT_REPORTS, ShopPermission.OFFERS, ShopPermission.RATINGS, ShopPermission.VISITORS,
+        ),
+    ),
+    ADMIN(setOf(ShopPermission.ADMIN)),
+    CUSTOM(emptySet()),
+    ;
+
+    companion object {
+        fun of(permissions: Set<ShopPermission>): StaffRolePreset =
+            entries.firstOrNull { it != CUSTOM && it.permissions == permissions } ?: CUSTOM
+    }
+}
+
 object ShopRoles {
     const val ADMIN: String = "SHOP"
     const val EXECUTIVE: String = "EXECUTIVE"

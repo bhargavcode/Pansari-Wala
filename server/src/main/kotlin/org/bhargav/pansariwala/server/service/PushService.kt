@@ -72,9 +72,11 @@ private object PushContract {
     const val ALERT_RETURNING = "RETURNING_TO_SHOP"
     const val ALERT_RETURNED = "RETURNED_TO_SHOP"
     const val ALERT_RETURN_VERIFY = "RETURN_VERIFY"
+    const val ALERT_READY_FOR_PICKUP = "READY_FOR_PICKUP"
     const val KEY_PREFIX_STATUS = "ORDER_STATUS"
     const val EVENT_ISSUE_UPDATE = "ISSUE_UPDATE"
     const val ALERT_ISSUE_RESOLVED = "ISSUE_RESOLVED"
+    const val EVENT_UDHAAR_REMINDER = "UDHAAR_REMINDER"
 }
 
 /** Snapshot of an order right after a status write, published to its shop and customer. */
@@ -87,6 +89,7 @@ data class OrderUpdate(
     val shopName: String,
     val customerName: String,
     val partnerTimeout: Boolean = false,
+    val readyForPickup: Boolean = false,
 )
 
 private class Alert(
@@ -288,6 +291,25 @@ class PushService(
         send(and(eq("role", "SHOP"), eq("shopId", shopId)), PushMessage(intentId, data, alert))
     }
 
+    /** Automatic udhaar reminder to a borrower who uses the customer app. */
+    fun udhaarReminder(customerId: String, shopId: String, shopName: String, amountLabel: String) {
+        if (!enabled) return
+        val data = mapOf(
+            "event" to PushContract.EVENT_UDHAAR_REMINDER,
+            "shopId" to shopId,
+            "shopName" to shopName,
+            "amount" to amountLabel,
+        )
+        val alert = Alert(
+            kind = PushContract.EVENT_UDHAAR_REMINDER,
+            key = "${PushContract.EVENT_UDHAAR_REMINDER}:$shopId",
+            title = "Udhaar payment due",
+            body = "{0} is due at {1}. Tap to pay.",
+            bodyArgs = listOf(amountLabel, shopName),
+        )
+        send(and(`in`("role", CUSTOMER_ROLES), eq("principalId", customerId)), PushMessage(shopId, data, alert))
+    }
+
     /** Tells the reporter (any app) that Master marked their issue fixed, and in which build. */
     fun issueResolved(reporterId: String, issueId: String, featureLabel: String, fixedInVersion: String) {
         if (!enabled) return
@@ -360,8 +382,18 @@ class PushService(
     }
 
     private fun customerAlert(u: OrderUpdate): Alert? {
-        if (u.previousStatus == u.status) return null
         val shop = u.shopName
+        if (u.readyForPickup) {
+            val kind = PushContract.ALERT_READY_FOR_PICKUP
+            return Alert(
+                kind,
+                "${PushContract.KEY_PREFIX_STATUS}:${u.orderId}:$kind",
+                "Ready to collect",
+                "Your order at {0} is ready. Show your OTP at the counter to collect it.",
+                listOf(shop),
+            )
+        }
+        if (u.previousStatus == u.status) return null
         val (kind, text) = when (u.status) {
             "ACCEPTED" -> if (u.previousStatus == "RECEIVED") {
                 PushContract.ALERT_ACCEPTED to ("Order accepted" to "{0} is preparing your order.")

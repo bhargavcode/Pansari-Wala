@@ -81,6 +81,29 @@ import org.bhargav.pansariwala.designsystem.TimePickerField
 import org.bhargav.pansariwala.designsystem.formatClockTime
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
+import org.bhargav.pansariwala.domain.auth.StaffRolePreset
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.PointOfSale
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Warehouse
+import pansariwala.shared.generated.resources.staff_role_admin
+import pansariwala.shared.generated.resources.staff_role_admin_desc
+import pansariwala.shared.generated.resources.staff_role_cashier
+import pansariwala.shared.generated.resources.staff_role_cashier_desc
+import pansariwala.shared.generated.resources.staff_role_custom
+import pansariwala.shared.generated.resources.staff_role_custom_desc
+import pansariwala.shared.generated.resources.staff_role_name
+import pansariwala.shared.generated.resources.staff_role_name_hint
+import org.bhargav.pansariwala.util.AppConstants
+import pansariwala.shared.generated.resources.staff_role_manager
+import pansariwala.shared.generated.resources.staff_role_manager_desc
+import pansariwala.shared.generated.resources.staff_role_packer
+import pansariwala.shared.generated.resources.staff_role_packer_desc
+import pansariwala.shared.generated.resources.staff_role_stock
+import pansariwala.shared.generated.resources.staff_role_stock_desc
+import pansariwala.shared.generated.resources.staff_role_title
 import pansariwala.shared.generated.resources.riders_title
 import org.bhargav.pansariwala.domain.model.ShopReview
 import org.bhargav.pansariwala.domain.model.ShopType
@@ -194,6 +217,11 @@ import pansariwala.shared.generated.resources.shop_delivery_until_hint
 import pansariwala.shared.generated.resources.shop_delivery_until_label
 import pansariwala.shared.generated.resources.shop_delivery_until_none
 import pansariwala.shared.generated.resources.shop_home_delivery_hint
+import pansariwala.shared.generated.resources.shop_pay_at_collect_hint
+import pansariwala.shared.generated.resources.shop_pay_at_collect_label
+import pansariwala.shared.generated.resources.shop_self_collect_hint
+import pansariwala.shared.generated.resources.shop_self_collect_label
+import pansariwala.shared.generated.resources.shop_self_collect_title
 import pansariwala.shared.generated.resources.shop_home_delivery_label
 import pansariwala.shared.generated.resources.shop_hours_edit
 import pansariwala.shared.generated.resources.shop_hours_not_set
@@ -503,6 +531,25 @@ private fun androidx.compose.foundation.lazy.LazyListScope.posSettingsItems(
             }
         }
     }
+    item(key = "pos_self_collect") {
+        SectionCard(title = stringResource(Res.string.shop_self_collect_title), modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ToggleRow(stringResource(Res.string.shop_self_collect_label), shop.selfCollectEnabled, canEdit, viewModel::setSelfCollectEnabled)
+                SettingHint(stringResource(Res.string.shop_self_collect_hint))
+                HorizontalDivider()
+                ToggleRow(
+                    stringResource(Res.string.shop_pay_at_collect_label),
+                    shop.payAtCollectEnabled,
+                    canEdit && shop.selfCollectEnabled,
+                    viewModel::setPayAtCollectEnabled,
+                )
+                SettingHint(stringResource(Res.string.shop_pay_at_collect_hint))
+            }
+        }
+    }
+    item(key = "pos_udhaar_reminders") {
+        UdhaarReminderCard(shop.udhaarReminder, canEdit, viewModel::updateUdhaarReminder)
+    }
     item(key = "pos_visibility") {
         SectionCard(title = stringResource(Res.string.pos_settings_visibility), modifier = Modifier.fillMaxWidth()) {
             ToggleRow(stringResource(Res.string.profile_shop_active), shop.active, canEdit, viewModel::setShopActive)
@@ -583,7 +630,7 @@ private fun editAction(canEdit: Boolean, onEdit: () -> Unit): (@Composable () ->
     }
 
 @Composable
-private fun SettingHint(text: String) {
+internal fun SettingHint(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -814,6 +861,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.staffItems(
             title = member.displayName,
             subtitle = buildString {
                 append(member.username)
+                if (!admin) {
+                    val preset = StaffRolePreset.of(perms.let { if (ShopPermission.ADMIN in it) setOf(ShopPermission.ADMIN) else it })
+                    append(" · ")
+                    append(member.roleTitle.takeIf { preset == StaffRolePreset.CUSTOM && it.isNotBlank() } ?: stringResource(preset.label()))
+                }
                 if (!member.active) append(" · ").append(stringResource(Res.string.staff_disabled))
             },
             modifier = Modifier.fillMaxWidth(),
@@ -1126,6 +1178,18 @@ private fun StaffForm(
     )
     ToggleRow(stringResource(Res.string.staff_active), draft.active, true) { v -> onChange { it.copy(active = v) } }
     HorizontalDivider()
+    StaffRolePicker(draft.permissions, access) { perms -> onChange { it.copy(permissions = perms) } }
+    if (StaffRolePreset.of(draft.permissions) == StaffRolePreset.CUSTOM) {
+        OutlinedTextField(
+            value = draft.roleTitle,
+            onValueChange = { v -> onChange { it.copy(roleTitle = v.take(AppConstants.STAFF_ROLE_TITLE_MAX)) } },
+            label = { Text(stringResource(Res.string.staff_role_name)) },
+            supportingText = { Text(stringResource(Res.string.staff_role_name_hint)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    HorizontalDivider()
     Text(stringResource(Res.string.staff_access_title), style = MaterialTheme.typography.labelLarge)
     val fullAdmin = ShopPermission.ADMIN in draft.permissions
     CheckRow(stringResource(ShopPermission.ADMIN.label()), fullAdmin, enabled = access.isAdmin) { checked ->
@@ -1140,6 +1204,60 @@ private fun StaffForm(
             onChange { it.copy(permissions = if (checked) it.permissions + perm else it.permissions - perm) }
         }
     }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun StaffRolePicker(
+    permissions: Set<ShopPermission>,
+    access: ShopAccess,
+    onPick: (Set<ShopPermission>) -> Unit,
+) {
+    val current = StaffRolePreset.of(permissions)
+    Text(stringResource(Res.string.staff_role_title), style = MaterialTheme.typography.labelLarge)
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        StaffRolePreset.entries.forEach { preset ->
+            val allowed = preset == StaffRolePreset.CUSTOM || preset.permissions.all(access::can)
+            androidx.compose.material3.FilterChip(
+                selected = preset == current,
+                enabled = allowed,
+                onClick = { if (preset != StaffRolePreset.CUSTOM) onPick(preset.permissions) },
+                leadingIcon = { Icon(preset.icon(), null, Modifier.size(18.dp)) },
+                label = { Text(stringResource(preset.label())) },
+            )
+        }
+    }
+    Text(stringResource(current.description()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+private fun StaffRolePreset.icon() = when (this) {
+    StaffRolePreset.CASHIER -> androidx.compose.material.icons.Icons.Default.PointOfSale
+    StaffRolePreset.ORDER_PACKER -> androidx.compose.material.icons.Icons.Default.Inventory2
+    StaffRolePreset.STOCK_KEEPER -> androidx.compose.material.icons.Icons.Default.Warehouse
+    StaffRolePreset.MANAGER -> androidx.compose.material.icons.Icons.Default.ManageAccounts
+    StaffRolePreset.ADMIN -> androidx.compose.material.icons.Icons.Default.AdminPanelSettings
+    StaffRolePreset.CUSTOM -> androidx.compose.material.icons.Icons.Default.Tune
+}
+
+private fun StaffRolePreset.label() = when (this) {
+    StaffRolePreset.CASHIER -> Res.string.staff_role_cashier
+    StaffRolePreset.ORDER_PACKER -> Res.string.staff_role_packer
+    StaffRolePreset.STOCK_KEEPER -> Res.string.staff_role_stock
+    StaffRolePreset.MANAGER -> Res.string.staff_role_manager
+    StaffRolePreset.ADMIN -> Res.string.staff_role_admin
+    StaffRolePreset.CUSTOM -> Res.string.staff_role_custom
+}
+
+private fun StaffRolePreset.description() = when (this) {
+    StaffRolePreset.CASHIER -> Res.string.staff_role_cashier_desc
+    StaffRolePreset.ORDER_PACKER -> Res.string.staff_role_packer_desc
+    StaffRolePreset.STOCK_KEEPER -> Res.string.staff_role_stock_desc
+    StaffRolePreset.MANAGER -> Res.string.staff_role_manager_desc
+    StaffRolePreset.ADMIN -> Res.string.staff_role_admin_desc
+    StaffRolePreset.CUSTOM -> Res.string.staff_role_custom_desc
 }
 
 @Composable
@@ -1269,7 +1387,7 @@ private fun DetailRow(label: StringResource, value: String) {
 }
 
 @Composable
-private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)

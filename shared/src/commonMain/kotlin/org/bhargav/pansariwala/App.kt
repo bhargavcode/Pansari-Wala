@@ -81,6 +81,13 @@ fun App(
 
     LaunchedEffect(product) { installReporter.run(product) }
 
+    var updateAvailable by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (preferences.claimUpdateCheck(org.bhargav.pansariwala.util.AppClock.nowMillis())) {
+            updateAvailable = runCatching { org.bhargav.pansariwala.platform.isStoreUpdateAvailable() }.getOrDefault(false)
+        }
+    }
+
     LaunchedEffect(product) {
         notifications.ensureChannels()
         if (product == AppProduct.POS) orderSync.start()
@@ -123,6 +130,15 @@ fun App(
                     }
                 }
                 OtpStatusHost()
+                if (updateAvailable) {
+                    org.bhargav.pansariwala.designsystem.AppUpdateDialog(
+                        onUpdate = {
+                            updateAvailable = false
+                            org.bhargav.pansariwala.platform.startStoreUpdate()
+                        },
+                        onLater = { updateAvailable = false },
+                    )
+                }
                 if (showNotificationRationale) {
                     fun close(allow: Boolean) {
                         showNotificationRationale = false

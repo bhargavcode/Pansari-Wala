@@ -18,6 +18,27 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Layers
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
+import org.bhargav.pansariwala.designsystem.BarcodeField
+import org.bhargav.pansariwala.designsystem.DatePickerField
+import org.bhargav.pansariwala.designsystem.DiscardChangesDialog
+import pansariwala.shared.generated.resources.field_expiry_date
+import pansariwala.shared.generated.resources.field_mfg_date
+import pansariwala.shared.generated.resources.product_variant_mode_has
+import pansariwala.shared.generated.resources.product_variant_mode_has_hint
+import pansariwala.shared.generated.resources.product_variant_mode_none
+import pansariwala.shared.generated.resources.product_variant_mode_none_hint
+import pansariwala.shared.generated.resources.product_variant_mode_title
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -74,10 +95,26 @@ fun AddEditInventoryScreen(
 
     LaunchedEffect(productId) { viewModel.load(productId) }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val guardedBack = { if (viewModel.hasUnsavedChanges()) confirmDiscard = true else onBack() }
+    NavigationBackHandler(
+        state = rememberNavigationEventState(currentInfo = NavigationEventInfo.None),
+        isBackEnabled = !state.saved,
+        onBackCompleted = guardedBack,
+    )
+    if (confirmDiscard) {
+        DiscardChangesDialog(
+            onDiscard = {
+                confirmDiscard = false
+                onBack()
+            },
+            onKeepEditing = { confirmDiscard = false },
+        )
+    }
 
     PansariScreen(
         title = stringResource(if (state.isEditing) Res.string.update_product else Res.string.add_product),
-        onBack = onBack,
+        onBack = guardedBack,
         error = state.error.toErrorBanner(retryable = false),
         onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError) },
         isLoading = state.loading,
@@ -167,11 +204,20 @@ fun AddEditInventoryScreen(
             onSelected = viewModel::onUnitChange,
         )
 
-        OutlinedTextField(
+        VariantModeSelector(hasVariants = state.hasVariants, onChange = viewModel::onHasVariantsChange)
+
+        if (state.hasVariants) {
+            org.bhargav.pansariwala.feature.catalog.VariantListEditor(
+                variants = state.variants,
+                onChange = viewModel::onVariantsChange,
+                onPickImage = viewModel::uploadVariantImage,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+        BarcodeField(
             value = state.barcode,
             onValueChange = viewModel::onBarcodeChange,
-            label = { Text(stringResource(Res.string.field_barcode)) },
-            singleLine = true,
+            label = stringResource(Res.string.field_barcode),
             modifier = Modifier.fillMaxWidth(),
         )
         Row(
@@ -207,6 +253,24 @@ fun AddEditInventoryScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
             )
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DatePickerField(
+                label = stringResource(Res.string.field_mfg_date),
+                millis = state.mfgDate,
+                onChange = viewModel::onMfgDateChange,
+                modifier = Modifier.weight(1f),
+            )
+            DatePickerField(
+                label = stringResource(Res.string.field_expiry_date),
+                millis = state.expiryDate,
+                onChange = viewModel::onExpiryDateChange,
+                isError = state.expiryDate != null && state.mfgDate != null && state.expiryDate!! < state.mfgDate!!,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = state.lowStockThreshold,
                 onValueChange = viewModel::onThresholdChange,
@@ -233,13 +297,6 @@ fun AddEditInventoryScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        org.bhargav.pansariwala.feature.catalog.VariantListEditor(
-            variants = state.variants,
-            onChange = viewModel::onVariantsChange,
-            onPickImage = viewModel::uploadVariantImage,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
         Button(
             onClick = viewModel::onSave,
             modifier = Modifier.fillMaxWidth(),
@@ -251,6 +308,30 @@ fun AddEditInventoryScreen(
             )
         }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VariantModeSelector(hasVariants: Boolean, onChange: (Boolean) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(Res.string.product_variant_mode_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            listOf(false to Res.string.product_variant_mode_none, true to Res.string.product_variant_mode_has)
+                .forEachIndexed { i, (value, label) ->
+                    SegmentedButton(
+                        selected = hasVariants == value,
+                        onClick = { onChange(value) },
+                        shape = SegmentedButtonDefaults.itemShape(i, 2),
+                        icon = { Icon(if (value) Icons.Default.Layers else Icons.Default.Inventory2, null) },
+                    ) { Text(stringResource(label)) }
+                }
+        }
+        Text(
+            stringResource(if (hasVariants) Res.string.product_variant_mode_has_hint else Res.string.product_variant_mode_none_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -89,6 +89,7 @@ import pansariwala.shared.generated.resources.master_charges
 import pansariwala.shared.generated.resources.master_close
 import pansariwala.shared.generated.resources.master_contact
 import pansariwala.shared.generated.resources.master_customer
+import pansariwala.shared.generated.resources.master_recorded_by
 import pansariwala.shared.generated.resources.master_customer_name
 import pansariwala.shared.generated.resources.master_date_filter
 import pansariwala.shared.generated.resources.master_desc_bold
@@ -561,6 +562,10 @@ fun OrderDetailDialog(
                 Text("${stringResource(Res.string.master_customer)}: ${txn.customerName}")
                 Text(txn.customerPhone)
                 Text(txn.customerAddress)
+                txn.createdByName?.takeIf { it.isNotBlank() }?.let { name ->
+                    val role = org.bhargav.pansariwala.feature.reports.staffRoleText(txn.createdByRole)
+                    Text(stringResource(Res.string.master_recorded_by, if (role != null) "$name · $role" else name))
+                }
                 Text("${stringResource(Res.string.master_offers)}: ${formatInr(txn.offers)}")
                 Text("${stringResource(Res.string.master_charges)}: ${formatInr(txn.charges)}")
                 Text("${stringResource(Res.string.master_total)}: ${formatInr(txn.total)}")

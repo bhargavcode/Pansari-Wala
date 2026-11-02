@@ -21,6 +21,8 @@ import pansariwala.shared.generated.resources.notify_partner_timeout_title
 import pansariwala.shared.generated.resources.notify_return_verify_body
 import pansariwala.shared.generated.resources.notify_return_verify_title
 import pansariwala.shared.generated.resources.notify_returned_body
+import pansariwala.shared.generated.resources.notify_ready_pickup_body
+import pansariwala.shared.generated.resources.notify_ready_pickup_title
 import pansariwala.shared.generated.resources.notify_returned_title
 import pansariwala.shared.generated.resources.notify_returning_body
 import pansariwala.shared.generated.resources.notify_returning_title
@@ -64,6 +66,8 @@ object OrderAlerts {
                 customer(orderId, alert, Res.string.notify_returning_title, Res.string.notify_returning_body, shopName)
             Push.ALERT_RETURNED ->
                 customer(orderId, alert, Res.string.notify_returned_title, Res.string.notify_returned_body, shopName)
+            Push.ALERT_READY_FOR_PICKUP ->
+                customer(orderId, alert, Res.string.notify_ready_pickup_title, Res.string.notify_ready_pickup_body, shopName)
             Push.ALERT_RETURN_VERIFY -> ShopNotification(
                 id = generateId("notif"),
                 title = getString(Res.string.notify_return_verify_title),

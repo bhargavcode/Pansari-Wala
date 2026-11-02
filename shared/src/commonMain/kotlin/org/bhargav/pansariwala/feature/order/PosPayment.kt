@@ -10,6 +10,7 @@ import kotlin.math.roundToLong
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.pos_payment_split
 import pansariwala.shared.generated.resources.payment_method_cod
+import pansariwala.shared.generated.resources.payment_method_pay_at_shop
 import pansariwala.shared.generated.resources.payment_method_online
 import pansariwala.shared.generated.resources.pos_payment_card
 import pansariwala.shared.generated.resources.pos_payment_cash
@@ -45,6 +46,7 @@ fun paymentMethodLabelRes(method: String): StringResource = when (method) {
     AppConstants.PosPayment.CARD -> Res.string.pos_payment_card
     AppConstants.PosPayment.UDHAAR -> Res.string.pos_payment_udhaar
     "COD" -> Res.string.payment_method_cod
+    AppConstants.Payment.METHOD_PAY_AT_SHOP -> Res.string.payment_method_pay_at_shop
     else -> Res.string.payment_method_online
 }
 

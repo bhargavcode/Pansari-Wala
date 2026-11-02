@@ -34,6 +34,7 @@ import org.bhargav.pansariwala.feature.udhaar.BorrowersViewModel
 import org.bhargav.pansariwala.feature.udhaar.MyCreditShopViewModel
 import org.bhargav.pansariwala.feature.udhaar.MyCreditViewModel
 import org.bhargav.pansariwala.feature.inventory.StockRequestViewModel
+import org.bhargav.pansariwala.feature.inventory.SuppliersViewModel
 import org.bhargav.pansariwala.feature.login.LoginViewModel
 import org.bhargav.pansariwala.feature.login.ForgotPasswordViewModel
 import org.bhargav.pansariwala.feature.login.ChangePasswordViewModel
@@ -90,6 +91,9 @@ import org.bhargav.pansariwala.notification.ShopNotifier
 import org.bhargav.pansariwala.notification.createNotificationGateway
 import org.bhargav.pansariwala.voice.SpeechToText
 import org.bhargav.pansariwala.voice.createSpeechToText
+import org.bhargav.pansariwala.voice.TextToSpeech
+import org.bhargav.pansariwala.voice.createTextToSpeech
+import org.bhargav.pansariwala.feature.search.GlobalSearchViewModel
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModel
@@ -108,6 +112,7 @@ val appModule = module {
     singleOf(::PartnerOfferSocket)
     singleOf(::PartnerLocationTracker)
     single<SpeechToText> { createSpeechToText() }
+    single<TextToSpeech> { createTextToSpeech() }
 
     single<SessionStore> { createSessionStore() }
     single { OrderSyncSignal() }
@@ -140,6 +145,8 @@ val appModule = module {
     viewModelOf(::InventoryProductDetailViewModel)
     viewModelOf(::StockRequestViewModel)
     viewModelOf(::MasterCatalogViewModel)
+    viewModelOf(::SuppliersViewModel)
+    viewModelOf(::GlobalSearchViewModel)
     viewModelOf(::OrderEditorViewModel)
     viewModelOf(::SubscriptionViewModel)
     viewModelOf(::CommissionDayViewModel)

@@ -83,6 +83,8 @@ import org.bhargav.pansariwala.server.dto.AdminPartnerDetailDto
 import org.bhargav.pansariwala.server.dto.AdminPartnerDto
 import org.bhargav.pansariwala.server.dto.AdminShopDetailDto
 import org.bhargav.pansariwala.server.dto.AdminShopDto
+import org.bhargav.pansariwala.server.dto.UdhaarReminderDto
+import org.bhargav.pansariwala.server.dto.UdhaarReminderPatch
 import org.bhargav.pansariwala.server.dto.AdminTxnDto
 import org.bhargav.pansariwala.server.dto.AdminTxnSummaryDto
 import org.bhargav.pansariwala.server.dto.AdminUserDetailDto
@@ -218,7 +220,11 @@ private const val QTY_EPSILON = 1e-6
 private const val CAS_RETRIES = 5
 private const val MAX_PAYMENT_WINDOW_MIN = 5
 private const val MAX_RETURN_REASON = 200
+private const val MAX_ROLE_TITLE = 40
 private const val RETURN_REASON_UNREACHABLE = "CUSTOMER_UNREACHABLE"
+/** Prepaid methods the server can refund back to the customer's original instrument. */
+private val GATEWAY_METHODS = setOf(PaymentMethod.RAZORPAY, PaymentMethod.CASHFREE)
+private const val REFUND_RETRY_WINDOW_MS = 7L * 24 * 60 * 60_000
 /** DIRECT_UPI: a shop may still confirm a payment that arrived after the window, for this long. */
 private const val LATE_CONFIRM_MS = 24 * 60 * 60_000L
 private const val SHOP_INTENT_LIMIT = 50
@@ -369,6 +375,7 @@ class AppStore(
             token, null, "SHOP", row.id, row.shopId, row.displayName,
             shopRole = row.role,
             permissions = effectivePermissions(row),
+            roleTitle = row.roleTitle,
         )
     }
 
@@ -445,6 +452,9 @@ class AppStore(
         money(body.freeDeliveryAboveInr, "Free delivery above")
         money(body.minOrderValueInr, "Min order value")
         money(body.partnerPayoutPerKmInr, "Partner payout per km")
+        money(body.heavyOrderPerKgInr, "Heavy order charge per kg")
+        money(body.heavyOrderMaxInr, "Heavy order charge cap")
+        require(body.heavyOrderThresholdKg in 0.0..1000.0) { "Heavy order weight must be 0-1000 kg" }
         require(body.deliverySurchargePercent in 0.0..500.0) { "Surcharge must be 0-500%" }
         require(body.maxDeliveryChargeInr == 0.0 || body.maxDeliveryChargeInr >= body.minDeliveryChargeInr) {
             "Max delivery charge must be at least the min"
@@ -465,6 +475,9 @@ class AppStore(
             maxDeliveryChargeInr = body.maxDeliveryChargeInr,
             freeDeliveryAboveInr = body.freeDeliveryAboveInr,
             minOrderValueInr = body.minOrderValueInr,
+            heavyOrderThresholdKg = body.heavyOrderThresholdKg,
+            heavyOrderPerKgInr = body.heavyOrderPerKgInr,
+            heavyOrderMaxInr = body.heavyOrderMaxInr,
             partnerPayoutPerKmInr = body.partnerPayoutPerKmInr,
             partnerRingKm = body.partnerRingKm,
             offerTtlMinutes = body.offerTtlMinutes,
@@ -509,6 +522,9 @@ class AppStore(
         maxDeliveryChargeInr = maxDeliveryChargeInr,
         freeDeliveryAboveInr = freeDeliveryAboveInr,
         minOrderValueInr = minOrderValueInr,
+        heavyOrderThresholdKg = heavyOrderThresholdKg,
+        heavyOrderPerKgInr = heavyOrderPerKgInr,
+        heavyOrderMaxInr = heavyOrderMaxInr,
         partnerPayoutPerKmInr = partnerPayoutPerKmInr,
         partnerRingKm = partnerRingKm,
         offerTtlMinutes = offerTtlMinutes,
@@ -529,6 +545,14 @@ class AppStore(
         val base = deliveryBasePerKmInr * distanceKm
         val charge = (base + base * deliverySurchargePercent / 100.0).coerceAtLeast(minDeliveryChargeInr)
         return if (maxDeliveryChargeInr > 0) charge.coerceAtMost(maxDeliveryChargeInr) else charge
+    }
+
+    /** Extra delivery charge for weight above [PlatformSettingsDoc.heavyOrderThresholdKg]; whole rupees. */
+    private fun PlatformSettingsDoc.heavySurcharge(weightKg: Double): Double {
+        if (heavyOrderThresholdKg <= 0.0 || heavyOrderPerKgInr <= 0.0 || weightKg <= heavyOrderThresholdKg) return 0.0
+        val extraKg = kotlin.math.ceil(weightKg - heavyOrderThresholdKg - QTY_EPSILON).coerceAtLeast(0.0)
+        val charge = extraKg * heavyOrderPerKgInr
+        return if (heavyOrderMaxInr > 0) charge.coerceAtMost(heavyOrderMaxInr) else charge
     }
 
     /** Partner earns the plain per-km delivery fee (no surcharge, platform fee or free-delivery waiver), whole rupees. */
@@ -945,6 +969,8 @@ class AppStore(
             deliveryAvailable = deliveryAvailableNow(),
             minOrderValueInr = effectiveMinOrder(platform()),
             freeDeliveryAboveInr = if (freeDeliveryEnabled) freeDeliveryAboveInr else 0.0,
+            selfCollectEnabled = selfCollectEnabled,
+            payAtCollectEnabled = payAtCollectEnabled,
         )
     }
 
@@ -1385,13 +1411,17 @@ class AppStore(
     fun quote(userId: String, request: QuoteRequest): QuoteDto {
         me(userId)
         val shop = shopById(request.shopId)
-        val lines = resolveLines(request.shopId, request.items).map { PricedLine(it.product.id, it.unitPrice, it.quantity) }
+        val resolved = resolveLines(request.shopId, request.items)
+        val lines = resolved.map { PricedLine(it.product.id, it.unitPrice, it.quantity) }
         val subtotal = lines.sumOf { it.lineTotal }
         val dist = haversine(request.userLat, request.userLng, shop.lat, shop.lng)
         val discount = offerDiscount(liveOffers(request.shopId), lines, shop.discountPercent)
         val settings = platform()
         val freeByShop = shop.freeDeliveryEnabled && subtotal - discount + QTY_EPSILON >= shop.freeDeliveryAboveInr
-        val delivery = if (request.selfPickup || freeByShop) 0.0 else settings.deliveryCharge(dist, subtotal - discount)
+        val weightKg = resolved.sumOf { it.weightKg() }
+        // Free delivery waives the distance charge only; carrying a heavy order still costs the rider.
+        val heavy = if (request.selfPickup) 0.0 else settings.heavySurcharge(weightKg)
+        val delivery = heavy + if (request.selfPickup || freeByShop) 0.0 else settings.deliveryCharge(dist, subtotal - discount)
         val fee = settings.platformFeeInr
         return QuoteDto(
             itemsSubtotal = subtotal,
@@ -1401,6 +1431,8 @@ class AppStore(
             payable = (subtotal - discount + fee + delivery).coerceAtLeast(0.0),
             deliveryDistanceKm = dist,
             paymentMode = if (request.paymentFlow >= PAYMENT_FLOW_INTENT) settings.paymentMode else PaymentMode.RAZORPAY,
+            weightKg = weightKg,
+            heavySurcharge = heavy,
         )
     }
 
@@ -1415,14 +1447,20 @@ class AppStore(
         require(customer.name.isNotBlank() && customer.address.isNotBlank()) { "Complete your profile" }
         val shop = shopById(request.shopId)
         require(shop.openNow()) { "${shop.name} is closed and not taking orders right now." }
-        require(shop.paymentsEnabled) { "${shop.name} is not accepting online payments right now." }
-        when (settings.paymentMode) {
-            PaymentMode.DIRECT_UPI -> require(shop.directUpi() != null) { "${shop.name} has not set up UPI payments yet." }
-            PaymentMode.CASHFREE -> require(cashfree.enabled || shop.directUpi() != null) {
-                "Online payments are not available right now."
+        if (request.payAtCollect) {
+            require(request.selfPickup && shop.payAtCollectEnabled) { "Pay at collection is not available for this shop" }
+        } else {
+            require(shop.paymentsEnabled) { "${shop.name} is not accepting online payments right now." }
+            when (settings.paymentMode) {
+                PaymentMode.DIRECT_UPI -> require(shop.directUpi() != null) { "${shop.name} has not set up UPI payments yet." }
+                PaymentMode.CASHFREE -> require(cashfree.enabled || shop.directUpi() != null) {
+                    "Online payments are not available right now."
+                }
             }
         }
-        if (!request.selfPickup) {
+        if (request.selfPickup) {
+            require(shop.selfCollectEnabled || !shop.deliveryAvailableNow()) { "This shop does not offer self-collection" }
+        } else {
             require(shop.deliveryAvailableNow()) {
                 "This shop is not delivering right now. Order for pickup and collect at the shop."
             }
@@ -1455,6 +1493,21 @@ class AppStore(
             ?.takeIf { it.sellMode == VARIANT_BUNDLE && it.bundleCount > 0 && it.baseVariantId.isNotBlank() }
             ?.let { bundle -> product.variants.firstOrNull { it.id == bundle.baseVariantId } }
             ?: variant
+        /** Approximate kg (litre ≈ kg); pieces without a pack size weigh 0. */
+        fun weightKg(): Double {
+            fun kg(amount: Double, unit: String) = when (unit.uppercase()) {
+                "KG", "LITRE" -> amount
+                "GRAM" -> amount / 1000.0
+                else -> 0.0
+            }
+            val v = variant ?: return kg(quantity, product.unit)
+            val pack = stockVariant ?: v
+            return when {
+                v.sellMode == VARIANT_LOOSE -> kg(quantity, v.baseUnit.ifBlank { "KG" })
+                pack !== v -> stockUnits * kg(pack.packSize, pack.packUnit)
+                else -> quantity * kg(v.packSize, v.packUnit)
+            }
+        }
         /** Quantity in [stockVariant] units: packs for a linked bundle, else the line quantity. */
         val stockUnits: Double get() = if (stockVariant !== variant) quantity * (variant?.bundleCount ?: 1) else quantity
         val available: Double get() = stockVariant?.stockQty ?: product.stockQty
@@ -1534,6 +1587,7 @@ class AppStore(
         security.verifyRazorpaySignature(orderId, paymentId, signature)
 
     suspend fun placeOrder(userId: String, request: PlaceOrderRequest): OrderDto {
+        if (request.payAtCollect) return placePayAtCollectOrder(userId, request)
         val settings = platform()
         // Older apps always pay through Razorpay first; honour that payment whatever the current mode.
         val mode = if (request.razorpayPaymentId.isNullOrBlank()) settings.paymentMode else PaymentMode.RAZORPAY
@@ -1589,6 +1643,33 @@ class AppStore(
             }
         }
         return getOrder(id)
+    }
+
+    /** Self-collection order with no online payment: the shop takes cash/UPI at the counter on pickup. */
+    private fun placePayAtCollectOrder(userId: String, request: PlaceOrderRequest): OrderDto {
+        val customer = validateCheckout(userId, request)
+        val drop = resolveDrop(customer, request)
+        val shop = shopById(request.shopId)
+        val q = quote(userId, QuoteRequest(request.shopId, request.items, drop.lat, drop.lng, selfPickup = true))
+        val resolved = resolveLines(request.shopId, request.items)
+        val id = security.newOrderId()
+        deductStock(resolved)
+        orderCol.insertOne(
+            newOnlineOrder(id, userId, customer, drop, shop, request, resolved, q, System.currentTimeMillis())
+                .copy(paymentMethod = PaymentMethod.PAY_AT_SHOP),
+        )
+        publishOrderUpdate(id, previousStatus = null)
+        return getOrder(id)
+    }
+
+    /** Shop packed a self-collection order: flags it and tells the customer to come with the OTP. */
+    fun markReadyForPickup(shopId: String, orderId: String): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        require(row.selfPickup && row.status in setOf("ACCEPTED", "PACKING")) { "Order is not a pickup order" }
+        orderCol.updateOne(eq("_id", orderId), combine(set("readyForPickup", true), set("status", "PACKING")))
+        publishOrderUpdate(orderId, row.status, always = true, readyForPickup = true)
+        return getOrder(orderId)
     }
 
     /** RECEIVED online order built from server-priced [resolved] lines; payment fields are set by the caller. */
@@ -2244,6 +2325,7 @@ class AppStore(
         previousStatus: String?,
         partnerTimeout: Boolean = false,
         always: Boolean = false,
+        readyForPickup: Boolean = false,
     ) {
         if (previousStatus != null) scheduleSettlement(orderId)
         if (!push.enabled) return
@@ -2260,6 +2342,7 @@ class AppStore(
                 shopName = shopCol.find(eq("_id", row.shopId)).firstOrNull()?.name.orEmpty(),
                 customerName = row.customerName.orEmpty(),
                 partnerTimeout = partnerTimeout,
+                readyForPickup = readyForPickup,
             ),
         )
     }
@@ -2472,6 +2555,7 @@ class AppStore(
         require(row.shopId == shopId) { "Forbidden" }
         if (status == "PACKING") require(row.status == "ACCEPTED" || row.status == "PACKING") { "Accept first" }
         require(row.status != "RETURNED_TO_SHOP") { "Invalid delivery OTP" }
+        require(!(status == "COMPLETED" && row.selfPickup && row.channel == "ONLINE")) { "Invalid delivery OTP" }
         orderCol.updateOne(eq("_id", orderId), set("status", status))
         publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
@@ -2482,7 +2566,7 @@ class AppStore(
         require(row.shopId == shopId) { "Forbidden" }
         require(row.status !in setOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED")) { "Cannot cancel" }
         val reasonText = reason?.trim().orEmpty().ifBlank { "CANCELLED" }
-        val refundPaise = if (row.paymentMethod == PaymentMethod.UPI_DIRECT) 0L else refundAmountPaise(row)
+        val refundPaise = if (row.paymentMethod in GATEWAY_METHODS) refundAmountPaise(row) else 0L
         val refundId = refundPayment(row, refundPaise, reasonText)
         restoreStock(row.items)
         deliveryOfferCol.find(eq("orderId", orderId)).toList().forEach { offer ->
@@ -2500,21 +2584,47 @@ class AppStore(
                 partnerId = null,
             ),
         )
-        val customerId = row.customerId
-        if (customerId != null && refundPaise > 0) {
-            txnCol.insertOne(
-                TxnDoc(
-                    security.randomId("txn"),
-                    orderId,
-                    customerId,
-                    refundPaise / 100.0,
-                    "Refund $orderId",
-                    System.currentTimeMillis(),
-                ),
-            )
-        }
+        if (refundId != null) recordRefundTxn(row, refundPaise)
         publishOrderUpdate(orderId, row.status)
         return getOrder(orderId)
+    }
+
+    private fun recordRefundTxn(row: OrderDoc, refundPaise: Long) {
+        val customerId = row.customerId ?: return
+        if (refundPaise <= 0) return
+        txnCol.insertOne(
+            TxnDoc(
+                security.randomId("txn"),
+                row.id,
+                customerId,
+                refundPaise / 100.0,
+                "Refund ${row.id}",
+                System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    /** Retries gateway refunds that failed at cancel time; money always goes back to the original payment. */
+    suspend fun retryFailedRefunds(): Int {
+        val since = System.currentTimeMillis() - REFUND_RETRY_WINDOW_MS
+        val pending = orderCol.find(
+            and(
+                eq("status", "CANCELLED"),
+                `in`("paymentMethod", GATEWAY_METHODS.toList()),
+                eq("refundId", null),
+                gte("createdAt", since),
+            ),
+        ).toList().filter { !it.paymentId.isNullOrBlank() || !it.gatewayOrderId.isNullOrBlank() }
+        var done = 0
+        pending.forEach { row ->
+            val paise = refundAmountPaise(row)
+            val refundId = refundPayment(row, paise, row.cancelReason ?: "CANCELLED") ?: return@forEach
+            orderCol.updateOne(eq("_id", row.id), set("refundId", refundId))
+            recordRefundTxn(row, paise)
+            publishOrderUpdate(row.id, row.status, always = true)
+            done++
+        }
+        return done
     }
 
     suspend fun requestDelivery(
@@ -2837,8 +2947,16 @@ class AppStore(
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.shopId == shopId) { "Forbidden" }
         val returnPickup = row.status == "RETURNED_TO_SHOP"
-        require(returnPickup || (row.deliveryMode == "SELF" && row.status == "ON_THE_WAY")) { "Order is not out for self delivery" }
+        val counterPickup = row.selfPickup && row.status in setOf("ACCEPTED", "PACKING")
+        require(returnPickup || counterPickup || (row.deliveryMode == "SELF" && row.status == "ON_THE_WAY")) {
+            "Order is not out for self delivery"
+        }
         require(otp.trim().length == 4 && row.deliveryOtp == otp.trim()) { "Invalid delivery OTP" }
+        if (counterPickup) {
+            orderCol.updateOne(eq("_id", orderId), set("status", "COMPLETED"))
+            publishOrderUpdate(orderId, row.status)
+            return getOrder(orderId)
+        }
         if (returnPickup) {
             orderCol.updateOne(eq("_id", orderId), set("status", "DELIVERED"))
             publishOrderUpdate(orderId, row.status)
@@ -3295,7 +3413,8 @@ class AppStore(
             add(set("partnerProgress", ""))
             val earnsTrip = (row.deliveryMode == "PARTNER" && row.partnerId != null) || row.ownPartnerId != null
             if (earnsTrip) add(set("returnAcceptedAt", System.currentTimeMillis()))
-            if (row.deliveryOtp.isNullOrBlank()) add(set("deliveryOtp", security.deliveryOtp()))
+            // The rider who brought it back knew the old OTP; the customer's collection must need a fresh one.
+            add(set("deliveryOtp", security.deliveryOtp()))
             if (ownDelivery) {
                 add(set("cancelReason", reason?.trim()?.take(MAX_RETURN_REASON)?.ifBlank { null } ?: RETURN_REASON_UNREACHABLE))
             }
@@ -3415,9 +3534,13 @@ class AppStore(
             if (order.channel != "POS") continue
             val existing = orderCol.find(eq("_id", order.id)).firstOrNull()
             if (existing != null && (existing.channel != "POS" || existing.shopId != shopId)) continue
+            val doc = order.toPosDoc(System.currentTimeMillis()).let { d ->
+                if (d.createdById != null || existing == null) d
+                else d.copy(createdById = existing.createdById, createdByName = existing.createdByName, createdByRole = existing.createdByRole)
+            }
             val stored = orderCol.replaceOne(
                 eq("_id", order.id),
-                order.toPosDoc(System.currentTimeMillis()),
+                doc,
                 ReplaceOptions().upsert(true),
             )
             if (stored.wasAcknowledged()) {
@@ -3495,6 +3618,9 @@ class AppStore(
         discount = discount,
         paidNow = paidNow,
         paidNowMethod = paidNowMethod,
+        createdById = createdById,
+        createdByName = createdByName,
+        createdByRole = createdByRole,
         syncedAt = syncedAt,
     )
 
@@ -4206,6 +4332,9 @@ class AppStore(
         minOrderValueInr: Double? = null,
         freeDeliveryEnabled: Boolean? = null,
         freeDeliveryAboveInr: Double? = null,
+        selfCollectEnabled: Boolean? = null,
+        payAtCollectEnabled: Boolean? = null,
+        udhaar: UdhaarReminderPatch? = null,
     ) {
         val shop = shopById(shopId)
         require(minOrderValueInr == null || minOrderValueInr in 0.0..MAX_SHOP_ORDER_LIMIT_INR) {
@@ -4271,6 +4400,15 @@ class AppStore(
             if (minOrderValueInr != null) add(set("minOrderValueInr", minOrderValueInr))
             if (freeDeliveryEnabled != null) add(set("freeDeliveryEnabled", freeDeliveryEnabled))
             if (freeDeliveryAboveInr != null) add(set("freeDeliveryAboveInr", freeDeliveryAboveInr))
+            if (selfCollectEnabled != null) add(set("selfCollectEnabled", selfCollectEnabled))
+            if (payAtCollectEnabled != null) add(set("payAtCollectEnabled", payAtCollectEnabled))
+            udhaar?.let { u ->
+                u.enabled?.let { add(set("udhaarAutoRemind", it)) }
+                u.everyDays?.let { add(set("udhaarRemindEveryDays", it.coerceIn(1, 60))) }
+                u.minDueInr?.let { add(set("udhaarRemindMinInr", it.coerceIn(1.0, MAX_SHOP_ORDER_LIMIT_INR))) }
+                u.sms?.let { add(set("udhaarRemindSms", it)) }
+                u.whatsapp?.let { add(set("udhaarRemindWhatsapp", it)) }
+            }
         }
         if (updates.isNotEmpty()) {
             shopCol.updateOne(eq("_id", shopId), combine(updates))
@@ -4294,6 +4432,7 @@ class AppStore(
         role = role,
         permissions = effectivePermissions(this),
         active = active,
+        roleTitle = roleTitle,
     )
 
     fun shopProfile(userId: String): ShopProfileDto {
@@ -4344,6 +4483,9 @@ class AppStore(
             minOrderValueInr = patch.minOrderValueInr,
             freeDeliveryEnabled = patch.freeDeliveryEnabled,
             freeDeliveryAboveInr = patch.freeDeliveryAboveInr,
+            selfCollectEnabled = patch.selfCollectEnabled,
+            payAtCollectEnabled = patch.payAtCollectEnabled,
+            udhaar = patch.udhaarReminder,
         )
         return shopProfile(userId)
     }
@@ -4380,6 +4522,7 @@ class AppStore(
         val permissions = body.permissions.filter { it in ShopPerm.ALL }.distinct()
         val granterPermissions = effectivePermissions(shopUser(userId))
         if (!permissions.all { it in granterPermissions }) error("Forbidden: you can only grant access you have")
+        val roleTitle = body.roleTitle.trim().take(MAX_ROLE_TITLE)
         val password = body.password.trim()
         if (password.isNotEmpty()) {
             require(password.length >= MIN_SHOP_PASSWORD) { "Password must be at least $MIN_SHOP_PASSWORD characters" }
@@ -4402,6 +4545,7 @@ class AppStore(
                 permissions = permissions,
                 active = body.active,
                 createdAt = System.currentTimeMillis(),
+                roleTitle = roleTitle,
             )
             shopUserCol.insertOne(doc)
             return doc.toStaffDto()
@@ -4418,6 +4562,7 @@ class AppStore(
             if (password.isNotEmpty()) add(set("passwordHash", security.hashPassword(password)))
             add(set("permissions", (retained + permissions).distinct()))
             add(set("active", body.active))
+            add(set("roleTitle", roleTitle))
         }
         shopUserCol.updateOne(eq("_id", current.id), combine(updates))
         return shopUser(current.id).toStaffDto()
@@ -4820,6 +4965,15 @@ class AppStore(
         minOrderValueInr = minOrderValueInr,
         freeDeliveryEnabled = freeDeliveryEnabled,
         freeDeliveryAboveInr = freeDeliveryAboveInr,
+        selfCollectEnabled = selfCollectEnabled,
+        payAtCollectEnabled = payAtCollectEnabled,
+        udhaarReminder = UdhaarReminderDto(
+            enabled = udhaarAutoRemind,
+            everyDays = udhaarRemindEveryDays,
+            minDueInr = udhaarRemindMinInr,
+            sms = udhaarRemindSms,
+            whatsapp = udhaarRemindWhatsapp,
+        ),
     )
 
     private fun AdminShopDto.toLegacyShopDto() = ShopDto(
@@ -4902,6 +5056,8 @@ class AppStore(
             items = items,
             deliveryDurationMin = deliveryDurationMin,
             partnerVehicleReg = partnerVehicleReg,
+            createdByName = createdByName,
+            createdByRole = createdByRole,
         )
     }
 
@@ -5002,6 +5158,8 @@ class AppStore(
         brandTranslations = brandTranslations,
         deletedAt = deletedAt,
         maxPerOrder = maxPerOrder,
+        mfgDate = mfgDate,
+        expiryDate = expiryDate,
     )
 
     private fun ProductDto.toDoc() = ProductDoc(
@@ -5017,6 +5175,8 @@ class AppStore(
         deletedAt = deletedAt,
         activeBeforeDelete = active.takeIf { deletedAt != null },
         maxPerOrder = maxPerOrder.coerceAtLeast(0.0),
+        mfgDate = mfgDate,
+        expiryDate = expiryDate,
     )
 
     private fun ProductVariantDoc.toDto() = ProductVariantDto(
@@ -5132,6 +5292,7 @@ class AppStore(
             deliveryOtp = deliveryOtp,
             pickupPhotoUrls = assets.toUrls(pickupPhotos),
             selfPickup = selfPickup,
+            readyForPickup = readyForPickup,
             partnerId = partnerId,
             partnerName = partnerRow?.name ?: ownPartnerName,
             partnerPhone = partnerRow?.phone ?: ownPartnerPhone,
@@ -5162,6 +5323,9 @@ class AppStore(
             gatewayOrderId = gatewayOrderId,
             paidNow = paidNow,
             paidNowMethod = paidNowMethod,
+            createdById = createdById,
+            createdByName = createdByName,
+            createdByRole = createdByRole,
         )
     }
 

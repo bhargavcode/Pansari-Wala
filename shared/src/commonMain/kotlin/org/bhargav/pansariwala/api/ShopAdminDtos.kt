@@ -13,6 +13,25 @@ data class ShopFeaturesDto(
     val barcodeScanner: Boolean = false,
 )
 
+/** Automatic udhaar reminders (server sweep, daytime only). */
+@Serializable
+data class UdhaarReminderDto(
+    val enabled: Boolean = false,
+    val everyDays: Int = AppConstants.UDHAAR_REMIND_DEFAULT_DAYS,
+    val minDueInr: Double = AppConstants.UDHAAR_REMIND_DEFAULT_MIN_INR,
+    val sms: Boolean = false,
+    val whatsapp: Boolean = false,
+)
+
+@Serializable
+data class UdhaarReminderPatch(
+    val enabled: Boolean? = null,
+    val everyDays: Int? = null,
+    val minDueInr: Double? = null,
+    val sms: Boolean? = null,
+    val whatsapp: Boolean? = null,
+)
+
 @Serializable
 data class ShopHoursDayDto(
     val day: String,
@@ -58,6 +77,9 @@ data class ShopDetailsDto(
     val minOrderValueInr: Double = AppConstants.DEFAULT_SHOP_MIN_ORDER_INR,
     val freeDeliveryEnabled: Boolean = false,
     val freeDeliveryAboveInr: Double = AppConstants.DEFAULT_SHOP_FREE_DELIVERY_ABOVE_INR,
+    val selfCollectEnabled: Boolean = true,
+    val payAtCollectEnabled: Boolean = false,
+    val udhaarReminder: UdhaarReminderDto = UdhaarReminderDto(),
 )
 
 @Serializable
@@ -68,6 +90,8 @@ data class ShopStaffDto(
     val role: String = "",
     val permissions: List<String> = emptyList(),
     val active: Boolean = true,
+    /** Shop-defined name for a custom permission set; blank = preset role. */
+    val roleTitle: String = "",
 )
 
 @Serializable
@@ -77,6 +101,7 @@ data class ShopStaffUpsert(
     val password: String = "",
     val permissions: List<String> = emptyList(),
     val active: Boolean = true,
+    val roleTitle: String = "",
 )
 
 @Serializable
@@ -156,6 +181,9 @@ data class ShopProfilePatch(
     val minOrderValueInr: Double? = null,
     val freeDeliveryEnabled: Boolean? = null,
     val freeDeliveryAboveInr: Double? = null,
+    val selfCollectEnabled: Boolean? = null,
+    val payAtCollectEnabled: Boolean? = null,
+    val udhaarReminder: UdhaarReminderPatch? = null,
     val operatingHours: List<ShopHoursDayDto>? = null,
     val imageUrl: String? = null,
     val lat: Double? = null,

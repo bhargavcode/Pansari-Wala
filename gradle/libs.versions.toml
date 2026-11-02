@@ -37,6 +37,8 @@ firebase-bom = "34.17.0"
 maps-compose = "6.2.1"
 play-services-maps = "19.2.0"
 play-integrity = "1.4.0"
+play-review = "2.0.2"
+play-app-update = "2.1.0"
 play-services-location = "21.3.0"
 play-services-auth = "21.3.0"
 play-services-auth-api-phone = "18.1.0"
@@ -105,6 +107,8 @@ firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "maps-compose" }
 play-services-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "play-services-maps" }
 play-integrity = { module = "com.google.android.play:integrity", version.ref = "play-integrity" }
+play-review = { module = "com.google.android.play:review", version.ref = "play-review" }
+play-app-update = { module = "com.google.android.play:app-update", version.ref = "play-app-update" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
 play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "play-services-auth" }
 play-services-auth-api-phone = { module = "com.google.android.gms:play-services-auth-api-phone", version.ref = "play-services-auth-api-phone" }

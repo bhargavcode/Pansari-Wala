@@ -71,6 +71,9 @@ data class OrderSummary(
     val totalValue: Double,
     val status: OrderStatus,
     val customerName: String?,
+    val createdById: String? = null,
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
 )
 
 data class Order(
@@ -89,6 +92,8 @@ data class Order(
     val pickupPhotoUrls: List<String> = emptyList(),
     /** Customer collects at the shop; no delivery partner involved. */
     val selfPickup: Boolean = false,
+    /** Shop marked a self-collection order ready; the customer collects it with the OTP. */
+    val readyForPickup: Boolean = false,
     val partnerId: String? = null,
     val partnerName: String? = null,
     val partnerPhone: String? = null,
@@ -125,6 +130,10 @@ data class Order(
     /** UDHAAR bills: amount paid at the counter via [paidNowMethod] (CASH/UPI); the rest is credit. */
     val paidNow: Double = 0.0,
     val paidNowMethod: String? = null,
+    /** Staff login that recorded this bill, with its display name and role label at that time. */
+    val createdById: String? = null,
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
 ) {
     val subtotal: Double get() = items.sumOf { it.lineTotal }
     val isPartialUdhaar: Boolean

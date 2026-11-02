@@ -125,8 +125,13 @@ data class Product(
     val deletedAt: Long? = null,
     /** Most a customer may order in one order (in [unit]); 0 = no limit. */
     val maxPerOrder: Double = 0.0,
+    /** Epoch ms of the current stock batch's manufacture / expiry; null when not tracked. */
+    val mfgDate: Long? = null,
+    val expiryDate: Long? = null,
 ) {
     val isDeleted: Boolean get() = deletedAt != null
+    fun isExpired(nowMs: Long): Boolean = expiryDate != null && expiryDate < nowMs
+    fun expiresWithin(nowMs: Long, windowMs: Long): Boolean = expiryDate != null && expiryDate in nowMs..(nowMs + windowMs)
     val hasOrderLimit: Boolean get() = maxPerOrder > 0.0
 
     /** Name in [languageCode], falling back to Hindi [nameHi] and then English [name]. */
@@ -253,8 +258,11 @@ data class ShopProductFilter(
     val categoryId: String? = null,
     val status: ProductStatusFilter = ProductStatusFilter.ALL,
     val lowStockOnly: Boolean = false,
+    /** Epoch ms: only products whose expiry is on/before this (incl. already expired); null = off. */
+    val expiryBefore: Long? = null,
 ) {
     fun matches(product: Product): Boolean {
+        if (expiryBefore != null && (product.expiryDate == null || product.expiryDate > expiryBefore)) return false
         if (categoryId != null && product.categoryId != categoryId && product.subCategoryId != categoryId) return false
         when (status) {
             ProductStatusFilter.ACTIVE -> if (!product.isActive) return false

@@ -23,6 +23,8 @@ import pansariwala.shared.generated.resources.notify_issue_resolved_body_version
 import pansariwala.shared.generated.resources.notify_issue_resolved_title
 import pansariwala.shared.generated.resources.notify_registration_reminder_body
 import pansariwala.shared.generated.resources.notify_registration_reminder_title
+import pansariwala.shared.generated.resources.notify_udhaar_due_body
+import pansariwala.shared.generated.resources.notify_udhaar_due_title
 
 /** Single entry for FCM data payloads on every platform: update open screens, then tray alert if any. */
 class PushMessageHandler(
@@ -41,7 +43,20 @@ class PushMessageHandler(
             Push.EVENT_DELIVERY_OFFER -> handleDeliveryOffer(data, showAlert)
             Push.EVENT_ISSUE_UPDATE -> if (showAlert) issueResolvedNotification(data)?.let(gateway::show)
             Push.EVENT_PAYMENT_UPDATE, Push.EVENT_PAYMENT_CONFIRM -> handlePayment(data, showAlert)
+            Push.EVENT_UDHAAR_REMINDER -> if (showAlert) udhaarReminderNotification(data)?.let(gateway::show)
         }
+    }
+
+    private suspend fun udhaarReminderNotification(data: Map<String, String>): ShopNotification? {
+        val shopId = data[Push.KEY_SHOP_ID]?.takeIf { it.isNotBlank() } ?: return null
+        return ShopNotification(
+            id = generateId("notif"),
+            title = getString(Res.string.notify_udhaar_due_title),
+            body = getString(Res.string.notify_udhaar_due_body, data[Push.KEY_AMOUNT].orEmpty(), data[Push.KEY_SHOP_NAME].orEmpty()),
+            orderId = shopId,
+            type = AppConstants.Notification.TYPE_UDHAAR,
+            key = "${Push.EVENT_UDHAAR_REMINDER}:$shopId",
+        )
     }
 
     private suspend fun handlePayment(data: Map<String, String>, showAlert: Boolean) {

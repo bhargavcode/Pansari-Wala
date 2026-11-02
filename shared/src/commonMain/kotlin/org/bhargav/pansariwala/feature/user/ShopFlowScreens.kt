@@ -120,6 +120,7 @@ import pansariwala.shared.generated.resources.cart_title
 import pansariwala.shared.generated.resources.catalog_no_products
 import pansariwala.shared.generated.resources.catalog_search_products
 import pansariwala.shared.generated.resources.checkout_delivery
+import pansariwala.shared.generated.resources.checkout_heavy_note
 import pansariwala.shared.generated.resources.action_okay
 import pansariwala.shared.generated.resources.shop_closed_message
 import pansariwala.shared.generated.resources.shop_closed_title
@@ -473,8 +474,19 @@ fun CheckoutScreen(
         if (state.loadingQuote && quote == null) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
         }
+        val shopInfo = state.shop
+        if (shopInfo != null && shopInfo.deliveryAvailable && shopInfo.selfCollectEnabled) {
+            FulfilmentSelector(
+                pickup = state.pickupChosen,
+                enabled = !state.placing,
+                onPickupChange = { viewModel.setPickupChosen(shopId, it) },
+            )
+        }
         if (state.selfPickup) {
             SectionCard(title = stringResource(Res.string.checkout_pickup_title)) {
+                if (shopInfo?.payAtCollectEnabled == true) {
+                    PayAtCollectRow(state.payAtCollect, !state.placing, viewModel::setPayAtCollect)
+                }
                 Text(
                     stringResource(
                         Res.string.checkout_pickup_body,
@@ -508,6 +520,13 @@ fun CheckoutScreen(
             if (quote.discount > 0) CheckoutLine(stringResource(Res.string.checkout_discount), "-${quote.discount.asMoney()}")
             CheckoutLine(stringResource(Res.string.checkout_platform_fee), quote.platformFee.asMoney())
             CheckoutLine(stringResource(Res.string.checkout_delivery), quote.deliveryCharge.asMoney())
+            if (quote.heavySurcharge > 0) {
+                Text(
+                    stringResource(Res.string.checkout_heavy_note, (kotlin.math.round(quote.weightKg * 10) / 10).toString(), quote.heavySurcharge.asMoney()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
             HorizontalDivider()
             CheckoutLine(stringResource(Res.string.checkout_payable), quote.payable.asMoney(), bold = true)
         }
@@ -637,6 +656,9 @@ fun OrderDetailsScreen(
                     val isCancelled = order.status == OrderStatus.CANCELLED
                     val isRejected = order.status == OrderStatus.REJECTED
                     OrderPaymentCard(order)
+                    if (order.selfPickup && order.readyForPickup && order.status == OrderStatus.PACKING) {
+                        ReadyToCollectBanner(order.shopName.orEmpty())
+                    }
                     if (!isCancelled && !isRejected) {
                         order.deliveryOtp?.let {
                             SectionCard(title = stringResource(Res.string.order_otp_label, it)) {

@@ -34,6 +34,9 @@ sealed interface AppRoute : NavKey {
     data object MasterCatalog : AppRoute
 
     @Serializable
+    data object Suppliers : AppRoute
+
+    @Serializable
     data class OrderEditor(val orderId: String? = null, val reorderFromId: String? = null) : AppRoute
 
     @Serializable
@@ -105,6 +108,7 @@ fun AppRoute.screenName(): String = when (this) {
     is AppRoute.InventoryList -> "inventory_list"
     is AppRoute.ProductDetail -> "product_detail"
     AppRoute.MasterCatalog -> "master_catalog"
+    AppRoute.Suppliers -> "suppliers"
     is AppRoute.OrderEditor -> "order_editor"
     is AppRoute.OrdersWorkspace -> "orders_workspace"
     AppRoute.OnlineOrders -> "online_orders"

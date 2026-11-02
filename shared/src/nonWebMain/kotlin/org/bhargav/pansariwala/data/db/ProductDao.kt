@@ -12,6 +12,7 @@ private const val PRODUCT_FILTER =
         " AND (:categoryId IS NULL OR categoryId = :categoryId OR subCategoryId = :categoryId)" +
         " AND (:active < 0 OR isActive = :active)" +
         " AND (:lowOnly = 0 OR stockQty <= lowStockThreshold)" +
+        " AND (:expiryBefore IS NULL OR (expiryDate IS NOT NULL AND expiryDate <= :expiryBefore))" +
         " AND (:query = '' OR id = :query OR barcode = :query OR masterProductId = :query" +
         " OR name LIKE :pattern ESCAPE '\\' OR nameHi LIKE :pattern ESCAPE '\\'" +
         " OR brandName LIKE :pattern ESCAPE '\\' OR voiceAlias LIKE :pattern ESCAPE '\\'" +
@@ -38,6 +39,7 @@ abstract class ProductDao {
         categoryId: String?,
         active: Int,
         lowOnly: Int,
+        expiryBefore: Long?,
         query: String,
         pattern: String,
         limit: Int,
@@ -49,6 +51,7 @@ abstract class ProductDao {
         categoryId: String?,
         active: Int,
         lowOnly: Int,
+        expiryBefore: Long?,
         query: String,
         pattern: String,
     ): Flow<Int>

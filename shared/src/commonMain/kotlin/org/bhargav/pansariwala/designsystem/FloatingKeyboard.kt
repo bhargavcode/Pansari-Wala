@@ -86,6 +86,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -128,10 +130,27 @@ internal enum class KeyPadMode { TEXT, NUMBER, DECIMAL, PHONE }
 internal class KeyboardTarget(
     val mode: KeyPadMode,
     val imeAction: ImeAction,
-    val text: () -> String,
-    val onText: (String) -> Unit,
+    val insert: (String) -> Unit,
+    val backspace: () -> Unit,
     val onAction: () -> Unit,
 )
+
+/** Replaces the selection (or inserts at the caret) with [s] and places the caret after it. */
+internal fun TextFieldValue.insertAtCaret(s: String): TextFieldValue {
+    val start = minOf(selection.start, selection.end).coerceIn(0, text.length)
+    val end = maxOf(selection.start, selection.end).coerceIn(0, text.length)
+    return TextFieldValue(text.replaceRange(start, end, s), TextRange(start + s.length))
+}
+
+/** Deletes the selection, or the character (surrogate pair aware) before the caret. */
+internal fun TextFieldValue.deleteBeforeCaret(): TextFieldValue {
+    val start = minOf(selection.start, selection.end).coerceIn(0, text.length)
+    val end = maxOf(selection.start, selection.end).coerceIn(0, text.length)
+    if (start != end) return TextFieldValue(text.removeRange(start, end), TextRange(start))
+    if (start == 0) return this
+    val drop = if (start >= 2 && text[start - 1].isLowSurrogate()) 2 else 1
+    return TextFieldValue(text.removeRange(start - drop, start), TextRange(start - drop))
+}
 
 /** Routes key presses from the in-app keyboard to the focused field. */
 @Stable
@@ -313,8 +332,14 @@ internal fun FloatingKeyboardTextField(
     val focused by source.collectIsFocusedAsState()
     val focusManager = LocalFocusManager.current
     val bringIntoView = remember { BringIntoViewRequester() }
-    val latestValue by rememberUpdatedState(value)
+    var fieldValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (fieldValue.text != value) fieldValue = TextFieldValue(value, TextRange(value.length))
     val latestOnChange by rememberUpdatedState(onValueChange)
+    fun apply(next: TextFieldValue) {
+        val changed = next.text != fieldValue.text
+        fieldValue = next
+        if (changed) latestOnChange(next.text)
+    }
     val latestActions by rememberUpdatedState(keyboardActions)
     val imeAction = when {
         keyboardOptions.imeAction != ImeAction.Default -> keyboardOptions.imeAction
@@ -331,8 +356,8 @@ internal fun FloatingKeyboardTextField(
         KeyboardTarget(
             mode = mode,
             imeAction = imeAction,
-            text = { latestValue },
-            onText = { latestOnChange(it) },
+            insert = { apply(fieldValue.insertAtCaret(it)) },
+            backspace = { apply(fieldValue.deleteBeforeCaret()) },
             onAction = { runImeAction(imeAction, latestActions, focusManager) },
         )
     }
@@ -349,7 +374,7 @@ internal fun FloatingKeyboardTextField(
     // Editable (so the caret blinks and hardware keys work) but the platform IME session never starts.
     InterceptPlatformTextInput(interceptor = { _, _ -> awaitCancellation() }) {
         M3OutlinedTextField(
-            value, onValueChange, modifier.bringIntoViewRequester(bringIntoView), true, false, textStyle, label,
+            fieldValue, ::apply, modifier.bringIntoViewRequester(bringIntoView), true, false, textStyle, label,
             placeholder, leadingIcon, trailingIcon, prefix, suffix, supportingText, isError, visualTransformation,
             keyboardOptions, keyboardActions, singleLine, maxLines, minLines, source, shape, colors,
         )
@@ -479,7 +504,7 @@ private fun TextKeys(target: KeyboardTarget, keyHeight: Dp, scale: Float) {
     var symbols by remember(target) { mutableStateOf(false) }
     var shift by remember(target) { mutableStateOf(Shift.OFF) }
     val type: (String) -> Unit = { s ->
-        target.onText(target.text() + s)
+        target.insert(s)
         if (shift == Shift.ONCE) shift = Shift.OFF
     }
     val rows = if (symbols) SYMBOL_ROWS else LETTER_ROWS
@@ -531,7 +556,7 @@ private fun TextKeys(target: KeyboardTarget, keyHeight: Dp, scale: Float) {
 
 @Composable
 private fun NumberKeys(target: KeyboardTarget, keyHeight: Dp, scale: Float) {
-    val type: (String) -> Unit = { s -> target.onText(target.text() + s) }
+    val type: (String) -> Unit = { s -> target.insert(s) }
     listOf("123", "456", "789").forEach { row ->
         KeyRow { row.forEach { c -> CharKey(c, keyHeight * 1.1f, scale, type) } }
     }
@@ -566,13 +591,7 @@ private fun RowScope.BackspaceKey(target: KeyboardTarget, height: Dp, weight: Fl
         height = height,
         style = KeyStyle.FUNCTION,
         repeat = true,
-        onPress = {
-            val text = target.text()
-            if (text.isNotEmpty()) {
-                val drop = if (text.length >= 2 && text.last().isLowSurrogate()) 2 else 1
-                target.onText(text.dropLast(drop))
-            }
-        },
+        onPress = { target.backspace() },
     ) { Icon(Icons.AutoMirrored.Filled.Backspace, stringResource(Res.string.keyboard_backspace)) }
 }
 
@@ -591,7 +610,7 @@ private fun RowScope.ActionKey(target: KeyboardTarget, height: Dp, weight: Float
         height = height,
         style = KeyStyle.ACTION,
         onPress = {
-            if (target.imeAction == ImeAction.None) target.onText(target.text() + "\n") else target.onAction()
+            if (target.imeAction == ImeAction.None) target.insert("\n") else target.onAction()
         },
     ) { Icon(icon, stringResource(Res.string.keyboard_enter)) }
 }

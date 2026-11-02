@@ -113,6 +113,10 @@ data class MarketplaceShop(
     val minOrderValueInr: Double = 0.0,
     /** Delivery is free at or above this subtotal; 0 = shop offers no free delivery. */
     val freeDeliveryAboveInr: Double = 0.0,
+    /** Customer may choose to collect at the shop even while it delivers. */
+    val selfCollectEnabled: Boolean = true,
+    /** Self-collection orders may be paid at the counter. */
+    val payAtCollectEnabled: Boolean = false,
 )
 
 /** Admin-defined master category; [id] is [AppConstants.UNCATEGORIZED_CATEGORY_ID] for products without one. */

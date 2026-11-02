@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
+import pansariwala.shared.generated.resources.order_item_in_stock
+import pansariwala.shared.generated.resources.order_item_out_of_stock
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -165,10 +168,20 @@ fun OrderItemRow(
     modifier: Modifier = Modifier,
     showPrice: Boolean = true,
     struck: Boolean = false,
+    /** Non-null shows a stock badge: green tick when the shop can fulfil the line, amber alert when short. */
+    inStock: Boolean? = null,
 ) {
     val decoration = if (struck) TextDecoration.LineThrough else null
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (inStock != null) {
+            Icon(
+                imageVector = if (inStock) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                contentDescription = stringResource(if (inStock) Res.string.order_item_in_stock else Res.string.order_item_out_of_stock),
+                tint = if (inStock) PackedGreen else Color(0xFFEF6C00),
+                modifier = Modifier.padding(end = 8.dp).size(20.dp),
+            )
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 text = buildString {
@@ -210,12 +223,13 @@ fun OrderItemsTable(
     items: List<OrderItem>,
     modifier: Modifier = Modifier,
     collapsedCount: Int = Int.MAX_VALUE,
+    stockOf: ((OrderItem) -> Boolean?)? = null,
 ) {
     var expanded by remember(items) { mutableStateOf(false) }
     val visible = if (expanded || items.size <= collapsedCount) items else items.take(collapsedCount)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         visible.forEachIndexed { index, item ->
-            OrderItemRow(item)
+            OrderItemRow(item, inStock = stockOf?.invoke(item))
             if (index < visible.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         }
         if (items.size > collapsedCount) {

@@ -1,6 +1,7 @@
 package org.bhargav.pansariwala.feature.reports
 
 import org.bhargav.pansariwala.designsystem.appDialogProperties
+import pansariwala.shared.generated.resources.report_row_recorded_by
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -152,7 +153,11 @@ fun ReportsScreen(
                         onPeriod = viewModel::setPeriod,
                     )
                 }
+                item(key = "staff_filter", contentType = "staff_filter") {
+                    StaffFilterRow(state.staffSales, state.staffFilter, viewModel::setStaffFilter)
+                }
                 item(key = "kpis", contentType = "kpis") { KpiRow(state.summary, state.channel) }
+                item(key = "profit", contentType = "profit") { ProfitCard(state.profit) }
                 item(key = "charts", contentType = "charts") {
                     val orders: @Composable (Modifier) -> Unit = { m ->
                         SectionCard(title = stringResource(Res.string.report_orders_trend), modifier = m) {
@@ -180,6 +185,9 @@ fun ReportsScreen(
                     CategorySalesSection(state.categorySales) { category ->
                         onOpenCategory(category.name, viewModel.window())
                     }
+                }
+                item(key = "staff_sales", contentType = "staff_sales") {
+                    StaffSalesSection(state.staffSales, state.staffFilter, viewModel::setStaffFilter)
                 }
                 item(key = "inventory", contentType = "inventory") {
                     SectionCard(title = stringResource(Res.string.report_inventory_title)) {
@@ -229,8 +237,8 @@ fun ReportsScreen(
     }
 }
 
-/** filters, kpis, charts, category sales, inventory → header sits at index 5. */
-private const val LIST_HEADER_INDEX = 5
+/** filters, staff filter, kpis, profit, charts, category sales, staff sales, inventory → header at index 8. */
+private const val LIST_HEADER_INDEX = 8
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -345,6 +353,14 @@ private fun ReportOrderRow(row: ReportOrder, onClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                row.staffName?.takeIf { it.isNotBlank() }?.let { name ->
+                    Text(
+                        stringResource(Res.string.report_row_recorded_by, name),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(row.total.asMoney(), fontWeight = FontWeight.SemiBold)

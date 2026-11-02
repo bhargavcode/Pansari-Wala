@@ -29,6 +29,8 @@ import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
+import org.bhargav.pansariwala.data.local.currentStaffStamp
+import org.bhargav.pansariwala.data.local.stampedBy
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderChannel
@@ -165,6 +167,9 @@ data class OrderEditorUiState(
     val isListening: Boolean = false,
     val partialTranscript: String = "",
     val voiceResults: VoiceResults? = null,
+    /** Voice bottom sheet: listening status, what was heard and the matched items. */
+    val voiceSheetOpen: Boolean = false,
+    val lastHeard: String = "",
     val requestMicPermission: Boolean = false,
     val offers: List<ShopOfferDto> = emptyList(),
     val manualDiscountInput: String = "",
@@ -507,12 +512,26 @@ class OrderEditorViewModel(
     fun onManualDiscountPercentChange(percent: Boolean) =
         _uiState.update { it.copy(manualDiscountPercent = percent) }
 
+    /** One phrase per mic tap: once a phrase is understood the mic stops; tap again for the next one. */
+    private fun endVoiceTurn(heard: String) {
+        micActive = false
+        partialCommitJob?.cancel()
+        speechToText.cancel()
+        _uiState.update { it.copy(isListening = false, partialTranscript = "", lastHeard = heard) }
+    }
+
+    fun closeVoiceSheet() {
+        if (micActive || _uiState.value.isListening) cancelListening()
+        _uiState.update { it.copy(voiceSheetOpen = false, voiceResults = null, lastHeard = "") }
+    }
+
     fun onMicClick() {
         analytics.log(AnalyticsEvent.ButtonClicked("voice_mic", "order_editor"))
         if (_uiState.value.isListening) {
             cancelListening()
             return
         }
+        _uiState.update { it.copy(voiceSheetOpen = true, lastHeard = "", voiceResults = null) }
         if (!_uiState.value.voiceSearchEnabled) return
         if (!speechToText.isAvailable()) {
             _uiState.update {
@@ -803,7 +822,7 @@ class OrderEditorViewModel(
         )
         viewModelScope.launch {
             _uiState.update { it.copy(unbilledSaleOption = null) }
-            runCatching { shopRepository.saveOrder(order) }
+            runCatching { shopRepository.saveOrder(order.stampedBy(preferences.currentStaffStamp())) }
                 .onSuccess {
                     analytics.log(AnalyticsEvent.ButtonClicked(buttonId = "unbilled_sale", screen = "order_editor"))
                     showScanMessage(UiText.res(Res.string.unbilled_sale_saved, qty.asQuantity(), option.displayName))
@@ -1043,13 +1062,21 @@ class OrderEditorViewModel(
         viewModelScope.launch {
             if (_uiState.value.isListening) speechToText.cancel()
             val existing = editingOrderId?.let { shopRepository.getOrder(it) }
-            val toSave = if (existing?.status == OrderStatus.CANCELLED) {
-                order.copy(status = OrderStatus.CANCELLED, cancelReason = existing.cancelReason)
+            val stamped = if (existing?.createdById != null) {
+                order.copy(createdById = existing.createdById, createdByName = existing.createdByName, createdByRole = existing.createdByRole)
             } else {
-                order.copy(cancelReason = existing?.cancelReason)
+                order.stampedBy(preferences.currentStaffStamp())
+            }
+            val toSave = if (existing?.status == OrderStatus.CANCELLED) {
+                stamped.copy(status = OrderStatus.CANCELLED, cancelReason = existing.cancelReason)
+            } else {
+                stamped.copy(cancelReason = existing?.cancelReason)
             }
             shopRepository.saveOrder(toSave)
             if (toSave.status != OrderStatus.CANCELLED) shopNotifier.onPosSaleSaved(toSave)
+            if (existing == null && preferences.recordReviewEvent(AppClock.nowMillis())) {
+                org.bhargav.pansariwala.platform.requestInAppReview()
+            }
             if (existing == null || print) {
                 printService.onOrderSaved(toSave, printRequested = print)
             }
@@ -1086,6 +1113,7 @@ class OrderEditorViewModel(
 
         lastAppliedUtterance = normalized
         partialCommitJob?.cancel()
+        endVoiceTurn(normalized)
 
         val catalog = _uiState.value.catalog
         val autoAdd = _uiState.value.voiceAutoAdd

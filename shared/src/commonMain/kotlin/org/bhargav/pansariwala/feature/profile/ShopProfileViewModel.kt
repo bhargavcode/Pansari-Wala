@@ -27,6 +27,7 @@ import org.bhargav.pansariwala.api.ShopHoursDayDto
 import org.bhargav.pansariwala.api.ShopOfferDto
 import org.bhargav.pansariwala.api.ShopProfileDto
 import org.bhargav.pansariwala.api.ShopProfilePatch
+import org.bhargav.pansariwala.api.UdhaarReminderPatch
 import org.bhargav.pansariwala.api.ShopStaffDto
 import org.bhargav.pansariwala.api.ShopStaffUpsert
 import org.bhargav.pansariwala.api.ShopTypeOptionDto
@@ -39,6 +40,7 @@ import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
 import org.bhargav.pansariwala.domain.auth.ShopRoles
+import org.bhargav.pansariwala.domain.auth.StaffRolePreset
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.domain.model.ShopReview
 import org.bhargav.pansariwala.i18n.UiText
@@ -109,6 +111,7 @@ data class StaffDraft(
     val password: String = "",
     val active: Boolean = true,
     val permissions: Set<ShopPermission> = setOf(ShopPermission.BILLING),
+    val roleTitle: String = "",
     val usernameStatus: UsernameStatus = UsernameStatus.IDLE,
 )
 
@@ -211,7 +214,7 @@ class ShopProfileViewModel(
             _uiState.update { it.copy(loading = true, error = null, access = preferences.getShopAccess()) }
             runCatching { api.shopProfile() }
                 .onSuccess { profile ->
-                    preferences.setShopAccess(profile.me.role, profile.me.permissions)
+                    preferences.setShopAccess(profile.me.role, profile.me.permissions, profile.me.roleTitle)
                     preferences.setShopFeatures(profile.shop.features)
                     _uiState.update {
                         it.copy(loading = false, profile = profile, access = preferences.getShopAccess())
@@ -328,6 +331,12 @@ class ShopProfileViewModel(
     }
 
     fun setHomeDeliveryEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(homeDeliveryEnabled = enabled))
+
+    fun setSelfCollectEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(selfCollectEnabled = enabled))
+
+    fun setPayAtCollectEnabled(enabled: Boolean) = saveProfile(ShopProfilePatch(payAtCollectEnabled = enabled))
+
+    fun updateUdhaarReminder(patch: UdhaarReminderPatch) = saveProfile(ShopProfilePatch(udhaarReminder = patch))
 
     fun startEditOrderRules() {
         val shop = _uiState.value.profile?.shop ?: return
@@ -479,6 +488,7 @@ class ShopProfileViewModel(
                 displayName = staff.displayName,
                 username = staff.username,
                 active = staff.active,
+                roleTitle = staff.roleTitle,
                 permissions = ShopPermission.parse(staff.permissions).let { perms ->
                     if (ShopPermission.ADMIN in perms) setOf(ShopPermission.ADMIN) else perms
                 },
@@ -540,6 +550,7 @@ class ShopProfileViewModel(
                     password = draft.password,
                     permissions = draft.permissions.map { it.name },
                     active = draft.active,
+                    roleTitle = if (StaffRolePreset.of(draft.permissions) == StaffRolePreset.CUSTOM) draft.roleTitle.trim() else "",
                 ),
             )
             _uiState.update { it.copy(staffDraft = null, staff = api.shopStaff()) }

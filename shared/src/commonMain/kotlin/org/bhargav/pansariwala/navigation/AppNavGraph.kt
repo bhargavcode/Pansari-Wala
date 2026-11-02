@@ -71,6 +71,7 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
             subclass(AppRoute.InventoryList::class, AppRoute.InventoryList.serializer())
             subclass(AppRoute.ProductDetail::class, AppRoute.ProductDetail.serializer())
             subclass(AppRoute.MasterCatalog::class, AppRoute.MasterCatalog.serializer())
+            subclass(AppRoute.Suppliers::class, AppRoute.Suppliers.serializer())
             subclass(AppRoute.OrderEditor::class, AppRoute.OrderEditor.serializer())
             subclass(AppRoute.OrdersWorkspace::class, AppRoute.OrdersWorkspace.serializer())
             subclass(AppRoute.OnlineOrders::class, AppRoute.OnlineOrders.serializer())
@@ -147,11 +148,13 @@ fun AppNavGraph(
         NotificationRouter.events.collect { notification ->
             val result = snackbarHostState.showSnackbar(
                 message = "${notification.title}: ${notification.body}",
-                actionLabel = if (notification.orderId != null) openAction else null,
+                actionLabel = if (notification.orderId != null || notification.type == AppConstants.Notification.TYPE_SUPPLY) openAction else null,
                 duration = SnackbarDuration.Long,
             )
             if (result == SnackbarResult.ActionPerformed) {
-                if (notification.type == AppConstants.Notification.TYPE_ONLINE_ORDER ||
+                if (notification.type == AppConstants.Notification.TYPE_SUPPLY) {
+                    push(AppRoute.Suppliers)
+                } else if (notification.type == AppConstants.Notification.TYPE_ONLINE_ORDER ||
                     notification.type == AppConstants.Notification.TYPE_PAYMENT_CONFIRM
                 ) {
                     push(AppRoute.OnlineOrders)
@@ -173,6 +176,9 @@ fun AppNavGraph(
             request.type == AppConstants.Notification.TYPE_ONLINE_ORDER ||
                 request.type == AppConstants.Notification.TYPE_PAYMENT_CONFIRM -> {
                 if (backStack.lastOrNull() !is AppRoute.OnlineOrders) push(AppRoute.OnlineOrders)
+            }
+            request.type == AppConstants.Notification.TYPE_SUPPLY -> {
+                if (backStack.lastOrNull() !is AppRoute.Suppliers) push(AppRoute.Suppliers)
             }
             request.orderId != null -> push(AppRoute.OrdersWorkspace(request.orderId))
         }
@@ -267,6 +273,7 @@ fun AppNavGraph(
                             onOpenMasterCatalog = { push(AppRoute.MasterCatalog) },
                             onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
                             onOpenPosSettings = { push(AppRoute.PosSettings) },
+                            onOpenSuppliers = { push(AppRoute.Suppliers) },
                             onOpenProductBin = { push(AppRoute.ProductBin) },
                             onLogout = { replaceAll(AppRoute.Login) },
                         )
@@ -295,7 +302,12 @@ fun AppNavGraph(
                             onOpenProduct = { productId -> push(AppRoute.ProductDetail(productId)) },
                             onAddCustomProduct = { push(AppRoute.AddEditInventory()) },
                             onAddFromMaster = { push(AppRoute.MasterCatalog) },
+                            onOpenSuppliers = { push(AppRoute.Suppliers) },
                         )
+                    }
+
+                    AppRoute.Suppliers -> NavEntry(route) {
+                        org.bhargav.pansariwala.feature.inventory.SuppliersScreen(onBack = { pop() })
                     }
 
                     is AppRoute.ProductDetail -> NavEntry(route) {

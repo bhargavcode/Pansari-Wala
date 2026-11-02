@@ -54,6 +54,8 @@ data class ProductEntity(
     val deletedAt: Long? = null,
     @ColumnInfo(defaultValue = "0")
     val maxPerOrder: Double = 0.0,
+    val mfgDate: Long? = null,
+    val expiryDate: Long? = null,
 )
 
 /** Pull cursors and other small sync bookmarks. */

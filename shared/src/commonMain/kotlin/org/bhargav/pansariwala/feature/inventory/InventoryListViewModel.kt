@@ -125,6 +125,15 @@ class InventoryListViewModel(
     fun onCategorySelected(categoryId: String?) = updateFilter { it.copy(categoryId = categoryId) }
     fun onStatusSelected(status: ProductStatusFilter) = updateFilter { it.copy(status = status) }
     fun onLowStockToggle() = updateFilter { it.copy(lowStockOnly = !it.lowStockOnly) }
+
+    /** Expired + expiring within [AppConstants.EXPIRY_ALERT_DAYS]; the cut-off is fixed when toggled on. */
+    fun onExpiringToggle() = updateFilter {
+        it.copy(
+            expiryBefore = if (it.expiryBefore != null) null
+            else org.bhargav.pansariwala.util.AppClock.nowMillis() +
+                org.bhargav.pansariwala.util.AppConstants.EXPIRY_ALERT_DAYS * org.bhargav.pansariwala.util.MILLIS_PER_DAY,
+        )
+    }
     fun dismissError() = _uiState.update { it.copy(error = null) }
 
     /** Moves the product to the bin; it leaves this list but keeps its stock and details. */

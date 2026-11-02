@@ -261,5 +261,8 @@ class InMemoryShopRepository : ShopRepository {
         totalValue = totalValue,
         status = status,
         customerName = customerName,
+        createdById = createdById,
+        createdByName = createdByName,
+        createdByRole = createdByRole,
     )
 }

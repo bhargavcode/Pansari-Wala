@@ -50,7 +50,9 @@ class PaymentStatusViewModel(
     private val api: PansariApi,
     private val cart: CartStore,
     private val notifications: NotificationGateway,
+    private val preferences: org.bhargav.pansariwala.data.local.AppPreferences,
 ) : ViewModel() {
+    private var reviewCountedFor: String? = null
     private val _state = MutableStateFlow(PaymentStatusUiState(nowMs = now()))
     val state: StateFlow<PaymentStatusUiState> = _state.asStateFlow()
     private var intentId: String? = null
@@ -189,6 +191,12 @@ class PaymentStatusViewModel(
         if (intent.status == PaymentIntentStatus.SUCCESS) {
             if (cart.shopId.value == intent.shopId) cart.clear()
             cart.clearRetry()
+            if (reviewCountedFor != intent.id) {
+                reviewCountedFor = intent.id
+                viewModelScope.launch {
+                    if (preferences.recordReviewEvent(now())) org.bhargav.pansariwala.platform.requestInAppReview()
+                }
+            }
         }
         if (intent.isFinal) notifications.clearOrder(intent.id)
     }

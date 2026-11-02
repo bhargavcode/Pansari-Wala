@@ -313,6 +313,10 @@ data class CheckoutUiState(
     val shop: MarketplaceShop? = null,
     /** Shop is past its delivery cutoff: order is collected at the shop with no delivery charge. */
     val selfPickup: Boolean = false,
+    /** Customer picked "collect at shop" while delivery is available. */
+    val pickupChosen: Boolean = false,
+    /** Self-collection paid at the counter instead of online. */
+    val payAtCollect: Boolean = false,
     val snackbar: UiText? = null,
     val error: UiText? = null,
 )
@@ -365,7 +369,8 @@ class CheckoutViewModel(
             coroutineScope {
                 val offers = async { runCatching { api.shopOffers(shopId) }.getOrDefault(emptyList()) }
                 val shop = runCatching { api.shopInfo(shopId, dropLat, dropLng) }.getOrNull()
-                val selfPickup = shop?.deliveryAvailable == false
+                val selfPickup = shop?.deliveryAvailable == false ||
+                    (_state.value.pickupChosen && shop?.selfCollectEnabled == true)
                 val quote = runCatching {
                     api.quote(org.bhargav.pansariwala.api.QuoteRequest(shopId, items, dropLat, dropLng, selfPickup))
                 }.onFailure { err ->
@@ -378,6 +383,7 @@ class CheckoutViewModel(
                         offers = offers.await(),
                         shop = shop,
                         selfPickup = selfPickup,
+                        payAtCollect = it.payAtCollect && selfPickup && shop?.payAtCollectEnabled == true,
                         loadingQuote = false,
                     )
                 }
@@ -386,6 +392,15 @@ class CheckoutViewModel(
     }
 
     fun toggleOffers() { _state.update { it.copy(offersExpanded = !it.offersExpanded) } }
+
+    /** Switches delivery ↔ collect at shop and re-quotes (pickup has no delivery charge). */
+    fun setPickupChosen(shopId: String, pickup: Boolean) {
+        if (_state.value.pickupChosen == pickup) return
+        _state.update { it.copy(pickupChosen = pickup, payAtCollect = it.payAtCollect && pickup) }
+        load(shopId)
+    }
+
+    fun setPayAtCollect(enabled: Boolean) { _state.update { it.copy(payAtCollect = enabled) } }
 
     fun consumeSnackbar() { _state.update { it.copy(snackbar = null) } }
     fun dismissError() { _state.update { it.copy(error = null, snackbar = null) } }
@@ -424,8 +439,14 @@ class CheckoutViewModel(
                     userLat = _state.value.addresses.firstOrNull { it.id == selectedId }?.location?.lat,
                     userLng = _state.value.addresses.firstOrNull { it.id == selectedId }?.location?.lng,
                     selfPickup = selfPickup,
+                    payAtCollect = selfPickup && _state.value.payAtCollect,
                 )
                 api.validateOrder(request)
+                if (request.payAtCollect) {
+                    val order = api.placeOrder(request)
+                    cart.clear()
+                    return@runCatching order.id
+                }
                 if (quote.paymentMode != AppConstants.Payment.MODE_RAZORPAY) {
                     // Pay first: the server creates the order only once this transaction is paid.
                     // The cart is kept until then so a failed payment can be retried.

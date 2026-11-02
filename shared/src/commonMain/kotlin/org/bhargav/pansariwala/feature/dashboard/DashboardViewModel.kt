@@ -103,7 +103,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             runCatching { api.shopProfile() }
                 .onSuccess {
-                    preferences.setShopAccess(it.me.role, it.me.permissions)
+                    preferences.setShopAccess(it.me.role, it.me.permissions, it.me.roleTitle)
                     preferences.setShopFeatures(it.shop.features)
                 }
                 .onFailure { it.rethrowIfStructuredCancellation() }

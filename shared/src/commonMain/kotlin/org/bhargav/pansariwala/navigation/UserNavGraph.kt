@@ -179,7 +179,9 @@ fun UserNavGraph() {
         if (!signedIn) return@LaunchedEffect
         NotificationOpenRequests.consume()
         val orderId = request.orderId ?: return@LaunchedEffect
-        if (request.type == AppConstants.Notification.TYPE_PAYMENT) {
+        if (request.type == AppConstants.Notification.TYPE_UDHAAR) {
+            push(UserRoute.BorrowedShop(orderId))
+        } else if (request.type == AppConstants.Notification.TYPE_PAYMENT) {
             if ((backStack.lastOrNull() as? UserRoute.PaymentStatus)?.intentId != orderId) {
                 push(UserRoute.PaymentStatus(orderId))
             }

@@ -78,6 +78,11 @@ import pansariwala.shared.generated.resources.master_save
 import pansariwala.shared.generated.resources.master_save_changes
 import pansariwala.shared.generated.resources.master_settings_saved
 import pansariwala.shared.generated.resources.master_shop_defaults
+import pansariwala.shared.generated.resources.master_heavy_hint
+import pansariwala.shared.generated.resources.master_heavy_max
+import pansariwala.shared.generated.resources.master_heavy_per_kg
+import pansariwala.shared.generated.resources.master_heavy_threshold_kg
+import pansariwala.shared.generated.resources.master_heavy_title
 
 private const val PAYMENT_MODE_DIRECT_UPI = "DIRECT_UPI"
 private const val PAYMENT_MODE_CASHFREE = "CASHFREE"
@@ -96,6 +101,9 @@ private class PlatformForm(s: PlatformSettingsDto) {
     var maxDelivery by mutableStateOf(s.maxDeliveryChargeInr.plain())
     var freeAbove by mutableStateOf(s.freeDeliveryAboveInr.plain())
     var minOrder by mutableStateOf(s.minOrderValueInr.plain())
+    var heavyKg by mutableStateOf(s.heavyOrderThresholdKg.plain())
+    var heavyPerKg by mutableStateOf(s.heavyOrderPerKgInr.plain())
+    var heavyMax by mutableStateOf(s.heavyOrderMaxInr.plain())
     var payoutPerKm by mutableStateOf(s.partnerPayoutPerKmInr.plain())
     var ringKm by mutableStateOf(s.partnerRingKm.plain())
     var offerTtl by mutableStateOf(s.offerTtlMinutes.toString())
@@ -137,6 +145,9 @@ internal fun PlatformConfigSections(token: String, onStatus: (String) -> Unit) {
             maxDeliveryChargeInr = num(f.maxDelivery, labels.maxDelivery),
             freeDeliveryAboveInr = num(f.freeAbove, labels.freeAbove),
             minOrderValueInr = num(f.minOrder, labels.minOrder),
+            heavyOrderThresholdKg = num(f.heavyKg, labels.heavyKg),
+            heavyOrderPerKgInr = num(f.heavyPerKg, labels.heavyPerKg),
+            heavyOrderMaxInr = num(f.heavyMax, labels.heavyMax),
             partnerPayoutPerKmInr = num(f.payoutPerKm, labels.payoutPerKm),
             partnerRingKm = num(f.ringKm, labels.ringKm),
             offerTtlMinutes = f.offerTtl.trim().toIntOrNull() ?: throw IllegalArgumentException(labels.offerTtl),
@@ -156,6 +167,16 @@ internal fun PlatformConfigSections(token: String, onStatus: (String) -> Unit) {
                 NumberField(f.maxDelivery, labels.maxDelivery) { f.maxDelivery = it }
                 NumberField(f.freeAbove, labels.freeAbove) { f.freeAbove = it }
                 NumberField(f.minOrder, labels.minOrder) { f.minOrder = it }
+            }
+            MasterSectionCard(title = stringResource(Res.string.master_heavy_title)) {
+                Text(
+                    stringResource(Res.string.master_heavy_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                NumberField(f.heavyKg, labels.heavyKg) { f.heavyKg = it }
+                NumberField(f.heavyPerKg, labels.heavyPerKg) { f.heavyPerKg = it }
+                NumberField(f.heavyMax, labels.heavyMax) { f.heavyMax = it }
             }
         },
         right = {
@@ -206,6 +227,9 @@ private class PlatformLabels(
     val maxDelivery: String,
     val freeAbove: String,
     val minOrder: String,
+    val heavyKg: String,
+    val heavyPerKg: String,
+    val heavyMax: String,
     val payoutPerKm: String,
     val ringKm: String,
     val offerTtl: String,
@@ -222,6 +246,9 @@ private class PlatformLabels(
             maxDelivery = stringResource(Res.string.master_max_delivery_charge),
             freeAbove = stringResource(Res.string.master_free_delivery_above),
             minOrder = stringResource(Res.string.master_min_order_value),
+            heavyKg = stringResource(Res.string.master_heavy_threshold_kg),
+            heavyPerKg = stringResource(Res.string.master_heavy_per_kg),
+            heavyMax = stringResource(Res.string.master_heavy_max),
             payoutPerKm = stringResource(Res.string.master_partner_payout_per_km),
             ringKm = stringResource(Res.string.master_partner_ring_km),
             offerTtl = stringResource(Res.string.master_offer_ttl_min),

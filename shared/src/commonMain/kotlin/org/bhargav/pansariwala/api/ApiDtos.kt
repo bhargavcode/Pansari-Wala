@@ -55,6 +55,7 @@ data class TokenResponse(
     val profileComplete: Boolean = true,
     val shopRole: String? = null,
     val permissions: List<String> = emptyList(),
+    val roleTitle: String = "",
 )
 
 @Serializable
@@ -194,6 +195,8 @@ data class ShopDto(
     val deliveryAvailable: Boolean = true,
     val minOrderValueInr: Double = 0.0,
     val freeDeliveryAboveInr: Double = 0.0,
+    val selfCollectEnabled: Boolean = true,
+    val payAtCollectEnabled: Boolean = false,
 )
 
 @Serializable
@@ -398,6 +401,9 @@ data class ProductDto(
     val deletedAt: Long? = null,
     /** Most a customer may order in one order; 0 = no limit. */
     val maxPerOrder: Double = 0.0,
+    /** Epoch ms of the current stock batch's manufacture / expiry; null when not tracked. */
+    val mfgDate: Long? = null,
+    val expiryDate: Long? = null,
 )
 
 @Serializable
@@ -458,6 +464,7 @@ data class PlaceOrderRequest(
     val selfPickup: Boolean = false,
     /** Retry a FAILED payment transaction under the same id. */
     val retryIntentId: String? = null,
+    val payAtCollect: Boolean = false,
 )
 
 @Serializable
@@ -480,6 +487,9 @@ data class QuoteDto(
     val deliveryDistanceKm: Double,
     /** Server's active checkout: [AppConstants.Payment.MODE_DIRECT_UPI], CASHFREE or RAZORPAY. */
     val paymentMode: String = AppConstants.Payment.MODE_RAZORPAY,
+    val weightKg: Double = 0.0,
+    /** Part of [deliveryCharge] for weight above the platform threshold. */
+    val heavySurcharge: Double = 0.0,
 )
 
 @Serializable
@@ -569,6 +579,7 @@ data class OrderDto(
     val deliveryOtp: String? = null,
     val pickupPhotoUrls: List<String> = emptyList(),
     val selfPickup: Boolean = false,
+    val readyForPickup: Boolean = false,
     val partnerId: String? = null,
     val partnerName: String? = null,
     val partnerPhone: String? = null,
@@ -603,6 +614,9 @@ data class OrderDto(
     /** UDHAAR bills: amount paid at the counter; only the rest is credit. */
     val paidNow: Double = 0.0,
     val paidNowMethod: String? = null,
+    val createdById: String? = null,
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
 )
 
 @Serializable
@@ -866,6 +880,8 @@ fun ShopDto.toModel() = MarketplaceShop(
     deliveryAvailable = deliveryAvailable,
     minOrderValueInr = minOrderValueInr,
     freeDeliveryAboveInr = freeDeliveryAboveInr,
+    selfCollectEnabled = selfCollectEnabled,
+    payAtCollectEnabled = payAtCollectEnabled,
 )
 
 fun CatalogSectionDto.toModel() = org.bhargav.pansariwala.domain.model.CatalogSection(
@@ -969,6 +985,8 @@ fun ProductDto.toModel() = Product(
     brandTranslations = brandTranslations,
     deletedAt = deletedAt,
     maxPerOrder = maxPerOrder,
+    mfgDate = mfgDate,
+    expiryDate = expiryDate,
 )
 
 fun ProductOfferDto.toModel() = ProductOffer(
@@ -1048,6 +1066,8 @@ fun Product.toDto() = ProductDto(
     brandTranslations = brandTranslations,
     deletedAt = deletedAt,
     maxPerOrder = maxPerOrder,
+    mfgDate = mfgDate,
+    expiryDate = expiryDate,
 )
 
 fun Order.toSyncDto() = OrderDto(
@@ -1063,6 +1083,9 @@ fun Order.toSyncDto() = OrderDto(
     discount = discount,
     paidNow = paidNow,
     paidNowMethod = paidNowMethod,
+    createdById = createdById,
+    createdByName = createdByName,
+    createdByRole = createdByRole,
     items = items.map { line ->
         OrderItemDto(
             productId = line.productId,
@@ -1103,6 +1126,7 @@ fun OrderDto.toModel() = Order(
     deliveryOtp = deliveryOtp,
     pickupPhotoUrls = pickupPhotoUrls,
     selfPickup = selfPickup,
+    readyForPickup = readyForPickup,
     partnerId = partnerId,
     partnerName = partnerName,
     partnerPhone = partnerPhone,
@@ -1132,6 +1156,9 @@ fun OrderDto.toModel() = Order(
     paymentUtr = paymentUtr,
     paidNow = paidNow,
     paidNowMethod = paidNowMethod,
+    createdById = createdById,
+    createdByName = createdByName,
+    createdByRole = createdByRole,
 )
 
 fun PaymentIntentDto.toModel(receivedAtEpochMs: Long) = PaymentIntent(

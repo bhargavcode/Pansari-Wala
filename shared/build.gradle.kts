@@ -128,6 +128,8 @@ kotlin {
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.messaging)
             implementation(libs.play.integrity)
+            implementation(libs.play.review)
+            implementation(libs.play.app.update)
             implementation(libs.razorpay.checkout)
             implementation(libs.camerax.camera2)
             implementation(libs.camerax.lifecycle)

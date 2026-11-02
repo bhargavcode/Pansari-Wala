@@ -6,6 +6,9 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.platform.LocalWindowInfo
 import org.bhargav.pansariwala.feature.order.SubscriptionRenewBanner
+import org.bhargav.pansariwala.feature.search.GlobalSearchBar
+import org.bhargav.pansariwala.feature.search.SearchCommand
+import org.bhargav.pansariwala.feature.search.SearchHit
 import org.bhargav.pansariwala.feature.support.ReportIssueButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
@@ -141,6 +144,7 @@ fun DashboardScreen(
     onOpenProductBin: () -> Unit = {},
     onOpenProduct: (String) -> Unit = {},
     onOpenPosSettings: () -> Unit = {},
+    onOpenSuppliers: () -> Unit = {},
     viewModel: DashboardViewModel = koinViewModel(),
     authRepository: AuthRepository = koinInject(),
     analytics: Analytics = koinInject(),
@@ -252,6 +256,27 @@ fun DashboardScreen(
             )
         }
         Column(Modifier.weight(1f).fillMaxHeight()) {
+            GlobalSearchBar(
+                onOpen = { hit ->
+                    when (hit) {
+                        is SearchHit.ProductHit -> onOpenProduct(hit.product.id)
+                        is SearchHit.OrderHit -> onOpenOrder(hit.order.id)
+                        is SearchHit.Command -> when (hit.command) {
+                            SearchCommand.NEW_SALE -> onCreateOrder()
+                            SearchCommand.ORDERS -> onOpenOrdersWorkspace()
+                            SearchCommand.ONLINE_ORDERS -> onOpenOnlineOrders()
+                            SearchCommand.INVENTORY -> onShowFullInventory()
+                            SearchCommand.LOW_STOCK -> onShowLowStockList()
+                            SearchCommand.SUPPLIERS -> onOpenSuppliers()
+                            SearchCommand.REPORTS -> onOpenReports()
+                            SearchCommand.UDHAAR -> onOpenBorrowers()
+                            SearchCommand.PRINTER -> onOpenPrinter()
+                            SearchCommand.SETTINGS -> onOpenSettings()
+                            SearchCommand.PROFILE -> onOpenProfile()
+                        }
+                    }
+                },
+            )
             content(Modifier.weight(1f).fillMaxWidth())
             if (!landscape) NavigationBar {
                 tabs.forEach { item ->

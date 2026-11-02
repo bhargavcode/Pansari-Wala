@@ -861,6 +861,9 @@ data class PlatformSettingsDto(
     val maxDeliveryChargeInr: Double = 0.0,
     val freeDeliveryAboveInr: Double = 0.0,
     val minOrderValueInr: Double = 0.0,
+    val heavyOrderThresholdKg: Double = 5.0,
+    val heavyOrderPerKgInr: Double = 5.0,
+    val heavyOrderMaxInr: Double = 100.0,
     val partnerPayoutPerKmInr: Double = 8.0,
     val partnerRingKm: Double = 8.0,
     val offerTtlMinutes: Int = 5,
@@ -1052,6 +1055,8 @@ data class TxnDto(
     val items: List<TxnItemDto> = emptyList(),
     val deliveryDurationMin: Int? = null,
     val partnerVehicleReg: String? = null,
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
 )
 
 @Serializable

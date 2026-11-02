@@ -280,7 +280,7 @@ private fun stockRequestMessage(state: StockRequestUiState, product: Product, un
     return lines.joinToString("\n")
 }
 
-private fun stockRequestUri(channel: StockRequestChannel, supplier: StockSupplier, message: String): String {
+internal fun stockRequestUri(channel: StockRequestChannel, supplier: StockSupplier, message: String): String {
     val phone = e164Phone(supplier.phone)
     val body = message.encodeURLParameter()
     return when (channel) {

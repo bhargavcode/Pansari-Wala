@@ -69,6 +69,11 @@ data class ReportsUiState(
     val loading: Boolean = true,
     val error: UiText? = null,
     val showDatePicker: Boolean = false,
+    /** Selected staff login; null = everyone. */
+    val staffFilter: String? = null,
+    /** Staff who recorded bills in the current period + channel (before the staff filter). */
+    val staffSales: List<StaffSales> = emptyList(),
+    val profit: ProfitSummary = ProfitSummary(),
 )
 
 class ReportsViewModel(
@@ -94,6 +99,7 @@ class ReportsViewModel(
     private var rangeOrders: List<ReportOrder> = emptyList()
     private var rangeItems: List<ItemSale> = emptyList()
     private var categoryById: Map<String, ProductCategory> = emptyMap()
+    private var costById: Map<String, Double> = emptyMap()
     private var filtered: List<ReportOrder> = emptyList()
     private var loadJob: Job? = null
 
@@ -116,6 +122,12 @@ class ReportsViewModel(
     fun setChannel(channel: ReportChannel) {
         if (channel == _state.value.channel) return
         _state.update { it.copy(channel = channel) }
+        viewModelScope.launch { recompute(resetPage = true) }
+    }
+
+    fun setStaffFilter(staffId: String?) {
+        if (staffId == _state.value.staffFilter) return
+        _state.update { it.copy(staffFilter = staffId) }
         viewModelScope.launch { recompute(resetPage = true) }
     }
 
@@ -179,6 +191,9 @@ class ReportsViewModel(
                         itemCount = it.itemCount,
                         total = it.totalValue,
                         status = it.status,
+                        staffId = it.createdById,
+                        staffName = it.createdByName,
+                        staffRole = it.createdByRole,
                     )
                 }
             val onlineRaw = onlineDeferred.await().filter { it.createdAtEpochMs in fromMs until toMs }
@@ -223,18 +238,27 @@ class ReportsViewModel(
         val range = state.range ?: return
         val channel = state.channel
         val categories = categoryById
+        val costs = costById
+        val staffFilter = state.staffFilter
         val (list, summary, buckets) = withContext(Dispatchers.Default) {
-            val list = ReportCalculator.filterChannel(rangeOrders, channel)
+            val byChannel = ReportCalculator.filterChannel(rangeOrders, channel)
+            val list = if (staffFilter == null) byChannel else byChannel.filter { it.staffId == staffFilter }
             Triple(
                 list,
                 ReportCalculator.summary(list),
                 ReportCalculator.buckets(list, range, state.bucketUnit, tz),
             )
         }
-        val categorySales = withContext(Dispatchers.Default) {
-            SalesBreakdown.byCategory(SalesBreakdown.filterChannel(rangeItems, channel)) {
-                categories[it] ?: ProductCategory.GENERAL_GROCERY
-            }
+        val staffSales = withContext(Dispatchers.Default) {
+            StaffReport.byStaff(ReportCalculator.filterChannel(rangeOrders, channel))
+        }
+        val (categorySales, profit) = withContext(Dispatchers.Default) {
+            val orderIds = list.mapTo(HashSet()) { it.id }
+            val items = SalesBreakdown.filterChannel(rangeItems, channel)
+                .let { all -> if (staffFilter == null) all else all.filter { it.orderId in orderIds } }
+            val paidIds = list.filter { it.countsTowardRevenue }.mapTo(HashSet()) { it.id }
+            SalesBreakdown.byCategory(items) { categories[it] ?: ProductCategory.GENERAL_GROCERY } to
+                StaffReport.profit(items, paidIds) { costs[it] }
         }
         filtered = list
         val pageCount = (list.size + AppConstants.REPORT_PAGE_SIZE - 1) / AppConstants.REPORT_PAGE_SIZE
@@ -244,6 +268,8 @@ class ReportsViewModel(
                 summary = summary,
                 buckets = buckets,
                 categorySales = categorySales,
+                staffSales = staffSales,
+                profit = profit,
                 totalRows = list.size,
                 pageCount = pageCount,
                 page = page,
@@ -261,6 +287,7 @@ class ReportsViewModel(
     private suspend fun loadInventory() {
         val products = runCatching { repository.observeProducts(shopId).first() }.getOrNull() ?: return
         categoryById = products.associate { it.id to it.category }
+        costById = products.associate { it.id to it.costPrice }
         val breakdown = withContext(Dispatchers.Default) { products.categoryBreakdown() }
         _state.update { it.copy(inventory = breakdown) }
         if (rangeItems.isNotEmpty()) recompute(resetPage = false)

@@ -40,6 +40,20 @@ object AppConstants {
     const val INVENTORY_SEARCH_DEBOUNCE_MS: Long = 300L
     /** One-tap stock in/out steps on the product detail screen. */
     val INVENTORY_QUICK_STEPS: List<Double> = listOf(1.0, 5.0, 10.0, 25.0)
+    /** In-app review: ask after this many completed bills / orders, at most once per [REVIEW_COOLDOWN_DAYS]. */
+    const val REVIEW_EVENTS_BEFORE_ASK = 5
+    const val REVIEW_COOLDOWN_DAYS = 90L
+    /** Store update check runs at most once per this many hours. */
+    const val UPDATE_CHECK_INTERVAL_HOURS = 12L
+    /** Products expiring within this many days are flagged and listed under the expiry filter. */
+    const val EXPIRY_ALERT_DAYS = 30L
+    const val UDHAAR_REMIND_DEFAULT_DAYS = 7
+    /** Matches the server limit on a custom staff role name. */
+    const val STAFF_ROLE_TITLE_MAX = 40
+    const val UDHAAR_REMIND_DEFAULT_MIN_INR = 100.0
+    /** Reminder interval choices (days) shown in shop settings. */
+    val UDHAAR_REMIND_DAY_OPTIONS = listOf(1, 3, 7, 15, 30)
+    val UDHAAR_REMIND_MIN_OPTIONS = listOf(50.0, 100.0, 500.0, 1000.0)
 
     /** Product / inventory spreadsheet import-export. */
     object ProductSheet {
@@ -301,12 +315,16 @@ object AppConstants {
         const val RECENT_SHOP_TYPES: String = "pref_recent_shop_types"
         const val SHOP_STAFF_ROLE: String = "pref_shop_staff_role"
         const val SHOP_PERMISSIONS: String = "pref_shop_permissions"
+        const val SHOP_ROLE_TITLE: String = "pref_shop_role_title"
         const val SHOP_FEATURES: String = "pref_shop_features"
         const val SCANNER_SETTINGS: String = "pref_scanner_settings"
         const val VOICE_AUTO_ADD: String = "pref_voice_auto_add"
         const val FLOATING_KEYBOARD: String = "pref_floating_keyboard"
         const val FLOATING_KEYBOARD_DOCKED: String = "pref_floating_keyboard_docked"
         const val FLOATING_KEYBOARD_SCALE: String = "pref_floating_keyboard_scale"
+        const val REVIEW_EVENT_COUNT: String = "pref_review_event_count"
+        const val REVIEW_ASKED_AT: String = "pref_review_asked_at"
+        const val UPDATE_CHECKED_AT: String = "pref_update_checked_at"
         /** Suffixed with the shop id so each shop keeps its own supplier list on a shared device. */
         const val SUPPLIER_BOOK_PREFIX: String = "pref_supplier_book_"
     }
@@ -344,6 +362,12 @@ object AppConstants {
         const val TYPE_PAYMENT_CONFIRM: String = "payment_confirm"
         /** Reminder to finish self-service shop registration. */
         const val TYPE_REGISTRATION: String = "registration"
+        /** Udhaar due reminder; the notification's order id field carries the shop id. */
+        const val TYPE_UDHAAR: String = "udhaar"
+        /** Automatic supplier restock request; opens the suppliers screen. */
+        const val TYPE_SUPPLY: String = "supply"
+        /** Minimum gap between automatic restock requests for the same product. */
+        const val SUPPLY_AUTO_COOLDOWN_MS: Long = MILLIS_PER_DAY
         /** iOS local notification userInfo keys, read back when the user taps the alert. */
         const val USER_INFO_TYPE: String = "notificationType"
         const val USER_INFO_ORDER_ID: String = "orderId"
@@ -371,6 +395,7 @@ object AppConstants {
         const val ALERT_RETURNING: String = "RETURNING_TO_SHOP"
         const val ALERT_RETURNED: String = "RETURNED_TO_SHOP"
         const val ALERT_RETURN_VERIFY: String = "RETURN_VERIFY"
+        const val ALERT_READY_FOR_PICKUP: String = "READY_FOR_PICKUP"
         const val KEY_PREFIX_STATUS: String = "ORDER_STATUS"
         const val KEY_EVENT: String = "event"
         const val KEY_ORDER_ID: String = "orderId"
@@ -391,6 +416,9 @@ object AppConstants {
         const val KEY_AMOUNT: String = "amount"
         /** Sent to a device that left shop onboarding unfinished (no session on that device yet). */
         const val EVENT_REGISTRATION_REMINDER: String = "REGISTRATION_REMINDER"
+        /** Automatic udhaar due reminder for a customer-app borrower. */
+        const val EVENT_UDHAAR_REMINDER: String = "UDHAAR_REMINDER"
+        const val KEY_SHOP_ID: String = "shopId"
     }
 
     /** In-app issue reports and build tracking (server `SupportService`). */
@@ -445,6 +473,8 @@ object AppConstants {
         /** Sent in quotes so the server offers DIRECT_UPI / CASHFREE; older apps get RAZORPAY. */
         const val FLOW_INTENT: Int = 2
         const val MODE_RAZORPAY: String = "RAZORPAY"
+        /** `Order.paymentMethod` for self-collection paid at the counter. */
+        const val METHOD_PAY_AT_SHOP: String = "PAY_AT_SHOP"
         const val METHOD_UPI_DIRECT: String = "UPI_DIRECT"
         const val METHOD_CASHFREE: String = "CASHFREE"
         const val UTR_MIN_LENGTH: Int = 6

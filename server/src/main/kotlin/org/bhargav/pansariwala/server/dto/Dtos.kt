@@ -25,6 +25,7 @@ data class TokenResponse(
     /** Shop logins only: SHOP (admin) or EXECUTIVE. */
     val shopRole: String? = null,
     val permissions: List<String> = emptyList(),
+    val roleTitle: String = "",
 )
 
 @Serializable
@@ -186,6 +187,29 @@ data class ShopDto(
     val minOrderValueInr: Double = 0.0,
     /** Delivery is free at or above this subtotal after discount (₹); 0 = no free delivery. */
     val freeDeliveryAboveInr: Double = 0.0,
+    /** Customer may pick "collect at shop" even while delivery is available. */
+    val selfCollectEnabled: Boolean = true,
+    /** Self-collection orders may be paid at the counter. */
+    val payAtCollectEnabled: Boolean = false,
+)
+
+/** Automatic udhaar reminder settings of a shop. */
+@Serializable
+data class UdhaarReminderDto(
+    val enabled: Boolean = false,
+    val everyDays: Int = 7,
+    val minDueInr: Double = 100.0,
+    val sms: Boolean = false,
+    val whatsapp: Boolean = false,
+)
+
+@Serializable
+data class UdhaarReminderPatch(
+    val enabled: Boolean? = null,
+    val everyDays: Int? = null,
+    val minDueInr: Double? = null,
+    val sms: Boolean? = null,
+    val whatsapp: Boolean? = null,
 )
 
 @Serializable
@@ -270,6 +294,9 @@ data class AdminShopDto(
     val freeDeliveryEnabled: Boolean = false,
     val freeDeliveryAboveInr: Double = 0.0,
     val cashfreeVendorId: String = "",
+    val selfCollectEnabled: Boolean = true,
+    val payAtCollectEnabled: Boolean = false,
+    val udhaarReminder: UdhaarReminderDto = UdhaarReminderDto(),
 )
 
 @Serializable
@@ -319,6 +346,9 @@ data class AdminTxnDto(
     val items: List<OrderItemDto> = emptyList(),
     val deliveryDurationMin: Int? = null,
     val partnerVehicleReg: String? = null,
+    /** POS staff login that recorded the sale and its role key / custom role title. */
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
 )
 
 @Serializable
@@ -394,6 +424,9 @@ data class PlatformSettingsDto(
     val maxDeliveryChargeInr: Double = 0.0,
     val freeDeliveryAboveInr: Double = 0.0,
     val minOrderValueInr: Double = 0.0,
+    val heavyOrderThresholdKg: Double = 5.0,
+    val heavyOrderPerKgInr: Double = 5.0,
+    val heavyOrderMaxInr: Double = 100.0,
     val partnerPayoutPerKmInr: Double = 8.0,
     val partnerRingKm: Double = 8.0,
     val offerTtlMinutes: Int = 5,
@@ -469,6 +502,7 @@ data class ShopStaffDto(
     val role: String,
     val permissions: List<String> = emptyList(),
     val active: Boolean = true,
+    val roleTitle: String = "",
 )
 
 @Serializable
@@ -478,6 +512,7 @@ data class ShopStaffUpsert(
     val password: String = "",
     val permissions: List<String> = emptyList(),
     val active: Boolean = true,
+    val roleTitle: String = "",
 )
 
 @Serializable
@@ -574,6 +609,9 @@ data class ProductDto(
     val deletedAt: Long? = null,
     /** Most a customer may order in one order; 0 = no limit. */
     val maxPerOrder: Double = 0.0,
+    /** Epoch ms of the current stock batch's manufacture / expiry; null when not tracked. */
+    val mfgDate: Long? = null,
+    val expiryDate: Long? = null,
 )
 
 @Serializable
@@ -735,6 +773,8 @@ data class PlaceOrderRequest(
     val selfPickup: Boolean = false,
     /** Retry a FAILED payment transaction under the same id (DIRECT_UPI / CASHFREE). */
     val retryIntentId: String? = null,
+    /** Self-collection paid at the counter (shop must allow it); no online payment. */
+    val payAtCollect: Boolean = false,
 )
 
 @Serializable
@@ -761,6 +801,10 @@ data class QuoteDto(
     val deliveryDistanceKm: Double,
     /** Active platform payment mode at quote time; tells the app which checkout to run. */
     val paymentMode: String = "RAZORPAY",
+    /** Approximate cart weight (kg; litres count as kg, pieces as 0). */
+    val weightKg: Double = 0.0,
+    /** Part of [deliveryCharge] added for weight above the platform threshold. */
+    val heavySurcharge: Double = 0.0,
 )
 
 @Serializable
@@ -954,6 +998,7 @@ data class OrderDto(
     val deliveryOtp: String? = null,
     val pickupPhotoUrls: List<String> = emptyList(),
     val selfPickup: Boolean = false,
+    val readyForPickup: Boolean = false,
     val partnerId: String? = null,
     val partnerName: String? = null,
     val partnerPhone: String? = null,
@@ -992,6 +1037,9 @@ data class OrderDto(
     /** UDHAAR bills: amount paid at the counter (CASH/UPI); only the rest is credit. */
     val paidNow: Double = 0.0,
     val paidNowMethod: String? = null,
+    val createdById: String? = null,
+    val createdByName: String? = null,
+    val createdByRole: String? = null,
 )
 
 @Serializable
@@ -1335,6 +1383,9 @@ data class AdminShopPatch(
     val minOrderValueInr: Double? = null,
     val freeDeliveryEnabled: Boolean? = null,
     val freeDeliveryAboveInr: Double? = null,
+    val selfCollectEnabled: Boolean? = null,
+    val payAtCollectEnabled: Boolean? = null,
+    val udhaarReminder: UdhaarReminderPatch? = null,
 )
 
 @Serializable

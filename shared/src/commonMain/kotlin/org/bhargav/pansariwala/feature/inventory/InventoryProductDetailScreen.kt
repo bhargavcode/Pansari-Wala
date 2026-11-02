@@ -63,6 +63,9 @@ import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.field_expiry_date
+import pansariwala.shared.generated.resources.field_mfg_date
+import pansariwala.shared.generated.resources.inv_batch_dates_hint
 import pansariwala.shared.generated.resources.action_edit
 import pansariwala.shared.generated.resources.field_barcode
 import pansariwala.shared.generated.resources.field_category
@@ -154,6 +157,10 @@ fun InventoryProductDetailScreen(
                         onStockOut = viewModel::stockOut,
                         onSetStock = viewModel::setStock,
                         onActiveChange = viewModel::setActive,
+                        batchMfg = state.batchMfg,
+                        batchExpiry = state.batchExpiry,
+                        onBatchMfgChange = viewModel::onBatchMfgChange,
+                        onBatchExpiryChange = viewModel::onBatchExpiryChange,
                     )
                     InfoCard(product)
                     if (product.hasVariants) VariantsCard(product)
@@ -240,6 +247,7 @@ private fun StockCard(product: Product, onRequestStock: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            ExpiryStatusChip(product)
             val requestLabel: @Composable () -> Unit = {
                 Icon(Icons.Filled.LocalShipping, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text(stringResource(Res.string.stock_req_action), Modifier.padding(start = 8.dp))
@@ -270,6 +278,10 @@ private fun UpdateInventoryCard(
     onStockOut: (Double?) -> Unit,
     onSetStock: () -> Unit,
     onActiveChange: (Boolean) -> Unit,
+    batchMfg: Long?,
+    batchExpiry: Long?,
+    onBatchMfgChange: (Long?) -> Unit,
+    onBatchExpiryChange: (Long?) -> Unit,
 ) {
     val inColors = ButtonDefaults.buttonColors(containerColor = stockHealthyColor)
     val outColors = ButtonDefaults.outlinedButtonColors(contentColor = stockOutColor)
@@ -315,6 +327,25 @@ private fun UpdateInventoryCard(
                 suffix = { Text(product.unit.localizedLabel()) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
+            Text(
+                stringResource(Res.string.inv_batch_dates_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                org.bhargav.pansariwala.designsystem.DatePickerField(
+                    label = stringResource(Res.string.field_mfg_date),
+                    millis = batchMfg,
+                    onChange = onBatchMfgChange,
+                    modifier = Modifier.weight(1f),
+                )
+                org.bhargav.pansariwala.designsystem.DatePickerField(
+                    label = stringResource(Res.string.field_expiry_date),
+                    millis = batchExpiry,
+                    onChange = onBatchExpiryChange,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onStockIn(null) }, colors = inColors) {
                     Text(stringResource(Res.string.inv_action_stock_in))

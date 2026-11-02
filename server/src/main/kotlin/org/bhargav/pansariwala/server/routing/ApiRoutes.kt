@@ -565,6 +565,9 @@ fun Route.apiRoutes(
             val body = call.receive<DeliverRequest>()
             call.respond(store.completeSelfDelivery(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body.otp))
         }
+        post("/shop/orders/{id}/ready-for-pickup") {
+            call.respond(store.markReadyForPickup(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!))
+        }
         post("/shop/orders/{id}/accept-return") {
             val body = runCatching { call.receive<ReturnRequest>() }.getOrNull()
             call.respond(store.acceptReturn(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body?.reason))
@@ -1007,6 +1010,9 @@ fun Route.apiRoutes(
                 minOrderValueInr = body.minOrderValueInr,
                 freeDeliveryEnabled = body.freeDeliveryEnabled,
                 freeDeliveryAboveInr = body.freeDeliveryAboveInr,
+                selfCollectEnabled = body.selfCollectEnabled,
+                payAtCollectEnabled = body.payAtCollectEnabled,
+                udhaar = body.udhaarReminder,
             )
             call.respond(OkResponse())
         }

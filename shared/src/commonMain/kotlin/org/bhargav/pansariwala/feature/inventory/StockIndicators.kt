@@ -32,6 +32,9 @@ import pansariwala.shared.generated.resources.inv_stock_critical
 import pansariwala.shared.generated.resources.inv_stock_healthy
 import pansariwala.shared.generated.resources.inv_stock_low
 import pansariwala.shared.generated.resources.inv_stock_out
+import pansariwala.shared.generated.resources.inv_expired_on
+import pansariwala.shared.generated.resources.inv_expires_in_days
+import pansariwala.shared.generated.resources.inv_expires_on
 
 /** Gauge is full at this multiple of the low-stock threshold. */
 private const val GAUGE_FULL_AT_THRESHOLD_MULTIPLE = 3.0
@@ -94,4 +97,34 @@ fun StockGauge(stockQty: Double, lowStockThreshold: Double, modifier: Modifier =
         gapSize = 0.dp,
         drawStopIndicator = {},
     )
+}
+
+@Composable
+fun ExpiryDot() {
+    Box(Modifier.size(8.dp).clip(CircleShape).background(stockCriticalColor))
+}
+
+/** "Expired on …" (red) / "Expires in N days" (amber, within the alert window) / "Exp …" (neutral). */
+@Composable
+fun ExpiryStatusChip(product: org.bhargav.pansariwala.domain.model.Product, modifier: Modifier = Modifier) {
+    val expiry = product.expiryDate ?: return
+    val now = org.bhargav.pansariwala.util.AppClock.nowMillis()
+    val days = ((expiry - now) / org.bhargav.pansariwala.util.MILLIS_PER_DAY).toInt()
+    val date = org.bhargav.pansariwala.designsystem.formatDayMillis(expiry)
+    val (color, text) = when {
+        expiry < now -> stockOutColor to stringResource(Res.string.inv_expired_on, date)
+        days <= org.bhargav.pansariwala.util.AppConstants.EXPIRY_ALERT_DAYS ->
+            stockLowColor to stringResource(Res.string.inv_expires_in_days, days.coerceAtLeast(0))
+        else -> MaterialTheme.colorScheme.onSurfaceVariant to stringResource(Res.string.inv_expires_on, date)
+    }
+    Surface(modifier = modifier, shape = RoundedCornerShape(50), color = color.copy(alpha = 0.14f)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+            Text(text, style = MaterialTheme.typography.labelMedium, color = color, fontWeight = FontWeight.SemiBold)
+        }
+    }
 }
