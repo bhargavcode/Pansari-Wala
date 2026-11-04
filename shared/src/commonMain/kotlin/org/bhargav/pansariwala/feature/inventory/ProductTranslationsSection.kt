@@ -10,7 +10,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -20,7 +19,6 @@ import org.bhargav.pansariwala.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.master_translations_language
-import pansariwala.shared.generated.resources.translate_again
 import pansariwala.shared.generated.resources.translate_field_brand
 import pansariwala.shared.generated.resources.translate_field_name
 import pansariwala.shared.generated.resources.translate_hint
@@ -31,7 +29,6 @@ import pansariwala.shared.generated.resources.translate_hint
 internal fun ProductTranslationsSection(
     state: AddEditInventoryUiState,
     onToggleLanguage: (String) -> Unit,
-    onRetranslate: () -> Unit,
     onNameChange: (String, String) -> Unit,
     onBrandChange: (String, String) -> Unit,
     modifier: Modifier = Modifier,
@@ -62,11 +59,6 @@ internal fun ProductTranslationsSection(
                             null
                         },
                     )
-                }
-            }
-            if (state.translationLanguages.any { code -> state.translatableLanguages.any { it.code == code } }) {
-                TextButton(onClick = onRetranslate, enabled = state.translating.isEmpty()) {
-                    Text(stringResource(Res.string.translate_again))
                 }
             }
         }

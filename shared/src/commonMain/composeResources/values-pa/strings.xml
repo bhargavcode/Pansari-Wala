@@ -2621,8 +2621,7 @@
     <string name="report_filter_role">ਭੂਮਿਕਾ</string>
     <string name="report_role_all">ਸਾਰੀਆਂ ਭੂਮਿਕਾਵਾਂ</string>
     <string name="report_filter_selected">%1$d ਚੁਣੇ</string>
-    <string name="translate_hint">ਭਾਸ਼ਾਵਾਂ ਚੁਣੋ, ਨਾਮ ਅਤੇ ਬ੍ਰਾਂਡ ਇਸੇ ਫ਼ੋਨ ਉੱਤੇ ਅਨੁਵਾਦ ਹੋ ਕੇ ਭਰ ਜਾਣਗੇ। ਹਰ ਭਾਸ਼ਾ ਇੱਕ ਵਾਰ ਡਾਊਨਲੋਡ ਹੁੰਦੀ ਹੈ (ਇੰਟਰਨੈੱਟ ਚਾਹੀਦਾ), ਫਿਰ ਆਫ਼ਲਾਈਨ ਚੱਲਦੀ ਹੈ।</string>
-    <string name="translate_again">ਮੁੜ ਅਨੁਵਾਦ ਕਰੋ</string>
+    <string name="translate_hint">ਚੁਣੀਆਂ ਭਾਸ਼ਾਵਾਂ ਵਿੱਚ ਨਾਮ ਅਤੇ ਬ੍ਰਾਂਡ ਲਿਖਦੇ ਹੀ ਇਸੇ ਫ਼ੋਨ ਉੱਤੇ ਆਪਣੇ ਆਪ ਅਨੁਵਾਦ ਹੋ ਕੇ ਭਰ ਜਾਂਦੇ ਹਨ। ਕੋਈ ਭਾਸ਼ਾ ਇੱਕ ਵਾਰ ਡਾਊਨਲੋਡ ਹੋ ਸਕਦੀ ਹੈ (ਇੰਟਰਨੈੱਟ ਚਾਹੀਦਾ), ਫਿਰ ਆਫ਼ਲਾਈਨ ਚੱਲਦੀ ਹੈ।</string>
     <string name="translate_field_name">ਨਾਮ (%1$s)</string>
     <string name="translate_field_brand">ਬ੍ਰਾਂਡ (%1$s)</string>
     <string name="error_translation_failed">%1$s ਵਿੱਚ ਅਨੁਵਾਦ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਭਾਸ਼ਾ ਡਾਊਨਲੋਡ ਕਰਨ ਲਈ ਇੱਕ ਵਾਰ ਇੰਟਰਨੈੱਟ ਨਾਲ ਜੁੜੋ।</string>

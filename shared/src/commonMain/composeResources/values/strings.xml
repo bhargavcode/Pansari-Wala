@@ -2685,8 +2685,7 @@
     <string name="report_filter_role">Role</string>
     <string name="report_role_all">All roles</string>
     <string name="report_filter_selected">%1$d selected</string>
-    <string name="translate_hint">Pick languages to fill the name and brand on this phone. Each language downloads once (needs internet), then works offline.</string>
-    <string name="translate_again">Translate again</string>
+    <string name="translate_hint">Picked languages fill in automatically as you type the name and brand, translated on this phone. A language may download once (needs internet), then works offline.</string>
     <string name="translate_field_name">Name (%1$s)</string>
     <string name="translate_field_brand">Brand (%1$s)</string>
     <string name="error_translation_failed">Couldn\'t translate into %1$s. Connect to the internet once so the language can download.</string>

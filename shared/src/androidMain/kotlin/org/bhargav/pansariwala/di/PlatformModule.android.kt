@@ -7,7 +7,7 @@ import org.bhargav.pansariwala.platform.OtpAppVerifier
 import org.bhargav.pansariwala.platform.AndroidRazorpayCheckout
 import org.bhargav.pansariwala.platform.DeviceLocation
 import org.bhargav.pansariwala.platform.ImagePicker
-import org.bhargav.pansariwala.platform.MlKitTextTranslator
+import org.bhargav.pansariwala.platform.AndroidTextTranslator
 import org.bhargav.pansariwala.platform.TextTranslator
 import org.bhargav.pansariwala.platform.PhoneAuthGateway
 import org.bhargav.pansariwala.platform.RazorpayCheckout
@@ -32,7 +32,7 @@ actual val platformModule: Module = module {
     }
     single<org.bhargav.pansariwala.platform.DocumentPicker> { org.bhargav.pansariwala.platform.AndroidDocumentPicker() }
     single<RazorpayCheckout> { AndroidRazorpayCheckout() }
-    single<TextTranslator> { MlKitTextTranslator() }
+    single<TextTranslator> { AndroidTextTranslator(androidContext()) }
     single {
         PrinterManager(
             transports = AndroidPrinterTransports.create(androidContext()),

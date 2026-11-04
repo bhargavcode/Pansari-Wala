@@ -46,7 +46,15 @@ import pansariwala.shared.generated.resources.msg_saved_product
 import org.bhargav.pansariwala.i18n.appLanguageName
 import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.platform.TextTranslator
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import pansariwala.shared.generated.resources.error_translation_failed
+
+private const val TRANSLATE_DEBOUNCE_MS = 500L
 
 data class AddEditInventoryUiState(
     val loading: Boolean = false,
@@ -137,6 +145,7 @@ class AddEditInventoryViewModel(
             _uiState.update { state ->
                 state.copy(translatableLanguages = AppLanguage.entries.filter { it.code in supported })
             }
+            if (supported.isNotEmpty()) autoTranslate(supported)
         }
         viewModelScope.launch {
             imageUploader.slots.collect { slots ->
@@ -186,7 +195,10 @@ class AddEditInventoryViewModel(
 
     fun onLookupQueryChange(value: String) = _uiState.update { it.copy(lookupQuery = value, error = null) }
     fun onNameChange(value: String) = _uiState.update { it.copy(name = value) }
-    fun onNameHiChange(value: String) = _uiState.update { it.copy(nameHi = value) }
+    fun onNameHiChange(value: String) {
+        markManual(nameField(AppLanguage.HINDI.code), value)
+        _uiState.update { it.copy(nameHi = value) }
+    }
     fun onUnitChange(value: ProductUnit) = _uiState.update { it.copy(unit = value) }
     fun onBarcodeChange(value: String) = _uiState.update { it.copy(barcode = value) }
     fun onSellingPriceChange(value: String) = _uiState.update { it.copy(sellingPrice = value) }
@@ -200,14 +212,23 @@ class AddEditInventoryViewModel(
     fun onHasVariantsChange(value: Boolean) = _uiState.update { it.copy(hasVariants = value) }
     fun onMfgDateChange(value: Long?) = _uiState.update { it.copy(mfgDate = value) }
     fun onExpiryDateChange(value: Long?) = _uiState.update { it.copy(expiryDate = value) }
-    fun onNameTranslationChange(code: String, value: String) =
+    fun onNameTranslationChange(code: String, value: String) {
+        markManual(nameField(code), value)
         _uiState.update { it.copy(nameTranslations = it.nameTranslations + (code to value)) }
-    fun onBrandTranslationChange(code: String, value: String) =
-        _uiState.update { it.copy(brandTranslations = it.brandTranslations + (code to value)) }
+    }
 
-    /** Picking fills that language's blank fields by translation; unpicking drops its name and brand. */
+    fun onBrandTranslationChange(code: String, value: String) {
+        markManual(brandField(code), value)
+        _uiState.update { it.copy(brandTranslations = it.brandTranslations + (code to value)) }
+    }
+
+    /** Picking a language auto-fills its fields from the English name / brand; unpicking drops them. */
     fun onTranslationLanguageToggle(code: String) {
-        if (code in _uiState.value.translationLanguages) {
+        val state = _uiState.value
+        translatedFrom.remove(code)
+        if (code in state.translationLanguages) {
+            manualFields.remove(nameField(code))
+            manualFields.remove(brandField(code))
             _uiState.update {
                 it.copy(
                     translationLanguages = it.translationLanguages - code,
@@ -216,54 +237,86 @@ class AddEditInventoryViewModel(
                 )
             }
         } else {
+            val currentName = if (code == AppLanguage.HINDI.code) state.nameHi else state.nameTranslations[code]
+            markManual(nameField(code), currentName.orEmpty())
+            markManual(brandField(code), state.brandTranslations[code].orEmpty())
             _uiState.update { it.copy(translationLanguages = it.translationLanguages + code) }
-            translateInto(listOf(code), overwrite = false)
         }
     }
 
-    /** Re-translates the current English name and brand into every picked language. */
-    fun retranslate() = translateInto(_uiState.value.translationLanguages, overwrite = true)
+    private data class TranslationSource(val name: String, val brand: String)
+    private data class TranslationInput(val source: TranslationSource, val languages: Set<String>)
 
-    private fun translateInto(codes: Collection<String>, overwrite: Boolean) {
-        val supported = _uiState.value.translatableLanguages.map { it.code }
-        val todo = codes.filter { it in supported && it !in _uiState.value.translating }
+    /** English name + brand each language's fields were last translated from. */
+    private val translatedFrom = mutableMapOf<String, TranslationSource>()
+
+    /** Fields the user typed into ("name:kn"); auto-translation never overwrites them. */
+    private val manualFields = mutableSetOf<String>()
+
+    private fun nameField(code: String) = "name:$code"
+    private fun brandField(code: String) = "brand:$code"
+
+    private fun markManual(field: String, value: String) {
+        if (value.isBlank()) manualFields.remove(field) else manualFields.add(field)
+    }
+
+    /**
+     * Re-translates picked languages whenever the English name / brand or the picked set changes.
+     * Typing is debounced and a newer edit cancels in-flight work; languages translate in parallel.
+     */
+    @OptIn(FlowPreview::class)
+    private suspend fun autoTranslate(supported: Set<String>) {
+        _uiState
+            .map { TranslationInput(TranslationSource(it.name.trim(), it.brandName.trim()), it.translationLanguages intersect supported) }
+            .distinctUntilChanged()
+            .debounce(TRANSLATE_DEBOUNCE_MS)
+            .collectLatest(::translatePending)
+    }
+
+    private suspend fun translatePending(input: TranslationInput) {
+        val source = input.source
+        val todo = input.languages.filter { translatedFrom[it] != source }
         if (todo.isEmpty()) return
+        val failed = mutableListOf<String>()
         _uiState.update { it.copy(translating = it.translating + todo) }
-        viewModelScope.launch {
-            val failed = mutableListOf<String>()
-            todo.forEach { code ->
-                val source = _uiState.value
-                val name = source.name.trim().takeIf { it.isNotEmpty() }?.let { translator.translate(it, code) }
-                val brand = source.brandName.trim().takeIf { it.isNotEmpty() }?.let { translator.translate(it, code) }
-                if ((source.name.isNotBlank() && name == null) || (source.brandName.isNotBlank() && brand == null)) {
-                    failed += code
-                }
-                _uiState.update { state ->
-                    val done = state.copy(translating = state.translating - code)
-                    if (code in state.translationLanguages) done.withTranslation(code, name, brand, overwrite) else done
+        try {
+            coroutineScope {
+                todo.forEach { code ->
+                    launch {
+                        val result = translator.translate(listOf(source.name, source.brand), code)
+                        if (result == null) {
+                            failed += code
+                        } else {
+                            translatedFrom[code] = source
+                            _uiState.update { it.withTranslation(code, result[0], result[1]) }
+                        }
+                        _uiState.update { it.copy(translating = it.translating - code) }
+                    }
                 }
             }
-            if (failed.isNotEmpty()) {
-                val labels = failed.joinToString { AppLanguage.fromCode(it).displayLabel }
-                _uiState.update { it.copy(error = UiText.res(Res.string.error_translation_failed, labels)) }
-            }
+        } finally {
+            _uiState.update { it.copy(translating = it.translating - todo.toSet()) }
+        }
+        if (failed.isNotEmpty()) {
+            val labels = failed.joinToString { AppLanguage.fromCode(it).displayLabel }
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_translation_failed, labels)) }
         }
     }
 
-    private fun AddEditInventoryUiState.withTranslation(
-        code: String,
-        name: String?,
-        brand: String?,
-        overwrite: Boolean,
-    ): AddEditInventoryUiState {
-        fun pick(current: String?, translated: String?): String =
-            if (translated.isNullOrBlank() || (!overwrite && !current.isNullOrBlank())) current.orEmpty() else translated
-        val brands = brandTranslations + (code to pick(brandTranslations[code], brand))
-        return if (code == AppLanguage.HINDI.code) {
-            copy(nameHi = pick(nameHi, name), brandTranslations = brands)
-        } else {
-            copy(nameTranslations = nameTranslations + (code to pick(nameTranslations[code], name)), brandTranslations = brands)
+    private fun AddEditInventoryUiState.withTranslation(code: String, name: String, brand: String): AddEditInventoryUiState {
+        if (code !in translationLanguages) return this
+        var next = this
+        if (nameField(code) !in manualFields) {
+            next = if (code == AppLanguage.HINDI.code) {
+                next.copy(nameHi = name)
+            } else {
+                next.copy(nameTranslations = next.nameTranslations + (code to name))
+            }
         }
+        if (brandField(code) !in manualFields) {
+            next = next.copy(brandTranslations = next.brandTranslations + (code to brand))
+        }
+        return next
     }
 
     private var baseline: List<Any?> = AddEditInventoryUiState().formKey()
@@ -394,6 +447,11 @@ class AddEditInventoryViewModel(
 
     private fun fillFrom(product: Product) {
         loadedProduct = product
+        manualFields.clear()
+        translatedFrom.clear()
+        val loadedSource = TranslationSource(product.name.trim(), product.brandName.trim())
+        ((product.translations + product.brandTranslations).filterValues { it.isNotBlank() }.keys)
+            .forEach { translatedFrom[it] = loadedSource }
         imageUploader.seedUrls(product.imageUrls)
         _uiState.update {
             it.copy(

@@ -2621,8 +2621,7 @@
     <string name="report_filter_role">ভূমিকা</string>
     <string name="report_role_all">সব ভূমিকা</string>
     <string name="report_filter_selected">%1$dটি বাছাই</string>
-    <string name="translate_hint">ভাষা বেছে নিন, নাম ও ব্র্যান্ড এই ফোনেই অনুবাদ হয়ে ভরে যাবে। প্রতিটি ভাষা একবার ডাউনলোড হয় (ইন্টারনেট লাগে), তারপর অফলাইনে চলে।</string>
-    <string name="translate_again">আবার অনুবাদ করুন</string>
+    <string name="translate_hint">বেছে নেওয়া ভাষায় নাম ও ব্র্যান্ড লেখার সঙ্গে সঙ্গে এই ফোনেই নিজে থেকে অনুবাদ হয়ে ভরে যায়। কোনো ভাষা একবার ডাউনলোড হতে পারে (ইন্টারনেট লাগে), তারপর অফলাইনে চলে।</string>
     <string name="translate_field_name">নাম (%1$s)</string>
     <string name="translate_field_brand">ব্র্যান্ড (%1$s)</string>
     <string name="error_translation_failed">%1$s-এ অনুবাদ করা যায়নি। ভাষাটি ডাউনলোড করতে একবার ইন্টারনেটে যুক্ত হন।</string>

@@ -26,11 +26,14 @@ class IosTextTranslator : TextTranslator {
         }
     }
 
-    override suspend fun translate(text: String, languageCode: String): String? {
-        if (text.isBlank()) return ""
-        val host = IosTranslatorBridge.host ?: return null
-        return suspendCancellableCoroutine { cont ->
-            host.translate(text.trim(), languageCode) { result -> if (cont.isActive) cont.resume(result) }
+    override suspend fun translate(texts: List<String>, languageCode: String): List<String>? {
+        val host = IosTranslatorBridge.host
+        return texts.map { text ->
+            if (text.isBlank()) return@map ""
+            host ?: return null
+            suspendCancellableCoroutine<String?> { cont ->
+                host.translate(text.trim(), languageCode) { result -> if (cont.isActive) cont.resume(result) }
+            } ?: return null
         }
     }
 }

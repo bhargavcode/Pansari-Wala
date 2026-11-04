@@ -2621,8 +2621,7 @@
     <string name="report_filter_role">भूमिका</string>
     <string name="report_role_all">सर्व भूमिका</string>
     <string name="report_filter_selected">%1$d निवडले</string>
-    <string name="translate_hint">भाषा निवडा, नाव आणि ब्रँड याच फोनवर भाषांतरित होऊन भरले जातील. प्रत्येक भाषा एकदा डाउनलोड होते (इंटरनेट लागते), नंतर ऑफलाइन चालते.</string>
-    <string name="translate_again">पुन्हा भाषांतर करा</string>
+    <string name="translate_hint">निवडलेल्या भाषांमध्ये नाव आणि ब्रँड टाइप करताच याच फोनवर आपोआप भाषांतर होऊन भरले जातात. एखादी भाषा एकदा डाउनलोड होऊ शकते (इंटरनेट लागते), नंतर ऑफलाइन चालते.</string>
     <string name="translate_field_name">नाव (%1$s)</string>
     <string name="translate_field_brand">ब्रँड (%1$s)</string>
     <string name="error_translation_failed">%1$s मध्ये भाषांतर झाले नाही. भाषा डाउनलोड होण्यासाठी एकदा इंटरनेटशी जोडा.</string>

@@ -140,7 +140,8 @@ android {
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

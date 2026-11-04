@@ -2621,8 +2621,7 @@
     <string name="report_filter_role">ಪಾತ್ರ</string>
     <string name="report_role_all">ಎಲ್ಲ ಪಾತ್ರಗಳು</string>
     <string name="report_filter_selected">%1$d ಆಯ್ಕೆ</string>
-    <string name="translate_hint">ಭಾಷೆಗಳನ್ನು ಆರಿಸಿ, ಹೆಸರು ಮತ್ತು ಬ್ರ್ಯಾಂಡ್ ಈ ಫೋನ್‌ನಲ್ಲೇ ಅನುವಾದವಾಗಿ ತುಂಬುತ್ತವೆ. ಪ್ರತಿ ಭಾಷೆ ಒಮ್ಮೆ ಡೌನ್‌ಲೋಡ್ ಆಗುತ್ತದೆ (ಇಂಟರ್ನೆಟ್ ಬೇಕು), ನಂತರ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿ ಕೆಲಸ ಮಾಡುತ್ತದೆ.</string>
-    <string name="translate_again">ಮತ್ತೆ ಅನುವಾದಿಸಿ</string>
+    <string name="translate_hint">ಆರಿಸಿದ ಭಾಷೆಗಳಲ್ಲಿ ಹೆಸರು ಮತ್ತು ಬ್ರ್ಯಾಂಡ್ ಟೈಪ್ ಮಾಡುತ್ತಿದ್ದಂತೆ ಈ ಫೋನ್‌ನಲ್ಲೇ ಸ್ವಯಂ ಅನುವಾದವಾಗಿ ತುಂಬುತ್ತವೆ. ಒಂದು ಭಾಷೆ ಒಮ್ಮೆ ಡೌನ್‌ಲೋಡ್ ಆಗಬಹುದು (ಇಂಟರ್ನೆಟ್ ಬೇಕು), ನಂತರ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿ ಕೆಲಸ ಮಾಡುತ್ತದೆ.</string>
     <string name="translate_field_name">ಹೆಸರು (%1$s)</string>
     <string name="translate_field_brand">ಬ್ರ್ಯಾಂಡ್ (%1$s)</string>
     <string name="error_translation_failed">%1$s ಗೆ ಅನುವಾದಿಸಲು ಆಗಲಿಲ್ಲ. ಭಾಷೆ ಡೌನ್‌ಲೋಡ್ ಆಗಲು ಒಮ್ಮೆ ಇಂಟರ್ನೆಟ್‌ಗೆ ಸಂಪರ್ಕಿಸಿ.</string>

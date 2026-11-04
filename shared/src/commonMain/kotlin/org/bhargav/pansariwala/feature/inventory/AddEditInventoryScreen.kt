@@ -192,7 +192,6 @@ fun AddEditInventoryScreen(
         ProductTranslationsSection(
             state = state,
             onToggleLanguage = viewModel::onTranslationLanguageToggle,
-            onRetranslate = viewModel::retranslate,
             onNameChange = viewModel::onNameTranslationChange,
             onBrandChange = viewModel::onBrandTranslationChange,
             modifier = Modifier.fillMaxWidth(),
