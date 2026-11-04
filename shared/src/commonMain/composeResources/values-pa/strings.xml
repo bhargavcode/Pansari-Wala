@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ਪੰਸਾਰੀ ਵਾਲਾ</string>
+    <string name="app_name">ਜਨਸ਼ੋ</string>
     <string name="app_tagline">ਪੁਆਇੰਟ ਆਫ਼ ਸੇਲ</string>
     <string name="app_tagline_login">ਦੁਕਾਨ ਅਤੇ ਟੈਬਲੈਟ ਲਈ ਕਿਰਾਨਾ POS</string>
     <string name="brand_tagline_market">ਤੁਹਾਡੀ ਆਪਣੀ ਮਾਰਕੀਟ</string>
-    <string name="landing_about_title">ਪੰਸਾਰੀ ਵਾਲਾ ਬਾਰੇ</string>
-    <string name="landing_about_body">ਪੰਸਾਰੀ ਵਾਲਾ ਸਥਾਨਕ ਕਰਿਆਨਾ ਦੁਕਾਨਾਂ ਨੂੰ ਨੇੜਲੇ ਗਾਹਕਾਂ ਅਤੇ ਡਿਲੀਵਰੀ ਪਾਰਟਨਰਾਂ ਨਾਲ ਜੋੜਦਾ ਹੈ। ਦੁਕਾਨ ਮਾਲਕ POS ਅਤੇ ਇਨਵੈਂਟਰੀ ਚਲਾਉਂਦੇ ਹਨ, ਗਾਹਕ ਵੌਇਸ ਸਰਚ ਨਾਲ ਆਰਡਰ ਕਰਦੇ ਹਨ, ਅਤੇ ਪਾਰਟਨਰ ਲਾਈਵ ਟ੍ਰੈਕਿੰਗ ਨਾਲ ਡਿਲੀਵਰੀ ਕਰਦੇ ਹਨ — ਇਸ ਸਾਈਟ \'ਤੇ ਕੋਈ ਲੌਗਇਨ ਵੇਰਵੇ ਜਾਂ ਗੁਪਤ ਜਾਣਕਾਰੀ ਨਹੀਂ ਦਿਖਾਈ ਜਾਂਦੀ।</string>
-    <string name="landing_user_title">ਪੰਸਾਰੀ ਯੂਜ਼ਰ</string>
+    <string name="landing_about_title">ਜਨਸ਼ੋ ਬਾਰੇ</string>
+    <string name="landing_about_body">ਜਨਸ਼ੋ ਸਥਾਨਕ ਕਰਿਆਨਾ ਦੁਕਾਨਾਂ ਨੂੰ ਨੇੜਲੇ ਗਾਹਕਾਂ ਅਤੇ ਡਿਲੀਵਰੀ ਪਾਰਟਨਰਾਂ ਨਾਲ ਜੋੜਦਾ ਹੈ। ਦੁਕਾਨ ਮਾਲਕ POS ਅਤੇ ਇਨਵੈਂਟਰੀ ਚਲਾਉਂਦੇ ਹਨ, ਗਾਹਕ ਵੌਇਸ ਸਰਚ ਨਾਲ ਆਰਡਰ ਕਰਦੇ ਹਨ, ਅਤੇ ਪਾਰਟਨਰ ਲਾਈਵ ਟ੍ਰੈਕਿੰਗ ਨਾਲ ਡਿਲੀਵਰੀ ਕਰਦੇ ਹਨ — ਇਸ ਸਾਈਟ \'ਤੇ ਕੋਈ ਲੌਗਇਨ ਵੇਰਵੇ ਜਾਂ ਗੁਪਤ ਜਾਣਕਾਰੀ ਨਹੀਂ ਦਿਖਾਈ ਜਾਂਦੀ।</string>
+    <string name="landing_user_title">ਜਨਸ਼ੋ ਯੂਜ਼ਰ</string>
     <string name="landing_user_about">ਆਂਢ-ਗੁਆਂਢ ਦੀਆਂ ਦੁਕਾਨਾਂ ਤੋਂ ਆਰਡਰ ਕਰੋ, ਆਵਾਜ਼ ਨਾਲ ਖੋਜੋ, ਸੁਰੱਖਿਅਤ ਭੁਗਤਾਨ ਕਰੋ ਅਤੇ ਆਪਣੇ ਦਰਵਾਜ਼ੇ ਤੱਕ ਡਿਲੀਵਰੀ ਟ੍ਰੈਕ ਕਰੋ।</string>
     <string name="landing_user_how">ਦੁਕਾਨ ਚੁਣੋ → ਆਵਾਜ਼ ਜਾਂ ਟੈਕਸਟ ਖੋਜ → ਕਾਰਟ ਅਤੇ ਭੁਗਤਾਨ → ਲਾਈਵ ਪਾਰਟਨਰ ਟ੍ਰੈਕਿੰਗ → OTP ਡਿਲੀਵਰੀ।</string>
     <string name="landing_delivery_title">ਡਿਲੀਵਰੀ ਪਾਰਟਨਰ</string>
@@ -388,7 +388,7 @@
     <string name="pos_payment_card">ਕਾਰਡ</string>
     <string name="pos_payment_udhaar">ਉਧਾਰ</string>
     <string name="pos_udhaar_title">ਉਧਾਰ \'ਤੇ ਦਿਓ (ਕ੍ਰੈਡਿਟ)</string>
-    <string name="pos_udhaar_hint">ਇਹ ਰਕਮ ਇਸ ਗਾਹਕ ਦੇ ਬਕਾਏ ਵਿੱਚ ਜੁੜ ਜਾਂਦੀ ਹੈ। ਉਹ ਦੁਕਾਨ \'ਤੇ ਜਾਂ ਉਸੇ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਪੰਸਾਰੀ ਵਾਲਾ ਐਪ ਤੋਂ ਚੁਕਾ ਸਕਦੇ ਹਨ।</string>
+    <string name="pos_udhaar_hint">ਇਹ ਰਕਮ ਇਸ ਗਾਹਕ ਦੇ ਬਕਾਏ ਵਿੱਚ ਜੁੜ ਜਾਂਦੀ ਹੈ। ਉਹ ਦੁਕਾਨ \'ਤੇ ਜਾਂ ਉਸੇ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਜਨਸ਼ੋ ਐਪ ਤੋਂ ਚੁਕਾ ਸਕਦੇ ਹਨ।</string>
     <string name="pos_udhaar_phone">ਗਾਹਕ ਦਾ ਮੋਬਾਈਲ ਨੰਬਰ</string>
     <string name="pos_udhaar_name">ਗਾਹਕ ਦਾ ਨਾਮ</string>
     <string name="pos_udhaar_confirm">%1$s ਉਧਾਰ ਵਿੱਚ ਜੋੜੋ</string>
@@ -585,7 +585,7 @@
     <string name="tab_market">ਮਾਰਕੀਟ</string>
     <string name="tab_account">ਖਾਤਾ</string>
     <string name="tab_user_settings">ਸੈਟਿੰਗਾਂ</string>
-    <string name="user_brand_title">ਪੰਸਾਰੀ ਵਾਲਾ</string>
+    <string name="user_brand_title">ਜਨਸ਼ੋ</string>
     <string name="user_onboarding_tagline">ਤੁਹਾਡੇ ਭਰੋਸੇਮੰਦ ਸਥਾਨਕ ਕਰਿਆਨੇ ਤੋਂ ਰਾਸ਼ਨ, ਤੁਹਾਡੇ ਦਰਵਾਜ਼ੇ ਤੱਕ</string>
     <string name="user_onboarding_highlight_nearby">ਨੇੜਲੀਆਂ ਦੁਕਾਨਾਂ</string>
     <string name="user_onboarding_highlight_fast">ਤੇਜ਼ ਡਿਲੀਵਰੀ</string>
@@ -602,13 +602,13 @@
     <string name="location_confirm_address">ਪਤੇ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ</string>
     <string name="location_current_address">ਮੌਜੂਦਾ ਪਤਾ</string>
     <string name="location_permission_denied_title">ਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਲੋੜੀਂਦੀ ਹੈ</string>
-    <string name="location_permission_denied_message">ਤੁਹਾਨੂੰ ਨਕਸ਼ੇ \'ਤੇ ਦਿਖਾਉਣ, ਨੇੜਲੇ ਡਿਲੀਵਰੀ ਕੰਮ ਮਿਲਾਉਣ ਅਤੇ ਆਨਲਾਈਨ ਹੋਣ ਸਮੇਂ ਗਾਹਕਾਂ ਨੂੰ ਅੱਪਡੇਟ ਰੱਖਣ ਲਈ ਪੰਸਾਰੀ ਵਾਲਾ ਨੂੰ ਤੁਹਾਡੀ ਸਹੀ ਲੋਕੇਸ਼ਨ ਚਾਹੀਦੀ ਹੈ।\n\nਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਤੋਂ ਬਿਨਾਂ ਤੁਸੀਂ ਆਫ਼ਰ ਗੁਆ ਸਕਦੇ ਹੋ ਅਤੇ ਤੁਹਾਡੀ ਲਾਈਵ ਸਥਿਤੀ ਅੱਪਡੇਟ ਨਹੀਂ ਹੋਵੇਗੀ।</string>
+    <string name="location_permission_denied_message">ਤੁਹਾਨੂੰ ਨਕਸ਼ੇ \'ਤੇ ਦਿਖਾਉਣ, ਨੇੜਲੇ ਡਿਲੀਵਰੀ ਕੰਮ ਮਿਲਾਉਣ ਅਤੇ ਆਨਲਾਈਨ ਹੋਣ ਸਮੇਂ ਗਾਹਕਾਂ ਨੂੰ ਅੱਪਡੇਟ ਰੱਖਣ ਲਈ ਜਨਸ਼ੋ ਨੂੰ ਤੁਹਾਡੀ ਸਹੀ ਲੋਕੇਸ਼ਨ ਚਾਹੀਦੀ ਹੈ।\n\nਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਤੋਂ ਬਿਨਾਂ ਤੁਸੀਂ ਆਫ਼ਰ ਗੁਆ ਸਕਦੇ ਹੋ ਅਤੇ ਤੁਹਾਡੀ ਲਾਈਵ ਸਥਿਤੀ ਅੱਪਡੇਟ ਨਹੀਂ ਹੋਵੇਗੀ।</string>
     <string name="location_permission_retry">ਲੋਕੇਸ਼ਨ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ</string>
     <string name="location_permission_open_settings">ਐਪ ਸੈਟਿੰਗਾਂ ਖੋਲ੍ਹੋ</string>
     <string name="location_permission_web_hint">ਆਪਣੇ ਬ੍ਰਾਊਜ਼ਰ ਵਿੱਚ ਸਾਈਟ ਇਜਾਜ਼ਤ ਮੀਨੂ ਖੋਲ੍ਹੋ (ਐਡਰੈੱਸ ਬਾਰ ਵਿੱਚ ਤਾਲੇ ਦਾ ਆਈਕਨ) ਅਤੇ ਲੋਕੇਸ਼ਨ ਨੂੰ ਇਜਾਜ਼ਤ \'ਤੇ ਸੈੱਟ ਕਰੋ, ਫਿਰ ਲੋਕੇਸ਼ਨ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ \'ਤੇ ਦੁਬਾਰਾ ਟੈਪ ਕਰੋ।</string>
     <string name="location_unavailable">GPS ਲੋਕੇਸ਼ਨ ਨਹੀਂ ਮਿਲ ਸਕੀ। ਲੋਕੇਸ਼ਨ ਸੇਵਾਵਾਂ ਚਾਲੂ ਕਰੋ ਅਤੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।</string>
     <string name="location_services_off_title">ਲੋਕੇਸ਼ਨ ਚਾਲੂ ਕਰੋ</string>
-    <string name="location_services_off_message">ਤੁਹਾਡੇ ਫ਼ੋਨ ਦੀ ਲੋਕੇਸ਼ਨ (GPS) ਬੰਦ ਹੈ। ਨੇੜਲੀਆਂ ਦੁਕਾਨਾਂ ਦਿਖਾਉਣ ਅਤੇ ਡਿਲੀਵਰੀ ਪਤਾ ਭਰਨ ਲਈ ਪੰਸਾਰੀ ਵਾਲਾ ਨੂੰ ਇਸਦੀ ਲੋੜ ਹੈ।</string>
+    <string name="location_services_off_message">ਤੁਹਾਡੇ ਫ਼ੋਨ ਦੀ ਲੋਕੇਸ਼ਨ (GPS) ਬੰਦ ਹੈ। ਨੇੜਲੀਆਂ ਦੁਕਾਨਾਂ ਦਿਖਾਉਣ ਅਤੇ ਡਿਲੀਵਰੀ ਪਤਾ ਭਰਨ ਲਈ ਜਨਸ਼ੋ ਨੂੰ ਇਸਦੀ ਲੋੜ ਹੈ।</string>
     <string name="location_services_turn_on">ਲੋਕੇਸ਼ਨ ਚਾਲੂ ਕਰੋ</string>
     <string name="shop_offers_active_one">1 ਸਰਗਰਮ ਆਫ਼ਰ</string>
     <string name="shop_offers_active">%1$d ਸਰਗਰਮ ਆਫ਼ਰ</string>
@@ -622,13 +622,13 @@
     <string name="shop_offers_browse_shop">ਇਸ ਦੁਕਾਨ ਤੋਂ ਖਰੀਦੋ</string>
     <string name="user_location_access_title">ਆਪਣੀ ਲੋਕੇਸ਼ਨ ਚਾਲੂ ਕਰੋ</string>
     <string name="user_location_access_subtitle">ਅਸੀਂ ਨੇੜਲੀਆਂ ਦੁਕਾਨਾਂ ਦਿਖਾਉਣ ਅਤੇ ਤੁਹਾਡੇ ਦਰਵਾਜ਼ੇ ਤੱਕ ਆਰਡਰ ਪਹੁੰਚਾਉਣ ਲਈ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਵਰਤਦੇ ਹਾਂ।</string>
-    <string name="user_location_access_reason_shops">ਆਪਣੇ ਚੁਣੇ ਦਾਇਰੇ ਵਿੱਚ ਪੰਸਾਰੀ ਦੁਕਾਨਾਂ ਲੱਭੋ</string>
+    <string name="user_location_access_reason_shops">ਆਪਣੇ ਚੁਣੇ ਦਾਇਰੇ ਵਿੱਚ ਜਨਸ਼ੋ ਦੁਕਾਨਾਂ ਲੱਭੋ</string>
     <string name="user_location_access_reason_delivery">ਸਹੀ ਡਿਲੀਵਰੀ ਪਤਾ ਅਤੇ ਲਾਈਵ ਆਰਡਰ ਟ੍ਰੈਕਿੰਗ</string>
     <string name="user_location_access_reason_offers">ਹਰ ਦੁਕਾਨ ਦੀ ਦੂਰੀ, ਰੇਟਿੰਗ ਅਤੇ ਖੁੱਲ੍ਹਣ ਦਾ ਸਮਾਂ ਦੇਖੋ</string>
     <string name="user_location_access_action">ਇਜਾਜ਼ਤ ਦਿਓ ਅਤੇ ਲੋਕੇਸ਼ਨ ਲਓ</string>
     <string name="user_location_access_continue">ਹੋਮ \'ਤੇ ਜਾਰੀ ਰੱਖੋ</string>
     <string name="user_location_coords">ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ: %1$s, %2$s</string>
-    <string name="user_location_permission_denied_message">ਨੇੜਲੀਆਂ ਦੁਕਾਨਾਂ ਲੱਭਣ, ਡਿਲੀਵਰੀ ਦੂਰੀ ਗਿਣਨ ਅਤੇ ਤੁਹਾਡਾ ਪਤਾ ਅੱਪਡੇਟ ਰੱਖਣ ਲਈ ਪੰਸਾਰੀ ਵਾਲਾ ਨੂੰ ਤੁਹਾਡੀ ਸਹੀ ਲੋਕੇਸ਼ਨ ਚਾਹੀਦੀ ਹੈ।\n\nਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਤੋਂ ਬਿਨਾਂ ਤੁਹਾਨੂੰ ਦੁਕਾਨਾਂ ਦੂਰੀ ਦੇ ਕ੍ਰਮ ਵਿੱਚ ਨਹੀਂ ਦਿਖਣਗੀਆਂ।</string>
+    <string name="user_location_permission_denied_message">ਨੇੜਲੀਆਂ ਦੁਕਾਨਾਂ ਲੱਭਣ, ਡਿਲੀਵਰੀ ਦੂਰੀ ਗਿਣਨ ਅਤੇ ਤੁਹਾਡਾ ਪਤਾ ਅੱਪਡੇਟ ਰੱਖਣ ਲਈ ਜਨਸ਼ੋ ਨੂੰ ਤੁਹਾਡੀ ਸਹੀ ਲੋਕੇਸ਼ਨ ਚਾਹੀਦੀ ਹੈ।\n\nਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਤੋਂ ਬਿਨਾਂ ਤੁਹਾਨੂੰ ਦੁਕਾਨਾਂ ਦੂਰੀ ਦੇ ਕ੍ਰਮ ਵਿੱਚ ਨਹੀਂ ਦਿਖਣਗੀਆਂ।</string>
     <string name="order_number_label">ਆਰਡਰ #%1$s</string>
     <string name="status_pending_acceptance">ਸਵੀਕ੍ਰਿਤੀ ਬਾਕੀ</string>
     <string name="market_radius_range">ਦਾਇਰਾ (%1$s ਕਿਮੀ – %2$s ਕਿਮੀ)</string>
@@ -694,7 +694,7 @@
     <string name="profile_payment_header">ਪ੍ਰੋਫਾਈਲ ਅਤੇ ਭੁਗਤਾਨ ਤਰੀਕੇ</string>
     <string name="cart_title">ਤੁਹਾਡਾ ਕਾਰਟ</string>
     <string name="action_proceed_payment">ਭੁਗਤਾਨ ਲਈ ਅੱਗੇ ਵਧੋ (%1$s)</string>
-    <string name="checkout_payment_description">ਪੰਸਾਰੀ ਆਰਡਰ</string>
+    <string name="checkout_payment_description">ਜਨਸ਼ੋ ਆਰਡਰ</string>
     <string name="error_payment_not_verified">ਭੁਗਤਾਨ ਦੀ ਪੁਸ਼ਟੀ ਨਹੀਂ ਹੋ ਸਕੀ</string>
     <string name="checkout_razorpay_hint">UPI ਨਾਲ ਸੁਰੱਖਿਅਤ ਭੁਗਤਾਨ ਕਰੋ। ਭੁਗਤਾਨ ਦੀ ਪੁਸ਼ਟੀ ਹੁੰਦੇ ਹੀ ਤੁਹਾਡਾ ਆਰਡਰ ਦੇ ਦਿੱਤਾ ਜਾਵੇਗਾ।</string>
     <string name="checkout_direct_upi_hint">UPI ਨਾਲ ਸੁਰੱਖਿਅਤ ਭੁਗਤਾਨ ਕਰੋ। ਭੁਗਤਾਨ ਦੀ ਪੁਸ਼ਟੀ ਹੁੰਦੇ ਹੀ ਤੁਹਾਡਾ ਆਰਡਰ ਦੇ ਦਿੱਤਾ ਜਾਵੇਗਾ।</string>
@@ -941,8 +941,8 @@
     <string name="notify_delivered_title">ਡਿਲੀਵਰ ਹੋ ਗਿਆ</string>
     <string name="notify_delivered_body">%1$s ਦਾ ਆਰਡਰ ਡਿਲੀਵਰ ਹੋ ਗਿਆ।</string>
     <string name="sync_online">ਦੁਕਾਨ ਸਿੰਕ</string>
-    <string name="partner_brand_title">ਪੰਸਾਰੀਵਾਲਾ</string>
-    <string name="partner_onboarding_title">ਪੰਸਾਰੀਵਾਲਾ ਪਾਰਟਨਰ</string>
+    <string name="partner_brand_title">ਜਨਸ਼ੋ</string>
+    <string name="partner_onboarding_title">ਜਨਸ਼ੋ ਪਾਰਟਨਰ</string>
     <string name="partner_onboarding_tagline">ਲੋਕਲ ਦੁਕਾਨਾਂ ਤੋਂ ਆਰਡਰ ਡਿਲੀਵਰ ਕਰੋ ਅਤੇ ਆਪਣੇ ਸਮੇਂ ਅਨੁਸਾਰ ਕਮਾਓ</string>
     <string name="partner_onboarding_highlight_earn">ਰੋਜ਼ ਕਮਾਓ</string>
     <string name="partner_onboarding_highlight_flexible">ਲਚਕਦਾਰ ਘੰਟੇ</string>
@@ -979,14 +979,14 @@
     <string name="location_address_filled">ਪਤਾ ਤੁਹਾਡੀ ਮੌਜੂਦਾ ਲੋਕੇਸ਼ਨ ਤੋਂ ਭਰਿਆ ਗਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਜਾਂਚੋ ਅਤੇ ਲੋੜ ਹੋਵੇ ਤਾਂ ਸੋਧੋ।</string>
     <string name="error_location_address_not_found">ਸਾਨੂੰ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਮਿਲੀ ਪਰ ਪਤਾ ਨਹੀਂ ਪੜ੍ਹ ਸਕੇ। ਕਿਰਪਾ ਕਰਕੇ ਇਸਨੂੰ ਖੁਦ ਦਰਜ ਕਰੋ।</string>
     <string name="location_rationale_title">ਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ</string>
-    <string name="location_rationale_message">ਪੰਸਾਰੀ ਵਾਲਾ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਵਰਤਦਾ ਹੈ:</string>
+    <string name="location_rationale_message">ਜਨਸ਼ੋ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਵਰਤਦਾ ਹੈ:</string>
     <string name="location_rationale_point_address">ਤੁਹਾਡਾ ਡਿਲੀਵਰੀ ਪਤਾ ਆਪਣੇ-ਆਪ ਭਰਨ ਲਈ</string>
     <string name="location_rationale_point_shops">ਤੁਹਾਡੇ ਨੇੜੇ ਡਿਲੀਵਰੀ ਕਰਨ ਵਾਲੀਆਂ ਦੁਕਾਨਾਂ ਦਿਖਾਉਣ ਲਈ</string>
     <string name="location_rationale_point_delivery">ਡਿਲੀਵਰੀ ਪਾਰਟਨਰ ਨੂੰ ਤੁਹਾਡੇ ਦਰਵਾਜ਼ੇ ਤੱਕ ਜਲਦੀ ਪਹੁੰਚਾਉਣ ਲਈ</string>
     <string name="location_rationale_footer">ਲੋਕੇਸ਼ਨ ਸਿਰਫ਼ ਐਪ ਵਰਤਣ ਸਮੇਂ ਵਰਤੀ ਜਾਂਦੀ ਹੈ ਅਤੇ ਕਦੇ ਜਨਤਕ ਨਹੀਂ ਕੀਤੀ ਜਾਂਦੀ। ਤੁਸੀਂ ਇਸਨੂੰ ਕਦੇ ਵੀ ਫ਼ੋਨ ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਬਦਲ ਸਕਦੇ ਹੋ।</string>
     <string name="location_rationale_allow">ਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਚਾਲੂ ਕਰੋ</string>
     <string name="notification_rationale_title">ਸੂਚਨਾਵਾਂ ਨਾਲ ਅੱਪਡੇਟ ਰਹੋ</string>
-    <string name="notification_rationale_message">ਸੂਚਨਾਵਾਂ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ ਤਾਂ ਜੋ ਪੰਸਾਰੀ ਵਾਲਾ ਤੁਹਾਨੂੰ ਦੱਸ ਸਕੇ:</string>
+    <string name="notification_rationale_message">ਸੂਚਨਾਵਾਂ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ ਤਾਂ ਜੋ ਜਨਸ਼ੋ ਤੁਹਾਨੂੰ ਦੱਸ ਸਕੇ:</string>
     <string name="notification_rationale_point_orders">ਆਰਡਰ ਪੁਸ਼ਟੀ ਅਤੇ ਸਥਿਤੀ ਅੱਪਡੇਟ</string>
     <string name="notification_rationale_point_delivery">ਡਿਲੀਵਰੀ ਬੇਨਤੀਆਂ ਅਤੇ ਲਾਈਵ ਡਿਲੀਵਰੀ ਅੱਪਡੇਟ</string>
     <string name="notification_rationale_point_alerts">ਆਫ਼ਰ ਅਤੇ ਜ਼ਰੂਰੀ ਦੁਕਾਨ ਅਲਰਟ</string>
@@ -1000,7 +1000,7 @@
     <string name="partner_location_access_reason_eta">ਗਾਹਕਾਂ ਨੂੰ ਪਹੁੰਚਣ ਦਾ ਸਹੀ ਸਮਾਂ ਦੱਸੋ</string>
     <string name="partner_location_access_action">ਇਜਾਜ਼ਤ ਦਿਓ ਅਤੇ ਮੌਜੂਦਾ ਲੋਕੇਸ਼ਨ ਵਰਤੋ</string>
     <string name="partner_location_access_continue">ਹੋਮ \'ਤੇ ਜਾਰੀ ਰੱਖੋ</string>
-    <string name="partner_location_permission_denied_message">ਨੇੜਲੀਆਂ ਡਿਲੀਵਰੀਆਂ ਸੌਂਪਣ ਅਤੇ ਹਰ 2 ਮਿੰਟ ਵਿੱਚ ਤੁਹਾਡੀ ਸਥਿਤੀ ਅੱਪਡੇਟ ਕਰਨ ਲਈ ਪੰਸਾਰੀ ਵਾਲਾ ਨੂੰ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਚਾਹੀਦੀ ਹੈ।\n\nਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਤੋਂ ਬਿਨਾਂ ਤੁਹਾਨੂੰ ਆਲੇ-ਦੁਆਲੇ ਦੇ ਕੰਮ ਨਹੀਂ ਮਿਲਣਗੇ।</string>
+    <string name="partner_location_permission_denied_message">ਨੇੜਲੀਆਂ ਡਿਲੀਵਰੀਆਂ ਸੌਂਪਣ ਅਤੇ ਹਰ 2 ਮਿੰਟ ਵਿੱਚ ਤੁਹਾਡੀ ਸਥਿਤੀ ਅੱਪਡੇਟ ਕਰਨ ਲਈ ਜਨਸ਼ੋ ਨੂੰ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਚਾਹੀਦੀ ਹੈ।\n\nਲੋਕੇਸ਼ਨ ਪਹੁੰਚ ਤੋਂ ਬਿਨਾਂ ਤੁਹਾਨੂੰ ਆਲੇ-ਦੁਆਲੇ ਦੇ ਕੰਮ ਨਹੀਂ ਮਿਲਣਗੇ।</string>
     <string name="error_phone_required">ਫ਼ੋਨ ਨੰਬਰ ਲੋੜੀਂਦਾ ਹੈ</string>
     <string name="error_photos_required">ਕਿਰਪਾ ਕਰਕੇ ਸਾਰੇ ਲੋੜੀਂਦੇ ਦਸਤਾਵੇਜ਼ ਅਪਲੋਡ ਕਰੋ</string>
     <string name="partner_action_sign_up">ਸਾਈਨ ਅੱਪ ਕਰੋ</string>
@@ -1144,7 +1144,7 @@
     <string name="printer_error_nothing_to_print">ਅਜੇ ਪ੍ਰਿੰਟ ਕਰਨ ਲਈ ਕੁਝ ਨਹੀਂ।</string>
     <string name="printer_action_grant_permission">ਇਜਾਜ਼ਤ ਦਿਓ</string>
     <string name="printer_action_enable_bluetooth">ਬਲੂਟੁੱਥ ਚਾਲੂ ਕਰੋ</string>
-    <string name="external_print_printer_name">ਪੰਸਾਰੀ ਰਸੀਦ ਪ੍ਰਿੰਟਰ</string>
+    <string name="external_print_printer_name">ਜਨਸ਼ੋ ਰਸੀਦ ਪ੍ਰਿੰਟਰ</string>
     <string name="external_print_resolution">203 dpi</string>
     <string name="external_print_sending">ਪ੍ਰਿੰਟਰ ਨੂੰ ਭੇਜਿਆ ਜਾ ਰਿਹਾ ਹੈ…</string>
     <string name="external_print_done">ਪ੍ਰਿੰਟਰ ਨੂੰ ਭੇਜਿਆ ਗਿਆ</string>
@@ -1423,7 +1423,7 @@
     <string name="staff_disabled">ਬੰਦ</string>
     <string name="staff_access_title">ਪਹੁੰਚ</string>
     <string name="staff_delete_confirm">%1$s ਦਾ ਲੌਗਇਨ ਮਿਟਾਉਣਾ ਹੈ?</string>
-    <string name="staff_managed_by_master">ਐਡਮਿਨ ਲੌਗਇਨ · ਪੰਸਾਰੀ ਵਾਲਾ ਵੱਲੋਂ ਪ੍ਰਬੰਧਿਤ</string>
+    <string name="staff_managed_by_master">ਐਡਮਿਨ ਲੌਗਇਨ · ਜਨਸ਼ੋ ਵੱਲੋਂ ਪ੍ਰਬੰਧਿਤ</string>
     <string name="perm_admin">ਪੂਰੀ ਐਡਮਿਨ ਪਹੁੰਚ</string>
     <string name="perm_billing">ਬਿਲਿੰਗ ਅਤੇ ਆਰਡਰ ਬਣਾਉਣਾ</string>
     <string name="perm_online_orders">ਆਨਲਾਈਨ ਆਰਡਰ</string>
@@ -1703,7 +1703,7 @@
     <string name="scanner_upsell_pricing">ਬਾਰਕੋਡ ਸਕੈਨਰ ਵਾਲੇ ਪਲਾਨ</string>
     <string name="scanner_upsell_plan_price">%1$s / ਮਹੀਨਾ · %2$s / ਸਾਲ</string>
     <string name="scanner_upsell_cta">ਪਲਾਨ ਦੇਖੋ ਅਤੇ ਸਬਸਕ੍ਰਾਈਬ ਕਰੋ</string>
-    <string name="scanner_upsell_contact">ਆਪਣੀ ਦੁਕਾਨ ਲਈ ਇਹ ਫ਼ੀਚਰ ਚਾਲੂ ਕਰਨ ਲਈ ਪੰਸਾਰੀ ਸਪੋਰਟ ਨੂੰ ਕਹੋ।</string>
+    <string name="scanner_upsell_contact">ਆਪਣੀ ਦੁਕਾਨ ਲਈ ਇਹ ਫ਼ੀਚਰ ਚਾਲੂ ਕਰਨ ਲਈ ਜਨਸ਼ੋ ਸਪੋਰਟ ਨੂੰ ਕਹੋ।</string>
     <string name="pos_cart_bar_items">%1$d ਆਈਟਮਾਂ</string>
     <string name="pos_view_cart">ਕਾਰਟ ਦੇਖੋ</string>
     <string name="pos_category_all">ਸਾਰੇ (%1$d)</string>
@@ -1717,7 +1717,7 @@
     <string name="sub_model_monthly">ਮਾਸਿਕ ਸਬਸਕ੍ਰਿਪਸ਼ਨ</string>
     <string name="sub_model_yearly">ਸਾਲਾਨਾ ਸਬਸਕ੍ਰਿਪਸ਼ਨ</string>
     <string name="sub_model_commission">ਵਿਕਰੀ \'ਤੇ ਕਮਿਸ਼ਨ</string>
-    <string name="sub_model_free">ਮੁਫ਼ਤ (ਪੰਸਾਰੀ ਵੱਲੋਂ ਦਿੱਤਾ)</string>
+    <string name="sub_model_free">ਮੁਫ਼ਤ (ਜਨਸ਼ੋ ਵੱਲੋਂ ਦਿੱਤਾ)</string>
     <string name="sub_current_plan">ਮੌਜੂਦਾ ਪਲਾਨ</string>
     <string name="sub_plan_name">ਪਲਾਨ: %1$s</string>
     <string name="sub_started_on">ਸ਼ੁਰੂ: %1$s</string>
@@ -1763,7 +1763,7 @@
     <string name="sub_order_discount">ਛੋਟ</string>
     <string name="sub_order_channel">%1$s · %2$s</string>
     <string name="feature_barcode_scanner">ਬਾਰਕੋਡ ਸਕੈਨਰ (ਕੈਮਰਾ)</string>
-    <string name="profile_features_master_managed">ਫ਼ੀਚਰ ਪੰਸਾਰੀ ਮਾਸਟਰ ਵੱਲੋਂ ਚਾਲੂ ਜਾਂ ਬੰਦ ਕੀਤੇ ਜਾਂਦੇ ਹਨ</string>
+    <string name="profile_features_master_managed">ਫ਼ੀਚਰ ਜਨਸ਼ੋ ਮਾਸਟਰ ਵੱਲੋਂ ਚਾਲੂ ਜਾਂ ਬੰਦ ਕੀਤੇ ਜਾਂਦੇ ਹਨ</string>
     <string name="master_nav_subscriptions">ਸਬਸਕ੍ਰਿਪਸ਼ਨ</string>
     <string name="master_plans_title">ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਪਲਾਨ</string>
     <string name="master_plan_add">ਪਲਾਨ ਜੋੜੋ</string>
@@ -1997,7 +1997,7 @@
     <string name="closure_pending_body">ਇਹ ਖਾਤਾ %1$s ਨੂੰ ਬੰਦ ਹੋ ਜਾਵੇਗਾ। ਤੁਸੀਂ ਅਜੇ ਵੀ ਇਸ ਨੂੰ ਰੋਕ ਸਕਦੇ ਹੋ।</string>
     <string name="closure_cancel">ਮੇਰਾ ਖਾਤਾ ਬੰਦ ਨਾ ਕਰੋ</string>
     <string name="more_welcome_title">ਮੁੜ ਜੀ ਆਇਆਂ ਨੂੰ!</string>
-    <string name="more_welcome_body">ਪੰਸਾਰੀ ਵਾਲਾ ਨਾਲ ਬਣੇ ਰਹਿਣ ਲਈ ਧੰਨਵਾਦ। ਤੁਹਾਡਾ ਖਾਤਾ ਸੁਰੱਖਿਅਤ ਹੈ ਅਤੇ ਸਭ ਕੁਝ ਉਵੇਂ ਹੀ ਹੈ ਜਿਵੇਂ ਤੁਸੀਂ ਛੱਡਿਆ ਸੀ।</string>
+    <string name="more_welcome_body">ਜਨਸ਼ੋ ਨਾਲ ਬਣੇ ਰਹਿਣ ਲਈ ਧੰਨਵਾਦ। ਤੁਹਾਡਾ ਖਾਤਾ ਸੁਰੱਖਿਅਤ ਹੈ ਅਤੇ ਸਭ ਕੁਝ ਉਵੇਂ ਹੀ ਹੈ ਜਿਵੇਂ ਤੁਸੀਂ ਛੱਡਿਆ ਸੀ।</string>
     <string name="more_welcome_loyal">ਤੁਹਾਡੇ ਵਰਗਾ ਵਫ਼ਾਦਾਰ ਗਾਹਕ ਪਾ ਕੇ ਅਸੀਂ ਖੁਸ਼ਕਿਸਮਤ ਹਾਂ।</string>
     <string name="more_welcome_action">ਖਰੀਦਦਾਰੀ ਜਾਰੀ ਰੱਖੋ</string>
     <string name="spend_report_title">ਖਰਚ ਰਿਪੋਰਟ</string>
@@ -2466,7 +2466,7 @@
     <string name="finder_scan_cd">ਬਾਰਕੋਡ ਸਕੈਨ ਕਰੋ</string>
     <string name="finder_scan_hint">ਕੈਮਰਾ ਉਤਪਾਦ ਦੇ ਬਾਰਕੋਡ ਵੱਲ ਕਰੋ</string>
     <string name="finder_voice_hint">ਉਤਪਾਦ, ਬ੍ਰਾਂਡ ਜਾਂ ਸ਼੍ਰੇਣੀ ਬੋਲੋ…</string>
-    <string name="web_exit_title">ਪੰਸਾਰੀ ਵਾਲਾ ਤੋਂ ਬਾਹਰ ਜਾਣਾ ਹੈ?</string>
+    <string name="web_exit_title">ਜਨਸ਼ੋ ਤੋਂ ਬਾਹਰ ਜਾਣਾ ਹੈ?</string>
     <string name="web_exit_message">ਤੁਸੀਂ ਹੋਮ ਸਕ੍ਰੀਨ \'ਤੇ ਹੋ। ਪਿੱਛੇ ਜਾਣ ਨਾਲ ਐਪ ਬੰਦ ਹੋ ਜਾਵੇਗੀ।</string>
     <string name="web_exit_confirm">ਬਾਹਰ ਜਾਓ</string>
     <string name="web_exit_cancel">ਇੱਥੇ ਰਹੋ</string>
@@ -2559,12 +2559,12 @@
     <string name="notify_ready_pickup_body">%1$s ਤੇ ਤੁਹਾਡਾ ਆਰਡਰ ਤਿਆਰ ਹੈ। ਲੈਣ ਲਈ ਕਾਊਂਟਰ ਤੇ OTP ਦਿਖਾਓ।</string>
     <string name="udhaar_auto_title">ਉਧਾਰ ਯਾਦ-ਦਹਾਨੀਆਂ</string>
     <string name="udhaar_auto_label">ਆਟੋਮੈਟਿਕ ਯਾਦ-ਦਹਾਨੀ</string>
-    <string name="udhaar_auto_hint">ਪੰਸਾਰੀ ਵਾਲਾ ਤੈਅ ਸਮੇਂ ਤੇ ਉਧਾਰ ਲੈਣ ਵਾਲਿਆਂ ਨੂੰ ਬਕਾਇਆ ਯਾਦ ਕਰਾਉਂਦਾ ਹੈ, ਸਿਰਫ਼ ਸਵੇਰੇ 10 ਤੋਂ ਰਾਤ 8 ਵਜੇ ਤੱਕ। ਘੱਟੋ-ਘੱਟ ਰਕਮ ਤੋਂ ਘੱਟ ਬਕਾਏ ਵਾਲਿਆਂ ਨੂੰ ਛੱਡ ਦਿੱਤਾ ਜਾਂਦਾ ਹੈ। ਉਧਾਰ ਲੈਣ ਵਾਲੇ ਦੇ ਪੇਜ ਤੋਂ ਹੱਥੀਂ WhatsApp/SMS ਯਾਦ-ਦਹਾਨੀ ਚੱਲਦੀ ਰਹੇਗੀ।</string>
+    <string name="udhaar_auto_hint">ਜਨਸ਼ੋ ਤੈਅ ਸਮੇਂ ਤੇ ਉਧਾਰ ਲੈਣ ਵਾਲਿਆਂ ਨੂੰ ਬਕਾਇਆ ਯਾਦ ਕਰਾਉਂਦਾ ਹੈ, ਸਿਰਫ਼ ਸਵੇਰੇ 10 ਤੋਂ ਰਾਤ 8 ਵਜੇ ਤੱਕ। ਘੱਟੋ-ਘੱਟ ਰਕਮ ਤੋਂ ਘੱਟ ਬਕਾਏ ਵਾਲਿਆਂ ਨੂੰ ਛੱਡ ਦਿੱਤਾ ਜਾਂਦਾ ਹੈ। ਉਧਾਰ ਲੈਣ ਵਾਲੇ ਦੇ ਪੇਜ ਤੋਂ ਹੱਥੀਂ WhatsApp/SMS ਯਾਦ-ਦਹਾਨੀ ਚੱਲਦੀ ਰਹੇਗੀ।</string>
     <string name="udhaar_auto_every">ਹਰ ਇੰਨੇ ਦਿਨਾਂ ਬਾਅਦ ਯਾਦ ਕਰਾਓ</string>
     <string name="udhaar_auto_every_days">%1$d ਦਿਨ</string>
     <string name="udhaar_auto_min_due">ਸਿਰਫ਼ ਜਦੋਂ ਬਕਾਇਆ ਘੱਟੋ-ਘੱਟ ਹੋਵੇ</string>
     <string name="udhaar_auto_app">ਐਪ ਸੂਚਨਾ</string>
-    <string name="udhaar_auto_app_hint">ਮੁਫ਼ਤ। ਉਸੇ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਪੰਸਾਰੀ ਵਾਲਾ ਐਪ ਵਰਤਣ ਵਾਲਿਆਂ ਨੂੰ ਭੇਜੀ ਜਾਂਦੀ ਹੈ; ਟੈਪ ਕਰਨ ਤੇ ਬਕਾਇਆ ਖੁੱਲ੍ਹਦਾ ਹੈ ਤਾਂ ਜੋ ਭੁਗਤਾਨ ਕਰ ਸਕਣ।</string>
+    <string name="udhaar_auto_app_hint">ਮੁਫ਼ਤ। ਉਸੇ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਜਨਸ਼ੋ ਐਪ ਵਰਤਣ ਵਾਲਿਆਂ ਨੂੰ ਭੇਜੀ ਜਾਂਦੀ ਹੈ; ਟੈਪ ਕਰਨ ਤੇ ਬਕਾਇਆ ਖੁੱਲ੍ਹਦਾ ਹੈ ਤਾਂ ਜੋ ਭੁਗਤਾਨ ਕਰ ਸਕਣ।</string>
     <string name="udhaar_auto_sms">SMS</string>
     <string name="udhaar_auto_whatsapp">WhatsApp</string>
     <string name="udhaar_auto_paid_badge">ਖਰਚਾ ਲੱਗੇਗਾ</string>

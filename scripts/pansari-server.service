@@ -1,5 +1,5 @@
 [Unit]
-Description=Pansari Wala API
+Description=Jansho API
 After=network.target
 
 [Service]

@@ -12,6 +12,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="jansho" android:host="payment" />
                 <data android:scheme="pansariwala" android:host="payment" />
             </intent-filter>
         </activity>

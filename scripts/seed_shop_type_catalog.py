@@ -434,7 +434,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("assign-categories")
-    p.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.pansariwala.shop"))
+    p.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.jansho.com"))
     p.add_argument("--apply", action="store_true")
     for name in ("validate", "images", "import"):
         p = sub.add_parser(name)
@@ -443,7 +443,7 @@ def main():
             p.add_argument("--refresh", action="store_true", help="search again for cached products")
             p.add_argument("--workers", type=int, default=8)
         if name == "import":
-            p.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.pansariwala.shop"))
+            p.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.jansho.com"))
             p.add_argument("--workers", type=int, default=4)
             p.add_argument("--apply", action="store_true", help="write to the server (default: dry run)")
     args = ap.parse_args()

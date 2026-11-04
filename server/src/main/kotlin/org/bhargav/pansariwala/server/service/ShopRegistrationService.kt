@@ -180,7 +180,7 @@ class ShopRegistrationService(
 
     private fun reminderSms(draft: ShopRegistrationDraftDto): String {
         val shop = draft.shopName.ifBlank { "your shop" }
-        return "Pansari Wala: registration of $shop is almost done. Continue at https://pansariwala.shop/pos/register"
+        return "Jansho: registration of $shop is almost done. Continue at https://jansho.com/pos/register"
     }
 
     private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {

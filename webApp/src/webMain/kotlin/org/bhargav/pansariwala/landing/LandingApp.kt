@@ -53,7 +53,7 @@ import pansariwala.shared.generated.resources.landing_signup
 import pansariwala.shared.generated.resources.landing_user_about
 import pansariwala.shared.generated.resources.landing_user_how
 import pansariwala.shared.generated.resources.landing_user_title
-import pansariwala.shared.generated.resources.pansariwala_logo
+import pansariwala.shared.generated.resources.jansho_logo
 import pansariwala.shared.generated.resources.shot_partner_duty
 import pansariwala.shared.generated.resources.shot_partner_nav
 import pansariwala.shared.generated.resources.shot_partner_offer
@@ -80,7 +80,7 @@ fun LandingApp() {
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Image(
-                painter = painterResource(Res.drawable.pansariwala_logo),
+                painter = painterResource(Res.drawable.jansho_logo),
                 contentDescription = stringResource(Res.string.app_name),
                 modifier = Modifier.size(120.dp).clip(RoundedCornerShape(24.dp)),
                 contentScale = ContentScale.Fit,

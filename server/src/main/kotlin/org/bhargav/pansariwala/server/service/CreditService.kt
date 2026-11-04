@@ -347,7 +347,7 @@ class CreditService(
                     customerId = customerId,
                     customerName = customer?.name.orEmpty(),
                     customerPhone = phone,
-                    note = "Pansari udhaar ${shop.name} $id",
+                    note = "Jansho udhaar ${shop.name} $id",
                     expiresAtMs = expiresAt,
                 )
             }.onFailure { println("Cashfree repayment intent failed for $gatewayOrderId: ${it.message}") }.getOrNull()
@@ -437,7 +437,7 @@ class CreditService(
     private fun upiPayUri(payee: String, payeeName: String, amountInr: Double, ref: String): String {
         fun enc(v: String) = java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")
         val amount = String.format(java.util.Locale.US, "%.2f", amountInr)
-        return "upi://pay?pa=${enc(payee)}&pn=${enc(payeeName.take(40))}&am=$amount&cu=INR&tr=${enc(ref)}&tn=${enc("Pansari udhaar $ref")}"
+        return "upi://pay?pa=${enc(payee)}&pn=${enc(payeeName.take(40))}&am=$amount&cu=INR&tr=${enc(ref)}&tn=${enc("Jansho udhaar $ref")}"
     }
 
     /** App's report after the UPI app returns; Cashfree repayments trust only the gateway for success. */

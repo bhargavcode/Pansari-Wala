@@ -18,7 +18,7 @@ import pansariwala.shared.generated.resources.notif_channel_description
 import org.koin.core.component.inject
 
 private const val DEFAULT_CHANNEL_ID = "pansari_default"
-private const val DEFAULT_CHANNEL_NAME = "Pansari Wala"
+private const val DEFAULT_CHANNEL_NAME = "Jansho"
 private const val EXTRA_ORDER_ID = "order_id"
 private const val EXTRA_NOTIFICATION_TYPE = "notification_type"
 

@@ -50,23 +50,23 @@ android {
         create("pos") {
             dimension = "product"
             applicationId = "org.bhargav.pansariwala"
-            resValue("string", "app_name", "Pansari PoS")
+            resValue("string", "app_name", "Jansho PoS")
             buildConfigField("String", "APP_PRODUCT", "\"POS\"")
         }
         create("user") {
             dimension = "product"
             applicationId = "org.bhargav.pansariwala.user"
-            resValue("string", "app_name", "Pansari Market")
+            resValue("string", "app_name", "Jansho")
             buildConfigField("String", "APP_PRODUCT", "\"USER\"")
         }
         create("delivery") {
             dimension = "product"
             applicationId = "org.bhargav.pansariwala.delivery"
-            resValue("string", "app_name", "Pansari Partner")
+            resValue("string", "app_name", "Jansho Partner")
             buildConfigField("String", "APP_PRODUCT", "\"DELIVERY\"")
         }
     }
-    val defaultApiBaseUrl = "https://api.pansariwala.shop"
+    val defaultApiBaseUrl = "https://api.jansho.com"
     // Retired EC2 IPs: a stale CI secret / IDE env must never ship (connect timeouts on every flavor).
     val legacyApiHosts = listOf("35.172.232.196", "52.1.25.27")
     val apiBaseUrl = listOf(
@@ -157,5 +157,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    lint {
+        // lintVital adds minutes per release APK on CI; run lint locally instead.
+        checkReleaseBuilds = !providers.environmentVariable("CI").isPresent
     }
 }

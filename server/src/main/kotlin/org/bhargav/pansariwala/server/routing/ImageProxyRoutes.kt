@@ -46,7 +46,7 @@ fun Route.imageProxyRoutes() {
             proxyClient.send(
                 HttpRequest.newBuilder(uri)
                     .timeout(Duration.ofSeconds(20))
-                    .header("User-Agent", "PansariWala-image-proxy/1.0")
+                    .header("User-Agent", "Jansho-image-proxy/1.0")
                     .header("Accept", "image/*")
                     .GET()
                     .build(),

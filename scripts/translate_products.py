@@ -1497,7 +1497,7 @@ def main():
     p.add_argument("--limit", type=int, default=30)
     p.add_argument("--name", default="")
     a = sub.add_parser("apply")
-    a.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.pansariwala.shop"))
+    a.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.jansho.com"))
     a.add_argument("--overwrite", action="store_true", help="replace existing translations too")
     a.add_argument("--skip-shops", action="store_true", help="master catalog only")
     args = ap.parse_args()

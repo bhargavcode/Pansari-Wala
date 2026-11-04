@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run ON the EC2 box (or via ssh). Fixes CORS preflight for api.pansariwala.shop.
+# Run ON the EC2 box (or via ssh). Fixes CORS preflight for api.jansho.com.
 set -euo pipefail
 
-DOMAIN="${1:-pansariwala.shop}"
+DOMAIN="${1:-jansho.com}"
 CONF="/etc/nginx/conf.d/pansariwala.conf"
 
 if [[ ! -f "$CONF" ]]; then

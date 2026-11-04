@@ -46,7 +46,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from PIL import Image
 
-USER_AGENT = "PansariWala-catalog-seed/2.0 (master catalog import; admin@pansariwala.shop)"
+USER_AGENT = "PansariWala-catalog-seed/2.0 (master catalog import; admin@jansho.com)"
 OFF_SEARCH_URL = "https://search.openfoodfacts.org/search"
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".catalog-cache")
 CACHE_FILE = os.path.join(CACHE_DIR, "catalog_v2.json")
@@ -1484,7 +1484,7 @@ def main():
     sub.add_parser("rebuild", help="re-classify the cached raw fetch without network")
     for name in ("import", "reimport", "recategorize", "cleanup", "packify", "group", "enrich"):
         p = sub.add_parser(name)
-        p.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.pansariwala.shop"))
+        p.add_argument("--api", default=os.environ.get("PANSARI_API", "https://api.jansho.com"))
         if name in ("import", "reimport", "enrich"):
             p.add_argument("--limit", type=int, default=0, help="max products this run (0 = all)")
         if name in ("import", "reimport"):

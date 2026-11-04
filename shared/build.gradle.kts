@@ -17,6 +17,7 @@ room {
 
 compose.resources {
     publicResClass = true
+    packageOfResClass = "pansariwala.shared.generated.resources"
 }
 
 kotlin {

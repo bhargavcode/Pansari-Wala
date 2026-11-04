@@ -24,11 +24,11 @@ server_enabled = true
 
 | Job | Output |
 |---|---|
-| **android** | 6 APKs: pos/user/delivery × debug/release → artifact `android-apks` |
-| **web** | JS browser dist → artifact `web-js-dist` |
-| **server** | Fat JAR `pansari-server-all.jar` → artifact `pansari-server-jar` |
-| **deploy-server** | SCP JAR to EC2 + `systemctl restart` (skips if EC2 secrets missing) |
-| **deploy-web** | SCP JS dist to EC2 web root + `nginx reload` (skips if EC2 secrets missing) |
+| **android** | Matrix of 3 parallel jobs (pos/user/delivery), each debug + release → artifact `android-apks-<flavor>`; release APK pushed to Firebase App Distribution in the same job |
+| **web** | JS browser dist → artifact `web-js-dist`, then SCP to EC2 web root + `nginx reload` (skips if EC2 secrets missing) |
+| **server** | Fat JAR `pansari-server-all.jar` → artifact `pansari-server-jar`, then SCP to EC2 + `systemctl restart` (skips if EC2 secrets missing) |
+
+Release `lintVital` is skipped on CI (`CI` env var) to keep runs ≲5 min; run lint locally.
 | **ios** | Placeholder only — runs only when dispatch `build_ios=true` (exits until implemented) |
 
 ## Your environment (Pansari)
@@ -39,8 +39,8 @@ server_enabled = true
 | EC2 user | `ec2-user` |
 | Deploy path | `/opt/pansari` |
 | Service | `pansari-server` |
-| API (release APKs) | `https://api.pansariwala.shop` |
-| Web (marketing + admin) | `https://pansariwala.shop` |
+| API (release APKs) | `https://api.jansho.com` |
+| Web (marketing + admin) | `https://jansho.com` |
 
 Bootstrap on the instance (Amazon Linux):
 
@@ -59,7 +59,7 @@ Repo → **Settings → Secrets and variables → Actions**
 
 | Secret | Value |
 |---|---|
-| `API_BASE_URL` | `https://api.pansariwala.shop` (debug + release; all platforms) |
+| `API_BASE_URL` | `https://api.jansho.com` (debug + release; all platforms) |
 | `ANDROID_KEYSTORE_BASE64` | `base64 -i your.keystore \| pbcopy` (macOS) |
 | `ANDROID_KEYSTORE_PASSWORD` | keystore password |
 | `ANDROID_KEY_ALIAS` | key alias |
@@ -71,8 +71,8 @@ Without keystore secrets, **release** builds are unsigned locally; CI requires `
 
 | Build type | Keystore | API URL |
 |---|---|---|
-| **debug** | debug / Firebase-matching if jks present | `https://api.pansariwala.shop` |
-| **release** | `pansariwala.jks` (production) | `https://api.pansariwala.shop` (`API_BASE_URL` secret/env override) |
+| **debug** | debug / Firebase-matching if jks present | `https://api.jansho.com` |
+| **release** | `pansariwala.jks` (production) | `https://api.jansho.com` (`API_BASE_URL` secret/env override) |
 
 CI keeps the **latest 5** artifact sets per type (`android-apks-*`, `web-js-dist-*`, `pansari-server-jar-*`); older runs are deleted automatically.
 

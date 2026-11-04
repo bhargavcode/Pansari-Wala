@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Brand -->
-    <string name="app_name">Pansari Wala</string>
+    <string name="app_name">Jansho</string>
     <string name="app_tagline">Point of Sale</string>
     <string name="app_tagline_login">Grocery POS for shop &amp; tablet</string>
     <string name="brand_tagline_market">Apka apna market</string>
-    <string name="landing_about_title">About Pansari Wala</string>
-    <string name="landing_about_body">Pansari Wala connects local kirana shops with nearby customers and delivery partners. Shop owners run PoS and inventory, customers order with voice search, and partners deliver with live tracking — no credentials or secrets are shown on this site.</string>
-    <string name="landing_user_title">Pansari User</string>
+    <string name="landing_about_title">About Jansho</string>
+    <string name="landing_about_body">Jansho connects local kirana shops with nearby customers and delivery partners. Shop owners run PoS and inventory, customers order with voice search, and partners deliver with live tracking — no credentials or secrets are shown on this site.</string>
+    <string name="landing_user_title">Jansho User</string>
     <string name="landing_user_about">Order from neighbourhood shops, search by voice, pay securely, and track delivery to your door.</string>
     <string name="landing_user_how">Pick a shop → voice or text search → cart &amp; pay → live partner tracking → OTP delivery.</string>
     <string name="landing_delivery_title">Delivery Partner</string>
@@ -401,7 +401,7 @@
     <string name="pos_payment_card">Card</string>
     <string name="pos_payment_udhaar">Udhaar</string>
     <string name="pos_udhaar_title">Give on Udhaar (credit)</string>
-    <string name="pos_udhaar_hint">The amount is added to this customer\'s due. They can repay at the shop or from the Pansari Wala app with the same mobile number.</string>
+    <string name="pos_udhaar_hint">The amount is added to this customer\'s due. They can repay at the shop or from the Jansho app with the same mobile number.</string>
     <string name="pos_udhaar_phone">Customer mobile number</string>
     <string name="pos_udhaar_name">Customer name</string>
     <string name="pos_udhaar_confirm">Add %1$s to Udhaar</string>
@@ -610,7 +610,7 @@
     <string name="tab_market">Market</string>
     <string name="tab_account">Account</string>
     <string name="tab_user_settings">Settings</string>
-    <string name="user_brand_title">Pansari Wala</string>
+    <string name="user_brand_title">Jansho</string>
     <string name="user_onboarding_tagline">Groceries from your trusted local kirana, delivered to your door</string>
     <string name="user_onboarding_highlight_nearby">Nearby shops</string>
     <string name="user_onboarding_highlight_fast">Fast delivery</string>
@@ -627,13 +627,13 @@
     <string name="location_confirm_address">Confirm address</string>
     <string name="location_current_address">Current address</string>
     <string name="location_permission_denied_title">Location access required</string>
-    <string name="location_permission_denied_message">Pansari Wala needs your precise location to pin you on the map, match nearby delivery jobs, and keep customers updated while you are online.\n\nWithout location access you may miss offers and your live position will not update.</string>
+    <string name="location_permission_denied_message">Jansho needs your precise location to pin you on the map, match nearby delivery jobs, and keep customers updated while you are online.\n\nWithout location access you may miss offers and your live position will not update.</string>
     <string name="location_permission_retry">Allow location</string>
     <string name="location_permission_open_settings">Open app settings</string>
     <string name="location_permission_web_hint">In your browser, open the site permission menu (lock icon in the address bar) and set Location to Allow, then tap Allow location again.</string>
     <string name="location_unavailable">Unable to get GPS fix. Turn on location services and try again.</string>
     <string name="location_services_off_title">Turn on location</string>
-    <string name="location_services_off_message">Your phone\'s location (GPS) is turned off. Pansari Wala needs it to show shops near you and fill your delivery address.</string>
+    <string name="location_services_off_message">Your phone\'s location (GPS) is turned off. Jansho needs it to show shops near you and fill your delivery address.</string>
     <string name="location_services_turn_on">Turn on location</string>
     <string name="shop_offers_active_one">1 active offer</string>
     <string name="shop_offers_active">%1$d active offers</string>
@@ -647,13 +647,13 @@
     <string name="shop_offers_browse_shop">Shop at this store</string>
     <string name="user_location_access_title">Enable your location</string>
     <string name="user_location_access_subtitle">We use your location to show nearby shops and deliver orders to your door.</string>
-    <string name="user_location_access_reason_shops">Discover Pansari shops within your chosen radius</string>
+    <string name="user_location_access_reason_shops">Discover Jansho shops within your chosen radius</string>
     <string name="user_location_access_reason_delivery">Accurate delivery address and live order tracking</string>
     <string name="user_location_access_reason_offers">See distance, ratings, and open hours for each shop</string>
     <string name="user_location_access_action">Allow &amp; access location</string>
     <string name="user_location_access_continue">Continue to home</string>
     <string name="user_location_coords">Your location: %1$s, %2$s</string>
-    <string name="user_location_permission_denied_message">Pansari Wala needs your precise location to find nearby shops, calculate delivery distance, and keep your address up to date.\n\nWithout location access you will not see shops sorted by distance from you.</string>
+    <string name="user_location_permission_denied_message">Jansho needs your precise location to find nearby shops, calculate delivery distance, and keep your address up to date.\n\nWithout location access you will not see shops sorted by distance from you.</string>
     <string name="order_number_label">Order #%1$s</string>
     <string name="status_pending_acceptance">Pending acceptance</string>
     <string name="market_radius_range">Radius (%1$s km – %2$s km)</string>
@@ -719,7 +719,7 @@
     <string name="profile_payment_header">Profile &amp; payment methods</string>
     <string name="cart_title">Your cart</string>
     <string name="action_proceed_payment">Proceed to payment (%1$s)</string>
-    <string name="checkout_payment_description">Pansari order</string>
+    <string name="checkout_payment_description">Jansho order</string>
     <string name="error_payment_not_verified">Payment could not be verified</string>
     <string name="checkout_razorpay_hint">Pay securely by UPI. Your order is placed once the payment is confirmed.</string>
     <string name="checkout_direct_upi_hint">Pay securely by UPI. Your order is placed once the payment is confirmed.</string>
@@ -969,9 +969,9 @@
     <string name="notify_delivered_body">Order from %1$s was delivered.</string>
     <string name="sync_online">Shop sync</string>
 
-    <!-- Delivery partner flow (PansariWala driver) -->
-    <string name="partner_brand_title">PansariWala</string>
-    <string name="partner_onboarding_title">PansariWala Partner</string>
+    <!-- Delivery partner flow (Jansho driver) -->
+    <string name="partner_brand_title">Jansho</string>
+    <string name="partner_onboarding_title">Jansho Partner</string>
     <string name="partner_onboarding_tagline">Deliver orders from local shops and earn on your own schedule</string>
     <string name="partner_onboarding_highlight_earn">Earn daily</string>
     <string name="partner_onboarding_highlight_flexible">Flexible hours</string>
@@ -1008,14 +1008,14 @@
     <string name="location_address_filled">Address filled from your current location. Please check and edit if needed.</string>
     <string name="error_location_address_not_found">We found your location but could not read the address. Please enter it manually.</string>
     <string name="location_rationale_title">Allow location access</string>
-    <string name="location_rationale_message">Pansari Wala uses your location to:</string>
+    <string name="location_rationale_message">Jansho uses your location to:</string>
     <string name="location_rationale_point_address">Fill your delivery address automatically</string>
     <string name="location_rationale_point_shops">Show shops that deliver near you</string>
     <string name="location_rationale_point_delivery">Help delivery partners reach your door faster</string>
     <string name="location_rationale_footer">Location is used only while you use the app and is never shared publicly. You can change this anytime in your phone Settings.</string>
     <string name="location_rationale_allow">Turn on location access</string>
     <string name="notification_rationale_title">Stay updated with notifications</string>
-    <string name="notification_rationale_message">Allow notifications so Pansari Wala can tell you about:</string>
+    <string name="notification_rationale_message">Allow notifications so Jansho can tell you about:</string>
     <string name="notification_rationale_point_orders">Order confirmations and status updates</string>
     <string name="notification_rationale_point_delivery">Delivery requests and live delivery updates</string>
     <string name="notification_rationale_point_alerts">Offers and important shop alerts</string>
@@ -1029,7 +1029,7 @@
     <string name="partner_location_access_reason_eta">Give customers an accurate arrival time</string>
     <string name="partner_location_access_action">Allow &amp; use current location</string>
     <string name="partner_location_access_continue">Continue to home</string>
-    <string name="partner_location_permission_denied_message">Pansari Wala needs your location to assign nearby deliveries and update your position every 2 minutes.\n\nWithout location access you will not receive jobs around you.</string>
+    <string name="partner_location_permission_denied_message">Jansho needs your location to assign nearby deliveries and update your position every 2 minutes.\n\nWithout location access you will not receive jobs around you.</string>
     <string name="error_phone_required">Phone number is required</string>
     <string name="error_photos_required">Please upload all required documents</string>
     <string name="partner_action_sign_up">Sign Up</string>
@@ -1175,7 +1175,7 @@
     <string name="printer_error_nothing_to_print">Nothing to print yet.</string>
     <string name="printer_action_grant_permission">Grant permission</string>
     <string name="printer_action_enable_bluetooth">Turn on Bluetooth</string>
-    <string name="external_print_printer_name">Pansari receipt printer</string>
+    <string name="external_print_printer_name">Jansho receipt printer</string>
     <string name="external_print_resolution">203 dpi</string>
     <string name="external_print_sending">Sending to printer…</string>
     <string name="external_print_done">Sent to printer</string>
@@ -1477,7 +1477,7 @@
     <string name="staff_disabled">Disabled</string>
     <string name="staff_access_title">Access</string>
     <string name="staff_delete_confirm">Delete login for %1$s?</string>
-    <string name="staff_managed_by_master">Admin login · managed by Pansari Wala</string>
+    <string name="staff_managed_by_master">Admin login · managed by Jansho</string>
     <string name="perm_admin">Full admin access</string>
     <string name="perm_billing">Billing &amp; create orders</string>
     <string name="perm_online_orders">Online orders</string>
@@ -1763,7 +1763,7 @@
     <string name="scanner_upsell_pricing">Plans with Barcode Scanner</string>
     <string name="scanner_upsell_plan_price">%1$s / month · %2$s / year</string>
     <string name="scanner_upsell_cta">View plans &amp; subscribe</string>
-    <string name="scanner_upsell_contact">Ask Pansari support to enable this feature for your shop.</string>
+    <string name="scanner_upsell_contact">Ask Jansho support to enable this feature for your shop.</string>
 
     <!-- POS portrait cart -->
     <string name="pos_cart_bar_items">%1$d items</string>
@@ -1781,7 +1781,7 @@
     <string name="sub_model_monthly">Monthly subscription</string>
     <string name="sub_model_yearly">Yearly subscription</string>
     <string name="sub_model_commission">Commission on sales</string>
-    <string name="sub_model_free">Free (granted by Pansari)</string>
+    <string name="sub_model_free">Free (granted by Jansho)</string>
     <string name="sub_current_plan">Current plan</string>
     <string name="sub_plan_name">Plan: %1$s</string>
     <string name="sub_started_on">Started: %1$s</string>
@@ -1827,7 +1827,7 @@
     <string name="sub_order_discount">Discount</string>
     <string name="sub_order_channel">%1$s · %2$s</string>
     <string name="feature_barcode_scanner">Barcode scanner (camera)</string>
-    <string name="profile_features_master_managed">Features are enabled or disabled by Pansari master</string>
+    <string name="profile_features_master_managed">Features are enabled or disabled by Jansho master</string>
 
     <!-- Master: subscriptions -->
     <string name="master_nav_subscriptions">Subscriptions</string>
@@ -2068,7 +2068,7 @@
     <string name="closure_pending_body">This account will be closed on %1$s. You can still stop it.</string>
     <string name="closure_cancel">Don\'t close my account</string>
     <string name="more_welcome_title">Welcome back!</string>
-    <string name="more_welcome_body">Thank you for staying with Pansari Wala. Your account is safe and everything is just as you left it.</string>
+    <string name="more_welcome_body">Thank you for staying with Jansho. Your account is safe and everything is just as you left it.</string>
     <string name="more_welcome_loyal">We are lucky to have a loyal customer like you.</string>
     <string name="more_welcome_action">Continue shopping</string>
     <!-- User app: spending report -->
@@ -2530,7 +2530,7 @@
     <string name="finder_scan_cd">Scan barcode</string>
     <string name="finder_scan_hint">Point the camera at the product barcode</string>
     <string name="finder_voice_hint">Say a product, brand or category…</string>
-    <string name="web_exit_title">Exit Pansari Wala?</string>
+    <string name="web_exit_title">Exit Jansho?</string>
     <string name="web_exit_message">You are on the home screen. Going back will leave the app.</string>
     <string name="web_exit_confirm">Exit</string>
     <string name="web_exit_cancel">Stay</string>
@@ -2623,12 +2623,12 @@
     <string name="notify_ready_pickup_body">Your order at %1$s is ready. Show your OTP at the counter to collect it.</string>
     <string name="udhaar_auto_title">Udhaar reminders</string>
     <string name="udhaar_auto_label">Automatic reminders</string>
-    <string name="udhaar_auto_hint">Pansari Wala reminds borrowers about their pending udhaar on a schedule, only between 10 AM and 8 PM. Borrowers who owe less than the minimum amount are skipped. Manual WhatsApp/SMS reminders from the borrower page still work.</string>
+    <string name="udhaar_auto_hint">Jansho reminds borrowers about their pending udhaar on a schedule, only between 10 AM and 8 PM. Borrowers who owe less than the minimum amount are skipped. Manual WhatsApp/SMS reminders from the borrower page still work.</string>
     <string name="udhaar_auto_every">Remind every</string>
     <string name="udhaar_auto_every_days">%1$d days</string>
     <string name="udhaar_auto_min_due">Only when due is at least</string>
     <string name="udhaar_auto_app">App notification</string>
-    <string name="udhaar_auto_app_hint">Free. Sent to borrowers who use the Pansari Wala app with the same mobile number; tapping opens their dues so they can pay.</string>
+    <string name="udhaar_auto_app_hint">Free. Sent to borrowers who use the Jansho app with the same mobile number; tapping opens their dues so they can pay.</string>
     <string name="udhaar_auto_sms">SMS</string>
     <string name="udhaar_auto_whatsapp">WhatsApp</string>
     <string name="udhaar_auto_paid_badge">Chargeable</string>

@@ -33,10 +33,11 @@ object NotificationOpenRequests {
         _pending.value = null
     }
 
-    /** `pansariwala://payment/<intentId>` (browser checkout returning to the app) → payment screen. */
+    /** `jansho://payment/<intentId>` (browser checkout returning to the app) → payment screen. */
     fun fromDeepLink(url: String): NotificationOpenRequest? {
-        val prefix = "${AppConstants.DeepLink.SCHEME}://${AppConstants.DeepLink.HOST_PAYMENT}/"
-        if (!url.startsWith(prefix, ignoreCase = true)) return null
+        val prefix = listOf(AppConstants.DeepLink.SCHEME, AppConstants.DeepLink.LEGACY_SCHEME)
+            .map { "$it://${AppConstants.DeepLink.HOST_PAYMENT}/" }
+            .firstOrNull { url.startsWith(it, ignoreCase = true) } ?: return null
         val intentId = url.substring(prefix.length).substringBefore('?').substringBefore('/').trim()
         if (intentId.isEmpty() || !intentId.all { it.isLetterOrDigit() }) return null
         return NotificationOpenRequest(Notification.TYPE_PAYMENT, intentId)

@@ -70,6 +70,10 @@ import org.bhargav.pansariwala.ui.isBlockingLoad
 import org.bhargav.pansariwala.ui.isRefreshing
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.printing.formatPrintDateTime
+import org.bhargav.pansariwala.theme.brandBlue
+import org.bhargav.pansariwala.theme.brandBlueBright
+import org.bhargav.pansariwala.theme.brandOrange
+import org.bhargav.pansariwala.theme.secondaryLight
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -436,14 +440,14 @@ private fun SalesCard(state: DashboardData) {
                 label = stringResource(Res.string.sales_orders),
                 value = state.todaySales.orderCount.toString(),
                 icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                colors = listOf(Color(0xFF3F6FD8), Color(0xFF6B8DF0)),
+                colors = listOf(brandBlue, brandBlueBright),
                 modifier = Modifier.weight(1f),
             )
             GradientStat(
                 label = stringResource(Res.string.sales_revenue),
                 value = state.todaySales.totalValue.asMoney(),
                 icon = Icons.Default.CurrencyRupee,
-                colors = listOf(Color(0xFF1B8A5A), Color(0xFF3DBE84)),
+                colors = listOf(secondaryLight, brandOrange),
                 modifier = Modifier.weight(1f),
             )
         }

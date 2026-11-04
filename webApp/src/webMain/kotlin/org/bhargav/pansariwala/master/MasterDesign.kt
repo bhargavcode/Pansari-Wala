@@ -106,7 +106,7 @@ private fun CustomTheme.label(): StringResource = when (this) {
 }
 
 private fun CustomTheme.swatch(): Color = when (this) {
-    CustomTheme.DEFAULT -> Color(0xFF546524)
+    CustomTheme.DEFAULT -> Color(0xFF0046C8)
     CustomTheme.SAFFRON -> Color(0xFF8B5000)
     CustomTheme.TEAL -> Color(0xFF006A63)
     CustomTheme.ROSE -> Color(0xFFB01E45)

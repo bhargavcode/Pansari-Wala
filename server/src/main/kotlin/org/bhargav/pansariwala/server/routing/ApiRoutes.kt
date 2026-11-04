@@ -109,22 +109,22 @@ import org.bhargav.pansariwala.server.dto.IssueReportCreate
 import org.bhargav.pansariwala.server.dto.IssueResolveRequest
 
 private const val PAYMENT_RETURN_HTML = """<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Pansari Wala</title></head>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Jansho</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:48px 16px">
-<h2>Payment submitted</h2><p>You can close this page and return to the Pansari Wala app.</p></body></html>"""
+<h2>Payment submitted</h2><p>You can close this page and return to the Jansho app.</p></body></html>"""
 
 private const val WEB_CLIENT = "web"
 
-/** User app deep link (`pansariwala://payment/<intentId>`), registered in the user Android/iOS apps. */
-private const val APP_PAYMENT_LINK = "pansariwala://payment/"
+/** User app deep link (`jansho://payment/<intentId>`), registered in the user Android/iOS apps. */
+private const val APP_PAYMENT_LINK = "jansho://payment/"
 
 private fun paymentReturnHtml(intentId: String): String {
     val link = APP_PAYMENT_LINK + intentId
     return """<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Pansari Wala</title></head>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Jansho</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:48px 16px">
-<h2>Returning to Pansari Wala…</h2><p>Your payment status will be shown in the app.</p>
-<p><a href="$link" style="display:inline-block;padding:14px 28px;background:#2e7d32;color:#fff;border-radius:24px;text-decoration:none;font-weight:bold">Open Pansari Wala</a></p>
+<h2>Returning to Jansho…</h2><p>Your payment status will be shown in the app.</p>
+<p><a href="$link" style="display:inline-block;padding:14px 28px;background:#0046C8;color:#fff;border-radius:24px;text-decoration:none;font-weight:bold">Open Jansho</a></p>
 <script>window.location.replace("$link");</script></body></html>"""
 }
 
@@ -1356,12 +1356,12 @@ private fun startOfToday(): Long {
 private fun payLinkPage(link: org.bhargav.pansariwala.server.db.PayLinkDoc?, lang: String, messages: MessageCatalog): String {
     fun esc(v: String) = v.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     val head = """<!doctype html><html lang="$lang"><head><meta charset="utf-8">""" +
-        """<meta name="viewport" content="width=device-width,initial-scale=1"><title>Pansari Wala</title>""" +
+        """<meta name="viewport" content="width=device-width,initial-scale=1"><title>Jansho</title>""" +
         "<style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;" +
-        "justify-content:center;background:linear-gradient(135deg,#546524,#39665F);color:#1b1c18}" +
+        "justify-content:center;background:linear-gradient(135deg,#0046C8,#FE6902);color:#1b1c18}" +
         ".c{background:#fff;border-radius:20px;padding:28px;max-width:360px;width:88%;text-align:center;" +
-        "box-shadow:0 12px 32px rgba(0,0,0,.2)}h1{margin:4px 0 8px;font-size:34px}p{color:#5b6147}" +
-        "a{display:block;margin-top:18px;padding:14px;border-radius:14px;background:#546524;color:#fff;" +
+        "box-shadow:0 12px 32px rgba(0,0,0,.2)}h1{margin:4px 0 8px;font-size:34px}p{color:#44464f}" +
+        "a{display:block;margin-top:18px;padding:14px;border-radius:14px;background:#0046C8;color:#fff;" +
         "text-decoration:none;font-weight:600}</style>"
     if (link == null) {
         return "$head</head><body><div class=\"c\"><p>${esc(messages.localize("This payment link has expired.", lang))}</p></div></body></html>"

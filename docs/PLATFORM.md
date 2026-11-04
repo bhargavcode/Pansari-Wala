@@ -1,4 +1,4 @@
-# Pansari Wala platform
+# Jansho platform
 
 Four products share one Kotlin codebase and one Ktor backend.
 
@@ -77,7 +77,7 @@ Four products share one Kotlin codebase and one Ktor backend.
 | OTP hashes | Mongo `otp_challenges` | SHA-256 of code, 5 min TTL, deleted after use. |
 | Delivery OTP | order row | Shown to customer; partner must match. |
 | Photos | truncated base64 on partner/order rows | **Done:** multipart → S3 URLs (`AssetStore` + `/uploads`); clients store/fetch HTTPS URLs only.
-| Cleartext HTTP | not used for API | All clients use `https://api.pansariwala.shop`. |
+| Cleartext HTTP | not used for API | All clients use `https://api.jansho.com`. |
 
 **Payment rules**
 - Never trust the client “payment success” flag.
@@ -104,7 +104,7 @@ AUTH_DEV_MODE=true MONGODB_PASSWORD='your-db-password' ./gradlew :server:run
 ./gradlew :androidApp:assembleDeliveryDebug
 ```
 
-API base URL is `https://api.pansariwala.shop` for Android (BuildConfig), iOS, and web (debug + release).
+API base URL is `https://api.jansho.com` for Android (BuildConfig), iOS, and web (debug + release).
 
 Dev customer OTP: **123456**. Seed shops: Bhargav Kirana (`shop_1`) near 28.6139, 77.2090.
 

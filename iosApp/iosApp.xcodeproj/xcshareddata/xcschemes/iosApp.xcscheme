@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "6F81DD3DE4AE1E9E27ABEB29"
-               BuildableName = "Pansari Wala.app"
+               BuildableName = "Jansho.app"
                BlueprintName = "iosApp"
                ReferencedContainer = "container:iosApp.xcodeproj">
             </BuildableReference>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "6F81DD3DE4AE1E9E27ABEB29"
-            BuildableName = "Pansari Wala.app"
+            BuildableName = "Jansho.app"
             BlueprintName = "iosApp"
             ReferencedContainer = "container:iosApp.xcodeproj">
          </BuildableReference>
@@ -62,7 +62,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "6F81DD3DE4AE1E9E27ABEB29"
-            BuildableName = "Pansari Wala.app"
+            BuildableName = "Jansho.app"
             BlueprintName = "iosApp"
             ReferencedContainer = "container:iosApp.xcodeproj">
          </BuildableReference>

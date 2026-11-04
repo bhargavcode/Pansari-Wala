@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create / configure the public-read assets bucket for Pansari Wala uploads.
+# Create / configure the public-read assets bucket for Jansho uploads.
 # Requires: aws CLI + credentials with s3:CreateBucket, PutBucketPolicy, PutBucketCors, etc.
 #
 # Usage:
@@ -58,9 +58,9 @@ CORS=$(cat <<'EOF'
       "AllowedHeaders": ["*"],
       "AllowedMethods": ["GET", "HEAD"],
       "AllowedOrigins": [
-        "https://pansariwala.shop",
-        "https://www.pansariwala.shop",
-        "https://api.pansariwala.shop",
+        "https://jansho.com",
+        "https://www.jansho.com",
+        "https://api.jansho.com",
         "http://localhost:8080",
         "http://127.0.0.1:8080"
       ],

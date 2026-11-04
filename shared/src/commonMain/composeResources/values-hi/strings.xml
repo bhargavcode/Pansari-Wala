@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">पंसारी वाला</string>
+    <string name="app_name">जनशो</string>
     <string name="app_tagline">पॉइंट ऑफ सेल</string>
     <string name="app_tagline_login">दुकान और टैबलेट के लिए किराना POS</string>
     <string name="brand_tagline_market">आपका अपना मार्केट</string>
-    <string name="landing_about_title">पंसारी वाला के बारे में</string>
-    <string name="landing_about_body">पंसारी वाला स्थानीय किराना दुकानों को आस-पास के ग्राहकों और डिलीवरी पार्टनर से जोड़ता है। दुकान मालिक POS और इन्वेंटरी चलाते हैं, ग्राहक वॉइस सर्च से ऑर्डर करते हैं, और पार्टनर लाइव ट्रैकिंग के साथ डिलीवरी करते हैं — इस साइट पर कोई क्रेडेंशियल या गोपनीय जानकारी नहीं दिखाई जाती।</string>
-    <string name="landing_user_title">पंसारी यूज़र</string>
+    <string name="landing_about_title">जनशो के बारे में</string>
+    <string name="landing_about_body">जनशो स्थानीय किराना दुकानों को आस-पास के ग्राहकों और डिलीवरी पार्टनर से जोड़ता है। दुकान मालिक POS और इन्वेंटरी चलाते हैं, ग्राहक वॉइस सर्च से ऑर्डर करते हैं, और पार्टनर लाइव ट्रैकिंग के साथ डिलीवरी करते हैं — इस साइट पर कोई क्रेडेंशियल या गोपनीय जानकारी नहीं दिखाई जाती।</string>
+    <string name="landing_user_title">जनशो यूज़र</string>
     <string name="landing_user_about">आस-पास की दुकानों से ऑर्डर करें, आवाज़ से खोजें, सुरक्षित भुगतान करें और अपने दरवाज़े तक डिलीवरी ट्रैक करें।</string>
     <string name="landing_user_how">दुकान चुनें → आवाज़ या टेक्स्ट से खोजें → कार्ट और भुगतान → लाइव पार्टनर ट्रैकिंग → OTP डिलीवरी।</string>
     <string name="landing_delivery_title">डिलीवरी पार्टनर</string>
@@ -388,7 +388,7 @@
     <string name="pos_payment_card">कार्ड</string>
     <string name="pos_payment_udhaar">उधार</string>
     <string name="pos_udhaar_title">उधार पर दें (क्रेडिट)</string>
-    <string name="pos_udhaar_hint">यह राशि इस ग्राहक के बकाया में जुड़ जाती है। वे दुकान पर या उसी मोबाइल नंबर से पंसारी वाला ऐप से चुका सकते हैं।</string>
+    <string name="pos_udhaar_hint">यह राशि इस ग्राहक के बकाया में जुड़ जाती है। वे दुकान पर या उसी मोबाइल नंबर से जनशो ऐप से चुका सकते हैं।</string>
     <string name="pos_udhaar_phone">ग्राहक का मोबाइल नंबर</string>
     <string name="pos_udhaar_name">ग्राहक का नाम</string>
     <string name="pos_udhaar_confirm">%1$s उधार में जोड़ें</string>
@@ -585,7 +585,7 @@
     <string name="tab_market">मार्केट</string>
     <string name="tab_account">खाता</string>
     <string name="tab_user_settings">सेटिंग्स</string>
-    <string name="user_brand_title">पंसारी वाला</string>
+    <string name="user_brand_title">जनशो</string>
     <string name="user_onboarding_tagline">आपके भरोसेमंद लोकल किराना से राशन, आपके दरवाज़े तक</string>
     <string name="user_onboarding_highlight_nearby">आस-पास की दुकानें</string>
     <string name="user_onboarding_highlight_fast">तेज़ डिलीवरी</string>
@@ -602,13 +602,13 @@
     <string name="location_confirm_address">पते की पुष्टि करें</string>
     <string name="location_current_address">मौजूदा पता</string>
     <string name="location_permission_denied_title">लोकेशन एक्सेस ज़रूरी है</string>
-    <string name="location_permission_denied_message">आपको मैप पर दिखाने, पास के डिलीवरी काम मिलाने और ऑनलाइन रहते हुए ग्राहकों को अपडेट रखने के लिए पंसारी वाला को आपकी सटीक लोकेशन चाहिए।\n\nलोकेशन एक्सेस के बिना आप ऑफ़र चूक सकते हैं और आपकी लाइव स्थिति अपडेट नहीं होगी।</string>
+    <string name="location_permission_denied_message">आपको मैप पर दिखाने, पास के डिलीवरी काम मिलाने और ऑनलाइन रहते हुए ग्राहकों को अपडेट रखने के लिए जनशो को आपकी सटीक लोकेशन चाहिए।\n\nलोकेशन एक्सेस के बिना आप ऑफ़र चूक सकते हैं और आपकी लाइव स्थिति अपडेट नहीं होगी।</string>
     <string name="location_permission_retry">लोकेशन की अनुमति दें</string>
     <string name="location_permission_open_settings">ऐप सेटिंग्स खोलें</string>
     <string name="location_permission_web_hint">अपने ब्राउज़र में साइट अनुमति मेन्यू खोलें (एड्रेस बार में ताले का आइकन) और लोकेशन को अनुमति दें पर सेट करें, फिर लोकेशन की अनुमति दें पर दोबारा टैप करें।</string>
     <string name="location_unavailable">GPS लोकेशन नहीं मिल सकी। लोकेशन सेवा चालू करें और फिर कोशिश करें।</string>
     <string name="location_services_off_title">लोकेशन चालू करें</string>
-    <string name="location_services_off_message">आपके फ़ोन की लोकेशन (GPS) बंद है। आपके पास की दुकानें दिखाने और डिलीवरी पता भरने के लिए पंसारी वाला को इसकी ज़रूरत है।</string>
+    <string name="location_services_off_message">आपके फ़ोन की लोकेशन (GPS) बंद है। आपके पास की दुकानें दिखाने और डिलीवरी पता भरने के लिए जनशो को इसकी ज़रूरत है।</string>
     <string name="location_services_turn_on">लोकेशन चालू करें</string>
     <string name="shop_offers_active_one">1 सक्रिय ऑफ़र</string>
     <string name="shop_offers_active">%1$d सक्रिय ऑफ़र</string>
@@ -622,13 +622,13 @@
     <string name="shop_offers_browse_shop">इस दुकान से ख़रीदें</string>
     <string name="user_location_access_title">अपनी लोकेशन चालू करें</string>
     <string name="user_location_access_subtitle">हम पास की दुकानें दिखाने और आपके दरवाज़े तक ऑर्डर पहुँचाने के लिए आपकी लोकेशन का उपयोग करते हैं।</string>
-    <string name="user_location_access_reason_shops">अपने चुने दायरे में पंसारी दुकानें खोजें</string>
+    <string name="user_location_access_reason_shops">अपने चुने दायरे में जनशो दुकानें खोजें</string>
     <string name="user_location_access_reason_delivery">सटीक डिलीवरी पता और लाइव ऑर्डर ट्रैकिंग</string>
     <string name="user_location_access_reason_offers">हर दुकान की दूरी, रेटिंग और खुलने का समय देखें</string>
     <string name="user_location_access_action">अनुमति दें और लोकेशन लें</string>
     <string name="user_location_access_continue">होम पर जाएँ</string>
     <string name="user_location_coords">आपकी लोकेशन: %1$s, %2$s</string>
-    <string name="user_location_permission_denied_message">पास की दुकानें खोजने, डिलीवरी दूरी निकालने और आपका पता अपडेट रखने के लिए पंसारी वाला को आपकी सटीक लोकेशन चाहिए।\n\nलोकेशन एक्सेस के बिना आपको दुकानें दूरी के क्रम में नहीं दिखेंगी।</string>
+    <string name="user_location_permission_denied_message">पास की दुकानें खोजने, डिलीवरी दूरी निकालने और आपका पता अपडेट रखने के लिए जनशो को आपकी सटीक लोकेशन चाहिए।\n\nलोकेशन एक्सेस के बिना आपको दुकानें दूरी के क्रम में नहीं दिखेंगी।</string>
     <string name="order_number_label">ऑर्डर #%1$s</string>
     <string name="status_pending_acceptance">स्वीकृति लंबित</string>
     <string name="market_radius_range">दायरा (%1$s किमी – %2$s किमी)</string>
@@ -694,7 +694,7 @@
     <string name="profile_payment_header">प्रोफ़ाइल और भुगतान तरीके</string>
     <string name="cart_title">आपका कार्ट</string>
     <string name="action_proceed_payment">भुगतान के लिए आगे बढ़ें (%1$s)</string>
-    <string name="checkout_payment_description">पंसारी ऑर्डर</string>
+    <string name="checkout_payment_description">जनशो ऑर्डर</string>
     <string name="error_payment_not_verified">भुगतान सत्यापित नहीं हो सका</string>
     <string name="checkout_razorpay_hint">UPI से सुरक्षित भुगतान करें। भुगतान की पुष्टि होते ही आपका ऑर्डर दे दिया जाएगा।</string>
     <string name="checkout_direct_upi_hint">UPI से सुरक्षित भुगतान करें। भुगतान की पुष्टि होते ही आपका ऑर्डर दे दिया जाएगा।</string>
@@ -941,8 +941,8 @@
     <string name="notify_delivered_title">डिलीवर हो गया</string>
     <string name="notify_delivered_body">%1$s का ऑर्डर डिलीवर हो गया।</string>
     <string name="sync_online">दुकान सिंक</string>
-    <string name="partner_brand_title">पंसारीवाला</string>
-    <string name="partner_onboarding_title">पंसारीवाला पार्टनर</string>
+    <string name="partner_brand_title">जनशो</string>
+    <string name="partner_onboarding_title">जनशो पार्टनर</string>
     <string name="partner_onboarding_tagline">लोकल दुकानों से ऑर्डर डिलीवर करें और अपने समय पर कमाएँ</string>
     <string name="partner_onboarding_highlight_earn">रोज़ कमाएँ</string>
     <string name="partner_onboarding_highlight_flexible">लचीले घंटे</string>
@@ -979,14 +979,14 @@
     <string name="location_address_filled">पता आपकी मौजूदा लोकेशन से भरा गया। कृपया जाँचें और ज़रूरत हो तो बदलें।</string>
     <string name="error_location_address_not_found">हमें आपकी लोकेशन मिली लेकिन पता नहीं पढ़ सके। कृपया इसे ख़ुद दर्ज करें।</string>
     <string name="location_rationale_title">लोकेशन एक्सेस की अनुमति दें</string>
-    <string name="location_rationale_message">पंसारी वाला आपकी लोकेशन का उपयोग करता है:</string>
+    <string name="location_rationale_message">जनशो आपकी लोकेशन का उपयोग करता है:</string>
     <string name="location_rationale_point_address">आपका डिलीवरी पता अपने-आप भरने के लिए</string>
     <string name="location_rationale_point_shops">आपके पास डिलीवरी करने वाली दुकानें दिखाने के लिए</string>
     <string name="location_rationale_point_delivery">डिलीवरी पार्टनर को आपके दरवाज़े तक जल्दी पहुँचाने के लिए</string>
     <string name="location_rationale_footer">लोकेशन का उपयोग केवल ऐप चलाते समय होता है और कभी सार्वजनिक नहीं किया जाता। आप इसे कभी भी फ़ोन की सेटिंग्स में बदल सकते हैं।</string>
     <string name="location_rationale_allow">लोकेशन एक्सेस चालू करें</string>
     <string name="notification_rationale_title">सूचनाओं से अपडेट रहें</string>
-    <string name="notification_rationale_message">सूचनाओं की अनुमति दें ताकि पंसारी वाला आपको बता सके:</string>
+    <string name="notification_rationale_message">सूचनाओं की अनुमति दें ताकि जनशो आपको बता सके:</string>
     <string name="notification_rationale_point_orders">ऑर्डर पुष्टि और स्थिति अपडेट</string>
     <string name="notification_rationale_point_delivery">डिलीवरी अनुरोध और लाइव डिलीवरी अपडेट</string>
     <string name="notification_rationale_point_alerts">ऑफ़र और ज़रूरी दुकान अलर्ट</string>
@@ -1000,7 +1000,7 @@
     <string name="partner_location_access_reason_eta">ग्राहकों को पहुँचने का सही समय बताएँ</string>
     <string name="partner_location_access_action">अनुमति दें और मौजूदा लोकेशन का उपयोग करें</string>
     <string name="partner_location_access_continue">होम पर जाएँ</string>
-    <string name="partner_location_permission_denied_message">पास की डिलीवरी असाइन करने और हर 2 मिनट में आपकी स्थिति अपडेट करने के लिए पंसारी वाला को आपकी लोकेशन चाहिए।\n\nलोकेशन एक्सेस के बिना आपको आस-पास के काम नहीं मिलेंगे।</string>
+    <string name="partner_location_permission_denied_message">पास की डिलीवरी असाइन करने और हर 2 मिनट में आपकी स्थिति अपडेट करने के लिए जनशो को आपकी लोकेशन चाहिए।\n\nलोकेशन एक्सेस के बिना आपको आस-पास के काम नहीं मिलेंगे।</string>
     <string name="error_phone_required">फ़ोन नंबर ज़रूरी है</string>
     <string name="error_photos_required">कृपया सभी ज़रूरी दस्तावेज़ अपलोड करें</string>
     <string name="partner_action_sign_up">साइन अप करें</string>
@@ -1144,7 +1144,7 @@
     <string name="printer_error_nothing_to_print">अभी प्रिंट करने को कुछ नहीं।</string>
     <string name="printer_action_grant_permission">अनुमति दें</string>
     <string name="printer_action_enable_bluetooth">ब्लूटूथ चालू करें</string>
-    <string name="external_print_printer_name">पंसारी रसीद प्रिंटर</string>
+    <string name="external_print_printer_name">जनशो रसीद प्रिंटर</string>
     <string name="external_print_resolution">203 dpi</string>
     <string name="external_print_sending">प्रिंटर को भेजा जा रहा है…</string>
     <string name="external_print_done">प्रिंटर को भेजा गया</string>
@@ -1423,7 +1423,7 @@
     <string name="staff_disabled">अक्षम</string>
     <string name="staff_access_title">पहुँच</string>
     <string name="staff_delete_confirm">%1$s का लॉगिन हटाएँ?</string>
-    <string name="staff_managed_by_master">एडमिन लॉगिन · पंसारी वाला द्वारा प्रबंधित</string>
+    <string name="staff_managed_by_master">एडमिन लॉगिन · जनशो द्वारा प्रबंधित</string>
     <string name="perm_admin">पूरी एडमिन पहुँच</string>
     <string name="perm_billing">बिलिंग और ऑर्डर बनाना</string>
     <string name="perm_online_orders">ऑनलाइन ऑर्डर</string>
@@ -1703,7 +1703,7 @@
     <string name="scanner_upsell_pricing">बारकोड स्कैनर वाले प्लान</string>
     <string name="scanner_upsell_plan_price">%1$s / महीना · %2$s / साल</string>
     <string name="scanner_upsell_cta">प्लान देखें और सब्सक्राइब करें</string>
-    <string name="scanner_upsell_contact">अपनी दुकान के लिए यह फ़ीचर चालू करने के लिए पंसारी सपोर्ट से कहें।</string>
+    <string name="scanner_upsell_contact">अपनी दुकान के लिए यह फ़ीचर चालू करने के लिए जनशो सपोर्ट से कहें।</string>
     <string name="pos_cart_bar_items">%1$d आइटम</string>
     <string name="pos_view_cart">कार्ट देखें</string>
     <string name="pos_category_all">सभी (%1$d)</string>
@@ -1717,7 +1717,7 @@
     <string name="sub_model_monthly">मासिक सब्सक्रिप्शन</string>
     <string name="sub_model_yearly">वार्षिक सब्सक्रिप्शन</string>
     <string name="sub_model_commission">बिक्री पर कमीशन</string>
-    <string name="sub_model_free">मुफ़्त (पंसारी द्वारा दिया गया)</string>
+    <string name="sub_model_free">मुफ़्त (जनशो द्वारा दिया गया)</string>
     <string name="sub_current_plan">मौजूदा प्लान</string>
     <string name="sub_plan_name">प्लान: %1$s</string>
     <string name="sub_started_on">शुरू: %1$s</string>
@@ -1763,7 +1763,7 @@
     <string name="sub_order_discount">छूट</string>
     <string name="sub_order_channel">%1$s · %2$s</string>
     <string name="feature_barcode_scanner">बारकोड स्कैनर (कैमरा)</string>
-    <string name="profile_features_master_managed">फ़ीचर पंसारी मास्टर द्वारा चालू या बंद किए जाते हैं</string>
+    <string name="profile_features_master_managed">फ़ीचर जनशो मास्टर द्वारा चालू या बंद किए जाते हैं</string>
     <string name="master_nav_subscriptions">सब्सक्रिप्शन</string>
     <string name="master_plans_title">सब्सक्रिप्शन प्लान</string>
     <string name="master_plan_add">प्लान जोड़ें</string>
@@ -1997,7 +1997,7 @@
     <string name="closure_pending_body">यह खाता %1$s को बंद हो जाएगा। आप अभी भी इसे रोक सकते हैं।</string>
     <string name="closure_cancel">मेरा खाता बंद न करें</string>
     <string name="more_welcome_title">फिर से स्वागत है!</string>
-    <string name="more_welcome_body">पंसारी वाला के साथ बने रहने के लिए धन्यवाद। आपका खाता सुरक्षित है और सब कुछ वैसा ही है जैसा आपने छोड़ा था।</string>
+    <string name="more_welcome_body">जनशो के साथ बने रहने के लिए धन्यवाद। आपका खाता सुरक्षित है और सब कुछ वैसा ही है जैसा आपने छोड़ा था।</string>
     <string name="more_welcome_loyal">आप जैसे वफ़ादार ग्राहक पाकर हम भाग्यशाली हैं।</string>
     <string name="more_welcome_action">ख़रीदारी जारी रखें</string>
     <string name="spend_report_title">ख़र्च रिपोर्ट</string>
@@ -2466,7 +2466,7 @@
     <string name="finder_scan_cd">बारकोड स्कैन करें</string>
     <string name="finder_scan_hint">कैमरा प्रोडक्ट के बारकोड पर रखें</string>
     <string name="finder_voice_hint">प्रोडक्ट, ब्रांड या श्रेणी बोलें…</string>
-    <string name="web_exit_title">पंसारी वाला से बाहर निकलें?</string>
+    <string name="web_exit_title">जनशो से बाहर निकलें?</string>
     <string name="web_exit_message">आप होम स्क्रीन पर हैं। पीछे जाने पर ऐप बंद हो जाएगा।</string>
     <string name="web_exit_confirm">बाहर निकलें</string>
     <string name="web_exit_cancel">यहीं रहें</string>
@@ -2559,12 +2559,12 @@
     <string name="notify_ready_pickup_body">%1$s पर आपका ऑर्डर तैयार है। लेने के लिए काउंटर पर OTP दिखाएँ।</string>
     <string name="udhaar_auto_title">उधार रिमाइंडर</string>
     <string name="udhaar_auto_label">स्वचालित रिमाइंडर</string>
-    <string name="udhaar_auto_hint">पंसारी वाला तय समय पर उधार लेने वालों को बकाया की याद दिलाता है, केवल सुबह 10 से रात 8 बजे के बीच। न्यूनतम राशि से कम बकाया वालों को नहीं भेजा जाता। उधारकर्ता पेज से मैनुअल WhatsApp/SMS रिमाइंडर भी चलते रहेंगे।</string>
+    <string name="udhaar_auto_hint">जनशो तय समय पर उधार लेने वालों को बकाया की याद दिलाता है, केवल सुबह 10 से रात 8 बजे के बीच। न्यूनतम राशि से कम बकाया वालों को नहीं भेजा जाता। उधारकर्ता पेज से मैनुअल WhatsApp/SMS रिमाइंडर भी चलते रहेंगे।</string>
     <string name="udhaar_auto_every">हर इतने दिन में याद दिलाएँ</string>
     <string name="udhaar_auto_every_days">%1$d दिन</string>
     <string name="udhaar_auto_min_due">केवल जब बकाया कम से कम हो</string>
     <string name="udhaar_auto_app">ऐप सूचना</string>
-    <string name="udhaar_auto_app_hint">मुफ़्त। उसी मोबाइल नंबर से पंसारी वाला ऐप चलाने वाले उधारकर्ताओं को भेजी जाती है; टैप करने पर बकाया खुलता है ताकि वे भुगतान कर सकें।</string>
+    <string name="udhaar_auto_app_hint">मुफ़्त। उसी मोबाइल नंबर से जनशो ऐप चलाने वाले उधारकर्ताओं को भेजी जाती है; टैप करने पर बकाया खुलता है ताकि वे भुगतान कर सकें।</string>
     <string name="udhaar_auto_sms">SMS</string>
     <string name="udhaar_auto_whatsapp">WhatsApp</string>
     <string name="udhaar_auto_paid_badge">शुल्क लगेगा</string>

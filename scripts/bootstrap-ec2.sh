@@ -40,14 +40,14 @@ AWS_SECRET_ACCESS_KEY=
 S3_PUBLIC_BASE_URL=
 # Fail startup if S3 keys missing (set true after keys are filled)
 REQUIRE_S3=false
-PUBLIC_BASE_URL=https://api.pansariwala.shop
+PUBLIC_BASE_URL=https://api.jansho.com
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=
 # Cashfree (CI deploy keeps these in sync from GitHub secrets)
 CASHFREE_APP_ID=
 CASHFREE_SECRET_KEY=
 CASHFREE_ENV=sandbox
-PUBLIC_API_BASE_URL=https://api.pansariwala.shop
+PUBLIC_API_BASE_URL=https://api.jansho.com
 FIREBASE_PROJECT_ID=
 EOF
   chmod 600 "$DEPLOY_PATH/env"

@@ -342,7 +342,7 @@ class PushService(
             kind = EVENT_REGISTRATION_REMINDER,
             key = "$EVENT_REGISTRATION_REMINDER:$phone",
             title = "Finish registering your shop",
-            body = "Your Pansari Wala shop registration is almost done. Open the app to continue.",
+            body = "Your Jansho shop registration is almost done. Open the app to continue.",
         )
         scope.launch {
             val bearer = runCatching { oauthToken() }.getOrElse {

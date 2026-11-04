@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# One-time EC2 setup: nginx + TLS + static web root for pansariwala.shop
+# One-time EC2 setup: nginx + TLS + static web root for jansho.com
 # Usage: sudo bash scripts/bootstrap-ec2-web.sh [domain] [deploy_user] [web_root]
-# Example: sudo bash scripts/bootstrap-ec2-web.sh pansariwala.shop ec2-user /var/www/pansariwala
+# Example: sudo bash scripts/bootstrap-ec2-web.sh jansho.com ec2-user /var/www/pansariwala
 set -euo pipefail
 
-DOMAIN="${1:-pansariwala.shop}"
+DOMAIN="${1:-jansho.com}"
 DEPLOY_USER="${2:-${SUDO_USER:-ec2-user}}"
 WEB_ROOT="${3:-/var/www/pansariwala}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,8 +36,8 @@ sed -e "s/DOMAIN/${DOMAIN}/g" -e "s|WEB_ROOT|${WEB_ROOT}|g" "$NGINX_TEMPLATE" \
 
 # Placeholder page until first CI web deploy
 cat > "${WEB_ROOT}/index.html" <<EOF
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pansari Wala</title></head>
-<body><h1>Pansari Wala</h1><p>Web deploy pending. Run CI or scripts/deploy-web.sh.</p></body></html>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Jansho</title></head>
+<body><h1>Jansho</h1><p>Web deploy pending. Run CI or scripts/deploy-web.sh.</p></body></html>
 EOF
 chown "$DEPLOY_USER:$DEPLOY_USER" "${WEB_ROOT}/index.html"
 

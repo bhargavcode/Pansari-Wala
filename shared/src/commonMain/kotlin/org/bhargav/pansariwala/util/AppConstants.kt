@@ -167,20 +167,20 @@ object AppConstants {
     }
     const val JWT_PREFIX: String = "eyJ"
     const val DEFAULT_API_PORT: Int = 8080
-    const val PUBLIC_DOMAIN: String = "pansariwala.shop"
-    const val WEB_BASE_URL: String = "https://pansariwala.shop"
+    const val PUBLIC_DOMAIN: String = "jansho.com"
+    const val WEB_BASE_URL: String = "https://jansho.com"
     const val WEB_LANDING_PATH: String = "/"
     /** Quiet time after the last exit `popstate` before falling back to the landing page. */
     const val WEB_EXIT_SETTLE_MS: Long = 700L
     /** Back presses the web app absorbs between two user interactions (each interaction tops guards up). */
     const val WEB_BACK_GUARDS: Int = 5
-    const val API_HOST: String = "api.pansariwala.shop"
+    const val API_HOST: String = "api.jansho.com"
     /** EC2 API for all platforms (debug + release). Override via Android `API_BASE_URL` env/property. */
-    const val API_BASE_URL: String = "https://api.pansariwala.shop"
+    const val API_BASE_URL: String = "https://api.jansho.com"
     const val DEFAULT_API_BASE_URL: String = API_BASE_URL
     const val IOS_API_BASE_URL: String = API_BASE_URL
-    /** Retired EC2 hosts; any base URL pointing here is replaced by [API_BASE_URL]. */
-    val LEGACY_API_HOSTS: List<String> = listOf("35.172.232.196", "52.1.25.27")
+    /** Retired hosts; any base URL pointing here is replaced by [API_BASE_URL]. */
+    val LEGACY_API_HOSTS: List<String> = listOf("35.172.232.196", "52.1.25.27", "api.pansariwala.shop")
     const val API_HEALTH_PATH: String = "health"
 
     /** App language sent on every API call; the server answers names and messages in it. */
@@ -230,7 +230,7 @@ object AppConstants {
     const val HTTP_SOCKET_TIMEOUT_MS: Long = 12_000L
     const val HTTP_EXTERNAL_TIMEOUT_MS: Long = 5_000L
     const val HTTP_UPLOAD_TIMEOUT_MS: Long = 60_000L
-    const val HTTP_LOG_TAG: String = "PansariHttp"
+    const val HTTP_LOG_TAG: String = "JanshoHttp"
     const val REMOTE_LOGIN_TIMEOUT_MS: Long = 15_000L
     /** POS bills uploaded in one silent sync request. */
     const val OFFLINE_SYNC_BATCH: Int = 25
@@ -373,9 +373,11 @@ object AppConstants {
         const val USER_INFO_ORDER_ID: String = "orderId"
     }
 
-    /** User app deep links; the server's Cashfree return page opens `pansariwala://payment/<intentId>`. */
+    /** User app deep links; the server's Cashfree return page opens `jansho://payment/<intentId>`. */
     object DeepLink {
-        const val SCHEME: String = "pansariwala"
+        const val SCHEME: String = "jansho"
+        /** Pre-rebrand scheme, still accepted from older checkout pages. */
+        const val LEGACY_SCHEME: String = "pansariwala"
         const val HOST_PAYMENT: String = "payment"
     }
 
@@ -494,7 +496,7 @@ object AppConstants {
     }
 
     object Razorpay {
-        const val MERCHANT_NAME: String = "Pansari Wala"
+        const val MERCHANT_NAME: String = "Jansho"
         const val CURRENCY: String = "INR"
         const val DEV_KEY_ID: String = "rzp_test_dev"
         const val TEST_KEY_PREFIX: String = "rzp_test_"

@@ -1,11 +1,11 @@
-# AWS hosting — pansariwala.shop
+# AWS hosting — jansho.com
 
 Production layout on a **single EC2** instance:
 
 | Host | Purpose |
 |---|---|
-| `https://pansariwala.shop` | Marketing SPA + `/app` user web + `/master` admin |
-| `https://api.pansariwala.shop` | Ktor API (port 8080) + WebSockets |
+| `https://jansho.com` | Marketing SPA + `/app` user web + `/master` admin |
+| `https://api.jansho.com` | Ktor API (port 8080) + WebSockets |
 
 ```text
 Internet
@@ -15,8 +15,8 @@ DNS (Hostinger parking NS) → A records → Elastic IP 16.4.81.103
    │
    ▼
 EC2 + nginx (443)
-   ├── pansariwala.shop     → /var/www/pansariwala (static JS SPA)
-   └── api.pansariwala.shop → proxy → localhost:8080 (pansari-server)
+   ├── jansho.com     → /var/www/pansariwala (static JS SPA)
+   └── api.jansho.com → proxy → localhost:8080 (pansari-server)
 ```
 
 ## DNS (keep current nameservers)
@@ -30,7 +30,7 @@ In the Hostinger (or registrar) DNS panel, create:
 
 | Record | Type | Value |
 |---|---|---|
-| `@` / `pansariwala.shop` | A | `16.4.81.103` |
+| `@` / `jansho.com` | A | `16.4.81.103` |
 | `www` | A | `16.4.81.103` |
 | `api` | A | `16.4.81.103` |
 
@@ -75,7 +75,7 @@ On start, the server creates/rotates the master admin from `ADMIN_*` and removes
 ## Bootstrap web + nginx
 
 ```bash
-sudo bash scripts/bootstrap-ec2-web.sh pansariwala.shop ec2-user /var/www/pansariwala
+sudo bash scripts/bootstrap-ec2-web.sh jansho.com ec2-user /var/www/pansariwala
 ```
 
 CI stages files in `/tmp` (the SSH user cannot write `/var/www`), then `sudo /usr/local/bin/pansari-publish-web` copies them into the nginx root.
@@ -92,7 +92,7 @@ sudo mkdir -p /var/www/pansariwala
 After DNS propagates:
 
 ```bash
-sudo certbot --nginx -d pansariwala.shop -d www.pansariwala.shop -d api.pansariwala.shop
+sudo certbot --nginx -d jansho.com -d www.jansho.com -d api.jansho.com
 ```
 
 ## S3 — `pansariwala-assets` (ap-south-1)
@@ -120,7 +120,7 @@ AWS_REGION=ap-south-1
 # AWS_ACCESS_KEY_ID=AKIA...
 # AWS_SECRET_ACCESS_KEY=...
 # optional CDN in front of the bucket:
-# ASSET_PUBLIC_BASE_URL=https://cdn.pansariwala.shop
+# ASSET_PUBLIC_BASE_URL=https://cdn.jansho.com
 ```
 
 Then `sudo systemctl restart pansari-server`. Logs should show `Asset storage: s3 bucket=... auth=instance-role`.
@@ -130,7 +130,7 @@ Public URLs look like:
 `https://pansariwala-assets.s3.ap-south-1.amazonaws.com/partners/user-image/<id>.jpg`
 
 On startup the server rewrites any stored asset URL from a known base (current bucket, CDN, or
-`LEGACY_ASSET_BASE_URLS`, default `https://api.pansariwala.shop/uploads`) into a plain key. Inbound
+`LEGACY_ASSET_BASE_URLS`, default `https://api.jansho.com/uploads`) into a plain key. Inbound
 URLs sent by clients are normalized the same way before saving.
 
 ### Adding another backend
@@ -180,7 +180,7 @@ Public read is via **bucket policy** (not object ACLs).
 | `EC2_SSH_KEY` | PEM private key |
 | `EC2_DEPLOY_PATH` | `/opt/pansari` |
 | `EC2_WEB_ROOT` | `/var/www/pansariwala` |
-| `API_BASE_URL` | `https://api.pansariwala.shop` |
+| `API_BASE_URL` | `https://api.jansho.com` |
 
 Push to `main` deploys server JAR + web dist.
 
@@ -194,7 +194,7 @@ Push to `main` deploys server JAR + web dist.
 
 ## Branding
 
-- Logo: `shared/.../drawable/pansariwala_logo.png`
+- Logo: `shared/.../drawable/jansho_logo.png`
 - Tagline: **Apka apna market**
 - Colors: existing `PansariTheme`
 - Store links: `AppConstants.PLAY_STORE_*` / `APP_STORE_*` (App Store IDs are placeholders until listing goes live)

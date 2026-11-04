@@ -1948,7 +1948,7 @@ class AppStore(
                     customerId = customer.id,
                     customerName = customer.name,
                     customerPhone = customer.phone,
-                    note = "Pansari ${shop.name} $intentId",
+                    note = "Jansho ${shop.name} $intentId",
                     expiresAtMs = expiresAt,
                 )
             }.onFailure { println("Cashfree UPI intent failed for $gatewayOrderId: ${it.message}") }.getOrNull()
@@ -2119,7 +2119,7 @@ class AppStore(
     private fun upiPayUri(payee: String, payeeName: String, amountInr: Double, ref: String): String {
         fun enc(v: String) = java.net.URLEncoder.encode(v, Charsets.UTF_8).replace("+", "%20")
         val amount = String.format(java.util.Locale.US, "%.2f", amountInr)
-        return "upi://pay?pa=${enc(payee)}&pn=${enc(payeeName.take(40))}&am=$amount&cu=INR&tr=${enc(ref)}&tn=${enc("Pansari $ref")}"
+        return "upi://pay?pa=${enc(payee)}&pn=${enc(payeeName.take(40))}&am=$amount&cu=INR&tr=${enc(ref)}&tn=${enc("Jansho $ref")}"
     }
 
     private fun PaymentIntentDoc.toDto(): PaymentIntentDto {
@@ -4448,7 +4448,7 @@ class AppStore(
     }
 
     fun updateShopProfile(userId: String, patch: AdminShopPatch): ShopProfileDto {
-        require(patch.features == null) { "Shop features are managed by Pansari master" }
+        require(patch.features == null) { "Shop features are managed by Jansho master" }
         val shopId = shopUser(userId).shopId
         if (patch != AdminShopPatch()) requireShopPermission(userId, ShopPerm.SHOP_PROFILE)
         patchShop(

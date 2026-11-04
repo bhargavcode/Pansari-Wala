@@ -1,4 +1,4 @@
-rootProject.name = "PansariWala"
+rootProject.name = "Jansho"
 
 pluginManagement {
     repositories {
