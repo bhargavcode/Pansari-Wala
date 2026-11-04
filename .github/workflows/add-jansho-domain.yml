@@ -1,0 +1,38 @@
+name: Add jansho.com domain (EC2 nginx + TLS)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  domain:
+    name: Serve jansho.com + expand TLS cert
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run add-jansho-domain.sh on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          EC2_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n' | xargs)"
+          EC2_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n' | xargs)"
+          KEY_PATH="${RUNNER_TEMP}/ec2_key.pem"
+          printf '%s\n' "$EC2_SSH_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          SSH_OPTS=(-i "$KEY_PATH" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
+          scp "${SSH_OPTS[@]}" scripts/add-jansho-domain.sh "${EC2_USER}@${EC2_HOST}:/tmp/add-jansho-domain.sh"
+          ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" 'sudo bash /tmp/add-jansho-domain.sh && rm -f /tmp/add-jansho-domain.sh'
+
+      - name: Verify from the internet
+        run: |
+          for h in api.jansho.com api.pansariwala.shop jansho.com; do
+            code="$(curl -sS -m 15 -o /dev/null -w '%{http_code}' "https://$h/health" || echo 000)"
+            echo "$h → $code"
+          done
+          test "$(curl -sS -m 15 -o /dev/null -w '%{http_code}' https://api.jansho.com/health)" = "200"
