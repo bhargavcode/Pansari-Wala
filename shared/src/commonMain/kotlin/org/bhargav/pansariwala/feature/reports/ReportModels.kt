@@ -91,6 +91,12 @@ object StaffReport {
         }
         .sortedByDescending { it.revenue }
 
+    /** [sales] first, then every other shop login from [roster] (zero sales) so filters list all staff. */
+    fun withRoster(sales: List<StaffSales>, roster: List<StaffSales>): List<StaffSales> {
+        val seen = sales.mapTo(HashSet()) { it.staffId }
+        return sales + roster.filter { it.staffId !in seen }.sortedBy { it.name.lowercase() }
+    }
+
     fun profit(items: List<org.bhargav.pansariwala.domain.model.ItemSale>, paidOrderIds: Set<String>, costOf: (String) -> Double?): ProfitSummary {
         var revenue = 0.0
         var cost = 0.0

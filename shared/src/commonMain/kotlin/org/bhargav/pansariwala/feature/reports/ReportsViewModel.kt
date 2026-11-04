@@ -20,6 +20,7 @@ import org.bhargav.pansariwala.api.rethrowIfStructuredCancellation
 import org.bhargav.pansariwala.api.toApiUiText
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.data.local.AppPreferences
+import org.bhargav.pansariwala.data.local.staffRoleKey
 import org.bhargav.pansariwala.data.seed.SeedData
 import org.bhargav.pansariwala.domain.model.CategoryStock
 import org.bhargav.pansariwala.domain.model.categoryBreakdown
@@ -73,7 +74,7 @@ data class ReportsUiState(
     val staffFilter: Set<String> = emptySet(),
     /** Ticked role keys / custom role titles; empty = every role. */
     val roleFilter: Set<String> = emptySet(),
-    /** Staff who recorded bills in the current period + channel (before the staff / role filters). */
+    /** Staff who recorded bills in the current period + channel (before the staff / role filters), then other shop logins. */
     val staffSales: List<StaffSales> = emptyList(),
     val profit: ProfitSummary = ProfitSummary(),
 )
@@ -103,14 +104,36 @@ class ReportsViewModel(
     private var categoryById: Map<String, ProductCategory> = emptyMap()
     private var costById: Map<String, Double> = emptyMap()
     private var filtered: List<ReportOrder> = emptyList()
+    /** Every shop login (zero sales), so staff / role filters list staff without bills in the period. */
+    private var roster: List<StaffSales> = emptyList()
     private var loadJob: Job? = null
 
     init {
         viewModelScope.launch {
             shopId = preferences.getShopId() ?: SeedData.DEMO_SHOP_ID
             launch { loadInventory() }
+            launch { loadRoster() }
             reload()
         }
+    }
+
+    /** Needs MANAGE_STAFF; without it the filters fall back to staff seen on bills. */
+    private suspend fun loadRoster() {
+        roster = runCatching { api.shopStaff() }
+            .getOrElse { err ->
+                err.rethrowIfStructuredCancellation()
+                return
+            }
+            .map { dto ->
+                StaffSales(
+                    staffId = dto.id,
+                    name = dto.displayName.ifBlank { dto.username },
+                    role = staffRoleKey(dto.role, ShopPermission.parse(dto.permissions)) { dto.roleTitle },
+                    orders = 0,
+                    revenue = 0.0,
+                )
+            }
+        recompute(resetPage = false)
     }
 
     fun dismissError() { _state.update { it.copy(error = null) } }
@@ -118,6 +141,7 @@ class ReportsViewModel(
     fun refresh() {
         onlineOrders = null
         viewModelScope.launch { loadInventory() }
+        viewModelScope.launch { loadRoster() }
         reload()
     }
 
@@ -280,7 +304,7 @@ class ReportsViewModel(
             )
         }
         val staffSales = withContext(Dispatchers.Default) {
-            StaffReport.byStaff(ReportCalculator.filterChannel(rangeOrders, channel))
+            StaffReport.withRoster(StaffReport.byStaff(ReportCalculator.filterChannel(rangeOrders, channel)), roster)
         }
         val (categorySales, profit) = withContext(Dispatchers.Default) {
             val orderIds = list.mapTo(HashSet()) { it.id }
