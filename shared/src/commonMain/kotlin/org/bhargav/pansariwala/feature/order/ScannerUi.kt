@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -32,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,7 +49,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import org.bhargav.pansariwala.api.ShopBillingDto
+import org.bhargav.pansariwala.feature.user.PackCountStepper
+import org.bhargav.pansariwala.feature.user.quantityLabel
+import org.bhargav.pansariwala.i18n.appLanguageName
 import org.bhargav.pansariwala.i18n.asString
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.api.SubscriptionPlanDto
 import org.bhargav.pansariwala.scanner.BarcodeScannerPreview
 import org.bhargav.pansariwala.scanner.ScannerLens
@@ -60,7 +66,11 @@ import pansariwala.shared.generated.resources.action_save
 import pansariwala.shared.generated.resources.scanner_avatar_cd
 import pansariwala.shared.generated.resources.scanner_lens_back
 import pansariwala.shared.generated.resources.scanner_lens_front
+import pansariwala.shared.generated.resources.scanner_repeat_confirm
+import pansariwala.shared.generated.resources.scanner_repeat_message
+import pansariwala.shared.generated.resources.scanner_repeat_new_qty
 import pansariwala.shared.generated.resources.scanner_repeat_seconds
+import pansariwala.shared.generated.resources.scanner_repeat_title
 import pansariwala.shared.generated.resources.scanner_settings_beep
 import pansariwala.shared.generated.resources.scanner_settings_camera_on
 import pansariwala.shared.generated.resources.scanner_settings_lens
@@ -118,7 +128,8 @@ internal fun ScannerToolbarActions(state: OrderEditorUiState, viewModel: OrderEd
         !state.showScannerSettings &&
         !state.showPaymentPicker &&
         !state.showCartSheet &&
-        state.variantPicker == null
+        state.variantPicker == null &&
+        state.scanRepeat == null
     IconButton(onClick = viewModel::switchCamera, enabled = !state.scannerPaused) {
         Icon(Icons.Filled.Cameraswitch, contentDescription = stringResource(Res.string.scanner_switch_camera))
     }
@@ -160,6 +171,45 @@ internal fun ScanMessageStrip(state: OrderEditorUiState, modifier: Modifier = Mo
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
+}
+
+/** Re-scan of an item already in the cart: confirm the new total with a +/- stepper. */
+@Composable
+internal fun ScanRepeatDialog(repeat: ScanRepeat, viewModel: OrderEditorViewModel) {
+    val option = repeat.option
+    AlertDialog(
+        onDismissRequest = viewModel::dismissScanRepeat,
+        title = { Text(stringResource(Res.string.scanner_repeat_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    stringResource(Res.string.scanner_repeat_message, option.product.appLanguageName, option.quantityLabel(repeat.inCart)),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(Res.string.scanner_repeat_new_qty),
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PackCountStepper(
+                        option = option,
+                        quantity = repeat.quantity,
+                        onSet = viewModel::setScanRepeatQty,
+                        onIncrement = { viewModel.changeScanRepeatQty(1) },
+                        onDecrement = { viewModel.changeScanRepeatQty(-1) },
+                        decrementEnabled = repeat.quantity > option.minQty + AppConstants.LooseQty.EPSILON,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = viewModel::confirmScanRepeat) { Text(stringResource(Res.string.scanner_repeat_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = viewModel::dismissScanRepeat) { Text(stringResource(Res.string.action_cancel)) }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -65,6 +65,13 @@ data class LabelData(
     val copies: Int = 1,
 )
 
+/** Sticker for shop-packed goods: [title] (name + pack size) above the barcode, digits below it. */
+data class BarcodeLabelData(
+    val title: String,
+    val barcode: String,
+    val copies: Int = 1,
+)
+
 data class InventoryRow(
     val name: String,
     val category: String,

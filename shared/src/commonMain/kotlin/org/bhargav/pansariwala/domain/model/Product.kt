@@ -119,7 +119,7 @@ data class Product(
     val subCategoryId: String? = null,
     /** Name per language code (hi, kn, pa, mr, bn); English stays in [name]. */
     val translations: Map<String, String> = emptyMap(),
-    /** [brandName] per language code; edited from the master console only. */
+    /** [brandName] per language code. */
     val brandTranslations: Map<String, String> = emptyMap(),
     /** Epoch ms when the shop moved this product to the bin; null for live products. */
     val deletedAt: Long? = null,

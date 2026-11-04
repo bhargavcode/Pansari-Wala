@@ -1728,6 +1728,19 @@
     <string name="scanner_switch_camera">Switch camera</string>
     <string name="scanner_added">Added %1$s</string>
     <string name="scanner_not_found">No product with barcode %1$s</string>
+    <string name="scanner_repeat_title">Already in cart</string>
+    <string name="scanner_repeat_message">%1$s is already in the cart (%2$s). Add more?</string>
+    <string name="scanner_repeat_new_qty">New quantity</string>
+    <string name="scanner_repeat_confirm">Update cart</string>
+    <string name="scanner_qty_updated">%1$s quantity set to %2$s</string>
+    <string name="barcode_label_action">Print barcode label</string>
+    <string name="barcode_label_title">Barcode label</string>
+    <string name="barcode_label_text">Text above barcode</string>
+    <string name="barcode_label_copies">Copies</string>
+    <string name="barcode_label_missing">No barcode yet. Generate one for items packed in your shop.</string>
+    <string name="barcode_label_generate">Generate barcode</string>
+    <string name="barcode_label_generate_failed">Could not create a barcode. Try again.</string>
+    <string name="barcode_label_print">Print</string>
     <string name="scanner_camera_permission">Allow camera access to scan barcodes</string>
     <string name="scanner_settings_title">Camera settings</string>
     <string name="scanner_settings_camera_on">Camera on</string>
@@ -2668,4 +2681,13 @@
     <string name="gsearch_answer_price">%1$s costs %2$s per %3$s</string>
     <string name="gsearch_answer_found">Found %1$d results</string>
     <string name="gsearch_answer_none">Sorry, nothing matched</string>
+    <string name="report_filter_staff">Staff</string>
+    <string name="report_filter_role">Role</string>
+    <string name="report_role_all">All roles</string>
+    <string name="report_filter_selected">%1$d selected</string>
+    <string name="translate_hint">Pick languages to fill the name and brand on this phone. Each language downloads once (needs internet), then works offline.</string>
+    <string name="translate_again">Translate again</string>
+    <string name="translate_field_name">Name (%1$s)</string>
+    <string name="translate_field_brand">Brand (%1$s)</string>
+    <string name="error_translation_failed">Couldn\'t translate into %1$s. Connect to the internet once so the language can download.</string>
 </resources>

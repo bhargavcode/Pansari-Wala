@@ -189,6 +189,14 @@ fun AddEditInventoryScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        ProductTranslationsSection(
+            state = state,
+            onToggleLanguage = viewModel::onTranslationLanguageToggle,
+            onRetranslate = viewModel::retranslate,
+            onNameChange = viewModel::onNameTranslationChange,
+            onBrandChange = viewModel::onBrandTranslationChange,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         ProductCategoryPicker(
             categoryId = state.categoryId,

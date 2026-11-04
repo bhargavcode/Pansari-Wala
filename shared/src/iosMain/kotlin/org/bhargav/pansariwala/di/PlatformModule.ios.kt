@@ -25,6 +25,7 @@ actual val platformModule: Module = module {
     single<org.bhargav.pansariwala.platform.PhoneAutofill> { org.bhargav.pansariwala.platform.NoPhoneAutofill() }
     single<org.bhargav.pansariwala.platform.DocumentPicker> { org.bhargav.pansariwala.platform.IosDocumentPicker() }
     single<RazorpayCheckout> { IosRazorpayCheckout() }
+    single<org.bhargav.pansariwala.platform.TextTranslator> { org.bhargav.pansariwala.platform.IosTextTranslator() }
     single {
         PrinterManager(
             transports = IosPrinterTransports.create(),

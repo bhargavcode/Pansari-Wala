@@ -1668,6 +1668,19 @@
     <string name="scanner_switch_camera">ক্যামেরা বদলান</string>
     <string name="scanner_added">%1$s যোগ হয়েছে</string>
     <string name="scanner_not_found">বারকোড %1$s-এর কোনো পণ্য নেই</string>
+    <string name="scanner_repeat_title">আগে থেকেই কার্টে আছে</string>
+    <string name="scanner_repeat_message">%1$s আগে থেকেই কার্টে আছে (%2$s)। আরও যোগ করবেন?</string>
+    <string name="scanner_repeat_new_qty">নতুন পরিমাণ</string>
+    <string name="scanner_repeat_confirm">কার্ট আপডেট করুন</string>
+    <string name="scanner_qty_updated">%1$s-এর পরিমাণ %2$s করা হয়েছে</string>
+    <string name="barcode_label_action">বারকোড লেবেল প্রিন্ট করুন</string>
+    <string name="barcode_label_title">বারকোড লেবেল</string>
+    <string name="barcode_label_text">বারকোডের উপরের লেখা</string>
+    <string name="barcode_label_copies">কপি</string>
+    <string name="barcode_label_missing">এখনও কোনো বারকোড নেই। দোকানে প্যাক করা পণ্যের জন্য বারকোড তৈরি করুন।</string>
+    <string name="barcode_label_generate">বারকোড তৈরি করুন</string>
+    <string name="barcode_label_generate_failed">বারকোড তৈরি করা যায়নি। আবার চেষ্টা করুন।</string>
+    <string name="barcode_label_print">প্রিন্ট করুন</string>
     <string name="scanner_camera_permission">বারকোড স্ক্যান করতে ক্যামেরা অ্যাক্সেসের অনুমতি দিন</string>
     <string name="scanner_settings_title">ক্যামেরা সেটিংস</string>
     <string name="scanner_settings_camera_on">ক্যামেরা চালু</string>
@@ -2604,4 +2617,13 @@
     <string name="gsearch_answer_price">%1$s এর দাম প্রতি %3$s %2$s</string>
     <string name="gsearch_answer_found">%1$dটি ফলাফল পাওয়া গেছে</string>
     <string name="gsearch_answer_none">দুঃখিত, কিছু মেলেনি</string>
+    <string name="report_filter_staff">কর্মী</string>
+    <string name="report_filter_role">ভূমিকা</string>
+    <string name="report_role_all">সব ভূমিকা</string>
+    <string name="report_filter_selected">%1$dটি বাছাই</string>
+    <string name="translate_hint">ভাষা বেছে নিন, নাম ও ব্র্যান্ড এই ফোনেই অনুবাদ হয়ে ভরে যাবে। প্রতিটি ভাষা একবার ডাউনলোড হয় (ইন্টারনেট লাগে), তারপর অফলাইনে চলে।</string>
+    <string name="translate_again">আবার অনুবাদ করুন</string>
+    <string name="translate_field_name">নাম (%1$s)</string>
+    <string name="translate_field_brand">ব্র্যান্ড (%1$s)</string>
+    <string name="error_translation_failed">%1$s-এ অনুবাদ করা যায়নি। ভাষাটি ডাউনলোড করতে একবার ইন্টারনেটে যুক্ত হন।</string>
 </resources>

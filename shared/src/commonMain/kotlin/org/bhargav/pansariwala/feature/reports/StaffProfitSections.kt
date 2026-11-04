@@ -2,7 +2,6 @@ package org.bhargav.pansariwala.feature.reports
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,25 +10,34 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.designsystem.SectionCard
 import org.bhargav.pansariwala.domain.auth.ShopRoles
@@ -43,6 +51,10 @@ import pansariwala.shared.generated.resources.report_profit_margin
 import pansariwala.shared.generated.resources.report_profit_missing_cost
 import pansariwala.shared.generated.resources.report_profit_title
 import pansariwala.shared.generated.resources.report_staff_all
+import pansariwala.shared.generated.resources.report_filter_role
+import pansariwala.shared.generated.resources.report_filter_selected
+import pansariwala.shared.generated.resources.report_filter_staff
+import pansariwala.shared.generated.resources.report_role_all
 import pansariwala.shared.generated.resources.report_staff_orders
 import pansariwala.shared.generated.resources.report_staff_section
 import pansariwala.shared.generated.resources.staff_role_admin
@@ -53,6 +65,8 @@ import pansariwala.shared.generated.resources.staff_role_owner
 import pansariwala.shared.generated.resources.staff_role_packer
 import pansariwala.shared.generated.resources.staff_role_stock
 
+private val StaffTint = Color(0xFF1565C0)
+private val RoleTint = Color(0xFF6A1B9A)
 private val ProfitGreen = Color(0xFF2E7D32)
 private val LossRed = Color(0xFFC62828)
 
@@ -76,27 +90,105 @@ fun staffRoleText(role: String?): String? {
     return if (isKnown || role.isNullOrBlank()) stringResource(res) else role
 }
 
+/** Staff + role multi-select dropdowns; the staff list only offers people in the ticked roles. */
 @Composable
-internal fun StaffFilterRow(staff: List<StaffSales>, selected: String?, onSelect: (String?) -> Unit) {
+internal fun StaffRoleFilters(
+    staff: List<StaffSales>,
+    selectedStaff: Set<String>,
+    selectedRoles: Set<String>,
+    onToggleStaff: (String?) -> Unit,
+    onToggleRole: (String?) -> Unit,
+) {
     if (staff.isEmpty()) return
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        FilterChip(
-            selected = selected == null,
-            onClick = { onSelect(null) },
-            leadingIcon = { Icon(Icons.Default.Groups, null, Modifier.size(18.dp)) },
-            label = { Text(stringResource(Res.string.report_staff_all)) },
+    val roles = staff.mapNotNull { it.role }.distinct()
+    val staffOptions = if (selectedRoles.isEmpty()) staff else staff.filter { it.role in selectedRoles }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        MultiSelectDropdown(
+            label = stringResource(Res.string.report_filter_staff),
+            icon = Icons.Default.Person,
+            tint = StaffTint,
+            allLabel = stringResource(Res.string.report_staff_all),
+            options = staffOptions.map { s -> s.staffId to s.name },
+            optionHint = { id -> staffOptions.firstOrNull { it.staffId == id }?.role?.let { staffRoleText(it) } },
+            selected = selectedStaff,
+            onToggle = onToggleStaff,
+            modifier = Modifier.weight(1f),
         )
-        staff.forEach { s ->
-            FilterChip(
-                selected = selected == s.staffId,
-                onClick = { onSelect(if (selected == s.staffId) null else s.staffId) },
-                leadingIcon = { Icon(Icons.Default.Person, null, Modifier.size(18.dp)) },
-                label = { Text(s.name) },
+        if (roles.isNotEmpty()) {
+            MultiSelectDropdown(
+                label = stringResource(Res.string.report_filter_role),
+                icon = Icons.Default.Badge,
+                tint = RoleTint,
+                allLabel = stringResource(Res.string.report_role_all),
+                options = roles.map { it to (staffRoleText(it) ?: it) },
+                optionHint = { null },
+                selected = selectedRoles,
+                onToggle = onToggleRole,
+                modifier = Modifier.weight(1f),
             )
+        }
+    }
+}
+
+@Composable
+private fun MultiSelectDropdown(
+    label: String,
+    icon: ImageVector,
+    tint: Color,
+    allLabel: String,
+    options: List<Pair<String, String>>,
+    optionHint: @Composable (String) -> String?,
+    selected: Set<String>,
+    onToggle: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val summary = when {
+        selected.isEmpty() -> allLabel
+        selected.size == 1 -> options.firstOrNull { it.first in selected }?.second ?: allLabel
+        else -> stringResource(Res.string.report_filter_selected, selected.size)
+    }
+    Box(modifier) {
+        Surface(
+            onClick = { expanded = true },
+            shape = RoundedCornerShape(14.dp),
+            color = if (selected.isEmpty()) MaterialTheme.colorScheme.surfaceContainerHigh else tint.copy(alpha = 0.14f),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(summary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Icon(Icons.Default.ArrowDropDown, null)
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(allLabel, fontWeight = FontWeight.SemiBold) },
+                leadingIcon = { Checkbox(checked = selected.isEmpty(), onCheckedChange = null) },
+                onClick = { onToggle(null) },
+            )
+            HorizontalDivider()
+            options.forEach { (id, name) ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(name)
+                            optionHint(id)?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    },
+                    leadingIcon = { Checkbox(checked = id in selected, onCheckedChange = null) },
+                    onClick = { onToggle(id) },
+                )
+            }
         }
     }
 }
@@ -137,17 +229,25 @@ internal fun ProfitCard(profit: ProfitSummary) {
 }
 
 @Composable
-internal fun StaffSalesSection(staff: List<StaffSales>, selected: String?, onSelect: (String?) -> Unit) {
+internal fun StaffSalesSection(
+    allStaff: List<StaffSales>,
+    selectedStaff: Set<String>,
+    selectedRoles: Set<String>,
+    onToggle: (String) -> Unit,
+) {
+    val staff = allStaff.filter { s ->
+        (selectedStaff.isEmpty() || s.staffId in selectedStaff) && (selectedRoles.isEmpty() || s.role in selectedRoles)
+    }
     if (staff.isEmpty()) return
     val top = staff.maxOf { it.revenue }.coerceAtLeast(1.0)
     SectionCard(title = stringResource(Res.string.report_staff_section)) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             staff.forEach { s ->
-                val isSelected = selected == s.staffId
+                val isSelected = s.staffId in selectedStaff
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { onSelect(if (isSelected) null else s.staffId) }
+                        .clickable { onToggle(s.staffId) }
                         .padding(vertical = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {

@@ -23,5 +23,6 @@ actual val platformModule: Module = module {
     single<org.bhargav.pansariwala.platform.PhoneAutofill> { org.bhargav.pansariwala.platform.NoPhoneAutofill() }
     single<org.bhargav.pansariwala.platform.DocumentPicker> { org.bhargav.pansariwala.platform.JsDocumentPicker() }
     single<RazorpayCheckout> { NoOpRazorpayCheckout() }
+    single<org.bhargav.pansariwala.platform.TextTranslator> { org.bhargav.pansariwala.platform.NoTextTranslator }
     single { PrinterManager(browserPrinterTransports(), get()) }
 }

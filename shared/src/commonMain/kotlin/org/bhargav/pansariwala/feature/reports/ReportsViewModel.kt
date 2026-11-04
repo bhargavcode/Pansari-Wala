@@ -69,9 +69,11 @@ data class ReportsUiState(
     val loading: Boolean = true,
     val error: UiText? = null,
     val showDatePicker: Boolean = false,
-    /** Selected staff login; null = everyone. */
-    val staffFilter: String? = null,
-    /** Staff who recorded bills in the current period + channel (before the staff filter). */
+    /** Ticked staff logins; empty = everyone. */
+    val staffFilter: Set<String> = emptySet(),
+    /** Ticked role keys / custom role titles; empty = every role. */
+    val roleFilter: Set<String> = emptySet(),
+    /** Staff who recorded bills in the current period + channel (before the staff / role filters). */
     val staffSales: List<StaffSales> = emptyList(),
     val profit: ProfitSummary = ProfitSummary(),
 )
@@ -125,11 +127,29 @@ class ReportsViewModel(
         viewModelScope.launch { recompute(resetPage = true) }
     }
 
-    fun setStaffFilter(staffId: String?) {
-        if (staffId == _state.value.staffFilter) return
-        _state.update { it.copy(staffFilter = staffId) }
+    /** [staffId] null = "All staff" (clears the selection); otherwise toggles that login. */
+    fun toggleStaff(staffId: String?) {
+        _state.update { s ->
+            s.copy(staffFilter = if (staffId == null) emptySet() else s.staffFilter.toggled(staffId))
+        }
         viewModelScope.launch { recompute(resetPage = true) }
     }
+
+    /** [role] null = "All roles"; ticking roles also drops ticked staff outside those roles. */
+    fun toggleRole(role: String?) {
+        _state.update { s ->
+            val roles = if (role == null) emptySet() else s.roleFilter.toggled(role)
+            val staff = if (roles.isEmpty()) {
+                s.staffFilter
+            } else {
+                s.staffFilter.filterTo(HashSet()) { id -> s.staffSales.any { it.staffId == id && it.role in roles } }
+            }
+            s.copy(roleFilter = roles, staffFilter = staff)
+        }
+        viewModelScope.launch { recompute(resetPage = true) }
+    }
+
+    private fun Set<String>.toggled(value: String): Set<String> = if (value in this) this - value else this + value
 
     fun setPeriod(period: ReportPeriod) {
         if (period == ReportPeriod.CUSTOM) {
@@ -240,9 +260,19 @@ class ReportsViewModel(
         val categories = categoryById
         val costs = costById
         val staffFilter = state.staffFilter
+        val roleFilter = state.roleFilter
+        val filtering = staffFilter.isNotEmpty() || roleFilter.isNotEmpty()
         val (list, summary, buckets) = withContext(Dispatchers.Default) {
             val byChannel = ReportCalculator.filterChannel(rangeOrders, channel)
-            val list = if (staffFilter == null) byChannel else byChannel.filter { it.staffId == staffFilter }
+            val list = if (!filtering) {
+                byChannel
+            } else {
+                byChannel.filter { o ->
+                    o.staffId != null &&
+                        (staffFilter.isEmpty() || o.staffId in staffFilter) &&
+                        (roleFilter.isEmpty() || o.staffRole in roleFilter)
+                }
+            }
             Triple(
                 list,
                 ReportCalculator.summary(list),
@@ -255,7 +285,7 @@ class ReportsViewModel(
         val (categorySales, profit) = withContext(Dispatchers.Default) {
             val orderIds = list.mapTo(HashSet()) { it.id }
             val items = SalesBreakdown.filterChannel(rangeItems, channel)
-                .let { all -> if (staffFilter == null) all else all.filter { it.orderId in orderIds } }
+                .let { all -> if (!filtering) all else all.filter { it.orderId in orderIds } }
             val paidIds = list.filter { it.countsTowardRevenue }.mapTo(HashSet()) { it.id }
             SalesBreakdown.byCategory(items) { categories[it] ?: ProductCategory.GENERAL_GROCERY } to
                 StaffReport.profit(items, paidIds) { costs[it] }

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -61,6 +62,7 @@ import org.bhargav.pansariwala.domain.model.ProductStatusFilter
 import org.bhargav.pansariwala.feature.catalog.ProductSheetImportDialog
 import org.bhargav.pansariwala.feature.catalog.rememberProductTaxonomy
 import org.bhargav.pansariwala.feature.printer.PrintAction
+import org.bhargav.pansariwala.feature.printer.BarcodeLabelSheet
 import org.bhargav.pansariwala.feature.printer.PrintMenuButton
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedBrand
@@ -74,6 +76,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.stock_req_action
 import pansariwala.shared.generated.resources.action_clear
+import pansariwala.shared.generated.resources.barcode_label_action
 import pansariwala.shared.generated.resources.category_price
 import pansariwala.shared.generated.resources.inv_add_custom
 import pansariwala.shared.generated.resources.inv_add_from_master
@@ -141,6 +144,8 @@ fun InventoryListScreen(
     }
     var stockRequestFor by remember { mutableStateOf<Product?>(null) }
     stockRequestFor?.let { StockRequestSheet(product = it, onDismiss = { stockRequestFor = null }) }
+    var barcodeLabelFor by remember { mutableStateOf<Product?>(null) }
+    barcodeLabelFor?.let { BarcodeLabelSheet(product = it, onDismiss = { barcodeLabelFor = null }) }
     var deleteFor by remember { mutableStateOf<Product?>(null) }
     deleteFor?.let { product ->
         DeleteProductDialog(
@@ -301,6 +306,7 @@ fun InventoryListScreen(
                             categoryName = categoryNames[product.subCategoryId ?: product.categoryId].orEmpty(),
                             onClick = { onOpenProduct(product.id) },
                             onRequestStock = { stockRequestFor = product },
+                            onPrintLabel = { barcodeLabelFor = product },
                             onDelete = { deleteFor = product },
                         )
                         HorizontalDivider()
@@ -336,6 +342,7 @@ private fun ShopProductRow(
     categoryName: String,
     onClick: () -> Unit,
     onRequestStock: () -> Unit,
+    onPrintLabel: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val level = product.stockLevel
@@ -402,6 +409,9 @@ private fun ShopProductRow(
                             tint = level.color(),
                         )
                     }
+                }
+                IconButton(onClick = onPrintLabel) {
+                    Icon(Icons.Outlined.Print, contentDescription = stringResource(Res.string.barcode_label_action))
                 }
                 IconButton(onClick = onDelete) {
                     Icon(

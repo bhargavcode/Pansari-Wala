@@ -1668,6 +1668,19 @@
     <string name="scanner_switch_camera">कॅमेरा बदला</string>
     <string name="scanner_added">%1$s जोडले</string>
     <string name="scanner_not_found">बारकोड %1$s असलेले उत्पादन नाही</string>
+    <string name="scanner_repeat_title">आधीच कार्टमध्ये आहे</string>
+    <string name="scanner_repeat_message">%1$s आधीच कार्टमध्ये आहे (%2$s). आणखी जोडायचे?</string>
+    <string name="scanner_repeat_new_qty">नवीन प्रमाण</string>
+    <string name="scanner_repeat_confirm">कार्ट अपडेट करा</string>
+    <string name="scanner_qty_updated">%1$s चे प्रमाण %2$s केले</string>
+    <string name="barcode_label_action">बारकोड लेबल प्रिंट करा</string>
+    <string name="barcode_label_title">बारकोड लेबल</string>
+    <string name="barcode_label_text">बारकोडवरील मजकूर</string>
+    <string name="barcode_label_copies">प्रती</string>
+    <string name="barcode_label_missing">अजून बारकोड नाही. दुकानात पॅक केलेल्या मालासाठी बारकोड तयार करा.</string>
+    <string name="barcode_label_generate">बारकोड तयार करा</string>
+    <string name="barcode_label_generate_failed">बारकोड तयार करता आला नाही. पुन्हा प्रयत्न करा.</string>
+    <string name="barcode_label_print">प्रिंट करा</string>
     <string name="scanner_camera_permission">बारकोड स्कॅन करण्यासाठी कॅमेरा ॲक्सेसला परवानगी द्या</string>
     <string name="scanner_settings_title">कॅमेरा सेटिंग्ज</string>
     <string name="scanner_settings_camera_on">कॅमेरा सुरू</string>
@@ -2604,4 +2617,13 @@
     <string name="gsearch_answer_price">%1$s ची किंमत %2$s प्रति %3$s</string>
     <string name="gsearch_answer_found">%1$d निकाल सापडले</string>
     <string name="gsearch_answer_none">माफ करा, काहीही जुळले नाही</string>
+    <string name="report_filter_staff">कर्मचारी</string>
+    <string name="report_filter_role">भूमिका</string>
+    <string name="report_role_all">सर्व भूमिका</string>
+    <string name="report_filter_selected">%1$d निवडले</string>
+    <string name="translate_hint">भाषा निवडा, नाव आणि ब्रँड याच फोनवर भाषांतरित होऊन भरले जातील. प्रत्येक भाषा एकदा डाउनलोड होते (इंटरनेट लागते), नंतर ऑफलाइन चालते.</string>
+    <string name="translate_again">पुन्हा भाषांतर करा</string>
+    <string name="translate_field_name">नाव (%1$s)</string>
+    <string name="translate_field_brand">ब्रँड (%1$s)</string>
+    <string name="error_translation_failed">%1$s मध्ये भाषांतर झाले नाही. भाषा डाउनलोड होण्यासाठी एकदा इंटरनेटशी जोडा.</string>
 </resources>

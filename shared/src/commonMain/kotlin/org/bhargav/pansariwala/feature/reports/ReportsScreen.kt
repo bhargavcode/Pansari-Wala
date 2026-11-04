@@ -154,7 +154,13 @@ fun ReportsScreen(
                     )
                 }
                 item(key = "staff_filter", contentType = "staff_filter") {
-                    StaffFilterRow(state.staffSales, state.staffFilter, viewModel::setStaffFilter)
+                    StaffRoleFilters(
+                        staff = state.staffSales,
+                        selectedStaff = state.staffFilter,
+                        selectedRoles = state.roleFilter,
+                        onToggleStaff = viewModel::toggleStaff,
+                        onToggleRole = viewModel::toggleRole,
+                    )
                 }
                 item(key = "kpis", contentType = "kpis") { KpiRow(state.summary, state.channel) }
                 item(key = "profit", contentType = "profit") { ProfitCard(state.profit) }
@@ -187,7 +193,7 @@ fun ReportsScreen(
                     }
                 }
                 item(key = "staff_sales", contentType = "staff_sales") {
-                    StaffSalesSection(state.staffSales, state.staffFilter, viewModel::setStaffFilter)
+                    StaffSalesSection(state.staffSales, state.staffFilter, state.roleFilter, viewModel::toggleStaff)
                 }
                 item(key = "inventory", contentType = "inventory") {
                     SectionCard(title = stringResource(Res.string.report_inventory_title)) {

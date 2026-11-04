@@ -88,6 +88,7 @@ import pansariwala.shared.generated.resources.voice_partial_stock
 import pansariwala.shared.generated.resources.scanner_added
 import pansariwala.shared.generated.resources.scanner_camera_permission
 import pansariwala.shared.generated.resources.scanner_not_found
+import pansariwala.shared.generated.resources.scanner_qty_updated
 import org.bhargav.pansariwala.api.ShopBillingDto
 import org.bhargav.pansariwala.api.SubscriptionPlanDto
 import org.bhargav.pansariwala.scanner.ScannerSettings
@@ -108,6 +109,9 @@ data class CartLine(
     /** Line total before the product offer (saved lines keep their stored price). */
     val baseLineTotal: Double get() = quantity * (lockedUnitPrice ?: option.basePrice)
 }
+
+/** Re-scan of a cart item: [inCart] is the current quantity, [quantity] the proposed new total. */
+data class ScanRepeat(val option: PurchaseOption, val inCart: Double, val quantity: Double)
 
 /** A cart add paused until [option] gets a price; [quantity] / [targetKey] replay the original add. */
 data class PriceRequest(val option: PurchaseOption, val quantity: Double? = null, val targetKey: String? = null)
@@ -186,6 +190,8 @@ data class OrderEditorUiState(
     val showScannerSettings: Boolean = false,
     val showScannerUpsell: Boolean = false,
     val scanMessage: UiText? = null,
+    /** Scanned item already in the cart, waiting for the cashier to confirm the new quantity. */
+    val scanRepeat: ScanRepeat? = null,
     /** Portrait-only: cart sheet expanded over the product list. */
     val showCartSheet: Boolean = false,
     val billing: ShopBillingDto? = null,
@@ -1297,7 +1303,7 @@ class OrderEditorViewModel(
 
     fun onBarcodeScanned(code: String) {
         val state = _uiState.value
-        if (!state.barcodeScannerEnabled || state.variantPicker != null || state.showPaymentPicker) return
+        if (!state.barcodeScannerEnabled || state.variantPicker != null || state.showPaymentPicker || state.scanRepeat != null) return
         val option = barcodeOption(state.catalog, code)
         if (option == null) {
             showScanMessage(UiText.res(Res.string.scanner_not_found, code))
@@ -1309,10 +1315,34 @@ class OrderEditorViewModel(
         } else if (option.needsPicker) {
             openPicker(option.product, optionKey = option.key)
         } else if (!needsPrice(option)) {
+            val inCart = state.cart.firstOrNull { it.key == option.key }?.quantity
+            if (inCart != null) {
+                _uiState.update { it.copy(scanRepeat = ScanRepeat(option, inCart, option.normalize(inCart + option.step))) }
+                return
+            }
             addOption(option)
             showScanMessage(UiText.res(Res.string.scanner_added, option.product.appLanguageName))
         }
     }
+
+    fun changeScanRepeatQty(direction: Int) = _uiState.update { state ->
+        val repeat = state.scanRepeat ?: return@update state
+        state.copy(scanRepeat = repeat.copy(quantity = repeat.option.normalize(repeat.quantity + direction * repeat.option.step)))
+    }
+
+    fun setScanRepeatQty(quantity: Double) = _uiState.update { state ->
+        val repeat = state.scanRepeat ?: return@update state
+        state.copy(scanRepeat = repeat.copy(quantity = repeat.option.normalize(quantity)))
+    }
+
+    fun confirmScanRepeat() {
+        val repeat = _uiState.value.scanRepeat ?: return
+        _uiState.update { it.copy(scanRepeat = null) }
+        setQuantity(repeat.option.key, repeat.quantity)
+        showScanMessage(UiText.res(Res.string.scanner_qty_updated, repeat.option.product.appLanguageName, repeat.quantity.asQuantity()))
+    }
+
+    fun dismissScanRepeat() = _uiState.update { it.copy(scanRepeat = null) }
 
     fun setCartSheetVisible(visible: Boolean) = _uiState.update { it.copy(showCartSheet = visible) }
 

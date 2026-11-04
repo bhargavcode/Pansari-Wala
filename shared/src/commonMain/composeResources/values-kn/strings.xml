@@ -1668,6 +1668,19 @@
     <string name="scanner_switch_camera">ಕ್ಯಾಮೆರಾ ಬದಲಿಸಿ</string>
     <string name="scanner_added">%1$s ಸೇರಿಸಲಾಗಿದೆ</string>
     <string name="scanner_not_found">ಬಾರ್‌ಕೋಡ್ %1$s ಇರುವ ಯಾವುದೇ ಉತ್ಪನ್ನ ಇಲ್ಲ</string>
+    <string name="scanner_repeat_title">ಈಗಾಗಲೇ ಕಾರ್ಟ್‌ನಲ್ಲಿದೆ</string>
+    <string name="scanner_repeat_message">%1$s ಈಗಾಗಲೇ ಕಾರ್ಟ್‌ನಲ್ಲಿದೆ (%2$s). ಇನ್ನಷ್ಟು ಸೇರಿಸಬೇಕೆ?</string>
+    <string name="scanner_repeat_new_qty">ಹೊಸ ಪ್ರಮಾಣ</string>
+    <string name="scanner_repeat_confirm">ಕಾರ್ಟ್ ಅಪ್‌ಡೇಟ್ ಮಾಡಿ</string>
+    <string name="scanner_qty_updated">%1$s ಪ್ರಮಾಣವನ್ನು %2$s ಗೆ ಬದಲಿಸಲಾಗಿದೆ</string>
+    <string name="barcode_label_action">ಬಾರ್‌ಕೋಡ್ ಲೇಬಲ್ ಮುದ್ರಿಸಿ</string>
+    <string name="barcode_label_title">ಬಾರ್‌ಕೋಡ್ ಲೇಬಲ್</string>
+    <string name="barcode_label_text">ಬಾರ್‌ಕೋಡ್ ಮೇಲಿನ ಪಠ್ಯ</string>
+    <string name="barcode_label_copies">ಪ್ರತಿಗಳು</string>
+    <string name="barcode_label_missing">ಇನ್ನೂ ಬಾರ್‌ಕೋಡ್ ಇಲ್ಲ. ಅಂಗಡಿಯಲ್ಲಿ ಪ್ಯಾಕ್ ಮಾಡಿದ ವಸ್ತುಗಳಿಗೆ ಬಾರ್‌ಕೋಡ್ ರಚಿಸಿ.</string>
+    <string name="barcode_label_generate">ಬಾರ್‌ಕೋಡ್ ರಚಿಸಿ</string>
+    <string name="barcode_label_generate_failed">ಬಾರ್‌ಕೋಡ್ ರಚಿಸಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.</string>
+    <string name="barcode_label_print">ಮುದ್ರಿಸಿ</string>
     <string name="scanner_camera_permission">ಬಾರ್‌ಕೋಡ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಲು ಕ್ಯಾಮೆರಾ ಪ್ರವೇಶಕ್ಕೆ ಅನುಮತಿಸಿ</string>
     <string name="scanner_settings_title">ಕ್ಯಾಮೆರಾ ಸೆಟ್ಟಿಂಗ್‌ಗಳು</string>
     <string name="scanner_settings_camera_on">ಕ್ಯಾಮೆರಾ ಆನ್</string>
@@ -2604,4 +2617,13 @@
     <string name="gsearch_answer_price">%1$s ಬೆಲೆ ಪ್ರತಿ %3$s ಗೆ %2$s</string>
     <string name="gsearch_answer_found">%1$d ಫಲಿತಾಂಶಗಳು ಸಿಕ್ಕಿವೆ</string>
     <string name="gsearch_answer_none">ಕ್ಷಮಿಸಿ, ಏನೂ ಹೊಂದಲಿಲ್ಲ</string>
+    <string name="report_filter_staff">ಸಿಬ್ಬಂದಿ</string>
+    <string name="report_filter_role">ಪಾತ್ರ</string>
+    <string name="report_role_all">ಎಲ್ಲ ಪಾತ್ರಗಳು</string>
+    <string name="report_filter_selected">%1$d ಆಯ್ಕೆ</string>
+    <string name="translate_hint">ಭಾಷೆಗಳನ್ನು ಆರಿಸಿ, ಹೆಸರು ಮತ್ತು ಬ್ರ್ಯಾಂಡ್ ಈ ಫೋನ್‌ನಲ್ಲೇ ಅನುವಾದವಾಗಿ ತುಂಬುತ್ತವೆ. ಪ್ರತಿ ಭಾಷೆ ಒಮ್ಮೆ ಡೌನ್‌ಲೋಡ್ ಆಗುತ್ತದೆ (ಇಂಟರ್ನೆಟ್ ಬೇಕು), ನಂತರ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿ ಕೆಲಸ ಮಾಡುತ್ತದೆ.</string>
+    <string name="translate_again">ಮತ್ತೆ ಅನುವಾದಿಸಿ</string>
+    <string name="translate_field_name">ಹೆಸರು (%1$s)</string>
+    <string name="translate_field_brand">ಬ್ರ್ಯಾಂಡ್ (%1$s)</string>
+    <string name="error_translation_failed">%1$s ಗೆ ಅನುವಾದಿಸಲು ಆಗಲಿಲ್ಲ. ಭಾಷೆ ಡೌನ್‌ಲೋಡ್ ಆಗಲು ಒಮ್ಮೆ ಇಂಟರ್ನೆಟ್‌ಗೆ ಸಂಪರ್ಕಿಸಿ.</string>
 </resources>

@@ -85,8 +85,8 @@ class PrintDocumentBuilder {
         elements += PrintElement.Image(bitmap, alignment)
     }
 
-    fun barcode(data: String, type: BarcodeType = BarcodeType.CODE128, height: Int = 80) {
-        if (data.isNotBlank()) elements += PrintElement.Barcode(data, type, height)
+    fun barcode(data: String, type: BarcodeType = BarcodeType.CODE128, height: Int = 80, showText: Boolean = true) {
+        if (data.isNotBlank()) elements += PrintElement.Barcode(data, type, height, showText)
     }
 
     fun qr(data: String, moduleSize: Int = 6) {

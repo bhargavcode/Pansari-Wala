@@ -44,6 +44,9 @@ import pansariwala.shared.generated.resources.error_product_not_found
 import pansariwala.shared.generated.resources.msg_loaded_product
 import pansariwala.shared.generated.resources.msg_saved_product
 import org.bhargav.pansariwala.i18n.appLanguageName
+import org.bhargav.pansariwala.i18n.AppLanguage
+import org.bhargav.pansariwala.platform.TextTranslator
+import pansariwala.shared.generated.resources.error_translation_failed
 
 data class AddEditInventoryUiState(
     val loading: Boolean = false,
@@ -72,6 +75,14 @@ data class AddEditInventoryUiState(
     val hasVariants: Boolean = false,
     val mfgDate: Long? = null,
     val expiryDate: Long? = null,
+    /** Languages this device can translate into offline; empty hides the auto-translate picker. */
+    val translatableLanguages: List<AppLanguage> = emptyList(),
+    /** Languages whose name / brand fields are shown; picking one fills them by on-device translation. */
+    val translationLanguages: Set<String> = emptySet(),
+    /** Name per language code except Hindi, which stays in [nameHi]. */
+    val nameTranslations: Map<String, String> = emptyMap(),
+    val brandTranslations: Map<String, String> = emptyMap(),
+    val translating: Set<String> = emptySet(),
     val imageSlots: List<ImageSlotState> = List(AppConstants.PHOTO_MAX_PRODUCT_IMAGES) { ImageSlotState.Empty },
     val message: UiText? = null,
     val error: UiText? = null,
@@ -85,6 +96,7 @@ class AddEditInventoryViewModel(
     private val api: PansariApi,
     private val imagePicker: ImagePicker,
     speech: SpeechToText,
+    private val translator: TextTranslator,
 ) : ViewModel() {
 
     /** Voice / barcode lookup of an existing product; a pick loads it into the form for editing. */
@@ -120,6 +132,12 @@ class AddEditInventoryViewModel(
     )
 
     init {
+        viewModelScope.launch {
+            val supported = translator.supportedLanguages()
+            _uiState.update { state ->
+                state.copy(translatableLanguages = AppLanguage.entries.filter { it.code in supported })
+            }
+        }
         viewModelScope.launch {
             imageUploader.slots.collect { slots ->
                 _uiState.update { state ->
@@ -182,6 +200,71 @@ class AddEditInventoryViewModel(
     fun onHasVariantsChange(value: Boolean) = _uiState.update { it.copy(hasVariants = value) }
     fun onMfgDateChange(value: Long?) = _uiState.update { it.copy(mfgDate = value) }
     fun onExpiryDateChange(value: Long?) = _uiState.update { it.copy(expiryDate = value) }
+    fun onNameTranslationChange(code: String, value: String) =
+        _uiState.update { it.copy(nameTranslations = it.nameTranslations + (code to value)) }
+    fun onBrandTranslationChange(code: String, value: String) =
+        _uiState.update { it.copy(brandTranslations = it.brandTranslations + (code to value)) }
+
+    /** Picking fills that language's blank fields by translation; unpicking drops its name and brand. */
+    fun onTranslationLanguageToggle(code: String) {
+        if (code in _uiState.value.translationLanguages) {
+            _uiState.update {
+                it.copy(
+                    translationLanguages = it.translationLanguages - code,
+                    nameTranslations = it.nameTranslations - code,
+                    brandTranslations = it.brandTranslations - code,
+                )
+            }
+        } else {
+            _uiState.update { it.copy(translationLanguages = it.translationLanguages + code) }
+            translateInto(listOf(code), overwrite = false)
+        }
+    }
+
+    /** Re-translates the current English name and brand into every picked language. */
+    fun retranslate() = translateInto(_uiState.value.translationLanguages, overwrite = true)
+
+    private fun translateInto(codes: Collection<String>, overwrite: Boolean) {
+        val supported = _uiState.value.translatableLanguages.map { it.code }
+        val todo = codes.filter { it in supported && it !in _uiState.value.translating }
+        if (todo.isEmpty()) return
+        _uiState.update { it.copy(translating = it.translating + todo) }
+        viewModelScope.launch {
+            val failed = mutableListOf<String>()
+            todo.forEach { code ->
+                val source = _uiState.value
+                val name = source.name.trim().takeIf { it.isNotEmpty() }?.let { translator.translate(it, code) }
+                val brand = source.brandName.trim().takeIf { it.isNotEmpty() }?.let { translator.translate(it, code) }
+                if ((source.name.isNotBlank() && name == null) || (source.brandName.isNotBlank() && brand == null)) {
+                    failed += code
+                }
+                _uiState.update { state ->
+                    val done = state.copy(translating = state.translating - code)
+                    if (code in state.translationLanguages) done.withTranslation(code, name, brand, overwrite) else done
+                }
+            }
+            if (failed.isNotEmpty()) {
+                val labels = failed.joinToString { AppLanguage.fromCode(it).displayLabel }
+                _uiState.update { it.copy(error = UiText.res(Res.string.error_translation_failed, labels)) }
+            }
+        }
+    }
+
+    private fun AddEditInventoryUiState.withTranslation(
+        code: String,
+        name: String?,
+        brand: String?,
+        overwrite: Boolean,
+    ): AddEditInventoryUiState {
+        fun pick(current: String?, translated: String?): String =
+            if (translated.isNullOrBlank() || (!overwrite && !current.isNullOrBlank())) current.orEmpty() else translated
+        val brands = brandTranslations + (code to pick(brandTranslations[code], brand))
+        return if (code == AppLanguage.HINDI.code) {
+            copy(nameHi = pick(nameHi, name), brandTranslations = brands)
+        } else {
+            copy(nameTranslations = nameTranslations + (code to pick(nameTranslations[code], name)), brandTranslations = brands)
+        }
+    }
 
     private var baseline: List<Any?> = AddEditInventoryUiState().formKey()
 
@@ -192,7 +275,11 @@ class AddEditInventoryViewModel(
         name, nameHi, brandName, categoryId, subCategoryId, unit, barcode, sellingPrice, costPrice, stockQty,
         lowStockThreshold, maxPerOrder, voiceAlias, variants, hasVariants, mfgDate, expiryDate,
         imageSlots.count { it !is ImageSlotState.Empty },
+        nameTranslations.cleaned(), brandTranslations.cleaned(),
     )
+
+    private fun Map<String, String>.cleaned(): Map<String, String> =
+        mapValues { it.value.trim() }.filterValues { it.isNotEmpty() }
 
     suspend fun uploadVariantImage(): String? {
         val picked = runCatching { imagePicker.pickImage() }.getOrNull() ?: return null
@@ -264,11 +351,15 @@ class AddEditInventoryViewModel(
             return
         }
         val keptVariants = if (state.hasVariants) state.variants.filter { it.name.isNotBlank() } else emptyList()
+        val nameHi = state.nameHi.trim()
         val product = Product(
             id = loadedProductId ?: generateId("prod"),
             shopId = shopId,
             name = name,
-            nameHi = state.nameHi.trim(),
+            nameHi = nameHi,
+            translations = (state.nameTranslations - AppLanguage.HINDI.code).cleaned() +
+                listOfNotNull(nameHi.takeIf { it.isNotEmpty() }?.let { AppLanguage.HINDI.code to it }),
+            brandTranslations = state.brandTranslations.cleaned(),
             category = state.category,
             unit = state.unit,
             barcode = state.barcode.trim().ifBlank { null },
@@ -309,7 +400,11 @@ class AddEditInventoryViewModel(
                 isEditing = true,
                 id = product.id,
                 name = product.name,
-                nameHi = product.nameHi,
+                nameHi = product.translations[AppLanguage.HINDI.code]?.takeIf { t -> t.isNotBlank() } ?: product.nameHi,
+                nameTranslations = product.translations - AppLanguage.HINDI.code,
+                brandTranslations = product.brandTranslations,
+                translationLanguages = (product.translations - AppLanguage.HINDI.code).cleaned().keys +
+                    product.brandTranslations.cleaned().keys,
                 category = product.category,
                 categoryId = product.categoryId,
                 subCategoryId = product.subCategoryId,

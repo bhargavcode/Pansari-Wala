@@ -1668,6 +1668,19 @@
     <string name="scanner_switch_camera">ਕੈਮਰਾ ਬਦਲੋ</string>
     <string name="scanner_added">%1$s ਜੋੜਿਆ ਗਿਆ</string>
     <string name="scanner_not_found">ਬਾਰਕੋਡ %1$s ਵਾਲਾ ਕੋਈ ਉਤਪਾਦ ਨਹੀਂ</string>
+    <string name="scanner_repeat_title">ਪਹਿਲਾਂ ਹੀ ਕਾਰਟ ਵਿੱਚ ਹੈ</string>
+    <string name="scanner_repeat_message">%1$s ਪਹਿਲਾਂ ਹੀ ਕਾਰਟ ਵਿੱਚ ਹੈ (%2$s)। ਹੋਰ ਜੋੜੋ?</string>
+    <string name="scanner_repeat_new_qty">ਨਵੀਂ ਮਾਤਰਾ</string>
+    <string name="scanner_repeat_confirm">ਕਾਰਟ ਅੱਪਡੇਟ ਕਰੋ</string>
+    <string name="scanner_qty_updated">%1$s ਦੀ ਮਾਤਰਾ %2$s ਕੀਤੀ ਗਈ</string>
+    <string name="barcode_label_action">ਬਾਰਕੋਡ ਲੇਬਲ ਪ੍ਰਿੰਟ ਕਰੋ</string>
+    <string name="barcode_label_title">ਬਾਰਕੋਡ ਲੇਬਲ</string>
+    <string name="barcode_label_text">ਬਾਰਕੋਡ ਦੇ ਉੱਪਰ ਦਾ ਟੈਕਸਟ</string>
+    <string name="barcode_label_copies">ਕਾਪੀਆਂ</string>
+    <string name="barcode_label_missing">ਅਜੇ ਕੋਈ ਬਾਰਕੋਡ ਨਹੀਂ। ਦੁਕਾਨ ਵਿੱਚ ਪੈਕ ਕੀਤੇ ਸਮਾਨ ਲਈ ਬਾਰਕੋਡ ਬਣਾਓ।</string>
+    <string name="barcode_label_generate">ਬਾਰਕੋਡ ਬਣਾਓ</string>
+    <string name="barcode_label_generate_failed">ਬਾਰਕੋਡ ਨਹੀਂ ਬਣ ਸਕਿਆ। ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।</string>
+    <string name="barcode_label_print">ਪ੍ਰਿੰਟ ਕਰੋ</string>
     <string name="scanner_camera_permission">ਬਾਰਕੋਡ ਸਕੈਨ ਕਰਨ ਲਈ ਕੈਮਰਾ ਪਹੁੰਚ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ</string>
     <string name="scanner_settings_title">ਕੈਮਰਾ ਸੈਟਿੰਗਾਂ</string>
     <string name="scanner_settings_camera_on">ਕੈਮਰਾ ਚਾਲੂ</string>
@@ -2604,4 +2617,13 @@
     <string name="gsearch_answer_price">%1$s ਦੀ ਕੀਮਤ %2$s ਪ੍ਰਤੀ %3$s</string>
     <string name="gsearch_answer_found">%1$d ਨਤੀਜੇ ਮਿਲੇ</string>
     <string name="gsearch_answer_none">ਮਾਫ਼ ਕਰਨਾ, ਕੁਝ ਨਹੀਂ ਮਿਲਿਆ</string>
+    <string name="report_filter_staff">ਸਟਾਫ</string>
+    <string name="report_filter_role">ਭੂਮਿਕਾ</string>
+    <string name="report_role_all">ਸਾਰੀਆਂ ਭੂਮਿਕਾਵਾਂ</string>
+    <string name="report_filter_selected">%1$d ਚੁਣੇ</string>
+    <string name="translate_hint">ਭਾਸ਼ਾਵਾਂ ਚੁਣੋ, ਨਾਮ ਅਤੇ ਬ੍ਰਾਂਡ ਇਸੇ ਫ਼ੋਨ ਉੱਤੇ ਅਨੁਵਾਦ ਹੋ ਕੇ ਭਰ ਜਾਣਗੇ। ਹਰ ਭਾਸ਼ਾ ਇੱਕ ਵਾਰ ਡਾਊਨਲੋਡ ਹੁੰਦੀ ਹੈ (ਇੰਟਰਨੈੱਟ ਚਾਹੀਦਾ), ਫਿਰ ਆਫ਼ਲਾਈਨ ਚੱਲਦੀ ਹੈ।</string>
+    <string name="translate_again">ਮੁੜ ਅਨੁਵਾਦ ਕਰੋ</string>
+    <string name="translate_field_name">ਨਾਮ (%1$s)</string>
+    <string name="translate_field_brand">ਬ੍ਰਾਂਡ (%1$s)</string>
+    <string name="error_translation_failed">%1$s ਵਿੱਚ ਅਨੁਵਾਦ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਭਾਸ਼ਾ ਡਾਊਨਲੋਡ ਕਰਨ ਲਈ ਇੱਕ ਵਾਰ ਇੰਟਰਨੈੱਟ ਨਾਲ ਜੁੜੋ।</string>
 </resources>

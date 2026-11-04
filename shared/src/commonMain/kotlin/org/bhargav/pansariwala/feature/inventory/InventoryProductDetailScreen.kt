@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -53,6 +54,7 @@ import org.bhargav.pansariwala.i18n.localizedBrand
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.i18n.localizedName
 import org.bhargav.pansariwala.feature.catalog.productCategoryLabel
+import org.bhargav.pansariwala.feature.printer.BarcodeLabelSheet
 import org.bhargav.pansariwala.media.ProductImageCarousel
 import org.bhargav.pansariwala.theme.stockHealthyColor
 import org.bhargav.pansariwala.theme.stockOutColor
@@ -67,6 +69,7 @@ import pansariwala.shared.generated.resources.field_expiry_date
 import pansariwala.shared.generated.resources.field_mfg_date
 import pansariwala.shared.generated.resources.inv_batch_dates_hint
 import pansariwala.shared.generated.resources.action_edit
+import pansariwala.shared.generated.resources.barcode_label_action
 import pansariwala.shared.generated.resources.field_barcode
 import pansariwala.shared.generated.resources.field_category
 import pansariwala.shared.generated.resources.field_cost_price
@@ -108,6 +111,8 @@ fun InventoryProductDetailScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var showStockRequest by rememberSaveable { mutableStateOf(false) }
+    var showBarcodeLabel by rememberSaveable { mutableStateOf(false) }
+    state.product?.takeIf { showBarcodeLabel }?.let { BarcodeLabelSheet(product = it, onDismiss = { showBarcodeLabel = false }) }
     val message = state.message?.asString()
     LaunchedEffect(message) {
         if (message != null) {
@@ -124,6 +129,9 @@ fun InventoryProductDetailScreen(
         onErrorAction = { handleErrorBannerAction(it, onRetry = {}, onDismiss = viewModel::dismissError) },
         actions = {
             if (state.product?.isDeleted == false) {
+                IconButton(onClick = { showBarcodeLabel = true }) {
+                    Icon(Icons.Filled.Print, contentDescription = stringResource(Res.string.barcode_label_action))
+                }
                 IconButton(onClick = { onEdit(productId) }) {
                     Icon(Icons.Filled.Edit, contentDescription = stringResource(Res.string.action_edit))
                 }

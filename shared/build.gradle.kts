@@ -135,6 +135,7 @@ kotlin {
             implementation(libs.camerax.lifecycle)
             implementation(libs.camerax.view)
             implementation(libs.mlkit.barcode.scanning)
+            implementation(libs.mlkit.translate)
             implementation(libs.maps.compose)
             implementation(libs.play.services.maps)
             implementation(libs.play.services.location)

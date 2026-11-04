@@ -244,6 +244,7 @@ fun OrderEditorScreen(
     if (state.showCartSheet) {
         PosCartSheet(state, viewModel)
     }
+    state.scanRepeat?.let { ScanRepeatDialog(it, viewModel) }
     state.variantPicker?.let { request ->
         VariantPickerHost(
             request = request,

@@ -12,6 +12,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) -> Bool {
         FirebaseApp.configure()
         IosRazorpayBridge.shared.host = RazorpayWebCheckoutHost()
+        IosTranslatorBridge.shared.host = AppleTranslatorHost()
         UNUserNotificationCenter.current().delegate = self
         Messaging.messaging().delegate = self
         application.registerForRemoteNotifications()

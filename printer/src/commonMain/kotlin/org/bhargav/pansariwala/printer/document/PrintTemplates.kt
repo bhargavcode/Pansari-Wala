@@ -10,6 +10,7 @@ import kotlin.math.roundToLong
 object PrintTemplates {
 
     private const val WIDE_LAYOUT_MIN_CHARS = 42
+    const val MAX_LABEL_COPIES = 50
 
     fun receipt(data: ReceiptData, settings: PrinterSettings, labels: PrintLabels): PrintDocument = printDocument {
         header(settings, labels)
@@ -122,7 +123,7 @@ object PrintTemplates {
     /** Shelf / product labels. One document can hold several labels separated by cuts. */
     fun labels(data: List<LabelData>, settings: PrinterSettings, labels: PrintLabels): PrintDocument = printDocument {
         data.forEachIndexed { index, label ->
-            repeat(label.copies.coerceIn(1, 50)) { copy ->
+            repeat(label.copies.coerceIn(1, MAX_LABEL_COPIES)) { copy ->
                 if (index > 0 || copy > 0) {
                     feed(2)
                     cut()
@@ -136,6 +137,21 @@ object PrintTemplates {
                 )
                 label.extraLine?.takeIf { it.isNotBlank() }?.let { center(it) }
                 label.barcode?.takeIf { it.isNotBlank() }?.let { barcode(it, height = 60) }
+            }
+        }
+    }
+
+    /** Barcode stickers; the digits are printed as text so they do not depend on the printer's HRI font. */
+    fun barcodeLabels(data: List<BarcodeLabelData>): PrintDocument = printDocument {
+        data.forEachIndexed { index, label ->
+            repeat(label.copies.coerceIn(1, MAX_LABEL_COPIES)) { copy ->
+                if (index > 0 || copy > 0) {
+                    feed(2)
+                    cut()
+                }
+                text(label.title, TextStyle(alignment = PrintAlignment.CENTER, bold = true))
+                barcode(label.barcode, height = 60, showText = false)
+                center(label.barcode)
             }
         }
     }

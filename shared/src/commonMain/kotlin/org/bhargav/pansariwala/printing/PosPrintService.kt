@@ -24,6 +24,7 @@ import org.bhargav.pansariwala.i18n.ANONYMOUS_CUSTOMER_KEY
 import org.bhargav.pansariwala.i18n.WALK_IN_CUSTOMER_KEY
 import org.bhargav.pansariwala.i18n.labelRes
 import org.bhargav.pansariwala.printer.PrinterManager
+import org.bhargav.pansariwala.printer.document.BarcodeLabelData
 import org.bhargav.pansariwala.printer.document.InventoryReportData
 import org.bhargav.pansariwala.printer.document.InventoryRow
 import org.bhargav.pansariwala.printer.document.InvoiceData
@@ -192,6 +193,12 @@ class PosPrintService(
             )
         }
         return print { PrintTemplates.labels(data, settings, labels()) }
+    }
+
+    /** Barcode sticker for a shop-packed product: [title] (name + pack size), barcode, digits. */
+    suspend fun printBarcodeLabel(title: String, barcode: String, copies: Int): Result<Unit> {
+        if (barcode.isBlank()) return Result.failure(NothingToPrintException())
+        return print { PrintTemplates.barcodeLabels(listOf(BarcodeLabelData(title, barcode.trim(), copies))) }
     }
 
     suspend fun printInventory(lowStockOnly: Boolean): Result<Unit> {
