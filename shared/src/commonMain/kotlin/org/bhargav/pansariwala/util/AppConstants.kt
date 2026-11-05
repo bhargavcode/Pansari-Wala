@@ -327,6 +327,8 @@ object AppConstants {
         const val UPDATE_CHECKED_AT: String = "pref_update_checked_at"
         /** Suffixed with the shop id so each shop keeps its own supplier list on a shared device. */
         const val SUPPLIER_BOOK_PREFIX: String = "pref_supplier_book_"
+        /** Unsaved add/edit product form (JSON [ProductFormDraft]); one draft per device. */
+        const val PRODUCT_FORM_DRAFT: String = "pref_product_form_draft"
     }
 
     object Voice {

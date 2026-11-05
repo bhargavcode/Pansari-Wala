@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bhargav.pansariwala.domain.model.Product
 import org.bhargav.pansariwala.api.ShopFeaturesDto
+import org.bhargav.pansariwala.feature.inventory.ProductFormDraft
 import org.bhargav.pansariwala.scanner.ScannerSettings
 import org.bhargav.pansariwala.domain.auth.ShopAccess
 import org.bhargav.pansariwala.domain.auth.ShopPermission
@@ -175,6 +176,19 @@ class AppPreferences(
 
     suspend fun setScannerSettings(settings: ScannerSettings) {
         store.putStrings(mapOf(AppConstants.Prefs.SCANNER_SETTINGS to json.encodeToString(settings)))
+    }
+
+    suspend fun getProductFormDraft(): ProductFormDraft? =
+        store.getString(AppConstants.Prefs.PRODUCT_FORM_DRAFT)?.let { raw ->
+            runCatching { json.decodeFromString<ProductFormDraft>(raw) }.getOrNull()
+        }
+
+    suspend fun setProductFormDraft(draft: ProductFormDraft) {
+        store.putStrings(mapOf(AppConstants.Prefs.PRODUCT_FORM_DRAFT to json.encodeToString(draft)))
+    }
+
+    suspend fun clearProductFormDraft() {
+        store.remove(setOf(AppConstants.Prefs.PRODUCT_FORM_DRAFT))
     }
 
     /** On: confident voice matches go straight to the cart. Off: every match opens the product sheet. */

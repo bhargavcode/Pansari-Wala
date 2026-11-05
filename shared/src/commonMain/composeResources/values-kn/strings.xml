@@ -363,6 +363,10 @@
     <string name="products_count">%1$d ಉತ್ಪನ್ನಗಳು</string>
     <string name="category_price">%1$s · %2$s</string>
     <string name="add_product">ಉತ್ಪನ್ನ ಸೇರಿಸಿ</string>
+    <string name="product_draft_title">ಉಳಿಸದ ಉತ್ಪನ್ನ</string>
+    <string name="product_draft_message">ನೀವು ಈ ಉತ್ಪನ್ನವನ್ನು ಉಳಿಸದೆ ಬಿಟ್ಟಿದ್ದೀರಿ. ಎಲ್ಲಿ ನಿಲ್ಲಿಸಿದ್ದೀರೋ ಅಲ್ಲಿಂದ ಮುಂದುವರಿಸುವುದೇ, ಅಥವಾ ಹೊಸದಾಗಿ ಪ್ರಾರಂಭಿಸುವುದೇ?</string>
+    <string name="product_draft_resume">ಮುಂದುವರಿಸಿ</string>
+    <string name="product_draft_start_new">ಹೊಸದಾಗಿ ಪ್ರಾರಂಭಿಸಿ</string>
     <string name="update_product">ಉತ್ಪನ್ನ ನವೀಕರಿಸಿ</string>
     <string name="inventory_lookup_hint">ಸಂಪಾದಿಸಲು ID ಅಥವಾ ಬಾರ್‌ಕೋಡ್‌ನಿಂದ ಹುಡುಕಿ, ಅಥವಾ ಹೊಸ ಉತ್ಪನ್ನ ಸೇರಿಸಲು ಫಾರ್ಮ್ ಭರ್ತಿ ಮಾಡಿ.</string>
     <string name="product_id_or_barcode">ಉತ್ಪನ್ನ ID ಅಥವಾ ಬಾರ್‌ಕೋಡ್</string>

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import org.bhargav.pansariwala.designsystem.AppAlertDialog
 import org.bhargav.pansariwala.designsystem.BarcodeField
 import org.bhargav.pansariwala.designsystem.DatePickerField
 import org.bhargav.pansariwala.designsystem.DiscardChangesDialog
@@ -68,6 +69,10 @@ import org.bhargav.pansariwala.ui.toErrorBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import pansariwala.shared.generated.resources.Res
+import pansariwala.shared.generated.resources.product_draft_message
+import pansariwala.shared.generated.resources.product_draft_resume
+import pansariwala.shared.generated.resources.product_draft_start_new
+import pansariwala.shared.generated.resources.product_draft_title
 import pansariwala.shared.generated.resources.action_find
 import pansariwala.shared.generated.resources.add_product
 import pansariwala.shared.generated.resources.field_barcode
@@ -102,10 +107,17 @@ fun AddEditInventoryScreen(
         isBackEnabled = !state.saved,
         onBackCompleted = guardedBack,
     )
+    if (state.pendingDraft != null) {
+        ResumeProductDraftDialog(
+            onResume = viewModel::resumeDraft,
+            onStartNew = viewModel::discardDraft,
+        )
+    }
     if (confirmDiscard) {
         DiscardChangesDialog(
             onDiscard = {
                 confirmDiscard = false
+                viewModel.abandonUnsavedWork()
                 onBack()
             },
             onKeepEditing = { confirmDiscard = false },
@@ -374,4 +386,19 @@ private fun <T> EnumDropdown(
             }
         }
     }
+}
+
+@Composable
+private fun ResumeProductDraftDialog(onResume: () -> Unit, onStartNew: () -> Unit) {
+    AppAlertDialog(
+        onDismissRequest = onResume,
+        title = { Text(stringResource(Res.string.product_draft_title)) },
+        text = { Text(stringResource(Res.string.product_draft_message)) },
+        confirmButton = {
+            TextButton(onClick = onResume) { Text(stringResource(Res.string.product_draft_resume)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onStartNew) { Text(stringResource(Res.string.product_draft_start_new)) }
+        },
+    )
 }

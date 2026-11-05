@@ -374,6 +374,10 @@
 
     <!-- Add / edit inventory -->
     <string name="add_product">Add product</string>
+    <string name="product_draft_title">Unsaved product</string>
+    <string name="product_draft_message">You left this product without saving. Continue where you left off, or start again?</string>
+    <string name="product_draft_resume">Continue</string>
+    <string name="product_draft_start_new">Start new</string>
     <string name="update_product">Update product</string>
     <string name="inventory_lookup_hint">Find by ID or barcode to edit, or fill the form to add a new product.</string>
     <string name="product_id_or_barcode">Product ID or barcode</string>

@@ -363,6 +363,10 @@
     <string name="products_count">%1$d उत्पादने</string>
     <string name="category_price">%1$s · %2$s</string>
     <string name="add_product">उत्पादन जोडा</string>
+    <string name="product_draft_title">न सेव्ह केलेले उत्पादन</string>
+    <string name="product_draft_message">तुम्ही हे उत्पादन सेव्ह न करता सोडले. जिथे सोडले तिथून सुरू करा, की नव्याने सुरू करायचे?</string>
+    <string name="product_draft_resume">सुरू ठेवा</string>
+    <string name="product_draft_start_new">नव्याने सुरू करा</string>
     <string name="update_product">उत्पादन अपडेट करा</string>
     <string name="inventory_lookup_hint">संपादनासाठी ID किंवा बारकोडने शोधा, किंवा नवीन उत्पादन जोडण्यासाठी फॉर्म भरा.</string>
     <string name="product_id_or_barcode">उत्पादन ID किंवा बारकोड</string>

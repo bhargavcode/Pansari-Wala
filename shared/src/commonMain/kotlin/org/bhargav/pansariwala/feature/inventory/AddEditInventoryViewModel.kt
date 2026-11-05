@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.map
 import pansariwala.shared.generated.resources.error_translation_failed
 
 private const val TRANSLATE_DEBOUNCE_MS = 500L
+private const val DRAFT_AUTOSAVE_MS = 600L
 
 data class AddEditInventoryUiState(
     val loading: Boolean = false,
@@ -95,6 +96,8 @@ data class AddEditInventoryUiState(
     val message: UiText? = null,
     val error: UiText? = null,
     val saved: Boolean = false,
+    /** Non-null = a matching local draft was found; the screen asks resume vs start new. */
+    val pendingDraft: ProductFormDraft? = null,
 )
 
 class AddEditInventoryViewModel(
@@ -177,12 +180,58 @@ class AddEditInventoryViewModel(
             if (productId != null) {
                 shopRepository.findProduct(productId)?.let { fillFrom(it) }
             }
+            offerMatchingDraft(productId)
+            startDraftAutosave(productId)
         }
         viewModelScope.launch {
             runCatching { api.masterCategories() }
                 .onSuccess { all -> _uiState.update { it.copy(masterCategories = all) } }
                 .onFailure { it.rethrowIfStructuredCancellation() }
         }
+    }
+
+    private suspend fun offerMatchingDraft(productId: String?) {
+        val draft = preferences.getProductFormDraft() ?: return
+        if (!draft.matches(shopId, productId) || draft.isBlank()) return
+        // Same as the current form (e.g. already restored by rotation) — nothing to offer.
+        if (draft.formSnapshot() == _uiState.value.toDraft(shopId, productId).formSnapshot()) return
+        _uiState.update { it.copy(pendingDraft = draft) }
+    }
+
+    @OptIn(FlowPreview::class)
+    private fun startDraftAutosave(productId: String?) {
+        viewModelScope.launch {
+            _uiState
+                .map { it.toDraft(shopId, productId).formSnapshot() }
+                .distinctUntilChanged()
+                .debounce(DRAFT_AUTOSAVE_MS)
+                .collectLatest {
+                    val state = _uiState.value
+                    if (state.saved || state.pendingDraft != null || !hasUnsavedChanges()) return@collectLatest
+                    val draft = state.toDraft(shopId, productId)
+                    if (draft.isBlank()) {
+                        preferences.clearProductFormDraft()
+                    } else {
+                        preferences.setProductFormDraft(draft)
+                    }
+                }
+        }
+    }
+
+    fun resumeDraft() {
+        val draft = _uiState.value.pendingDraft ?: return
+        applyDraft(draft)
+        _uiState.update { it.copy(pendingDraft = null) }
+    }
+
+    fun discardDraft() {
+        viewModelScope.launch { preferences.clearProductFormDraft() }
+        _uiState.update { it.copy(pendingDraft = null) }
+    }
+
+    /** Clears the local draft when leaving without saving (discard / start new). */
+    fun abandonUnsavedWork() {
+        viewModelScope.launch { preferences.clearProductFormDraft() }
     }
 
     fun onMasterCategoryChange(categoryId: String?, subCategoryId: String?) = _uiState.update {
@@ -435,6 +484,7 @@ class AddEditInventoryViewModel(
         )
         viewModelScope.launch {
             shopRepository.upsertProduct(product)
+            preferences.clearProductFormDraft()
             _uiState.update {
                 it.copy(
                     saved = true,
@@ -444,6 +494,73 @@ class AddEditInventoryViewModel(
             }
         }
     }
+
+    private fun applyDraft(draft: ProductFormDraft) {
+        manualFields.clear()
+        translatedFrom.clear()
+        imageUploader.seedUrls(draft.imageUrls)
+        draft.nameTranslations.filterValues { it.isNotBlank() }.keys.forEach { manualFields.add(nameField(it)) }
+        if (draft.nameHi.isNotBlank()) manualFields.add(nameField(AppLanguage.HINDI.code))
+        draft.brandTranslations.filterValues { it.isNotBlank() }.keys.forEach { manualFields.add(brandField(it)) }
+        _uiState.update {
+            it.copy(
+                name = draft.name,
+                nameHi = draft.nameHi,
+                brandName = draft.brandName,
+                category = runCatching { ProductCategory.valueOf(draft.category) }.getOrDefault(it.category),
+                categoryId = draft.categoryId,
+                subCategoryId = draft.subCategoryId,
+                unit = runCatching { ProductUnit.valueOf(draft.unit) }.getOrDefault(it.unit),
+                barcode = draft.barcode,
+                sellingPrice = draft.sellingPrice,
+                costPrice = draft.costPrice,
+                stockQty = draft.stockQty,
+                lowStockThreshold = draft.lowStockThreshold,
+                maxPerOrder = draft.maxPerOrder,
+                voiceAlias = draft.voiceAlias,
+                hasVariants = draft.hasVariants,
+                variants = draft.variants,
+                mfgDate = draft.mfgDate,
+                expiryDate = draft.expiryDate,
+                translationLanguages = draft.translationLanguages,
+                nameTranslations = draft.nameTranslations,
+                brandTranslations = draft.brandTranslations,
+            )
+        }
+    }
+
+    private fun AddEditInventoryUiState.toDraft(shopId: String, productId: String?) = ProductFormDraft(
+        shopId = shopId,
+        productId = productId ?: loadedProductId,
+        name = name,
+        nameHi = nameHi,
+        brandName = brandName,
+        category = category.name,
+        categoryId = categoryId,
+        subCategoryId = subCategoryId,
+        unit = unit.name,
+        barcode = barcode,
+        sellingPrice = sellingPrice,
+        costPrice = costPrice,
+        stockQty = stockQty,
+        lowStockThreshold = lowStockThreshold,
+        maxPerOrder = maxPerOrder,
+        voiceAlias = voiceAlias,
+        hasVariants = hasVariants,
+        variants = variants,
+        mfgDate = mfgDate,
+        expiryDate = expiryDate,
+        translationLanguages = translationLanguages,
+        nameTranslations = nameTranslations,
+        brandTranslations = brandTranslations,
+        imageUrls = imageUploader.readyUrls(),
+    )
+
+    private fun ProductFormDraft.formSnapshot(): List<Any?> = listOf(
+        name, nameHi, brandName, category, categoryId, subCategoryId, unit, barcode, sellingPrice, costPrice,
+        stockQty, lowStockThreshold, maxPerOrder, voiceAlias, hasVariants, variants, mfgDate, expiryDate,
+        translationLanguages, nameTranslations, brandTranslations, imageUrls,
+    )
 
     private fun fillFrom(product: Product) {
         loadedProduct = product
