@@ -2503,9 +2503,9 @@
     <string name="otp_status_checking">OTP যাচাই করা হচ্ছে…</string>
     <string name="otp_status_verified">OTP যাচাই হয়েছে</string>
     <string name="otp_status_verify_failed_title">OTP যাচাই হয়নি</string>
-    <string name="discard_entry_title">এই এন্ট্রি বাতিল করবেন?</string>
-    <string name="discard_entry_message">পরিবর্তন সেভ হয়নি। এখন ফিরে গেলে সেগুলো হারিয়ে যাবে।</string>
-    <string name="discard_entry_confirm">বাতিল করুন</string>
+    <string name="discard_entry_title">এই পণ্যটি ছাড়বেন?</string>
+    <string name="discard_entry_message">এখনই সম্পাদনা চালিয়ে যান, অথবা ফিরে যান। আপনার এন্ট্রি এই ডিভাইসেই থাকবে, তাই ফর্ম আবার খুললে সেই ডেটাই ফিরে আসবে।</string>
+    <string name="discard_entry_confirm">ফিরে যান</string>
     <string name="discard_entry_keep">সম্পাদনা চালিয়ে যান</string>
     <string name="scanner_drag_to_close">ক্যামেরা বন্ধ করুন</string>
     <string name="scanner_resize_cd">ক্যামেরার আকার বদলান</string>

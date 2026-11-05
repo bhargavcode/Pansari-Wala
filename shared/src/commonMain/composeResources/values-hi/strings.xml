@@ -2503,9 +2503,9 @@
     <string name="otp_status_checking">OTP जाँचा जा रहा है…</string>
     <string name="otp_status_verified">OTP सत्यापित</string>
     <string name="otp_status_verify_failed_title">OTP सत्यापित नहीं हुआ</string>
-    <string name="discard_entry_title">यह एंट्री रद्द करें?</string>
-    <string name="discard_entry_message">बदलाव सेव नहीं हुए हैं। अभी वापस जाने पर ये खो जाएंगे।</string>
-    <string name="discard_entry_confirm">रद्द करें</string>
+    <string name="discard_entry_title">इस उत्पाद को छोड़ें?</string>
+    <string name="discard_entry_message">अभी एडिट जारी रखें, या वापस जाएँ। आपकी एंट्री इस डिवाइस पर रहेगी, इसलिए फॉर्म दोबारा खोलने पर वही डेटा मिल जाएगा।</string>
+    <string name="discard_entry_confirm">वापस जाएँ</string>
     <string name="discard_entry_keep">एडिट जारी रखें</string>
     <string name="scanner_drag_to_close">कैमरा बंद करें</string>
     <string name="scanner_resize_cd">कैमरा का आकार बदलें</string>

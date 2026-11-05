@@ -117,7 +117,7 @@ fun AddEditInventoryScreen(
         DiscardChangesDialog(
             onDiscard = {
                 confirmDiscard = false
-                viewModel.abandonUnsavedWork()
+                viewModel.flushDraft(productId)
                 onBack()
             },
             onKeepEditing = { confirmDiscard = false },

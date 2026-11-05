@@ -42,6 +42,10 @@ import kotlinx.coroutines.launch
 import org.bhargav.pansariwala.api.ProductVariantDto
 import org.bhargav.pansariwala.domain.model.ProductUnit
 import org.bhargav.pansariwala.domain.model.SellMode
+import org.bhargav.pansariwala.media.ImageSource
+import org.bhargav.pansariwala.media.ImageUploadFeature
+import org.bhargav.pansariwala.media.rememberImageSourceLauncher
+import org.bhargav.pansariwala.util.withWordCaps
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.media.NetworkImage
 import org.bhargav.pansariwala.util.asQuantity
@@ -90,7 +94,7 @@ fun VariantListEditor(
     variants: List<ProductVariantDto>,
     onChange: (List<ProductVariantDto>) -> Unit,
     modifier: Modifier = Modifier,
-    onPickImage: (suspend () -> String?)? = null,
+    onPickImage: (suspend (ImageSource) -> String?)? = null,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(Res.string.master_variants), fontWeight = FontWeight.SemiBold)
@@ -130,7 +134,7 @@ internal fun VariantCard(
     onChange: (ProductVariantDto) -> Unit,
     onRemove: (() -> Unit)?,
     onMoveUp: (() -> Unit)?,
-    onPickImage: (suspend () -> String?)?,
+    onPickImage: (suspend (ImageSource) -> String?)?,
     siblings: List<ProductVariantDto> = emptyList(),
 ) {
     val mode = SellMode.fromName(variant.sellMode)
@@ -144,7 +148,7 @@ internal fun VariantCard(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = variant.name,
-                onValueChange = { onChange(variant.copy(name = it)) },
+                onValueChange = { onChange(variant.copy(name = it.withWordCaps())) },
                 label = { Text(stringResource(Res.string.variant_editor_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -293,21 +297,21 @@ internal fun VariantCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (onPickImage != null) {
+                    val pickImage = rememberImageSourceLauncher(ImageUploadFeature.INVENTORY_PRODUCT) { source ->
+                        scope.launch {
+                            uploading = true
+                            runCatching { onPickImage(source) }.getOrNull()?.let { url ->
+                                onChange(variant.copy(imageUrls = listOf(url)))
+                            }
+                            uploading = false
+                        }
+                    }
                     variant.imageUrls.firstOrNull()?.let { url ->
                         NetworkImage(url = url, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)))
                     }
-                    OutlinedButton(
-                        enabled = !uploading,
-                        onClick = {
-                            scope.launch {
-                                uploading = true
-                                runCatching { onPickImage() }.getOrNull()?.let { url ->
-                                    onChange(variant.copy(imageUrls = listOf(url)))
-                                }
-                                uploading = false
-                            }
-                        },
-                    ) { Text(if (uploading) "…" else stringResource(Res.string.variant_editor_image)) }
+                    OutlinedButton(enabled = !uploading, onClick = pickImage) {
+                        Text(if (uploading) "…" else stringResource(Res.string.variant_editor_image))
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 if (onMoveUp != null) {

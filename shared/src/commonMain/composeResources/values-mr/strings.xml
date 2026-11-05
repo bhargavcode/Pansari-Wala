@@ -2503,9 +2503,9 @@
     <string name="otp_status_checking">OTP तपासत आहोत…</string>
     <string name="otp_status_verified">OTP पडताळला</string>
     <string name="otp_status_verify_failed_title">OTP पडताळला नाही</string>
-    <string name="discard_entry_title">ही नोंद रद्द करायची?</string>
-    <string name="discard_entry_message">बदल सेव्ह झालेले नाहीत. आता मागे गेल्यास ते हरवतील.</string>
-    <string name="discard_entry_confirm">रद्द करा</string>
+    <string name="discard_entry_title">हे उत्पादन सोडायचे?</string>
+    <string name="discard_entry_message">आत्ता संपादन सुरू ठेवा, किंवा मागे जा. तुमची नोंद या डिव्हाइसवर राहील, त्यामुळे फॉर्म पुन्हा उघडल्यावर तोच डेटा मिळेल.</string>
+    <string name="discard_entry_confirm">मागे जा</string>
     <string name="discard_entry_keep">संपादन सुरू ठेवा</string>
     <string name="scanner_drag_to_close">कॅमेरा बंद करा</string>
     <string name="scanner_resize_cd">कॅमेऱ्याचा आकार बदला</string>

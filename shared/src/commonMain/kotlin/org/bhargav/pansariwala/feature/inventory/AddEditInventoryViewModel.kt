@@ -34,8 +34,11 @@ import org.bhargav.pansariwala.media.LifecycleImageUploader
 import org.bhargav.pansariwala.media.UploadedImage
 import org.bhargav.pansariwala.media.prepareImageForUpload
 import org.bhargav.pansariwala.platform.ImagePicker
+import org.bhargav.pansariwala.platform.pickImageCatching
 import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.generateId
+import org.bhargav.pansariwala.util.withLeadingCap
+import org.bhargav.pansariwala.util.withWordCaps
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_image_upload_failed
 import pansariwala.shared.generated.resources.error_expiry_before_mfg
@@ -229,9 +232,14 @@ class AddEditInventoryViewModel(
         _uiState.update { it.copy(pendingDraft = null) }
     }
 
-    /** Clears the local draft when leaving without saving (discard / start new). */
-    fun abandonUnsavedWork() {
-        viewModelScope.launch { preferences.clearProductFormDraft() }
+    /** Writes the current form before leaving, so the next open can restore it. */
+    fun flushDraft(productId: String?) {
+        val state = _uiState.value
+        if (state.saved || !hasUnsavedChanges()) return
+        val draft = state.toDraft(shopId, productId)
+        viewModelScope.launch {
+            if (draft.isBlank()) preferences.clearProductFormDraft() else preferences.setProductFormDraft(draft)
+        }
     }
 
     fun onMasterCategoryChange(categoryId: String?, subCategoryId: String?) = _uiState.update {
@@ -242,11 +250,15 @@ class AddEditInventoryViewModel(
         )
     }
 
-    fun onLookupQueryChange(value: String) = _uiState.update { it.copy(lookupQuery = value, error = null) }
-    fun onNameChange(value: String) = _uiState.update { it.copy(name = value) }
+    fun onLookupQueryChange(value: String) = _uiState.update {
+        val next = if (value.any { ch -> ch.isLetter() }) value.withLeadingCap() else value.filter { ch -> ch.isDigit() }
+        it.copy(lookupQuery = next, error = null)
+    }
+    fun onNameChange(value: String) = _uiState.update { it.copy(name = value.withWordCaps()) }
     fun onNameHiChange(value: String) {
-        markManual(nameField(AppLanguage.HINDI.code), value)
-        _uiState.update { it.copy(nameHi = value) }
+        val capped = value.withWordCaps()
+        markManual(nameField(AppLanguage.HINDI.code), capped)
+        _uiState.update { it.copy(nameHi = capped) }
     }
     fun onUnitChange(value: ProductUnit) = _uiState.update { it.copy(unit = value) }
     fun onBarcodeChange(value: String) = _uiState.update { it.copy(barcode = value) }
@@ -255,20 +267,22 @@ class AddEditInventoryViewModel(
     fun onStockQtyChange(value: String) = _uiState.update { it.copy(stockQty = value) }
     fun onThresholdChange(value: String) = _uiState.update { it.copy(lowStockThreshold = value) }
     fun onMaxPerOrderChange(value: String) = _uiState.update { it.copy(maxPerOrder = value) }
-    fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value) }
-    fun onBrandNameChange(value: String) = _uiState.update { it.copy(brandName = value) }
+    fun onVoiceAliasChange(value: String) = _uiState.update { it.copy(voiceAlias = value.withLeadingCap()) }
+    fun onBrandNameChange(value: String) = _uiState.update { it.copy(brandName = value.withWordCaps()) }
     fun onVariantsChange(value: List<ProductVariantDto>) = _uiState.update { it.copy(variants = value) }
     fun onHasVariantsChange(value: Boolean) = _uiState.update { it.copy(hasVariants = value) }
     fun onMfgDateChange(value: Long?) = _uiState.update { it.copy(mfgDate = value) }
     fun onExpiryDateChange(value: Long?) = _uiState.update { it.copy(expiryDate = value) }
     fun onNameTranslationChange(code: String, value: String) {
-        markManual(nameField(code), value)
-        _uiState.update { it.copy(nameTranslations = it.nameTranslations + (code to value)) }
+        val capped = value.withWordCaps()
+        markManual(nameField(code), capped)
+        _uiState.update { it.copy(nameTranslations = it.nameTranslations + (code to capped)) }
     }
 
     fun onBrandTranslationChange(code: String, value: String) {
-        markManual(brandField(code), value)
-        _uiState.update { it.copy(brandTranslations = it.brandTranslations + (code to value)) }
+        val capped = value.withWordCaps()
+        markManual(brandField(code), capped)
+        _uiState.update { it.copy(brandTranslations = it.brandTranslations + (code to capped)) }
     }
 
     /** Picking a language auto-fills its fields from the English name / brand; unpicking drops them. */
@@ -383,8 +397,8 @@ class AddEditInventoryViewModel(
     private fun Map<String, String>.cleaned(): Map<String, String> =
         mapValues { it.value.trim() }.filterValues { it.isNotEmpty() }
 
-    suspend fun uploadVariantImage(): String? {
-        val picked = runCatching { imagePicker.pickImage() }.getOrNull() ?: return null
+    suspend fun uploadVariantImage(source: ImageSource): String? {
+        val picked = imagePicker.pickImageCatching(source).getOrNull() ?: return null
         return runCatching {
             val compressed = prepareImageForUpload(picked)
             api.uploadImage(

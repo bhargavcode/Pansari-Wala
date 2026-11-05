@@ -706,7 +706,7 @@ internal fun ProductEditScreen(token: String, productId: String?, onNavigate: (M
                         VariantListEditor(
                             variants = variants,
                             onChange = { variants = it },
-                            onPickImage = {
+                            onPickImage = { _ ->
                                 runCatching { uploadMasterProductImage(api, token) }
                                     .onFailure { onStatus(it.message ?: "Upload failed. Try again.") }
                                     .getOrNull()

@@ -2503,9 +2503,9 @@
     <string name="otp_status_checking">OTP ਜਾਂਚਿਆ ਜਾ ਰਿਹਾ ਹੈ…</string>
     <string name="otp_status_verified">OTP ਦੀ ਪੁਸ਼ਟੀ ਹੋਈ</string>
     <string name="otp_status_verify_failed_title">OTP ਦੀ ਪੁਸ਼ਟੀ ਨਹੀਂ ਹੋਈ</string>
-    <string name="discard_entry_title">ਇਹ ਐਂਟਰੀ ਰੱਦ ਕਰੀਏ?</string>
-    <string name="discard_entry_message">ਬਦਲਾਅ ਸੇਵ ਨਹੀਂ ਹੋਏ। ਹੁਣ ਵਾਪਸ ਜਾਣ ਤੇ ਇਹ ਗੁੰਮ ਹੋ ਜਾਣਗੇ।</string>
-    <string name="discard_entry_confirm">ਰੱਦ ਕਰੋ</string>
+    <string name="discard_entry_title">ਇਹ ਉਤਪਾਦ ਛੱਡੀਏ?</string>
+    <string name="discard_entry_message">ਹੁਣੇ ਸੋਧ ਜਾਰੀ ਰੱਖੋ, ਜਾਂ ਵਾਪਸ ਜਾਓ। ਤੁਹਾਡੀ ਐਂਟਰੀ ਇਸ ਡਿਵਾਈਸ ਉੱਤੇ ਰਹੇਗੀ, ਇਸ ਲਈ ਫਾਰਮ ਦੁਬਾਰਾ ਖੋਲ੍ਹਣ ਤੇ ਉਹੀ ਡਾਟਾ ਮਿਲੇਗਾ।</string>
+    <string name="discard_entry_confirm">ਵਾਪਸ ਜਾਓ</string>
     <string name="discard_entry_keep">ਸੋਧ ਜਾਰੀ ਰੱਖੋ</string>
     <string name="scanner_drag_to_close">ਕੈਮਰਾ ਬੰਦ ਕਰੋ</string>
     <string name="scanner_resize_cd">ਕੈਮਰੇ ਦਾ ਆਕਾਰ ਬਦਲੋ</string>

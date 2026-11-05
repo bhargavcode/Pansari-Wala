@@ -2567,9 +2567,9 @@
     <string name="otp_status_checking">Checking OTP…</string>
     <string name="otp_status_verified">OTP verified</string>
     <string name="otp_status_verify_failed_title">OTP not verified</string>
-    <string name="discard_entry_title">Discard this entry?</string>
-    <string name="discard_entry_message">You have unsaved changes. If you go back now, they will be lost.</string>
-    <string name="discard_entry_confirm">Discard</string>
+    <string name="discard_entry_title">Leave this product?</string>
+    <string name="discard_entry_message">Keep editing now, or go back. Your entries stay on this device, so opening this form again brings them back.</string>
+    <string name="discard_entry_confirm">Go back</string>
     <string name="discard_entry_keep">Keep editing</string>
     <string name="scanner_drag_to_close">Close camera</string>
     <string name="scanner_resize_cd">Resize camera</string>
