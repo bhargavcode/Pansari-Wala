@@ -125,6 +125,10 @@ fun UserThemeScreen(
                 )
             }
         }
+        org.bhargav.pansariwala.feature.settings.FontScaleSection(
+            selected = state.fontScale,
+            onSelect = viewModel::setFontScale,
+        )
         UserPrimaryButton(text = stringResource(Res.string.action_confirm), onClick = onBack)
         }
     }

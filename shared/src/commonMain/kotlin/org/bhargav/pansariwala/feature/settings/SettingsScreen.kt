@@ -122,6 +122,7 @@ fun SettingsScreen(
                 )
             }
         }
+        FontScaleSection(selected = state.fontScale, onSelect = viewModel::setFontScale)
         }
     }
 }

@@ -49,7 +49,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.bhargav.pansariwala.domain.model.CategoryStock
@@ -239,7 +238,7 @@ fun OrdersLineChart(
     val labels = remember(buckets, labelFor) { buckets.map(labelFor) }
     val measurer = rememberTextMeasurer()
     val axisColor = MaterialTheme.colorScheme.outlineVariant
-    val labelStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -296,7 +295,7 @@ fun RevenueBarChart(
     val labels = remember(buckets, labelFor) { buckets.map(labelFor) }
     val measurer = rememberTextMeasurer()
     val axisColor = MaterialTheme.colorScheme.outlineVariant
-    val labelStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -376,7 +375,7 @@ fun PriceTrendChart(history: List<PricePoint>, currentPrice: Double, modifier: M
     val axisColor = MaterialTheme.colorScheme.outlineVariant
     val lineColor = MaterialTheme.colorScheme.primary
     val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
-    val labelStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val startLabel = shortDate(start)
     val endLabel = shortDate(now)
 

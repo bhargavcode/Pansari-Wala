@@ -461,6 +461,13 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="settings_custom_theme">Custom theme</string>
+    <string name="settings_font_size">ಅಕ್ಷರದ ಗಾತ್ರ</string>
+    <string name="settings_font_size_hint">ಇಡೀ ಆ್ಯಪ್‌ನಲ್ಲಿ ಅಕ್ಷರದ ಗಾತ್ರವನ್ನು ಬದಲಾಯಿಸುತ್ತದೆ. ಅಕ್ಷರಗಳು ನಿಮ್ಮ ಪರದೆಯ ಗಾತ್ರಕ್ಕೂ ಹೊಂದಿಕೊಳ್ಳುತ್ತವೆ.</string>
+    <string name="font_size_small">ಚಿಕ್ಕದು</string>
+    <string name="font_size_default">ಸಾಮಾನ್ಯ</string>
+    <string name="font_size_large">ದೊಡ್ಡದು</string>
+    <string name="font_size_extra_large">ತುಂಬಾ ದೊಡ್ಡದು</string>
+    <string name="settings_font_size_preview">Aa — ಅಕ್ಷರಗಳು ಹೀಗೆ ಕಾಣುತ್ತವೆ</string>
     <string name="theme_default">Default (Olive)</string>
     <string name="theme_saffron">Saffron</string>
     <string name="theme_teal">Teal</string>

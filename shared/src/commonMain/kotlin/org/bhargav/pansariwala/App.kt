@@ -115,6 +115,7 @@ fun App(
         PansariTheme(
             darkTheme = darkTheme,
             customTheme = settings.customTheme,
+            fontScale = settings.fontScale,
         ) {
             val keyboardEligible = hasSoftKeyboard
             val floatingKeyboardOn by preferences.floatingKeyboard.collectAsStateWithLifecycle(initialValue = true)

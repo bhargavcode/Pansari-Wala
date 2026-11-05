@@ -461,6 +461,13 @@
     <string name="theme_light">लाइट</string>
     <string name="theme_dark">डार्क</string>
     <string name="settings_custom_theme">कस्टम थीम</string>
+    <string name="settings_font_size">अक्षर का आकार</string>
+    <string name="settings_font_size_hint">पूरे ऐप में अक्षरों का आकार बदलता है। अक्षर आपकी स्क्रीन के आकार के अनुसार भी ढलते हैं।</string>
+    <string name="font_size_small">छोटा</string>
+    <string name="font_size_default">सामान्य</string>
+    <string name="font_size_large">बड़ा</string>
+    <string name="font_size_extra_large">बहुत बड़ा</string>
+    <string name="settings_font_size_preview">Aa — अक्षर ऐसे दिखेंगे</string>
     <string name="theme_default">डिफ़ॉल्ट (जैतूनी)</string>
     <string name="theme_saffron">केसरिया</string>
     <string name="theme_teal">टील</string>

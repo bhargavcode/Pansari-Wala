@@ -6,8 +6,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import org.bhargav.pansariwala.settings.CustomTheme
+import org.bhargav.pansariwala.settings.FontScale
 
 private val lightScheme = lightColorScheme(
     primary = primaryLight,
@@ -89,14 +92,17 @@ private val darkScheme = darkColorScheme(
 fun PansariTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     customTheme: CustomTheme = CustomTheme.DEFAULT,
+    fontScale: FontScale = FontScale.DEFAULT,
     content: @Composable () -> Unit,
 ) {
     val base = if (darkTheme) darkScheme else lightScheme
-    MaterialTheme(
-        colorScheme = base.withCustomTheme(customTheme, darkTheme),
-        typography = AppTypography(),
-        content = content,
-    )
+    CompositionLocalProvider(LocalDensity provides clampedFontDensity()) {
+        MaterialTheme(
+            colorScheme = base.withCustomTheme(customTheme, darkTheme),
+            typography = AppTypography(screenTypeScale(fontScale.factor)),
+            content = content,
+        )
+    }
 }
 
 private fun ColorScheme.withCustomTheme(theme: CustomTheme, dark: Boolean): ColorScheme {

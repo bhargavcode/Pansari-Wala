@@ -461,6 +461,13 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="settings_custom_theme">Custom theme</string>
+    <string name="settings_font_size">লেখার আকার</string>
+    <string name="settings_font_size_hint">পুরো অ্যাপে লেখার আকার বদলায়। লেখা আপনার স্ক্রিনের আকার অনুযায়ীও মানিয়ে নেয়।</string>
+    <string name="font_size_small">ছোট</string>
+    <string name="font_size_default">সাধারণ</string>
+    <string name="font_size_large">বড়</string>
+    <string name="font_size_extra_large">খুব বড়</string>
+    <string name="settings_font_size_preview">Aa — লেখা এমন দেখাবে</string>
     <string name="theme_default">Default (Olive)</string>
     <string name="theme_saffron">Saffron</string>
     <string name="theme_teal">Teal</string>

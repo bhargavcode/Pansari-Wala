@@ -461,6 +461,13 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="settings_custom_theme">Custom theme</string>
+    <string name="settings_font_size">ਅੱਖਰਾਂ ਦਾ ਆਕਾਰ</string>
+    <string name="settings_font_size_hint">ਪੂਰੇ ਐਪ ਵਿੱਚ ਅੱਖਰਾਂ ਦਾ ਆਕਾਰ ਬਦਲਦਾ ਹੈ। ਅੱਖਰ ਤੁਹਾਡੀ ਸਕ੍ਰੀਨ ਦੇ ਆਕਾਰ ਅਨੁਸਾਰ ਵੀ ਢਲਦੇ ਹਨ।</string>
+    <string name="font_size_small">ਛੋਟਾ</string>
+    <string name="font_size_default">ਆਮ</string>
+    <string name="font_size_large">ਵੱਡਾ</string>
+    <string name="font_size_extra_large">ਬਹੁਤ ਵੱਡਾ</string>
+    <string name="settings_font_size_preview">Aa — ਅੱਖਰ ਇਸ ਤਰ੍ਹਾਂ ਦਿਖਣਗੇ</string>
     <string name="theme_default">Default (Olive)</string>
     <string name="theme_saffron">Saffron</string>
     <string name="theme_teal">Teal</string>

@@ -20,6 +20,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import org.bhargav.pansariwala.designsystem.BarcodeField
 import org.bhargav.pansariwala.designsystem.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -146,6 +147,12 @@ internal fun VariantCard(
                 onValueChange = { onChange(variant.copy(name = it)) },
                 label = { Text(stringResource(Res.string.variant_editor_label)) },
                 singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            BarcodeField(
+                value = variant.barcode.orEmpty(),
+                onValueChange = { onChange(variant.copy(barcode = it.trim().ifBlank { null })) },
+                label = stringResource(Res.string.variant_editor_barcode),
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -280,13 +287,6 @@ internal fun VariantCard(
                     value = variant.sku,
                     onValueChange = { onChange(variant.copy(sku = it)) },
                     label = { Text(stringResource(Res.string.master_sku)) },
-                    singleLine = true,
-                    modifier = Modifier.widthIn(min = 140.dp, max = 220.dp),
-                )
-                OutlinedTextField(
-                    value = variant.barcode.orEmpty(),
-                    onValueChange = { onChange(variant.copy(barcode = it.ifBlank { null })) },
-                    label = { Text(stringResource(Res.string.variant_editor_barcode)) },
                     singleLine = true,
                     modifier = Modifier.widthIn(min = 140.dp, max = 220.dp),
                 )

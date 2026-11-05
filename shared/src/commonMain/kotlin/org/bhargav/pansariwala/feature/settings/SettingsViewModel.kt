@@ -10,6 +10,7 @@ import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.settings.AppUserSettings
 import org.bhargav.pansariwala.settings.CustomTheme
+import org.bhargav.pansariwala.settings.FontScale
 import org.bhargav.pansariwala.settings.ThemeMode
 
 class SettingsViewModel(
@@ -27,6 +28,10 @@ class SettingsViewModel(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { preferences.setThemeMode(mode) }
+    }
+
+    fun setFontScale(scale: FontScale) {
+        viewModelScope.launch { preferences.setFontScale(scale) }
     }
 
     fun setCustomTheme(theme: CustomTheme) {

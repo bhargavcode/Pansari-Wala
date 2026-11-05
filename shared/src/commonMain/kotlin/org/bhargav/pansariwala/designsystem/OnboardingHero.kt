@@ -43,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /** One selling point shown as a chip under the onboarding hero. */
 data class OnboardingHighlight(val emoji: String, val text: String)
@@ -106,7 +105,7 @@ fun OnboardingHero(
                 val dir = if (index % 2 == 0) 1f else -1f
                 Text(
                     text = emoji,
-                    fontSize = 26.sp,
+                    style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier
                         .offset(x = maxWidth * fx - 16.dp, y = maxHeight * fy + (drift * 8f * dir).dp)
                         .rotate(drift * 10f * dir)
@@ -129,7 +128,7 @@ fun OnboardingHero(
                         .background(Color.White),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(heroEmoji, fontSize = 48.sp)
+                    Text(heroEmoji, style = MaterialTheme.typography.displayMedium)
                 }
             }
         }
@@ -163,7 +162,7 @@ fun OnboardingHero(
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(item.emoji, fontSize = 14.sp)
+                        Text(item.emoji, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.size(4.dp))
                         Text(
                             item.text,

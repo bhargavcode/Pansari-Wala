@@ -20,6 +20,7 @@ import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.platform.stopPartnerLocationTracking
 import org.bhargav.pansariwala.settings.AppUserSettings
 import org.bhargav.pansariwala.settings.CustomTheme
+import org.bhargav.pansariwala.settings.FontScale
 import org.bhargav.pansariwala.settings.ThemeMode
 import org.bhargav.pansariwala.util.AppConstants
 import kotlin.uuid.ExperimentalUuidApi
@@ -39,6 +40,7 @@ class AppPreferences(
         const val language = "pref_language"
         const val themeMode = "pref_theme_mode"
         const val customTheme = "pref_custom_theme"
+        const val fontScale = "pref_font_scale"
         const val notifyLowStock = "pref_notify_low_stock"
         const val notifyOrderEvents = "pref_notify_order_events"
         const val searchRadiusKm = "pref_search_radius_km"
@@ -61,6 +63,11 @@ class AppPreferences(
     val accessToken: Flow<String?> = store.observeString(Keys.accessToken)
 
     val userSettings: Flow<AppUserSettings> = combine(
+        baseUserSettings(),
+        store.observeString(Keys.fontScale),
+    ) { settings, fontScale -> settings.copy(fontScale = FontScale.fromName(fontScale)) }
+
+    private fun baseUserSettings(): Flow<AppUserSettings> = combine(
         store.observeString(Keys.language),
         store.observeString(Keys.themeMode),
         store.observeString(Keys.customTheme),
@@ -271,6 +278,7 @@ class AppPreferences(
         language = AppLanguage.fromCode(store.getString(Keys.language) ?: AppLanguage.ENGLISH.code),
         themeMode = ThemeMode.fromName(store.getString(Keys.themeMode)),
         customTheme = CustomTheme.fromName(store.getString(Keys.customTheme)),
+        fontScale = FontScale.fromName(store.getString(Keys.fontScale)),
         notifyLowStock = store.getString(Keys.notifyLowStock).toBooleanPref(default = true),
         notifyOrderEvents = store.getString(Keys.notifyOrderEvents).toBooleanPref(default = true),
         searchRadiusKm = store.getString(Keys.searchRadiusKm)?.toDoubleOrNull()
@@ -291,6 +299,10 @@ class AppPreferences(
 
     suspend fun setCustomTheme(theme: CustomTheme) {
         store.putStrings(mapOf(Keys.customTheme to theme.name))
+    }
+
+    suspend fun setFontScale(scale: FontScale) {
+        store.putStrings(mapOf(Keys.fontScale to scale.name))
     }
 
     suspend fun setNotifyLowStock(enabled: Boolean) {
