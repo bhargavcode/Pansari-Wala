@@ -8,11 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.data.db.ShopRepository
 import org.bhargav.pansariwala.domain.auth.ObserveSessionUseCase
+import org.bhargav.pansariwala.i18n.AppLanguage
 
 sealed interface SplashDestination {
     data object Login : SplashDestination
+    data object SelectLanguage : SplashDestination
     data object Home : SplashDestination
     /** Signed in but registration (profile setup) was never finished. */
     data object CompleteProfile : SplashDestination
@@ -25,6 +28,7 @@ class SplashViewModel(
     private val observeSession: ObserveSessionUseCase,
     private val shopRepository: ShopRepository,
     private val preferences: org.bhargav.pansariwala.data.local.AppPreferences,
+    private val api: PansariApi,
 ) : ViewModel() {
 
     private val _destination = MutableStateFlow<SplashDestination?>(null)
@@ -67,19 +71,37 @@ class SplashViewModel(
             }
             _step.value = SplashStep.LOADING_PROFILE
             val next = when {
-                !home -> SplashDestination.Login
-                product == org.bhargav.pansariwala.product.AppProduct.USER &&
+                home && product == org.bhargav.pansariwala.product.AppProduct.USER &&
                     !preferences.isProfileComplete() -> SplashDestination.CompleteProfile
-                else -> SplashDestination.Home
+                home -> SplashDestination.Home
+                else -> languageGate()
             }
             _step.value = SplashStep.OPENING
             _destination.value = next
         }
     }
 
+    /**
+     * Signed-out start: a language already stored for this device skips to the phone / login screen.
+     * Otherwise the language screen opens, with English pre-selected.
+     */
+    private suspend fun languageGate(): SplashDestination {
+        val deviceId = preferences.getOrCreateDeviceId()
+        val remote = withTimeoutOrNull(LANGUAGE_LOOKUP_MS) {
+            runCatching { api.deviceLanguage(deviceId) }.getOrNull()
+        }
+        if (!remote.isNullOrBlank()) {
+            preferences.setLanguage(AppLanguage.fromCode(remote))
+            preferences.setLanguageChosen(true)
+            return SplashDestination.Login
+        }
+        return if (preferences.isLanguageChosen()) SplashDestination.Login else SplashDestination.SelectLanguage
+    }
+
     companion object {
         const val SPLASH_DURATION_MS = 400L
         private const val SLOW_HINT_MS = 3_000L
         private const val SEED_TIMEOUT_MS = 10_000L
+        private const val LANGUAGE_LOOKUP_MS = 4_000L
     }
 }

@@ -57,6 +57,9 @@ abstract class OrderDao {
     @Query("UPDATE orders SET pendingSync = 0 WHERE id = :id AND syncRevision = :revision")
     abstract suspend fun markSynced(id: String, revision: Long): Int
 
+    @Query("UPDATE orders SET pendingSync = 0 WHERE id = :id")
+    abstract suspend fun clearPending(id: String)
+
     @Query("SELECT * FROM orders WHERE id = :id LIMIT 1")
     abstract suspend fun getOrder(id: String): OrderEntity?
 

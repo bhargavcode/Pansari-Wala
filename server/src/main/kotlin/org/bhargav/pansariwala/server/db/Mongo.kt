@@ -28,6 +28,13 @@ import org.bson.codecs.kotlinx.KotlinSerializerCodecProvider
 class MongoApp(val client: MongoClient, val db: MongoDatabase)
 
 @Serializable
+data class DeviceLanguageDoc(
+    @SerialName("_id") val deviceId: String,
+    val language: String,
+    val updatedAt: Long = 0L,
+)
+
+@Serializable
 data class ShopFeaturesDoc(
     val voiceSearch: Boolean = true,
     val barcodeSearch: Boolean = true,
@@ -527,6 +534,9 @@ data class OrderDoc(
     val createdById: String? = null,
     val createdByName: String? = null,
     val createdByRole: String? = null,
+    val adjustmentAmount: Double = 0.0,
+    val adjustmentMethod: String? = null,
+    val adjustedByName: String? = null,
     /** Server write time for POS bills; cursor for device pull sync. */
     val syncedAt: Long = 0L,
 )

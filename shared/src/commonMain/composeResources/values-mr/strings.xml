@@ -2632,8 +2632,22 @@
     <string name="report_filter_role">भूमिका</string>
     <string name="report_role_all">सर्व भूमिका</string>
     <string name="report_filter_selected">%1$d निवडले</string>
-    <string name="translate_hint">निवडलेल्या भाषांमध्ये नाव आणि ब्रँड टाइप करताच याच फोनवर आपोआप भाषांतर होऊन भरले जातात. एखादी भाषा एकदा डाउनलोड होऊ शकते (इंटरनेट लागते), नंतर ऑफलाइन चालते.</string>
+    <string name="onboarding_language_title">तुमची भाषा निवडा</string>
+    <string name="onboarding_language_body">इंग्रजी निवडलेली आहे. ती ठेवा, किंवा तुम्ही बोलता ती भाषा निवडा. अ‍ॅप त्या भाषेत चालेल.</string>
+    <string name="onboarding_language_default">डीफॉल्ट</string>
+    <string name="onboarding_language_continue">पुढे जा</string>
+    <string name="translate_hint">नाव आणि ब्रँड टाइप करताच याच फोनवर तुमच्या भाषेत भाषांतर भरले जाते. तुम्ही ते बदलू शकता. एखादी भाषा एकदा डाउनलोड होऊ शकते (इंटरनेट लागते), नंतर ऑफलाइन चालते.</string>
     <string name="translate_field_name">नाव (%1$s)</string>
     <string name="translate_field_brand">ब्रँड (%1$s)</string>
     <string name="error_translation_failed">%1$s मध्ये भाषांतर झाले नाही. भाषा डाउनलोड होण्यासाठी एकदा इंटरनेटशी जोडा.</string>
+    <string name="order_line_returned">परत %1$s</string>
+    <string name="order_line_added">जोडले</string>
+    <string name="order_line_replaced">बदलले</string>
+    <string name="order_line_by">%1$s</string>
+    <string name="order_adjust_refund">परतावा %1$s · %2$s</string>
+    <string name="order_adjust_collected">घेतले %1$s · %2$s</string>
+    <string name="order_edit_collect">%1$s घ्या</string>
+    <string name="pos_payment_refund_title">परतावा %1$s</string>
+    <string name="order_edit_failed">हा ऑर्डर अपडेट होऊ शकला नाही. पुन्हा प्रयत्न करा.</string>
+    <string name="cancel_reason_auto_24h">24 तासांनंतर आपोआप रद्द</string>
 </resources>

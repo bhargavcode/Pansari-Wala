@@ -2632,8 +2632,22 @@
     <string name="report_filter_role">ਭੂਮਿਕਾ</string>
     <string name="report_role_all">ਸਾਰੀਆਂ ਭੂਮਿਕਾਵਾਂ</string>
     <string name="report_filter_selected">%1$d ਚੁਣੇ</string>
-    <string name="translate_hint">ਚੁਣੀਆਂ ਭਾਸ਼ਾਵਾਂ ਵਿੱਚ ਨਾਮ ਅਤੇ ਬ੍ਰਾਂਡ ਲਿਖਦੇ ਹੀ ਇਸੇ ਫ਼ੋਨ ਉੱਤੇ ਆਪਣੇ ਆਪ ਅਨੁਵਾਦ ਹੋ ਕੇ ਭਰ ਜਾਂਦੇ ਹਨ। ਕੋਈ ਭਾਸ਼ਾ ਇੱਕ ਵਾਰ ਡਾਊਨਲੋਡ ਹੋ ਸਕਦੀ ਹੈ (ਇੰਟਰਨੈੱਟ ਚਾਹੀਦਾ), ਫਿਰ ਆਫ਼ਲਾਈਨ ਚੱਲਦੀ ਹੈ।</string>
+    <string name="onboarding_language_title">ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ</string>
+    <string name="onboarding_language_body">ਅੰਗਰੇਜ਼ੀ ਚੁਣੀ ਹੋਈ ਹੈ। ਉਸੇ ਨੂੰ ਰੱਖੋ, ਜਾਂ ਜੋ ਭਾਸ਼ਾ ਤੁਸੀਂ ਬੋਲਦੇ ਹੋ ਉਹ ਚੁਣੋ। ਐਪ ਉਸੇ ਭਾਸ਼ਾ ਵਿੱਚ ਚੱਲੇਗੀ।</string>
+    <string name="onboarding_language_default">ਡਿਫ਼ਾਲਟ</string>
+    <string name="onboarding_language_continue">ਅੱਗੇ ਵਧੋ</string>
+    <string name="translate_hint">ਨਾਮ ਅਤੇ ਬ੍ਰਾਂਡ ਲਿਖਦੇ ਹੀ ਇਸੇ ਫ਼ੋਨ ਉੱਤੇ ਤੁਹਾਡੀ ਭਾਸ਼ਾ ਵਿੱਚ ਅਨੁਵਾਦ ਭਰ ਜਾਂਦਾ ਹੈ। ਤੁਸੀਂ ਉਸ ਨੂੰ ਬਦਲ ਸਕਦੇ ਹੋ। ਭਾਸ਼ਾ ਇੱਕ ਵਾਰ ਡਾਊਨਲੋਡ ਹੋ ਸਕਦੀ ਹੈ (ਇੰਟਰਨੈੱਟ ਚਾਹੀਦਾ), ਫਿਰ ਆਫ਼ਲਾਈਨ ਚੱਲਦੀ ਹੈ।</string>
     <string name="translate_field_name">ਨਾਮ (%1$s)</string>
     <string name="translate_field_brand">ਬ੍ਰਾਂਡ (%1$s)</string>
     <string name="error_translation_failed">%1$s ਵਿੱਚ ਅਨੁਵਾਦ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਭਾਸ਼ਾ ਡਾਊਨਲੋਡ ਕਰਨ ਲਈ ਇੱਕ ਵਾਰ ਇੰਟਰਨੈੱਟ ਨਾਲ ਜੁੜੋ।</string>
+    <string name="order_line_returned">ਵਾਪਸ %1$s</string>
+    <string name="order_line_added">ਜੋੜਿਆ</string>
+    <string name="order_line_replaced">ਬਦਲਿਆ</string>
+    <string name="order_line_by">%1$s</string>
+    <string name="order_adjust_refund">ਰਿਫੰਡ %1$s · %2$s</string>
+    <string name="order_adjust_collected">ਲਿਆ %1$s · %2$s</string>
+    <string name="order_edit_collect">%1$s ਲਵੋ</string>
+    <string name="pos_payment_refund_title">ਰਿਫੰਡ %1$s</string>
+    <string name="order_edit_failed">ਇਹ ਆਰਡਰ ਅੱਪਡੇਟ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।</string>
+    <string name="cancel_reason_auto_24h">24 ਘੰਟੇ ਬਾਅਦ ਆਪਣੇ ਆਪ ਰੱਦ</string>
 </resources>

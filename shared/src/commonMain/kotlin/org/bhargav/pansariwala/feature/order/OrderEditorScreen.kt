@@ -159,6 +159,8 @@ import pansariwala.shared.generated.resources.cart_empty_hint
 import pansariwala.shared.generated.resources.create_order
 import pansariwala.shared.generated.resources.customer_name
 import pansariwala.shared.generated.resources.edit_order
+import pansariwala.shared.generated.resources.order_edit_collect
+import pansariwala.shared.generated.resources.pos_payment_refund_title
 import pansariwala.shared.generated.resources.pos_payment_title
 import pansariwala.shared.generated.resources.pos_udhaar_confirm
 import pansariwala.shared.generated.resources.pos_udhaar_hint
@@ -1376,13 +1378,17 @@ private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorVie
                 UdhaarContent(state, viewModel)
             } else {
                 Text(
-                    stringResource(Res.string.pos_payment_title),
+                    when {
+                        state.settlementDue < 0.0 -> stringResource(Res.string.pos_payment_refund_title, state.payAmount.asMoney())
+                        state.settlementDue > 0.0 -> stringResource(Res.string.order_edit_collect, state.payAmount.asMoney())
+                        else -> stringResource(Res.string.pos_payment_title)
+                    },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    stringResource(Res.string.total_label, state.total.asMoney()),
+                    stringResource(Res.string.total_label, state.payAmount.asMoney()),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -1390,7 +1396,8 @@ private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorVie
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    posPaymentOptions.forEach { (method, icon) ->
+                    posPaymentOptions.filter { state.settlementDue >= 0.0 || it.first == AppConstants.PosPayment.CASH || it.first == AppConstants.PosPayment.UPI }
+                        .forEach { (method, icon) ->
                         PaymentOptionCard(
                             label = stringResource(paymentMethodLabelRes(method)),
                             icon = icon,
@@ -1399,7 +1406,7 @@ private fun PosPaymentSheet(state: OrderEditorUiState, viewModel: OrderEditorVie
                         )
                     }
                 }
-                PaymentOptionCard(
+                if (state.settlementDue >= 0.0) PaymentOptionCard(
                     label = stringResource(paymentMethodLabelRes(AppConstants.PosPayment.UDHAAR)),
                     icon = Icons.AutoMirrored.Filled.MenuBook,
                     onClick = { viewModel.selectPayment(AppConstants.PosPayment.UDHAAR) },
@@ -1549,7 +1556,7 @@ private fun UdhaarConfirmStep(borrower: BorrowerDto, state: OrderEditorUiState) 
             }
             HorizontalDivider()
             UdhaarAmountRow(stringResource(Res.string.pos_udhaar_current_due), borrower.outstanding.asMoney())
-            UdhaarAmountRow(stringResource(Res.string.pos_udhaar_this_bill), state.total.asMoney())
+            UdhaarAmountRow(stringResource(Res.string.pos_udhaar_this_bill), state.payAmount.asMoney())
             if (state.udhaarPaidNow > 0.0) {
                 UdhaarAmountRow(
                     stringResource(
@@ -1724,9 +1731,9 @@ private fun PaymentOptionCard(
 
 @Composable
 private fun ColumnScope.UpiQrContent(state: OrderEditorUiState, viewModel: OrderEditorViewModel) {
-    val amount = state.total.asMoney()
-    val uri = remember(state.shopUpiId, state.shopName, state.total) {
-        buildUpiUri(state.shopUpiId, state.shopName, state.total)
+    val amount = state.payAmount.asMoney()
+    val uri = remember(state.shopUpiId, state.shopName, state.payAmount) {
+        buildUpiUri(state.shopUpiId, state.shopName, state.payAmount)
     }
     val qrPainter = rememberQrCodePainter(uri)
     Text(

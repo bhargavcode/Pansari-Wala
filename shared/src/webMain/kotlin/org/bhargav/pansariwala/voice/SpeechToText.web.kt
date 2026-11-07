@@ -33,7 +33,7 @@ private class WebSpeechToText : SpeechToText {
             return
         }
         handle?.let(::recognitionStop)
-        handle = recognitionStart(SPEECH_LANGUAGE) { kind, text ->
+        handle = recognitionStart(org.bhargav.pansariwala.i18n.AppSpeechLanguage.current().speechLocale) { kind, text ->
             val event = when (kind) {
                 EVENT_STARTED -> SpeechEvent.Started
                 EVENT_PARTIAL -> SpeechEvent.PartialResult(text)
@@ -56,9 +56,6 @@ private class WebSpeechToText : SpeechToText {
         handle = null
     }
 
-    private companion object {
-        const val SPEECH_LANGUAGE = "hi-IN"
-    }
 }
 
 actual fun createSpeechToText(): SpeechToText = WebSpeechToText()

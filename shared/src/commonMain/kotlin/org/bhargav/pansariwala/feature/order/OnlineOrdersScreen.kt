@@ -167,6 +167,7 @@ import pansariwala.shared.generated.resources.action_yes
 import pansariwala.shared.generated.resources.cancel_order_message
 import pansariwala.shared.generated.resources.cancel_order_title
 import pansariwala.shared.generated.resources.cancel_reason_custom_hint
+import pansariwala.shared.generated.resources.cancel_reason_auto_24h
 import pansariwala.shared.generated.resources.cancel_reason_label
 import pansariwala.shared.generated.resources.delivery_partner_name
 import pansariwala.shared.generated.resources.delivery_partner_phone
@@ -403,7 +404,8 @@ fun OnlineOrdersScreen(
                     val isReturn = order.status == OrderStatus.RETURNING_TO_SHOP || order.status == OrderStatus.RETURNED_TO_SHOP
                     (if (isReturn) returnReasonLabel(order.cancelReason) else order.cancelReason)?.let { reason ->
                         Text(
-                            text = "${stringResource(Res.string.cancel_reason_label)}: $reason",
+                            text = "${stringResource(Res.string.cancel_reason_label)}: " +
+                                if (reason == AppConstants.OrderLine.AUTO_CANCEL) stringResource(Res.string.cancel_reason_auto_24h) else reason,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(top = 4.dp),

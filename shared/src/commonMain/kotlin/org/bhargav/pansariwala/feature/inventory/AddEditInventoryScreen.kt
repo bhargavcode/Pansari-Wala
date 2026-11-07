@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.bhargav.pansariwala.designsystem.PansariScreen
 import org.bhargav.pansariwala.designsystem.handleErrorBannerAction
 import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.i18n.asString
 import org.bhargav.pansariwala.i18n.localizedLabel
 import org.bhargav.pansariwala.ui.toErrorBanner
@@ -79,7 +80,7 @@ import pansariwala.shared.generated.resources.field_barcode
 import pansariwala.shared.generated.resources.field_cost_price
 import pansariwala.shared.generated.resources.field_low_stock_at
 import pansariwala.shared.generated.resources.field_name
-import pansariwala.shared.generated.resources.field_name_hi
+import pansariwala.shared.generated.resources.translate_field_name
 import pansariwala.shared.generated.resources.field_selling_price
 import pansariwala.shared.generated.resources.field_stock_qty
 import pansariwala.shared.generated.resources.field_unit
@@ -187,13 +188,15 @@ fun AddEditInventoryScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedTextField(
-            value = state.nameHi,
-            onValueChange = viewModel::onNameHiChange,
-            label = { Text(stringResource(Res.string.field_name_hi)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (state.localLanguageCode == AppLanguage.HINDI.code) {
+            OutlinedTextField(
+                value = state.nameHi,
+                onValueChange = viewModel::onNameHiChange,
+                label = { Text(stringResource(Res.string.translate_field_name, AppLanguage.HINDI.displayLabel)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         OutlinedTextField(
             value = state.brandName,
             onValueChange = viewModel::onBrandNameChange,
@@ -203,7 +206,6 @@ fun AddEditInventoryScreen(
         )
         ProductTranslationsSection(
             state = state,
-            onToggleLanguage = viewModel::onTranslationLanguageToggle,
             onNameChange = viewModel::onNameTranslationChange,
             onBrandChange = viewModel::onBrandTranslationChange,
             modifier = Modifier.fillMaxWidth(),

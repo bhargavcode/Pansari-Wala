@@ -35,6 +35,7 @@ import pansariwala.shared.generated.resources.splash_step_preparing_data
 fun SplashScreen(
     onNavigateToLogin: () -> Unit,
     onNavigateToHome: () -> Unit,
+    onNavigateToLanguage: () -> Unit = onNavigateToLogin,
     onNavigateToCompleteProfile: () -> Unit = onNavigateToLogin,
     viewModel: SplashViewModel = koinViewModel(),
 ) {
@@ -45,6 +46,7 @@ fun SplashScreen(
     LaunchedEffect(destination) {
         when (destination) {
             SplashDestination.Login -> onNavigateToLogin()
+            SplashDestination.SelectLanguage -> onNavigateToLanguage()
             SplashDestination.Home -> onNavigateToHome()
             SplashDestination.CompleteProfile -> onNavigateToCompleteProfile()
             null -> Unit

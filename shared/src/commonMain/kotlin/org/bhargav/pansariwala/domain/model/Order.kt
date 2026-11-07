@@ -48,6 +48,11 @@ data class OrderItem(
     val imageUrl: String? = null,
     val variantId: String? = null,
     val variantLabel: String? = null,
+    /** RETURNED, ADDED or REPLACED when this line changed on a later edit. */
+    val lineChange: String? = null,
+    /** Quantity returned, added or replaced. */
+    val changeQty: Double = 0.0,
+    val changedByName: String? = null,
 ) {
     val lineTotal: Double get() = quantity * unitPrice
 }
@@ -134,6 +139,10 @@ data class Order(
     val createdById: String? = null,
     val createdByName: String? = null,
     val createdByRole: String? = null,
+    /** Cash movement from an edit: positive collected, negative refunded. */
+    val adjustmentAmount: Double = 0.0,
+    val adjustmentMethod: String? = null,
+    val adjustedByName: String? = null,
 ) {
     val subtotal: Double get() = items.sumOf { it.lineTotal }
     val isPartialUdhaar: Boolean

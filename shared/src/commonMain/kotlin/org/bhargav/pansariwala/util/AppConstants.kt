@@ -322,6 +322,10 @@ object AppConstants {
         const val FLOATING_KEYBOARD: String = "pref_floating_keyboard"
         const val FLOATING_KEYBOARD_DOCKED: String = "pref_floating_keyboard_docked"
         const val FLOATING_KEYBOARD_SCALE: String = "pref_floating_keyboard_scale"
+        const val FLOATING_KEYBOARD_WIDTH_SCALE: String = "pref_floating_keyboard_width_scale"
+        const val FLOATING_KEYBOARD_HEIGHT_SCALE: String = "pref_floating_keyboard_height_scale"
+        /** True after the device picked an app language (English counts). */
+        const val LANGUAGE_CHOSEN: String = "pref_language_chosen"
         const val REVIEW_EVENT_COUNT: String = "pref_review_event_count"
         const val REVIEW_ASKED_AT: String = "pref_review_asked_at"
         const val UPDATE_CHECKED_AT: String = "pref_update_checked_at"
@@ -331,8 +335,17 @@ object AppConstants {
         const val PRODUCT_FORM_DRAFT: String = "pref_product_form_draft"
     }
 
+    object OrderLine {
+        const val RETURNED: String = "RETURNED"
+        const val ADDED: String = "ADDED"
+        const val REPLACED: String = "REPLACED"
+        /** Stored on an online order the server cancelled because it was still open after a day. */
+        const val AUTO_CANCEL: String = "AUTO_24H"
+        const val AUTO_CANCEL_MS: Long = 24L * 60L * 60L * 1000L
+    }
+
     object Voice {
-        /** Primary STT language (Hindi / Hinglish shop talk). */
+        /** Fallback when the app language has not been read yet. */
         const val PRIMARY_LOCALE: String = "hi-IN"
         /** Also recognised where the platform supports it, so English product names come through. */
         const val SECONDARY_LOCALE: String = "en-IN"

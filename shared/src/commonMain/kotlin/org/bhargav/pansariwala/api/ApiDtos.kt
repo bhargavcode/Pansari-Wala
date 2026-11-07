@@ -45,6 +45,12 @@ data class PublicConfigDto(
 )
 
 @Serializable
+data class DeviceLanguageDto(val language: String? = null)
+
+@Serializable
+data class DeviceLanguageRequest(val deviceId: String, val language: String)
+
+@Serializable
 data class TokenResponse(
     val accessToken: String,
     val refreshToken: String? = null,
@@ -617,10 +623,25 @@ data class OrderDto(
     val createdById: String? = null,
     val createdByName: String? = null,
     val createdByRole: String? = null,
+    val adjustmentAmount: Double = 0.0,
+    val adjustmentMethod: String? = null,
+    val adjustedByName: String? = null,
 )
 
 @Serializable
 data class DeliveryRequestDto(val packedProductIds: List<String>)
+
+@Serializable
+data class EditOrderRequest(
+    val items: List<OrderItemDto>,
+    val discount: Double = 0.0,
+    val adjustmentAmount: Double = 0.0,
+    val adjustmentMethod: String? = null,
+    val adjustedByName: String? = null,
+    val paidNow: Double = 0.0,
+    val paidNowMethod: String? = null,
+    val paymentMethod: String? = null,
+)
 
 @Serializable
 data class OrderItemDto(
@@ -633,6 +654,9 @@ data class OrderItemDto(
     val variantId: String? = null,
     val variantLabel: String? = null,
     val sellMode: String? = null,
+    val lineChange: String? = null,
+    val changeQty: Double = 0.0,
+    val changedByName: String? = null,
 )
 
 @Serializable
@@ -1096,8 +1120,14 @@ fun Order.toSyncDto() = OrderDto(
             imageUrl = line.imageUrl,
             variantId = line.variantId,
             variantLabel = line.variantLabel,
+            lineChange = line.lineChange,
+            changeQty = line.changeQty,
+            changedByName = line.changedByName,
         )
     },
+    adjustmentAmount = adjustmentAmount,
+    adjustmentMethod = adjustmentMethod,
+    adjustedByName = adjustedByName,
 )
 
 fun OrderDto.toModel() = Order(
@@ -1116,6 +1146,9 @@ fun OrderDto.toModel() = Order(
             imageUrl = it.imageUrl,
             variantId = it.variantId,
             variantLabel = it.variantLabel,
+            lineChange = it.lineChange,
+            changeQty = it.changeQty,
+            changedByName = it.changedByName,
         )
     },
     cancelReason = cancelReason,
@@ -1159,6 +1192,9 @@ fun OrderDto.toModel() = Order(
     createdById = createdById,
     createdByName = createdByName,
     createdByRole = createdByRole,
+    adjustmentAmount = adjustmentAmount,
+    adjustmentMethod = adjustmentMethod,
+    adjustedByName = adjustedByName,
 )
 
 fun PaymentIntentDto.toModel(receivedAtEpochMs: Long) = PaymentIntent(

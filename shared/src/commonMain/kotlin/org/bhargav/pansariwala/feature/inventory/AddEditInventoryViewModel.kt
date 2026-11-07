@@ -87,8 +87,10 @@ data class AddEditInventoryUiState(
     val hasVariants: Boolean = false,
     val mfgDate: Long? = null,
     val expiryDate: Long? = null,
-    /** Languages this device can translate into offline; empty hides the auto-translate picker. */
+    /** Languages this device can translate into offline. */
     val translatableLanguages: List<AppLanguage> = emptyList(),
+    /** App language chosen at onboarding. English keeps a single name field. */
+    val localLanguageCode: String = AppLanguage.ENGLISH.code,
     /** Languages whose name / brand fields are shown; picking one fills them by on-device translation. */
     val translationLanguages: Set<String> = emptySet(),
     /** Name per language code except Hindi, which stays in [nameHi]. */
@@ -147,9 +149,14 @@ class AddEditInventoryViewModel(
 
     init {
         viewModelScope.launch {
+            val code = preferences.getLanguageCode()
             val supported = translator.supportedLanguages()
             _uiState.update { state ->
-                state.copy(translatableLanguages = AppLanguage.entries.filter { it.code in supported })
+                state.copy(
+                    localLanguageCode = code,
+                    translatableLanguages = AppLanguage.entries.filter { it.code in supported },
+                    translationLanguages = state.translationLanguages + localLanguageSet(code),
+                )
             }
             if (supported.isNotEmpty()) autoTranslate(supported)
         }
@@ -315,6 +322,9 @@ class AddEditInventoryViewModel(
 
     /** Fields the user typed into ("name:kn"); auto-translation never overwrites them. */
     private val manualFields = mutableSetOf<String>()
+
+    private fun localLanguageSet(code: String): Set<String> =
+        if (code == AppLanguage.ENGLISH.code) emptySet() else setOf(code)
 
     private fun nameField(code: String) = "name:$code"
     private fun brandField(code: String) = "brand:$code"
@@ -536,7 +546,7 @@ class AddEditInventoryViewModel(
                 variants = draft.variants,
                 mfgDate = draft.mfgDate,
                 expiryDate = draft.expiryDate,
-                translationLanguages = draft.translationLanguages,
+                translationLanguages = localLanguageSet(it.localLanguageCode),
                 nameTranslations = draft.nameTranslations,
                 brandTranslations = draft.brandTranslations,
             )
@@ -592,8 +602,7 @@ class AddEditInventoryViewModel(
                 nameHi = product.translations[AppLanguage.HINDI.code]?.takeIf { t -> t.isNotBlank() } ?: product.nameHi,
                 nameTranslations = product.translations - AppLanguage.HINDI.code,
                 brandTranslations = product.brandTranslations,
-                translationLanguages = (product.translations - AppLanguage.HINDI.code).cleaned().keys +
-                    product.brandTranslations.cleaned().keys,
+                translationLanguages = localLanguageSet(it.localLanguageCode),
                 category = product.category,
                 categoryId = product.categoryId,
                 subCategoryId = product.subCategoryId,

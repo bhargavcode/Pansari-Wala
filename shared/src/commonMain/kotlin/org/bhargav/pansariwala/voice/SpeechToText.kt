@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import org.jetbrains.compose.resources.StringResource
 
 /**
- * Platform speech-to-text bridge. Configured for Hindi (`hi-IN`) where the OS supports it.
+ * Platform speech-to-text bridge. Listens in the app's Indian language (`hi-IN`, `kn-IN`, …).
  */
 interface SpeechToText {
     val events: SharedFlow<SpeechEvent>

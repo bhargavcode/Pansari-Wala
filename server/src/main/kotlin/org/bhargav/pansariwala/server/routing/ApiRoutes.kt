@@ -144,6 +144,16 @@ fun Route.apiRoutes(
         call.respondText(payLinkPage(link, lang, messages), ContentType.Text.Html)
     }
     imageProxyRoutes()
+    get("/config/device-language") {
+        val id = call.request.queryParameters["deviceId"].orEmpty()
+        val language = withContext(Dispatchers.IO) { store.deviceLanguage(id) }
+        call.respond(org.bhargav.pansariwala.server.dto.DeviceLanguageDto(language))
+    }
+    post("/config/device-language") {
+        val body = call.receive<org.bhargav.pansariwala.server.dto.DeviceLanguageRequest>()
+        withContext(Dispatchers.IO) { store.saveDeviceLanguage(body.deviceId, body.language) }
+        call.respond(HttpStatusCode.NoContent)
+    }
     get("/config/public") {
         call.respond(
             PublicConfigDto(
@@ -571,6 +581,12 @@ fun Route.apiRoutes(
         post("/shop/orders/{id}/accept-return") {
             val body = runCatching { call.receive<ReturnRequest>() }.getOrNull()
             call.respond(store.acceptReturn(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body?.reason))
+        }
+        post("/shop/orders/{id}/edit") {
+            val body = call.receive<org.bhargav.pansariwala.server.dto.EditOrderRequest>()
+            call.respond(
+                store.editShopOrder(call.requireShopPerm(store, ShopPerm.ONLINE_ORDERS), call.parameters["id"]!!, body),
+            )
         }
         post("/shop/orders/{id}/cancel") {
             val body = call.receive<ShopActionRequest>()

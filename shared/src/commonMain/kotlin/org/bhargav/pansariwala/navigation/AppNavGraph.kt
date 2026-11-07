@@ -47,6 +47,7 @@ import org.bhargav.pansariwala.feature.order.OrderEditorScreen
 import org.bhargav.pansariwala.feature.order.OrdersWorkspaceScreen
 import org.bhargav.pansariwala.feature.printer.PrinterSettingsScreen
 import org.bhargav.pansariwala.feature.settings.SettingsScreen
+import org.bhargav.pansariwala.feature.language.LanguageOnboardingScreen
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.api.SessionExpiredBus
 import org.bhargav.pansariwala.notification.NotificationOpenRequests
@@ -65,6 +66,7 @@ private val navSavedStateConfiguration = SavedStateConfiguration {
         polymorphic(NavKey::class) {
             subclass(AppRoute.Splash::class, AppRoute.Splash.serializer())
             subclass(AppRoute.Login::class, AppRoute.Login.serializer())
+            subclass(AppRoute.SelectLanguage::class, AppRoute.SelectLanguage.serializer())
             subclass(AppRoute.Dashboard::class, AppRoute.Dashboard.serializer())
             subclass(AppRoute.Settings::class, AppRoute.Settings.serializer())
             subclass(AppRoute.AddEditInventory::class, AppRoute.AddEditInventory.serializer())
@@ -219,8 +221,13 @@ fun AppNavGraph(
                                 replaceAll(AppRoute.Login)
                                 if (LaunchIntent.consumeShopRegistration()) push(AppRoute.RegisterShop)
                             },
+                            onNavigateToLanguage = { replaceAll(AppRoute.SelectLanguage) },
                             onNavigateToHome = { replaceAll(AppRoute.Dashboard) },
                         )
+                    }
+
+                    AppRoute.SelectLanguage -> NavEntry(route) {
+                        LanguageOnboardingScreen(onContinue = { replaceAll(AppRoute.Login) })
                     }
 
                     AppRoute.Login -> NavEntry(route) {
@@ -460,4 +467,5 @@ fun AppNavGraph(
 }
 
 private fun AppRoute.isPreLogin(): Boolean =
-    this is AppRoute.Splash || this is AppRoute.Login || this is AppRoute.RegisterShop || this is AppRoute.ShopRegistered
+    this is AppRoute.Splash || this is AppRoute.SelectLanguage || this is AppRoute.Login ||
+        this is AppRoute.RegisterShop || this is AppRoute.ShopRegistered

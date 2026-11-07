@@ -214,14 +214,19 @@ fun FloatingKeyboardHost(
     controller.hostWindow = LocalWindowInfo.current
     val active = if (enabled) controller else null
     val savedDocked by preferences.floatingKeyboardDocked.collectAsStateWithLifecycle(initialValue = true)
-    val savedScale by preferences.floatingKeyboardScale.collectAsStateWithLifecycle(initialValue = 1f)
+    val savedWidth by preferences.floatingKeyboardWidthScale.collectAsStateWithLifecycle(initialValue = 1f)
+    val savedHeight by preferences.floatingKeyboardHeightScale.collectAsStateWithLifecycle(initialValue = 1f)
     // One state object for the host's lifetime: gesture handlers outlive recompositions, and a state
     // re-created per saved value made a drag persist the stale pre-zoom scale back.
     var docked by remember { mutableStateOf(savedDocked) }
-    var scale by remember { mutableFloatStateOf(savedScale) }
+    var widthScale by remember { mutableFloatStateOf(savedWidth) }
+    var heightScale by remember { mutableFloatStateOf(savedHeight) }
     LaunchedEffect(savedDocked) { docked = savedDocked }
-    LaunchedEffect(savedScale) {
-        scale = savedScale.coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
+    LaunchedEffect(savedWidth) {
+        widthScale = savedWidth.coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
+    }
+    LaunchedEffect(savedHeight) {
+        heightScale = savedHeight.coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
     }
     var container by remember { mutableStateOf(IntSize.Zero) }
     var panel by remember { mutableStateOf(IntSize.Zero) }
@@ -232,7 +237,7 @@ fun FloatingKeyboardHost(
     val marginPx = with(density) { FLOATING_MARGIN.toPx() }
 
     fun persist() {
-        scope.launch { preferences.setFloatingKeyboardLayout(docked, scale) }
+        scope.launch { preferences.setFloatingKeyboardLayout(docked, widthScale, heightScale) }
     }
     fun clamp(o: Offset) = Offset(
         o.x.coerceIn(0f, max(0, container.width - panel.width).toFloat()),
@@ -245,7 +250,8 @@ fun FloatingKeyboardHost(
         ),
     )
     fun zoomBy(factor: Float) {
-        scale = (scale * factor).coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
+        widthScale = (widthScale * factor).coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
+        heightScale = (heightScale * factor).coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
     }
 
     if (!enabled) LaunchedEffect(Unit) { focusManager.clearFocus() }
@@ -271,12 +277,13 @@ fun FloatingKeyboardHost(
                     val base = if (target.mode == KeyPadMode.TEXT) FLOATING_WIDTH else NUMPAD_WIDTH
                     Modifier
                         .offset { current().let { IntOffset(it.x.roundToInt(), it.y.roundToInt()) } }
-                        .width(base * scale)
+                        .width(base * widthScale)
                 }
                 KeyboardPanel(
                     target = target,
                     docked = docked,
-                    scale = scale,
+                    scale = heightScale,
+                    fontScale = widthScale,
                     modifier = placement.onSizeChanged { panel = it },
                     onMove = { offset = clamp(current() + it) },
                     onZoom = { factor, pan ->
@@ -285,8 +292,9 @@ fun FloatingKeyboardHost(
                     },
                     onGestureEnd = ::persist,
                     onZoomStep = { up ->
-                        scale = (scale + if (up) AppConstants.KEYBOARD_SCALE_STEP else -AppConstants.KEYBOARD_SCALE_STEP)
-                            .coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
+                        val step = if (up) AppConstants.KEYBOARD_SCALE_STEP else -AppConstants.KEYBOARD_SCALE_STEP
+                        widthScale = (widthScale + step).coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
+                        heightScale = (heightScale + step).coerceIn(AppConstants.KEYBOARD_SCALE_MIN, AppConstants.KEYBOARD_SCALE_MAX)
                         persist()
                     },
                     onToggleDock = {
@@ -413,6 +421,7 @@ private fun KeyboardPanel(
     target: KeyboardTarget,
     docked: Boolean,
     scale: Float,
+    fontScale: Float,
     modifier: Modifier,
     onMove: (Offset) -> Unit,
     onZoom: (factor: Float, pan: Offset) -> Unit,
@@ -440,9 +449,9 @@ private fun KeyboardPanel(
             ControlBar(docked, onMove, onGestureEnd, onZoomStep, onToggleDock, onHide)
             val keyHeight = KEY_HEIGHT * scale
             if (target.mode == KeyPadMode.TEXT) {
-                TextKeys(target, keyHeight, scale)
+                TextKeys(target, keyHeight, fontScale)
             } else {
-                NumberKeys(target, keyHeight, scale)
+                NumberKeys(target, keyHeight, fontScale)
             }
         }
     }

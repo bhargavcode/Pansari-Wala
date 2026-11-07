@@ -2632,8 +2632,22 @@
     <string name="report_filter_role">भूमिका</string>
     <string name="report_role_all">सभी भूमिकाएँ</string>
     <string name="report_filter_selected">%1$d चुने गए</string>
-    <string name="translate_hint">चुनी गई भाषाओं में नाम और ब्रांड लिखते ही इसी फ़ोन पर अपने आप अनुवाद होकर भर जाते हैं। कोई भाषा एक बार डाउनलोड हो सकती है (इंटरनेट चाहिए), फिर ऑफ़लाइन चलती है।</string>
+    <string name="onboarding_language_title">अपनी भाषा चुनें</string>
+    <string name="onboarding_language_body">अंग्रेज़ी चुनी हुई है। उसे रखें, या जो भाषा आप बोलते हैं उसे चुनें। ऐप उसी भाषा में चलेगा।</string>
+    <string name="onboarding_language_default">डिफ़ॉल्ट</string>
+    <string name="onboarding_language_continue">आगे बढ़ें</string>
+    <string name="translate_hint">नाम और ब्रांड लिखते ही इसी फ़ोन पर आपकी भाषा में अनुवाद भर जाता है। आप उसे बदल सकते हैं। भाषा एक बार डाउनलोड हो सकती है (इंटरनेट चाहिए), फिर ऑफ़लाइन चलती है।</string>
     <string name="translate_field_name">नाम (%1$s)</string>
     <string name="translate_field_brand">ब्रांड (%1$s)</string>
     <string name="error_translation_failed">%1$s में अनुवाद नहीं हो सका। भाषा डाउनलोड करने के लिए एक बार इंटरनेट से जुड़ें।</string>
+    <string name="order_line_returned">वापस %1$s</string>
+    <string name="order_line_added">जोड़ा</string>
+    <string name="order_line_replaced">बदला</string>
+    <string name="order_line_by">%1$s ने</string>
+    <string name="order_adjust_refund">रिफंड %1$s · %2$s</string>
+    <string name="order_adjust_collected">वसूला %1$s · %2$s</string>
+    <string name="order_edit_collect">%1$s लें</string>
+    <string name="pos_payment_refund_title">रिफंड %1$s</string>
+    <string name="order_edit_failed">यह ऑर्डर अपडेट नहीं हो सका। फिर कोशिश करें।</string>
+    <string name="cancel_reason_auto_24h">24 घंटे बाद अपने आप रद्द</string>
 </resources>

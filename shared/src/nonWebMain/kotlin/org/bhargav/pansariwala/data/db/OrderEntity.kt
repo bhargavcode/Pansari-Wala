@@ -40,6 +40,10 @@ data class OrderEntity(
     val createdById: String? = null,
     val createdByName: String? = null,
     val createdByRole: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val adjustmentAmount: Double = 0.0,
+    val adjustmentMethod: String? = null,
+    val adjustedByName: String? = null,
 )
 
 @Entity(
@@ -57,4 +61,8 @@ data class OrderItemEntity(
     val lineTotal: Double,
     val variantId: String? = null,
     val variantLabel: String? = null,
+    val lineChange: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val changeQty: Double = 0.0,
+    val changedByName: String? = null,
 )

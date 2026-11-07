@@ -9,7 +9,7 @@ import platform.AVFAudio.AVAudioFormat
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryOptionDefaultToSpeaker
 import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
-import platform.AVFAudio.AVAudioSessionModeMeasurement
+import platform.AVFAudio.AVAudioSessionModeVoiceChat
 import platform.AVFAudio.setActive
 import platform.AVFAudio.setPreferredSampleRate
 import platform.Foundation.NSError
@@ -30,7 +30,7 @@ private const val NSEC_PER_MSEC: Long = 1_000_000L
 private const val MAX_RESTART_BACKOFF_MS: Long = 3_000L
 
 /**
- * iOS SFSpeechRecognizer bridge for hi-IN.
+ * iOS SFSpeechRecognizer bridge for the app's Indian language (`hi-IN`, `kn-IN`, …).
  *
  * Important: never restart recognition synchronously inside the recognition
  * callback — that triggers kAFAssistantErrorDomain error 216. Restarts are
@@ -43,8 +43,8 @@ private class IosSpeechToText : SpeechToText {
     override val events: SharedFlow<SpeechEvent> = _events.asSharedFlow()
 
     private var audioEngine = AVAudioEngine()
-    private val recognizer: SFSpeechRecognizer =
-        SFSpeechRecognizer(locale = NSLocale(localeIdentifier = org.bhargav.pansariwala.util.AppConstants.Voice.PRIMARY_LOCALE))
+    private var recognizer: SFSpeechRecognizer =
+        SFSpeechRecognizer(locale = NSLocale(localeIdentifier = org.bhargav.pansariwala.i18n.AppSpeechLanguage.current().speechLocale))
     private var request: SFSpeechAudioBufferRecognitionRequest? = null
     private var task: SFSpeechRecognitionTask? = null
     private var continuous = false
@@ -83,6 +83,9 @@ private class IosSpeechToText : SpeechToText {
 
     private fun startEngine() {
         if (!continuous || intentionalStop) return
+        recognizer = SFSpeechRecognizer(
+            locale = NSLocale(localeIdentifier = org.bhargav.pansariwala.i18n.AppSpeechLanguage.current().speechLocale),
+        )
         if (!isAvailable()) {
             _events.tryEmit(SpeechEvent.Error(Res.string.error_speech_unavailable))
             return
@@ -103,7 +106,8 @@ private class IosSpeechToText : SpeechToText {
                 withOptions = AVAudioSessionCategoryOptionDefaultToSpeaker,
                 error = null,
             )
-            session.setMode(AVAudioSessionModeMeasurement, error = null)
+            // Voice chat applies speech-band gain, so a normal talking voice is enough.
+            session.setMode(AVAudioSessionModeVoiceChat, error = null)
             // Prefer a known-valid rate so inputNode format is not 0/0 after restart.
             session.setPreferredSampleRate(44_100.0, error = null)
             session.setActive(true, error = null)

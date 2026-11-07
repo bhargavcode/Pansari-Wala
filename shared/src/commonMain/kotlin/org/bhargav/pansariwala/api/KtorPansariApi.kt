@@ -103,6 +103,7 @@ class KtorPansariApi(
                     val public = path.contains("auth/") ||
                         path.contains("shop-register/") ||
                         path.contains("config/public") ||
+                        path.contains("config/device-language") ||
                         path.endsWith("health") ||
                         path.contains("partners/register") ||
                         path.contains("push/unregister") ||
@@ -142,6 +143,14 @@ class KtorPansariApi(
 
     override suspend fun publicConfig(): PublicConfigDto =
         client.get("config/public").body()
+
+    override suspend fun deviceLanguage(deviceId: String): String? =
+        client.get("config/device-language") { parameter("deviceId", deviceId) }
+            .body<DeviceLanguageDto>().language?.takeIf { it.isNotBlank() }
+
+    override suspend fun saveDeviceLanguage(deviceId: String, language: String) {
+        client.post("config/device-language") { setBody(DeviceLanguageRequest(deviceId, language)) }
+    }
 
     override suspend fun shopLogin(username: String, password: String): TokenResponse =
         client.post("auth/shop/login") {
@@ -509,6 +518,22 @@ class KtorPansariApi(
     override suspend fun assignShopPartner(orderId: String, shopPartnerId: String, packedProductIds: List<String>): Order =
         client.post("shop/orders/$orderId/assign-partner") {
             setBody(AssignShopPartnerRequest(shopPartnerId, packedProductIds.takeIf { it.isNotEmpty() }))
+        }.body<OrderDto>().toModel()
+
+    override suspend fun editShopOrder(order: Order): Order =
+        client.post("shop/orders/${order.id}/edit") {
+            setBody(
+                EditOrderRequest(
+                    items = order.toSyncDto().items,
+                    discount = order.discount,
+                    adjustmentAmount = order.adjustmentAmount,
+                    adjustmentMethod = order.adjustmentMethod,
+                    adjustedByName = order.adjustedByName,
+                    paidNow = order.paidNow,
+                    paidNowMethod = order.paidNowMethod,
+                    paymentMethod = order.paymentMethod,
+                ),
+            )
         }.body<OrderDto>().toModel()
 
     override suspend fun cancelShopOrder(orderId: String, reason: String?): Order =

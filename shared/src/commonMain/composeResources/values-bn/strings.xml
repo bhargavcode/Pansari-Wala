@@ -2632,8 +2632,22 @@
     <string name="report_filter_role">ভূমিকা</string>
     <string name="report_role_all">সব ভূমিকা</string>
     <string name="report_filter_selected">%1$dটি বাছাই</string>
-    <string name="translate_hint">বেছে নেওয়া ভাষায় নাম ও ব্র্যান্ড লেখার সঙ্গে সঙ্গে এই ফোনেই নিজে থেকে অনুবাদ হয়ে ভরে যায়। কোনো ভাষা একবার ডাউনলোড হতে পারে (ইন্টারনেট লাগে), তারপর অফলাইনে চলে।</string>
+    <string name="onboarding_language_title">আপনার ভাষা বেছে নিন</string>
+    <string name="onboarding_language_body">ইংরেজি বেছে নেওয়া আছে। সেটিই রাখুন, অথবা আপনি যে ভাষায় কথা বলেন সেটি বেছে নিন। অ্যাপ সেই ভাষাতেই চলবে।</string>
+    <string name="onboarding_language_default">ডিফল্ট</string>
+    <string name="onboarding_language_continue">এগিয়ে যান</string>
+    <string name="translate_hint">নাম ও ব্র্যান্ড লেখার সঙ্গে সঙ্গে এই ফোনেই আপনার ভাষায় অনুবাদ ভরে যায়। আপনি সেটি বদলাতে পারেন। কোনো ভাষা একবার ডাউনলোড হতে পারে (ইন্টারনেট লাগে), তারপর অফলাইনে চলে।</string>
     <string name="translate_field_name">নাম (%1$s)</string>
     <string name="translate_field_brand">ব্র্যান্ড (%1$s)</string>
     <string name="error_translation_failed">%1$s-এ অনুবাদ করা যায়নি। ভাষাটি ডাউনলোড করতে একবার ইন্টারনেটে যুক্ত হন।</string>
+    <string name="order_line_returned">ফেরত %1$s</string>
+    <string name="order_line_added">যোগ</string>
+    <string name="order_line_replaced">বদল</string>
+    <string name="order_line_by">%1$s</string>
+    <string name="order_adjust_refund">রিফান্ড %1$s · %2$s</string>
+    <string name="order_adjust_collected">নেওয়া %1$s · %2$s</string>
+    <string name="order_edit_collect">%1$s নিন</string>
+    <string name="pos_payment_refund_title">রিফান্ড %1$s</string>
+    <string name="order_edit_failed">এই অর্ডার আপডেট হয়নি। আবার চেষ্টা করুন।</string>
+    <string name="cancel_reason_auto_24h">২৪ ঘণ্টা পর নিজে থেকে বাতিল</string>
 </resources>

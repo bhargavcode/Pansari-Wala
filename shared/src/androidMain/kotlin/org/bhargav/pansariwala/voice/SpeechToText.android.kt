@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.koin.core.component.KoinComponent
-import org.bhargav.pansariwala.util.AppConstants
+import org.bhargav.pansariwala.i18n.AppSpeechLanguage
 import org.koin.core.component.inject
 import pansariwala.shared.generated.resources.Res
 import pansariwala.shared.generated.resources.error_mic_permission
@@ -25,6 +26,10 @@ import pansariwala.shared.generated.resources.error_speech_unavailable
 
 /** RecognizerIntent.EXTRA_ADDITIONAL_LANGUAGES (API 34); older recognisers ignore it. */
 private const val EXTRA_ADDITIONAL_LANGUAGES = "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES"
+/** Speech-band mic with gain for normal talking; the default source waits for a raised voice. */
+private const val EXTRA_AUDIO_SOURCE = "android.speech.extra.AUDIO_SOURCE"
+/** Conversational dictation, so a normal speaking voice is enough. */
+private const val EXTRA_DICTATION_MODE = "android.speech.extra.DICTATION_MODE"
 private const val SILENCE_RESTART_MS = 150L
 private const val MAX_RESTART_BACKOFF_MS = 3_000L
 private const val BUSY_RECREATE_THRESHOLD = 2
@@ -295,10 +300,17 @@ private class AndroidSpeechToText(
         lastPartial = ""
         committedThisUtterance = false
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            val tongue = AppSpeechLanguage.current()
+            val also = org.bhargav.pansariwala.i18n.AppLanguage.entries
+                .map { it.speechLocale }
+                .filter { it != tongue.speechLocale }
+                .toTypedArray()
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, AppConstants.Voice.PRIMARY_LOCALE)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, AppConstants.Voice.PRIMARY_LOCALE)
-            putExtra(EXTRA_ADDITIONAL_LANGUAGES, arrayOf(AppConstants.Voice.SECONDARY_LOCALE))
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, tongue.speechLocale)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, tongue.speechLocale)
+            putExtra(EXTRA_ADDITIONAL_LANGUAGES, also)
+            putExtra(EXTRA_AUDIO_SOURCE, MediaRecorder.AudioSource.VOICE_RECOGNITION)
+            putExtra(EXTRA_DICTATION_MODE, true)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)

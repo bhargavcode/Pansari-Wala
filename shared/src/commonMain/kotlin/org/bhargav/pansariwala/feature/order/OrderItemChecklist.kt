@@ -18,10 +18,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import pansariwala.shared.generated.resources.order_item_in_stock
 import pansariwala.shared.generated.resources.order_item_out_of_stock
+import pansariwala.shared.generated.resources.order_line_added
+import pansariwala.shared.generated.resources.order_line_by
+import pansariwala.shared.generated.resources.order_line_replaced
+import pansariwala.shared.generated.resources.order_line_returned
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -39,6 +45,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import org.bhargav.pansariwala.domain.model.Order
 import org.bhargav.pansariwala.domain.model.OrderItem
+import org.bhargav.pansariwala.domain.model.ProductUnit
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
@@ -168,20 +176,12 @@ fun OrderItemRow(
     modifier: Modifier = Modifier,
     showPrice: Boolean = true,
     struck: Boolean = false,
-    /** Non-null shows a stock badge: green tick when the shop can fulfil the line, amber alert when short. */
+    /** Non-null shows in-stock / out-of-stock text above the price. */
     inStock: Boolean? = null,
 ) {
     val decoration = if (struck) TextDecoration.LineThrough else null
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        if (inStock != null) {
-            Icon(
-                imageVector = if (inStock) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-                contentDescription = stringResource(if (inStock) Res.string.order_item_in_stock else Res.string.order_item_out_of_stock),
-                tint = if (inStock) PackedGreen else Color(0xFFEF6C00),
-                modifier = Modifier.padding(end = 8.dp).size(20.dp),
-            )
-        }
         Column(Modifier.weight(1f)) {
             Text(
                 text = buildString {
@@ -195,6 +195,11 @@ fun OrderItemRow(
                 textDecoration = decoration,
                 color = if (struck) muted else MaterialTheme.colorScheme.onSurface,
             )
+            LineChangeChip(item)
+            if (inStock != null) {
+                StockChip(inStock)
+                Spacer(Modifier.size(4.dp))
+            }
             Text(
                 text = buildString {
                     append(item.quantity.asQuantity()).append(' ').append(item.unit.localizedLabel())
@@ -240,5 +245,42 @@ fun OrderItemsTable(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun StockChip(inStock: Boolean) {
+    val color = if (inStock) PackedGreen else Color(0xFFC62828)
+    Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
+        Text(
+            stringResource(if (inStock) Res.string.order_item_in_stock else Res.string.order_item_out_of_stock),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = color,
+        )
+    }
+}
+
+@Composable
+internal fun LineChangeChip(item: OrderItem) {
+    val change = item.lineChange ?: return
+    val label = when (change) {
+        AppConstants.OrderLine.RETURNED -> stringResource(
+            Res.string.order_line_returned,
+            "${item.changeQty.asQuantity()} ${item.unit.localizedLabel()}",
+        )
+        AppConstants.OrderLine.REPLACED -> stringResource(Res.string.order_line_replaced)
+        else -> stringResource(Res.string.order_line_added)
+    }
+    val who = item.changedByName?.takeIf { it.isNotBlank() }?.let { stringResource(Res.string.order_line_by, it) }
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp)) {
+        Text(
+            listOfNotNull(label, who).joinToString(" · "),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }

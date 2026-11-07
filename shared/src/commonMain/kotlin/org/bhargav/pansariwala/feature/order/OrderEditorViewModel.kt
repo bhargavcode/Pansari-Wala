@@ -76,6 +76,7 @@ import pansariwala.shared.generated.resources.error_generic
 import pansariwala.shared.generated.resources.variant_saved
 import pansariwala.shared.generated.resources.error_mic_permission
 import pansariwala.shared.generated.resources.error_order_empty
+import pansariwala.shared.generated.resources.order_edit_failed
 import pansariwala.shared.generated.resources.error_shop_upi_missing
 import pansariwala.shared.generated.resources.error_udhaar_phone
 import pansariwala.shared.generated.resources.error_photo_pick_failed
@@ -101,6 +102,8 @@ data class CartLine(
     val quantity: Double,
     val variant: ProductVariant? = null,
     val lockedUnitPrice: Double? = null,
+    /** Quantity on the order when this edit started. Null for a line added during the edit. */
+    val originQty: Double? = null,
 ) {
     val option: PurchaseOption get() = PurchaseOption(product, variant)
     val key: String get() = option.key
@@ -202,11 +205,15 @@ data class OrderEditorUiState(
     val priceEditKey: String? = null,
     /** Option being recorded as sold earlier without a bill (anonymous customer). */
     val unbilledSaleOption: PurchaseOption? = null,
+    /** Edit settlement: positive = collect, negative = refund, 0 = a new bill or no cash movement. */
+    val settlementDue: Double = 0.0,
 ) {
     val cartQuantityByProduct: Map<String, Double>
         get() = cart.groupBy { it.product.id }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
     val bill: BillTotals get() = computeBill(cart, offers, manualDiscountInput, manualDiscountPercent)
     val total: Double get() = bill.total
+    /** Amount the payment sheet charges or refunds. A new bill uses [total]. */
+    val payAmount: Double get() = if (settlementDue != 0.0) kotlin.math.abs(settlementDue) else total
     val udhaarPaidNow: Double get() = (udhaarPaidInput.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
     val udhaarCredit: Double get() = (total - udhaarPaidNow).coerceAtLeast(0.0)
     val itemCount: Int get() = cart.size
@@ -246,6 +253,15 @@ class OrderEditorViewModel(
 
     private var shopId: String = SeedData.DEMO_SHOP_ID
     private var editingOrderId: String? = null
+    private var editingChannel: org.bhargav.pansariwala.domain.model.OrderChannel? = null
+    private var editingStatus: org.bhargav.pansariwala.domain.model.OrderStatus? = null
+    private var editingPaymentMethod: String? = null
+    private var cashAlreadyPaid: Double = 0.0
+    private var previousBill: Double = 0.0
+    private var editingPaidNow: Double = 0.0
+    private var editingPaidNowMethod: String? = null
+    private var extraFees: Double = 0.0
+    private var editingQuote: org.bhargav.pansariwala.domain.model.CheckoutQuote? = null
     private var createdAt: Long = AppClock.nowMillis()
     private var speechJob: Job? = null
     /** True from mic start until the user/platform ends the session. */
@@ -429,16 +445,44 @@ class OrderEditorViewModel(
             val byId = allProducts.associateBy { it.id }
             val catalog = allProducts.filter { it.isActive }
 
-            val existing = orderId?.let { shopRepository.getOrder(it) }
+            val existing = orderId?.let { id ->
+                shopRepository.getOrder(id) ?: runCatching { api.order(id) }.getOrNull()
+            }
             if (existing != null) {
                 editingOrderId = existing.id
+                editingChannel = existing.channel
+                editingStatus = existing.status
+                editingPaymentMethod = existing.paymentMethod
+                editingPaidNow = existing.paidNow
+                editingPaidNowMethod = existing.paidNowMethod
+                editingQuote = existing.quote
+                extraFees = (existing.quote?.platformFee ?: 0.0) + (existing.quote?.deliveryCharge ?: 0.0)
+                previousBill = existing.totalValue
+                val prepaid = existing.channel == org.bhargav.pansariwala.domain.model.OrderChannel.POS ||
+                    !existing.paymentId.isNullOrBlank()
+                cashAlreadyPaid = when {
+                    !prepaid -> 0.0
+                    existing.paymentMethod == AppConstants.PosPayment.UDHAAR -> existing.paidNow
+                    else -> existing.totalValue
+                }
                 createdAt = existing.createdAtEpochMs
+                val offers = runCatching { api.shopManagedOffers(all = false) }.getOrDefault(emptyList())
+                val pricedCatalog = catalog.withOffers(offers)
+                val byPriced = pricedCatalog.associateBy { it.id }
                 val cart = existing.items.mapNotNull { item ->
-                    byId[item.productId]?.let {
-                        CartLine(it, item.quantity, item.variantId?.let(it::variant), lockedUnitPrice = item.unitPrice)
+                    (byPriced[item.productId] ?: byId[item.productId])?.let {
+                        CartLine(
+                            it,
+                            item.quantity,
+                            item.variantId?.let(it::variant),
+                            lockedUnitPrice = item.unitPrice,
+                            originQty = item.quantity,
+                        )
                     }
                 }
-                // Edits keep the original bill discount as a flat amount instead of re-applying today's offers.
+                // Keep a manual discount that is not explained by the live bill offer, so an offer is not applied twice.
+                val offered = computeBill(cart, offers, "", false).offerDiscount
+                val manual = (existing.discount - offered).coerceAtLeast(0.0)
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -448,9 +492,11 @@ class OrderEditorViewModel(
                         udhaarPhone = existing.customerPhone.orEmpty(),
                         udhaarPaidInput = if (existing.isPartialUdhaar) existing.paidNow.asMoneyInput() else "",
                         udhaarPaidMethod = existing.paidNowMethod ?: AppConstants.PosPayment.CASH,
-                        catalog = catalog,
+                        catalog = pricedCatalog,
+                        offers = offers,
                         cart = cart,
-                        manualDiscountInput = if (existing.discount > 0.0) existing.discount.asMoneyInput() else "",
+                        manualDiscountInput = if (manual > 0.05) manual.asMoneyInput() else "",
+                        manualDiscountPercent = false,
                     )
                 }
             } else {
@@ -724,15 +770,7 @@ class OrderEditorViewModel(
 
     fun setQuantity(key: String, quantity: Double) {
         _uiState.update { state ->
-            state.copy(
-                cart = state.cart.mapNotNull { line ->
-                    when {
-                        line.key != key -> line
-                        quantity <= AppConstants.LooseQty.EPSILON -> null
-                        else -> line.copy(quantity = line.option.normalize(quantity))
-                    }
-                },
-            )
+            state.copy(cart = state.cart.mapNotNull { line -> if (line.key == key) line.withQty(quantity) else line })
         }
     }
 
@@ -762,8 +800,7 @@ class OrderEditorViewModel(
                     line
                 } else {
                     val next = line.quantity + direction * line.option.step
-                    if (next < line.option.minQty - AppConstants.LooseQty.EPSILON) null
-                    else line.copy(quantity = line.option.normalize(next))
+                    if (next < line.option.minQty - AppConstants.LooseQty.EPSILON) line.withQty(0.0) else line.withQty(next)
                 }
             }
             state.copy(cart = cart)
@@ -841,7 +878,70 @@ class OrderEditorViewModel(
     }
 
     fun removeLine(key: String) {
-        _uiState.update { state -> state.copy(cart = state.cart.filterNot { it.key == key }) }
+        _uiState.update { state ->
+            state.copy(cart = state.cart.mapNotNull { line -> if (line.key == key) line.withQty(0.0) else line })
+        }
+    }
+
+    private fun editedItems(cart: List<CartLine>, anyReturn: Boolean, by: String?): List<OrderItem> =
+        cart.map { line ->
+            val origin = line.originQty
+            val change = when {
+                origin == null && anyReturn -> AppConstants.OrderLine.REPLACED
+                origin == null -> AppConstants.OrderLine.ADDED
+                line.quantity + AppConstants.LooseQty.EPSILON < origin -> AppConstants.OrderLine.RETURNED
+                else -> null
+            }
+            val changeQty = when (change) {
+                AppConstants.OrderLine.RETURNED -> (origin ?: 0.0) - line.quantity
+                AppConstants.OrderLine.ADDED, AppConstants.OrderLine.REPLACED -> line.quantity
+                else -> 0.0
+            }
+            OrderItem(
+                productId = line.product.id,
+                productName = line.product.name,
+                unit = line.product.unit,
+                quantity = line.quantity,
+                unitPrice = line.unitPrice,
+                variantId = line.variant?.id,
+                variantLabel = line.variant?.label,
+                lineChange = change,
+                changeQty = changeQty.coerceAtLeast(0.0),
+                changedByName = if (change != null) by else null,
+            )
+        }
+
+    private fun editedPaidNow(method: String, due: Double, isUdhaar: Boolean, state: OrderEditorUiState): Double {
+        if (editingOrderId == null) return if (isUdhaar) state.udhaarPaidNow else 0.0
+        if (editingPaymentMethod != AppConstants.PosPayment.UDHAAR && method != AppConstants.PosPayment.UDHAAR) return 0.0
+        var paid = if (editingPaymentMethod == AppConstants.PosPayment.UDHAAR) editingPaidNow else previousBill
+        if (due > 0.5 && method == AppConstants.PosPayment.UDHAAR) paid += state.udhaarPaidNow
+        if (due > 0.5 && method != AppConstants.PosPayment.UDHAAR) paid += due
+        if (due < -0.5) paid = (cashAlreadyPaid + due).coerceAtLeast(0.0)
+        return paid
+    }
+
+    private fun editedPaidNowMethod(
+        method: String,
+        paymentMethod: String,
+        due: Double,
+        isUdhaar: Boolean,
+        state: OrderEditorUiState,
+    ): String? = when {
+        editingOrderId == null -> state.udhaarPaidMethod.takeIf { isUdhaar && state.udhaarPaidNow > 0.0 }
+        due > 0.5 && method == AppConstants.PosPayment.UDHAAR && state.udhaarPaidNow > 0.0 -> state.udhaarPaidMethod
+        due > 0.5 && editingPaymentMethod == AppConstants.PosPayment.UDHAAR -> paymentMethod
+        editingPaymentMethod == AppConstants.PosPayment.UDHAAR -> editingPaidNowMethod
+        method == AppConstants.PosPayment.UDHAAR -> editingPaymentMethod
+        else -> null
+    }
+
+    /** A line that was on the original order stays at zero so the return stays visible. */
+    private fun CartLine.withQty(quantity: Double): CartLine? {
+        if (quantity <= AppConstants.LooseQty.EPSILON) {
+            return if (originQty != null) copy(quantity = 0.0) else null
+        }
+        return copy(quantity = option.normalize(quantity))
     }
 
     /** Adds or replaces a line from the variant picker; [targetKey] is the line being edited. */
@@ -863,11 +963,33 @@ class OrderEditorViewModel(
     }
 
     fun save(print: Boolean = false) {
-        if (_uiState.value.cart.isEmpty()) {
+        val state = _uiState.value
+        val hasBill = state.cart.any { it.quantity > AppConstants.LooseQty.EPSILON || it.originQty != null }
+        if (!hasBill) {
             _uiState.update { it.copy(error = UiText.res(Res.string.error_order_empty)) }
             return
         }
-        _uiState.update { it.copy(showPaymentPicker = true, pendingPrint = print, error = null) }
+        if (!state.isEditing) {
+            _uiState.update { it.copy(showPaymentPicker = true, settlementDue = 0.0, pendingPrint = print, error = null) }
+            return
+        }
+        val due = editSettlement(state.total + extraFees)
+        if (kotlin.math.abs(due) < 0.5) {
+            _uiState.update { it.copy(settlementDue = 0.0, pendingPrint = print) }
+            commitSale(print, editingPaymentMethod ?: AppConstants.PosPayment.CASH)
+        } else {
+            _uiState.update { it.copy(showPaymentPicker = true, settlementDue = due, pendingPrint = print, error = null) }
+        }
+    }
+
+    /** Positive: collect the increase. Negative: refund cash already in hand. Unpaid online bills just change the total. */
+    private fun editSettlement(newPayable: Double): Double {
+        if (editingOrderId == null) return 0.0
+        if (cashAlreadyPaid <= 0.0 && editingChannel != org.bhargav.pansariwala.domain.model.OrderChannel.POS) return 0.0
+        val increase = newPayable - previousBill
+        if (increase > 0.5) return increase
+        if (newPayable + 0.5 < cashAlreadyPaid) return newPayable - cashAlreadyPaid
+        return 0.0
     }
 
     fun dismissPaymentPicker() {
@@ -991,8 +1113,8 @@ class OrderEditorViewModel(
             _uiState.update { it.copy(error = UiText.res(Res.string.error_udhaar_phone)) }
             return
         }
-        if (state.udhaarPaidNow >= state.total) {
-            _uiState.update { it.copy(error = UiText.res(Res.string.error_udhaar_paid_too_much, state.total.asMoney())) }
+        if (state.udhaarPaidNow >= state.payAmount) {
+            _uiState.update { it.copy(error = UiText.res(Res.string.error_udhaar_paid_too_much, state.payAmount.asMoney())) }
             return
         }
         if (state.udhaarAddingNew) {
@@ -1003,6 +1125,10 @@ class OrderEditorViewModel(
     }
 
     fun selectPayment(method: String) {
+        if (_uiState.value.settlementDue < -0.05 && (method == AppConstants.PosPayment.CASH || method == AppConstants.PosPayment.UPI)) {
+            completePayment(method)
+            return
+        }
         when (method) {
             AppConstants.PosPayment.UPI -> {
                 if (_uiState.value.shopUpiId.isBlank()) {
@@ -1030,7 +1156,7 @@ class OrderEditorViewModel(
 
     private fun commitSale(print: Boolean, paymentMethod: String) {
         val state = _uiState.value
-        if (state.cart.isEmpty()) {
+        if (state.cart.none { it.quantity > AppConstants.LooseQty.EPSILON || it.originQty != null }) {
             _uiState.update { it.copy(error = UiText.res(Res.string.error_order_empty)) }
             return
         }
@@ -1041,50 +1167,71 @@ class OrderEditorViewModel(
             ),
         )
         val isUdhaar = paymentMethod == AppConstants.PosPayment.UDHAAR
-        val order = Order(
-            id = editingOrderId ?: generateId("order"),
-            shopId = shopId,
-            createdAtEpochMs = createdAt,
-            status = OrderStatus.COMPLETED,
-            customerName = state.customerName.trim().ifBlank { WALK_IN_CUSTOMER_KEY },
-            channel = OrderChannel.POS,
-            paymentMethod = paymentMethod,
-            customerPhone = state.udhaarPhone.takeIf { isUdhaar },
-            discount = state.bill.discount,
-            paidNow = if (isUdhaar) state.udhaarPaidNow else 0.0,
-            paidNowMethod = state.udhaarPaidMethod.takeIf { isUdhaar && state.udhaarPaidNow > 0.0 },
-            items = state.cart.map { line ->
-                OrderItem(
-                    productId = line.product.id,
-                    productName = line.product.name,
-                    unit = line.product.unit,
-                    quantity = line.quantity,
-                    unitPrice = line.unitPrice,
-                    variantId = line.variant?.id,
-                    variantLabel = line.variant?.label,
-                )
-            },
-        )
+        val editing = editingOrderId != null
+        val due = if (editing) state.settlementDue else 0.0
+        val anyReturn = state.cart.any { line ->
+            val origin = line.originQty
+            origin != null && line.quantity + AppConstants.LooseQty.EPSILON < origin
+        }
         viewModelScope.launch {
             if (_uiState.value.isListening) speechToText.cancel()
+            val stamp = preferences.currentStaffStamp()
+            val items = editedItems(state.cart, anyReturn, stamp.name)
+            val payable = state.total + extraFees
+            val quote = editingQuote?.copy(
+                itemsSubtotal = items.sumOf { it.lineTotal },
+                discount = state.bill.discount,
+                payable = payable.coerceAtLeast(0.0),
+            )
+            val paidNow = editedPaidNow(paymentMethod, due, isUdhaar, state)
+            val method = if (editing && !isUdhaar) editingPaymentMethod ?: paymentMethod else paymentMethod
+            val order = Order(
+                id = editingOrderId ?: generateId("order"),
+                shopId = shopId,
+                createdAtEpochMs = createdAt,
+                status = if (editing) editingStatus ?: OrderStatus.COMPLETED else OrderStatus.COMPLETED,
+                customerName = state.customerName.trim().ifBlank { WALK_IN_CUSTOMER_KEY },
+                channel = if (editing) editingChannel ?: OrderChannel.POS else OrderChannel.POS,
+                paymentMethod = method,
+                customerPhone = state.udhaarPhone.takeIf { method == AppConstants.PosPayment.UDHAAR || isUdhaar },
+                discount = state.bill.discount,
+                paidNow = paidNow,
+                paidNowMethod = editedPaidNowMethod(method, paymentMethod, due, isUdhaar, state),
+                quote = quote,
+                adjustmentAmount = if (editing) due else 0.0,
+                adjustmentMethod = if (editing && kotlin.math.abs(due) >= 0.5) paymentMethod else null,
+                adjustedByName = if (editing && kotlin.math.abs(due) >= 0.5) stamp.name else null,
+                items = items,
+            )
             val existing = editingOrderId?.let { shopRepository.getOrder(it) }
             val stamped = if (existing?.createdById != null) {
                 order.copy(createdById = existing.createdById, createdByName = existing.createdByName, createdByRole = existing.createdByRole)
             } else {
-                order.stampedBy(preferences.currentStaffStamp())
+                order.stampedBy(stamp)
             }
             val toSave = if (existing?.status == OrderStatus.CANCELLED) {
                 stamped.copy(status = OrderStatus.CANCELLED, cancelReason = existing.cancelReason)
             } else {
                 stamped.copy(cancelReason = existing?.cancelReason)
             }
-            shopRepository.saveOrder(toSave)
-            if (toSave.status != OrderStatus.CANCELLED) shopNotifier.onPosSaleSaved(toSave)
+            val savedOrder = if (toSave.channel == OrderChannel.ONLINE) {
+                val saved = runCatching { api.editShopOrder(toSave) }.getOrElse { err ->
+                    err.rethrowIfStructuredCancellation()
+                    _uiState.update { it.copy(error = UiText.res(Res.string.order_edit_failed), saved = false) }
+                    return@launch
+                }
+                shopRepository.clearPendingOrderSync(saved.id)
+                saved
+            } else {
+                shopRepository.saveOrder(toSave)
+                if (toSave.status != OrderStatus.CANCELLED) shopNotifier.onPosSaleSaved(toSave)
+                toSave
+            }
             if (existing == null && preferences.recordReviewEvent(AppClock.nowMillis())) {
                 org.bhargav.pansariwala.platform.requestInAppReview()
             }
             if (existing == null || print) {
-                printService.onOrderSaved(toSave, printRequested = print)
+                printService.onOrderSaved(savedOrder, printRequested = print)
             }
             pendingVoicePicks.clear()
             _uiState.update {

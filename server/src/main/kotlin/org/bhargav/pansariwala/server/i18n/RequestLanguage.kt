@@ -25,6 +25,12 @@ object RequestLanguage {
     fun normalize(code: String?): String =
         code?.trim()?.lowercase()?.substringBefore(',')?.substringBefore('-')?.substringBefore('_')
             ?.takeIf { it in TRANSLATED } ?: ENGLISH
+
+    /** App language stored for a device, including English. Unknown codes become English. */
+    fun appCode(code: String?): String {
+        val lang = code?.trim()?.lowercase()?.substringBefore(',')?.substringBefore('-')?.substringBefore('_').orEmpty()
+        return if (lang == ENGLISH || lang in TRANSLATED) lang else ENGLISH
+    }
 }
 
 /** [english] in [lang] from this lang → text map; blank or missing translations fall back to English. */

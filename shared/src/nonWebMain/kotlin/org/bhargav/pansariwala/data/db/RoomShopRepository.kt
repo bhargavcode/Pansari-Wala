@@ -176,6 +176,10 @@ class RoomShopRepository(
         return order.toDomain(items)
     }
 
+    override suspend fun clearPendingOrderSync(orderId: String) {
+        orderDao.clearPending(orderId)
+    }
+
     override suspend fun saveOrder(order: Order) {
         // Restore stock for the previous version (edits), then deduct for the new one
         // unless the order is cancelled (stock already restored / should not deduct).
@@ -342,6 +346,9 @@ private fun Order.toEntity(syncRevision: Long = 1L) = OrderEntity(
     createdById = createdById,
     createdByName = createdByName,
     createdByRole = createdByRole,
+    adjustmentAmount = adjustmentAmount,
+    adjustmentMethod = adjustmentMethod,
+    adjustedByName = adjustedByName,
 )
 
 private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
@@ -355,6 +362,9 @@ private fun OrderItem.toEntity(orderId: String) = OrderItemEntity(
     lineTotal = lineTotal,
     variantId = variantId,
     variantLabel = variantLabel,
+    lineChange = lineChange,
+    changeQty = changeQty,
+    changedByName = changedByName,
 )
 
 private fun OrderEntity.toSummary() = OrderSummary(
@@ -385,6 +395,9 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
     createdById = createdById,
     createdByName = createdByName,
     createdByRole = createdByRole,
+    adjustmentAmount = adjustmentAmount,
+    adjustmentMethod = adjustmentMethod,
+    adjustedByName = adjustedByName,
     items = items.map {
         OrderItem(
             productId = it.productId,
@@ -394,6 +407,9 @@ private fun OrderEntity.toDomain(items: List<OrderItemEntity>) = Order(
             unitPrice = it.unitPrice,
             variantId = it.variantId,
             variantLabel = it.variantLabel,
+            lineChange = it.lineChange,
+            changeQty = it.changeQty,
+            changedByName = it.changedByName,
         )
     },
 )

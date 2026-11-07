@@ -51,6 +51,9 @@ interface ShopRepository {
     suspend fun getOrder(orderId: String): Order?
     suspend fun saveOrder(order: Order)
 
+    /** Online edits are saved on the server; they must not be pushed again as a POS bill. */
+    suspend fun clearPendingOrderSync(orderId: String) {}
+
     /** POS bills not yet confirmed by the server, oldest first. */
     suspend fun pendingOfflineOrders(shopId: String): List<PendingOfflineOrder>
 

@@ -85,6 +85,7 @@ import org.bhargav.pansariwala.printing.formatPrintDate
 import org.bhargav.pansariwala.printing.formatPrintDateTime
 import org.bhargav.pansariwala.settings.CancelOrderReason
 import org.bhargav.pansariwala.util.AppClock
+import org.bhargav.pansariwala.util.AppConstants
 import org.bhargav.pansariwala.util.asMoney
 import org.bhargav.pansariwala.util.asQuantity
 import org.jetbrains.compose.resources.stringResource
@@ -98,7 +99,10 @@ import pansariwala.shared.generated.resources.action_yes
 import pansariwala.shared.generated.resources.cancel_order_message
 import pansariwala.shared.generated.resources.cancel_order_title
 import pansariwala.shared.generated.resources.cancel_reason_custom_hint
+import pansariwala.shared.generated.resources.cancel_reason_auto_24h
 import pansariwala.shared.generated.resources.cancel_reason_label
+import pansariwala.shared.generated.resources.order_adjust_collected
+import pansariwala.shared.generated.resources.order_adjust_refund
 import pansariwala.shared.generated.resources.order_card_total
 import pansariwala.shared.generated.resources.order_detail_discount
 import pansariwala.shared.generated.resources.order_detail_items
@@ -631,6 +635,7 @@ private fun ItemsCard(order: Order) {
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        org.bhargav.pansariwala.feature.order.LineChangeChip(item)
                         Text(
                             "${item.quantity.asQuantity()} × ${item.unitPrice.asMoney()}",
                             style = MaterialTheme.typography.bodySmall,
@@ -642,6 +647,17 @@ private fun ItemsCard(order: Order) {
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
             TotalRow(stringResource(Res.string.order_detail_subtotal), order.subtotal.asMoney())
+            if (order.adjustmentAmount != 0.0 && order.adjustmentMethod != null) {
+                val label = stringResource(
+                    if (order.adjustmentAmount < 0.0) Res.string.order_adjust_refund else Res.string.order_adjust_collected,
+                    kotlin.math.abs(order.adjustmentAmount).asMoney(),
+                    stringResource(paymentMethodLabelRes(order.adjustmentMethod)),
+                )
+                TotalRow(
+                    listOfNotNull(label, order.adjustedByName?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                    "",
+                )
+            }
             if (order.discount > 0) {
                 TotalRow(stringResource(Res.string.order_detail_discount), "−${order.discount.asMoney()}", SUCCESS)
             }
@@ -670,7 +686,8 @@ private fun TotalRow(label: String, value: String, color: Color = Color.Unspecif
 
 @Composable
 private fun cancelReasonText(raw: String): String =
-    CancelOrderReason.entries.firstOrNull { it.name == raw }?.let { stringResource(it.labelRes) } ?: raw
+    if (raw == AppConstants.OrderLine.AUTO_CANCEL) stringResource(Res.string.cancel_reason_auto_24h)
+    else CancelOrderReason.entries.firstOrNull { it.name == raw }?.let { stringResource(it.labelRes) } ?: raw
 
 // ---------- Cancel sheet ----------
 

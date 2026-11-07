@@ -16,6 +16,9 @@ sealed interface AppRoute : NavKey {
     data object Login : AppRoute
 
     @Serializable
+    data object SelectLanguage : AppRoute
+
+    @Serializable
     data object Dashboard : AppRoute
 
     @Serializable
@@ -102,6 +105,7 @@ sealed interface AppRoute : NavKey {
 fun AppRoute.screenName(): String = when (this) {
     AppRoute.Splash -> "splash"
     AppRoute.Login -> "login"
+    AppRoute.SelectLanguage -> "select_language"
     AppRoute.Dashboard -> "dashboard"
     AppRoute.Settings -> "settings"
     is AppRoute.AddEditInventory -> "add_edit_inventory"

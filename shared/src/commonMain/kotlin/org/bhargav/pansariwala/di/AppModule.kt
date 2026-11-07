@@ -43,6 +43,7 @@ import org.bhargav.pansariwala.feature.subscription.CommissionDayViewModel
 import org.bhargav.pansariwala.feature.subscription.SubscriptionViewModel
 import org.bhargav.pansariwala.feature.order.OrdersWorkspaceViewModel
 import org.bhargav.pansariwala.feature.settings.SettingsViewModel
+import org.bhargav.pansariwala.feature.language.LanguageOnboardingViewModel
 import org.bhargav.pansariwala.feature.splash.SplashViewModel
 import org.bhargav.pansariwala.api.ApiRuntime
 import org.bhargav.pansariwala.api.KtorPansariApi
@@ -132,6 +133,7 @@ val appModule = module {
     factoryOf(::ObserveSessionUseCase)
 
     viewModelOf(::SplashViewModel)
+    viewModelOf(::LanguageOnboardingViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::ForgotPasswordViewModel)
     viewModelOf(::ChangePasswordViewModel)

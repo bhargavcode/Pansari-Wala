@@ -76,7 +76,9 @@ class AppPreferences(
         store.observeString(Keys.notifyOrderEvents),
     ) { language, themeMode, customTheme, lowStock, orderEvents ->
         AppUserSettings(
-            language = AppLanguage.fromCode(language ?: AppLanguage.ENGLISH.code),
+            language = AppLanguage.fromCode(language ?: AppLanguage.ENGLISH.code).also {
+                org.bhargav.pansariwala.i18n.AppSpeechLanguage.code = it.code
+            },
             themeMode = ThemeMode.fromName(themeMode),
             customTheme = CustomTheme.fromName(customTheme),
             notifyLowStock = lowStock.toBooleanPref(default = true),
@@ -213,11 +215,25 @@ class AppPreferences(
     val floatingKeyboardScale: Flow<Float> = store.observeString(AppConstants.Prefs.FLOATING_KEYBOARD_SCALE)
         .map { it?.toFloatOrNull() ?: 1f }
 
-    suspend fun setFloatingKeyboardLayout(docked: Boolean, scale: Float) {
+    /** Width of the floating keyboard; falls back to the older single zoom value. */
+    val floatingKeyboardWidthScale: Flow<Float> = combine(
+        store.observeString(AppConstants.Prefs.FLOATING_KEYBOARD_WIDTH_SCALE),
+        floatingKeyboardScale,
+    ) { width, legacy -> width?.toFloatOrNull() ?: legacy }
+
+    /** Key height of the floating keyboard; falls back to the older single zoom value. */
+    val floatingKeyboardHeightScale: Flow<Float> = combine(
+        store.observeString(AppConstants.Prefs.FLOATING_KEYBOARD_HEIGHT_SCALE),
+        floatingKeyboardScale,
+    ) { height, legacy -> height?.toFloatOrNull() ?: legacy }
+
+    suspend fun setFloatingKeyboardLayout(docked: Boolean, widthScale: Float, heightScale: Float) {
         store.putStrings(
             mapOf(
                 AppConstants.Prefs.FLOATING_KEYBOARD_DOCKED to docked.toString(),
-                AppConstants.Prefs.FLOATING_KEYBOARD_SCALE to scale.toString(),
+                AppConstants.Prefs.FLOATING_KEYBOARD_SCALE to widthScale.toString(),
+                AppConstants.Prefs.FLOATING_KEYBOARD_WIDTH_SCALE to widthScale.toString(),
+                AppConstants.Prefs.FLOATING_KEYBOARD_HEIGHT_SCALE to heightScale.toString(),
             ),
         )
     }
@@ -304,7 +320,16 @@ class AppPreferences(
     suspend fun getLanguageCode(): String = AppLanguage.fromCode(store.getString(Keys.language) ?: AppLanguage.ENGLISH.code).code
 
     suspend fun setLanguage(language: AppLanguage) {
+        org.bhargav.pansariwala.i18n.AppSpeechLanguage.code = language.code
         store.putStrings(mapOf(Keys.language to language.code))
+    }
+
+    suspend fun isLanguageChosen(): Boolean =
+        store.getString(AppConstants.Prefs.LANGUAGE_CHOSEN).toBooleanPref(default = false) ||
+            !store.getString(Keys.language).isNullOrBlank()
+
+    suspend fun setLanguageChosen(chosen: Boolean) {
+        store.putStrings(mapOf(AppConstants.Prefs.LANGUAGE_CHOSEN to chosen.toString()))
     }
 
     suspend fun setThemeMode(mode: ThemeMode) {

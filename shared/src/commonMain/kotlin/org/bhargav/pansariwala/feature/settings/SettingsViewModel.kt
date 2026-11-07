@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.bhargav.pansariwala.api.PansariApi
 import org.bhargav.pansariwala.data.local.AppPreferences
 import org.bhargav.pansariwala.i18n.AppLanguage
 import org.bhargav.pansariwala.settings.AppUserSettings
@@ -15,6 +16,7 @@ import org.bhargav.pansariwala.settings.ThemeMode
 
 class SettingsViewModel(
     private val preferences: AppPreferences,
+    private val api: PansariApi,
 ) : ViewModel() {
     val uiState: StateFlow<AppUserSettings> = preferences.userSettings.stateIn(
         scope = viewModelScope,
@@ -23,7 +25,11 @@ class SettingsViewModel(
     )
 
     fun setLanguage(language: AppLanguage) {
-        viewModelScope.launch { preferences.setLanguage(language) }
+        viewModelScope.launch {
+            preferences.setLanguage(language)
+            preferences.setLanguageChosen(true)
+            runCatching { api.saveDeviceLanguage(preferences.getOrCreateDeviceId(), language.code) }
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {

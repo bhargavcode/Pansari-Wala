@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed interface UserRoute : NavKey {
     @Serializable data object Splash : UserRoute
+    @Serializable data object SelectLanguage : UserRoute
     @Serializable data object PhoneAuth : UserRoute
     @Serializable data object PhoneOtp : UserRoute
     /** Profile step 1 (name); [ProfileAddress] is step 2. */
@@ -51,6 +52,7 @@ sealed interface UserRoute : NavKey {
 @Serializable
 sealed interface DeliveryRoute : NavKey {
     @Serializable data object Splash : DeliveryRoute
+    @Serializable data object SelectLanguage : DeliveryRoute
     @Serializable data object Login : DeliveryRoute
     @Serializable data object LoginOtp : DeliveryRoute
     /** Registration steps: details → address → vehicle & documents → OTP. */

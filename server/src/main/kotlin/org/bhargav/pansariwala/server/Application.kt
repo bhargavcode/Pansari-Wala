@@ -203,6 +203,9 @@ fun main() {
                         .onSuccess { if (it > 0) println("Account deletion: closed $it shop/partner accounts") }
                         .onFailure { println("Business account close failed: ${it.message}") }
                 }
+                runCatching { store.cancelExpiredOnlineOrders() }
+                    .onSuccess { if (it > 0) println("Online orders: auto-cancelled $it open orders after 24 hours") }
+                    .onFailure { println("Online order auto-cancel failed: ${it.message}") }
                 runCatching { store.expireStaleOffers() }
                     .onSuccess { if (it > 0) println("Delivery offers: expired $it unpicked offers") }
                     .onFailure { println("Delivery offer sweep failed: ${it.message}") }

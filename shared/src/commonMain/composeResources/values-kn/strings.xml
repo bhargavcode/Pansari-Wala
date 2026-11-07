@@ -2632,8 +2632,22 @@
     <string name="report_filter_role">ಪಾತ್ರ</string>
     <string name="report_role_all">ಎಲ್ಲ ಪಾತ್ರಗಳು</string>
     <string name="report_filter_selected">%1$d ಆಯ್ಕೆ</string>
-    <string name="translate_hint">ಆರಿಸಿದ ಭಾಷೆಗಳಲ್ಲಿ ಹೆಸರು ಮತ್ತು ಬ್ರ್ಯಾಂಡ್ ಟೈಪ್ ಮಾಡುತ್ತಿದ್ದಂತೆ ಈ ಫೋನ್‌ನಲ್ಲೇ ಸ್ವಯಂ ಅನುವಾದವಾಗಿ ತುಂಬುತ್ತವೆ. ಒಂದು ಭಾಷೆ ಒಮ್ಮೆ ಡೌನ್‌ಲೋಡ್ ಆಗಬಹುದು (ಇಂಟರ್ನೆಟ್ ಬೇಕು), ನಂತರ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿ ಕೆಲಸ ಮಾಡುತ್ತದೆ.</string>
+    <string name="onboarding_language_title">ನಿಮ್ಮ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ</string>
+    <string name="onboarding_language_body">ಇಂಗ್ಲಿಷ್ ಆಯ್ಕೆಯಾಗಿದೆ. ಅದನ್ನೇ ಇರಿಸಿ, ಅಥವಾ ನೀವು ಮಾತನಾಡುವ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ. ಆ್ಯಪ್ ಆ ಭಾಷೆಯಲ್ಲೇ ಚಾಲನೆಯಾಗುತ್ತದೆ.</string>
+    <string name="onboarding_language_default">ಡೀಫಾಲ್ಟ್</string>
+    <string name="onboarding_language_continue">ಮುಂದುವರಿಸಿ</string>
+    <string name="translate_hint">ಹೆಸರು ಮತ್ತು ಬ್ರ್ಯಾಂಡ್ ಟೈಪ್ ಮಾಡುತ್ತಿದ್ದಂತೆ ಈ ಫೋನ್‌ನಲ್ಲೇ ನಿಮ್ಮ ಭಾಷೆಗೆ ಅನುವಾದವಾಗಿ ತುಂಬುತ್ತದೆ. ನೀವು ಅದನ್ನು ಬದಲಾಯಿಸಬಹುದು. ಒಂದು ಭಾಷೆ ಒಮ್ಮೆ ಡೌನ್‌ಲೋಡ್ ಆಗಬಹುದು (ಇಂಟರ್ನೆಟ್ ಬೇಕು), ನಂತರ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿ ಕೆಲಸ ಮಾಡುತ್ತದೆ.</string>
     <string name="translate_field_name">ಹೆಸರು (%1$s)</string>
     <string name="translate_field_brand">ಬ್ರ್ಯಾಂಡ್ (%1$s)</string>
     <string name="error_translation_failed">%1$s ಗೆ ಅನುವಾದಿಸಲು ಆಗಲಿಲ್ಲ. ಭಾಷೆ ಡೌನ್‌ಲೋಡ್ ಆಗಲು ಒಮ್ಮೆ ಇಂಟರ್ನೆಟ್‌ಗೆ ಸಂಪರ್ಕಿಸಿ.</string>
+    <string name="order_line_returned">ಹಿಂತಿರುಗಿಸಿದ %1$s</string>
+    <string name="order_line_added">ಸೇರಿಸಿದ</string>
+    <string name="order_line_replaced">ಬದಲಾಯಿಸಿದ</string>
+    <string name="order_line_by">%1$s</string>
+    <string name="order_adjust_refund">ಮರುಪಾವತಿ %1$s · %2$s</string>
+    <string name="order_adjust_collected">ಸ್ವೀಕರಿಸಿದ %1$s · %2$s</string>
+    <string name="order_edit_collect">%1$s ಪಡೆಯಿರಿ</string>
+    <string name="pos_payment_refund_title">ಮರುಪಾವತಿ %1$s</string>
+    <string name="order_edit_failed">ಈ ಆರ್ಡರ್ ನವೀಕರಿಸಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.</string>
+    <string name="cancel_reason_auto_24h">24 ಗಂಟೆಯ ನಂತರ ತಾನಾಗಿ ರದ್ದು</string>
 </resources>

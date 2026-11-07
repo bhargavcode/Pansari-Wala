@@ -20,6 +20,11 @@ interface PansariApi {
 
     suspend fun publicConfig(): PublicConfigDto
 
+    /** Language saved for this device, or null when the device has not chosen one. */
+    suspend fun deviceLanguage(deviceId: String): String?
+
+    suspend fun saveDeviceLanguage(deviceId: String, language: String)
+
     suspend fun shopLogin(username: String, password: String): TokenResponse
     suspend fun loginWithFirebase(idToken: String): TokenResponse
     suspend fun requestOtp(request: OtpRequest): OtpSessionResponse
@@ -143,6 +148,8 @@ interface PansariApi {
     suspend fun removeShopPartner(id: String)
     suspend fun assignShopPartner(orderId: String, shopPartnerId: String, packedProductIds: List<String>): Order
     suspend fun cancelShopOrder(orderId: String, reason: String?): Order
+
+    suspend fun editShopOrder(order: Order): Order
 
     suspend fun shopProfile(): ShopProfileDto
     suspend fun updateShopProfile(patch: ShopProfilePatch): ShopProfileDto

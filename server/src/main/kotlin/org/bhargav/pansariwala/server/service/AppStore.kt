@@ -326,6 +326,7 @@ class AppStore(
     private val adminUserCol = mongo.db.getCollection<AdminUserDoc>("admin_users")
     private val shopVisitCol = mongo.db.getCollection<ShopVisitDoc>("shop_visits")
     private val platformSettingsCol = mongo.db.getCollection<PlatformSettingsDoc>("platform_settings")
+    private val deviceLanguageCol = mongo.db.getCollection<org.bhargav.pansariwala.server.db.DeviceLanguageDoc>("device_languages")
     val billing = SubscriptionService(config, security, mongo)
     @Volatile private var platformCache: Pair<Long, PlatformSettingsDoc>? = null
     private val partnerLiteProjection = exclude(
@@ -439,6 +440,23 @@ class AppStore(
         val doc = platformSettingsCol.find(eq("_id", PLATFORM_SETTINGS_ID)).firstOrNull() ?: PlatformSettingsDoc()
         platformCache = now to doc
         return doc
+    }
+
+    /** Language previously chosen on this device, or null when onboarding has not run. */
+    fun deviceLanguage(deviceId: String): String? {
+        val id = deviceId.trim().take(64)
+        if (id.isEmpty()) return null
+        return deviceLanguageCol.find(eq("_id", id)).firstOrNull()?.language?.takeIf { it.isNotBlank() }
+    }
+
+    fun saveDeviceLanguage(deviceId: String, language: String) {
+        val id = deviceId.trim().take(64)
+        require(id.isNotEmpty()) { "deviceId required" }
+        deviceLanguageCol.replaceOne(
+            eq("_id", id),
+            org.bhargav.pansariwala.server.db.DeviceLanguageDoc(id, RequestLanguage.appCode(language), System.currentTimeMillis()),
+            ReplaceOptions().upsert(true),
+        )
     }
 
     fun platformSettings(): PlatformSettingsDto = platform().toDto()
@@ -2561,6 +2579,78 @@ class AppStore(
         return getOrder(orderId)
     }
 
+    /** Still-open online orders older than a day are cancelled, stock restored and a prepaid order refunded. */
+    suspend fun cancelExpiredOnlineOrders(now: Long = System.currentTimeMillis()): Int {
+        val cutoff = now - 24L * 60L * 60L * 1000L
+        val open = listOf("RECEIVED", "ACCEPTED", "PACKING", "LOOKING_FOR_PARTNER", "PAYMENT_PENDING")
+        val rows = orderCol.find(
+            and(eq("channel", "ONLINE"), `in`("status", open), lt("createdAt", cutoff)),
+        ).limit(40).toList()
+        var done = 0
+        rows.forEach { row ->
+            runCatching { cancelShopOrder(row.shopId, row.id, "AUTO_24H") }
+                .onSuccess { done++ }
+        }
+        return done
+    }
+
+    suspend fun editShopOrder(shopId: String, orderId: String, body: org.bhargav.pansariwala.server.dto.EditOrderRequest): OrderDto {
+        val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
+        require(row.shopId == shopId) { "Forbidden" }
+        require(row.status !in setOf("CANCELLED", "REJECTED")) { "Cannot edit" }
+        restoreStock(row.items)
+        applyItemStock(body.items, sign = -1.0)
+        val itemsTotal = body.items.sumOf { it.quantity * it.unitPrice }
+        val quote = row.quote?.let { q ->
+            q.copy(
+                itemsSubtotal = itemsTotal,
+                discount = body.discount,
+                payable = (itemsTotal - body.discount + q.platformFee + q.deliveryCharge).coerceAtLeast(0.0),
+            )
+        }
+        var refundId = row.refundId
+        if (body.adjustmentAmount < -0.5) {
+            val paise = (-body.adjustmentAmount * 100).toLong()
+            refundId = refundPayment(row, paise, "ORDER_EDIT") ?: refundId
+        }
+        orderCol.replaceOne(
+            eq("_id", orderId),
+            row.copy(
+                items = body.items,
+                discount = body.discount,
+                quote = quote,
+                adjustmentAmount = body.adjustmentAmount,
+                adjustmentMethod = body.adjustmentMethod,
+                adjustedByName = body.adjustedByName,
+                paidNow = body.paidNow,
+                paidNowMethod = body.paidNowMethod ?: row.paidNowMethod,
+                paymentMethod = body.paymentMethod?.takeIf { it.isNotBlank() } ?: row.paymentMethod,
+                refundId = refundId,
+                syncedAt = System.currentTimeMillis(),
+            ),
+        )
+        publishOrderUpdate(orderId, row.status)
+        return getOrder(orderId)
+    }
+
+    private fun applyItemStock(items: List<org.bhargav.pansariwala.server.dto.OrderItemDto>, sign: Double) {
+        items.forEach { item ->
+            val product = productCol.find(eq("_id", item.productId)).firstOrNull() ?: return@forEach
+            val variant = item.variantId?.let { vid -> product.variants.firstOrNull { it.id == vid } }
+            val line = ResolvedLine(product, variant, item.quantity)
+            val target = line.stockVariant
+            val delta = sign * line.stockUnits
+            if (target == null) {
+                productCol.updateOne(eq("_id", product.id), inc("stockQty", delta))
+            } else {
+                productCol.updateOne(
+                    and(eq("_id", product.id), eq("variants.id", target.id)),
+                    inc("variants.$.stockQty", delta),
+                )
+            }
+        }
+    }
+
     suspend fun cancelShopOrder(shopId: String, orderId: String, reason: String?): OrderDto {
         val row = orderCol.find(eq("_id", orderId)).firstOrNull() ?: error("Order not found")
         require(row.shopId == shopId) { "Forbidden" }
@@ -3621,6 +3711,9 @@ class AppStore(
         createdById = createdById,
         createdByName = createdByName,
         createdByRole = createdByRole,
+        adjustmentAmount = adjustmentAmount,
+        adjustmentMethod = adjustmentMethod,
+        adjustedByName = adjustedByName,
         syncedAt = syncedAt,
     )
 
@@ -5326,6 +5419,9 @@ class AppStore(
             createdById = createdById,
             createdByName = createdByName,
             createdByRole = createdByRole,
+            adjustmentAmount = adjustmentAmount,
+            adjustmentMethod = adjustmentMethod,
+            adjustedByName = adjustedByName,
         )
     }
 

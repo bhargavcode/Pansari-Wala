@@ -41,6 +41,7 @@ import org.bhargav.pansariwala.feature.delivery.PartnerRegisterVehicleScreen
 import org.bhargav.pansariwala.feature.delivery.PartnerRegisterViewModel
 import org.bhargav.pansariwala.feature.delivery.PartnerReturnToShopScreen
 import org.koin.compose.viewmodel.koinViewModel
+import org.bhargav.pansariwala.feature.language.LanguageOnboardingScreen
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.feature.user.UserLanguageScreen
 import org.bhargav.pansariwala.feature.user.UserNotificationPrefsScreen
@@ -60,6 +61,7 @@ private val deliveryNavConfig = SavedStateConfiguration {
     serializersModule = SerializersModule {
         polymorphic(NavKey::class) {
             subclass(DeliveryRoute.Splash::class, DeliveryRoute.Splash.serializer())
+            subclass(DeliveryRoute.SelectLanguage::class, DeliveryRoute.SelectLanguage.serializer())
             subclass(DeliveryRoute.Login::class, DeliveryRoute.Login.serializer())
             subclass(DeliveryRoute.LoginOtp::class, DeliveryRoute.LoginOtp.serializer())
             subclass(DeliveryRoute.Register::class, DeliveryRoute.Register.serializer())
@@ -108,7 +110,7 @@ fun DeliveryNavGraph() {
     LaunchedEffect(Unit) {
         SessionExpiredBus.events.collect {
             val current = backStack.lastOrNull()
-            if (current is DeliveryRoute.Login || current is DeliveryRoute.LoginOtp) return@collect
+            if (current is DeliveryRoute.SelectLanguage || current is DeliveryRoute.Login || current is DeliveryRoute.LoginOtp) return@collect
             replaceAll(DeliveryRoute.Login)
             snackbarHostState.showSnackbar(
                 message = sessionExpiredMessage,
@@ -130,6 +132,7 @@ fun DeliveryNavGraph() {
     val pendingOpen by NotificationOpenRequests.pending.collectAsState()
     val currentRoute = backStack.lastOrNull()
     val signedIn = currentRoute != null && currentRoute !is DeliveryRoute.Splash &&
+        currentRoute !is DeliveryRoute.SelectLanguage &&
         currentRoute !is DeliveryRoute.Login && currentRoute !is DeliveryRoute.LoginOtp &&
         currentRoute !is DeliveryRoute.Register && currentRoute !is DeliveryRoute.RegisterAddress &&
         currentRoute !is DeliveryRoute.RegisterVehicle && currentRoute !is DeliveryRoute.RegisterOtp
@@ -165,8 +168,12 @@ fun DeliveryNavGraph() {
                     DeliveryRoute.Splash -> NavEntry(route) {
                         SplashScreen(
                             onNavigateToLogin = { replaceAll(DeliveryRoute.Login) },
+                            onNavigateToLanguage = { replaceAll(DeliveryRoute.SelectLanguage) },
                             onNavigateToHome = { replaceAll(DeliveryRoute.Home) },
                         )
+                    }
+                    DeliveryRoute.SelectLanguage -> NavEntry(route) {
+                        LanguageOnboardingScreen(onContinue = { replaceAll(DeliveryRoute.Login) })
                     }
                     DeliveryRoute.Login -> NavEntry(route) {
                         PartnerLoginScreen(

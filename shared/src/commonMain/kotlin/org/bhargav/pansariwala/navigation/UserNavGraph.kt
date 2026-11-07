@@ -39,6 +39,7 @@ import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
+import org.bhargav.pansariwala.feature.language.LanguageOnboardingScreen
 import org.bhargav.pansariwala.feature.splash.SplashScreen
 import org.bhargav.pansariwala.feature.user.AccountHomeScreen
 import org.bhargav.pansariwala.feature.user.AddressScreen
@@ -84,6 +85,7 @@ private val userNavConfig = SavedStateConfiguration {
     serializersModule = SerializersModule {
         polymorphic(NavKey::class) {
             subclass(UserRoute.Splash::class, UserRoute.Splash.serializer())
+            subclass(UserRoute.SelectLanguage::class, UserRoute.SelectLanguage.serializer())
             subclass(UserRoute.PhoneAuth::class, UserRoute.PhoneAuth.serializer())
             subclass(UserRoute.PhoneOtp::class, UserRoute.PhoneOtp.serializer())
             subclass(UserRoute.ProfileSetup::class, UserRoute.ProfileSetup.serializer())
@@ -139,7 +141,7 @@ fun UserNavGraph() {
     LaunchedEffect(Unit) {
         SessionExpiredBus.events.collect {
             val current = backStack.lastOrNull()
-            if (current is UserRoute.PhoneAuth || current is UserRoute.PhoneOtp) return@collect
+            if (current is UserRoute.SelectLanguage || current is UserRoute.PhoneAuth || current is UserRoute.PhoneOtp) return@collect
             replaceAll(UserRoute.PhoneAuth)
             snackbarHostState.showSnackbar(
                 message = sessionExpiredMessage,
@@ -172,6 +174,7 @@ fun UserNavGraph() {
     val pendingOpen by NotificationOpenRequests.pending.collectAsState()
     val currentRoute = backStack.lastOrNull()
     val signedIn = currentRoute != null && currentRoute !is UserRoute.Splash &&
+        currentRoute !is UserRoute.SelectLanguage &&
         currentRoute !is UserRoute.PhoneAuth && currentRoute !is UserRoute.PhoneOtp &&
         currentRoute !is UserRoute.ProfileSetup && currentRoute !is UserRoute.ProfileAddress
     LaunchedEffect(pendingOpen, signedIn) {
@@ -211,9 +214,13 @@ fun UserNavGraph() {
                     UserRoute.Splash -> NavEntry(route) {
                         SplashScreen(
                             onNavigateToLogin = { replaceAll(UserRoute.PhoneAuth) },
+                            onNavigateToLanguage = { replaceAll(UserRoute.SelectLanguage) },
                             onNavigateToHome = { replaceAll(UserRoute.Shell) },
                             onNavigateToCompleteProfile = { replaceAll(UserRoute.ProfileSetup) },
                         )
+                    }
+                    UserRoute.SelectLanguage -> NavEntry(route) {
+                        LanguageOnboardingScreen(onContinue = { replaceAll(UserRoute.PhoneAuth) })
                     }
                     UserRoute.PhoneAuth -> NavEntry(route) {
                         PhoneAuthScreen(onOtpSent = { push(UserRoute.PhoneOtp) }, viewModel = phoneAuthViewModel)
